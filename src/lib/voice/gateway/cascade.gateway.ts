@@ -69,11 +69,14 @@ function handleConnection(ws: WebSocket, _ctx: VoiceGatewayContext): void {
     onResponseCancelled: (responseId, reason) =>
       safeSend(ws, { type: "response.cancelled", responseId, reason }),
     onTranscript: (role, text) => safeSend(ws, { type: "transcript", role, text }),
-    onPartialTranscript: (text) => safeSend(ws, { type: "transcript.partial", text }),
+    onPartialTranscript: (text, role) =>
+      safeSend(ws, { type: "transcript.partial", text, role: role ?? "user" }),
     onResponseDone: () => safeSend(ws, { type: "response.done" }),
     onEnd: (reason) => safeSend(ws, { type: "call.ended", reason }),
     onError: (message) => safeSend(ws, { type: "relay.error", message }),
     onNodeActive: (nodeId) => safeSend(ws, { type: "node.active", nodeId }),
+    onToolCall: (toolId, result, ok) =>
+      safeSend(ws, { type: "tool.result", toolId, result, ok }),
   };
 
   function startSession(msg: Record<string, unknown>): void {
@@ -102,6 +105,10 @@ function handleConnection(ws: WebSocket, _ctx: VoiceGatewayContext): void {
       supabase: agentId ? makeSupabaseAdmin() : null,
       flow: msg.flow,
       variables: (msg.variables ?? {}) as Record<string, VariableValue>,
+      startSpeaker:
+        msg.startSpeaker === "agent" || msg.startSpeaker === "user"
+          ? msg.startSpeaker
+          : undefined,
       speechLanguages: Array.isArray(msg.speechLanguages)
         ? (msg.speechLanguages as string[])
         : msg.speechLanguages

@@ -55,10 +55,10 @@ export async function assignLeadsCore(
     assigneeName = prof?.full_name || prof?.email || null;
   }
 
-  // Load current assignees (workspace-scoped) for the audit trail.
+  // Select current assignees + campaign stage (workspace-scoped) for the audit trail.
   const { data: leads, error: loadErr } = await sb
     .from("leads")
-    .select("id, assigned_to, full_name, phone, email")
+    .select("id, assigned_to, full_name, phone, email, pipeline_stage")
     .eq("workspace_id", workspaceId)
     .in("id", data.leadIds);
   if (loadErr) throw new Error(loadErr.message);
@@ -148,6 +148,15 @@ export async function assignLeadsCore(
       }
     } catch (nErr: any) {
       console.warn("[lead-assign] notification failed (non-fatal):", nErr?.message ?? nErr);
+    }
+  }
+
+  if (data.assignedTo) {
+    try {
+      const { markCampaignLeadsAssigned } = await import("@/lib/whatsapp/campaign-stage.server");
+      await markCampaignLeadsAssigned(sb, workspaceId, toChange.map((l) => l.id));
+    } catch (stageErr: any) {
+      console.warn("[lead-assign] campaign stage bump failed (non-fatal):", stageErr?.message ?? stageErr);
     }
   }
 

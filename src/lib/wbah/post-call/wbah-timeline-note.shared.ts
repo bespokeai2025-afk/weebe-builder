@@ -28,6 +28,9 @@ export function buildWbahAiTimelineNoteText(input: {
   userSentiment?: string | null;
   callSummary?: string | null;
   transcript?: string | null;
+  appointmentDate?: string | null;
+  appointmentTime?: string | null;
+  callbackUtc?: string | null;
 }): string {
   const header = [
     input.label,
@@ -37,8 +40,15 @@ export function buildWbahAiTimelineNoteText(input: {
     .filter(Boolean)
     .join(" — ");
 
+  const facts = [
+    input.appointmentDate
+      ? `Appointment: ${input.appointmentDate}${input.appointmentTime ? ` ${input.appointmentTime}` : ""}`
+      : null,
+    input.callbackUtc ? `Callback: ${input.callbackUtc}` : null,
+  ].filter(Boolean);
+
   const summary = input.callSummary?.trim() || "No summary";
-  let body = `${header}\n\n${summary}`;
+  let body = `${header}\n\n${facts.length ? `${facts.join("\n")}\n\n` : ""}${summary}`;
 
   const transcript = input.transcript?.trim();
   if (transcript) {

@@ -6,6 +6,7 @@
 import { enrichWbahVerifiedDetailsFromSummaries, applyOwnerOccupiedCorrection } from "./wbah-crm-enrichment.shared";
 import { sanitizeWbahUkAddressFields } from "./wbah-uk-address.shared";
 import { normalizeWbahUkMobilePhone } from "./wbah-uk-phone.shared";
+import { pickWbahCrmEmail } from "./wbah-email.shared";
 import {
   applyContactAddressSameAsProperty,
   applyVacantOrTenantedToPayload,
@@ -95,11 +96,18 @@ export function normalizeWbahAgenticCrmFields(
     if (isEmptyValue(value)) continue;
 
     if (key === "mobilephone" && typeof value === "string") {
-      out[key] = normalizeWbahUkMobilePhone(value);
+      const normalized = normalizeWbahUkMobilePhone(value);
+      if (normalized) out[key] = normalized;
       continue;
     }
     if (key === "new_othervendor_hometelephone" && typeof value === "string") {
-      out[key] = normalizeWbahUkMobilePhone(value);
+      const normalized = normalizeWbahUkMobilePhone(value);
+      if (normalized) out[key] = normalized;
+      continue;
+    }
+    if (key === "emailaddress1" && typeof value === "string") {
+      const email = pickWbahCrmEmail(value);
+      if (email) out[key] = email;
       continue;
     }
 

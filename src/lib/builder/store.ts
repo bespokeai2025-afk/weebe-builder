@@ -1,11 +1,24 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { Edge, Node, OnNodesChange, OnEdgesChange, Connection } from "@xyflow/react";
-import { addEdge, applyEdgeChanges, applyNodeChanges } from "@xyflow/react";
-import type { BuilderSettings, BuilderVariable, FlowNodeData, NodeKind } from "./types";
+import type { Edge, OnNodesChange, OnEdgesChange, Connection } from "@xyflow/react";
+import { addEdge, applyEdgeChanges, applyNodeChanges, reconnectEdge } from "@xyflow/react";
+import type {
+  BuilderDebugEvent,
+  BuilderSettings,
+  BuilderVariable,
+  FlowNode,
+  FlowNodeData,
+  NodeKind,
+  SavedFlowComponent,
+} from "./types";
 import { autoLayoutNodes } from "./auto-layout";
+import { defaultNodeData } from "./node-registry";
+import { cloneGraphSlice, selectedGraphSlice, type GraphSlice } from "./graph-ops";
+import { flowComponentSlice } from "./flow-components";
+import { appendFlowVersion, makePublishedSnapshot, nextVersionNumber } from "./flow-history";
+import { validateComponentSlice } from "./validate";
 
-export type FlowNode = Node<FlowNodeData>;
+export type { FlowNode };
 
 interface State {
   nodes: FlowNode[];
@@ -21,14 +34,40 @@ interface State {
   currentAgentRowId: string | null;
   /** Bumped whenever the whole graph is replaced (import/clear) so the canvas can re-fit. */
   flowVersion: number;
+  /** True when canvas/settings/variables differ from the last successful save. */
+  isDirty: boolean;
+  /** Incremented on every dirty edit so autosave can debounce on content, not just the flag. */
+  editRevision: number;
+  canUndo: boolean;
+  canRedo: boolean;
   onNodesChange: OnNodesChange<FlowNode>;
   onEdgesChange: OnEdgesChange;
   onConnect: (c: Connection) => void;
+  onReconnect: (oldEdge: Edge, c: Connection) => void;
   addNode: (kind: NodeKind, position?: { x: number; y: number }) => void;
   addBookingNode: (position?: { x: number; y: number }) => void;
+  addComponent: (id: string, position?: { x: number; y: number }) => void;
+  addComponentSlice: (slice: GraphSlice, position?: { x: number; y: number }) => void;
+  saveSelectionAsComponent: (label: string, description?: string) => { ok: true; id: string } | { ok: false; error: string };
+  updateCustomComponent: (id: string, patch: Partial<Pick<SavedFlowComponent, "label" | "description">>) => void;
+  deleteCustomComponent: (id: string) => void;
+  duplicateCustomComponent: (id: string) => string | null;
+  enterComponentEditor: (id: string) => boolean;
+  exitComponentEditor: (save: boolean) => void;
+  editingComponentId: string | null;
+  recordFlowVersion: (label: string) => number | null;
+  publishFlow: () => number;
+  restoreFlowVersion: (version: number) => boolean;
+  unpublishFlow: () => void;
+  debugEvents: BuilderDebugEvent[];
+  debugOpen: boolean;
+  setDebugOpen: (open: boolean) => void;
+  pushDebugEvent: (event: Omit<BuilderDebugEvent, "id" | "ts"> & { ts?: number }) => void;
+  clearDebugEvents: () => void;
   updateNode: (id: string, data: Partial<FlowNodeData>) => void;
   deleteNode: (id: string) => void;
   deleteEdge: (id: string) => void;
+  deleteSelection: () => void;
   selectNode: (id: string | null) => void;
   selectNodeAddVar: (id: string) => void;
   setActiveNode: (id: string | null) => void;
@@ -47,18 +86,25 @@ interface State {
     settings?: Partial<BuilderSettings>;
     variables?: BuilderVariable[];
     agentRowId?: string | null;
+    /** Drop the previous agent's prompt, snapshot, and extras. Required on JSON/PDF import. */
+    replaceSettings?: boolean;
   }) => void;
   setCurrentAgentRowId: (id: string | null) => void;
   /** Bumped on every successful agent save so the Builder can dismiss the undo toast. */
   saveVersion: number;
   bumpSaveVersion: () => void;
+  undo: () => void;
+  redo: () => void;
+  copySelection: () => boolean;
+  pasteClipboard: () => boolean;
+  duplicateSelection: () => boolean;
 }
 
 const defaultSettings: BuilderSettings = {
   agentName: "Conversation Flow Agent",
   companyName: "",
   globalPrompt:
-    "You should be polite and humble to the user. Stay on script, keep responses concise.",
+    "You should be polite and humble. Stay on this node's task only. Keep responses concise.",
   beginMessage: "",
   model: "gpt-4.1",
   voiceId: "11labs-Adrian",
@@ -115,32 +161,6 @@ const defaultSettings: BuilderSettings = {
   channelType: "voice",
 };
 
-const NODE_LABELS: Record<NodeKind, string> = {
-  conversation: "Conversation",
-  function: "Function",
-  call_transfer: "Call Transfer",
-  press_digit: "Press Digit",
-  logic_split: "Logic Split",
-  agent_transfer: "Agent Transfer",
-  sms: "In-Call SMS",
-  extract_variable: "Extract Variable",
-  code: "Code",
-  ending: "Ending",
-  note: "Note",
-  wa_start:       "WA Start",
-  wa_message:     "WA Message",
-  wa_delay:       "WA Delay",
-  wa_media:       "WA Media",
-  wa_booking:     "WA Booking",
-  wa_wait_reply:  "WA Wait Reply",
-  wa_extract_var: "WA Extract Var",
-  wa_tag:         "WA Tag",
-  wa_template:    "WA Template",
-  check_documents:   "Check Documents",
-  send_upload_link:  "Send Upload Link",
-  http_request:      "HTTP Request",
-};
-
 const makeNode = (
   kind: NodeKind,
   id: string,
@@ -151,13 +171,7 @@ const makeNode = (
   id,
   type: kind,
   position: { x, y },
-  data: {
-    kind,
-    label: NODE_LABELS[kind],
-    dialogue: "",
-    transitions: [],
-    ...overrides,
-  },
+  data: defaultNodeData(kind, overrides),
 });
 
 const initialNodes: FlowNode[] = [
@@ -180,6 +194,64 @@ const initialEdges: Edge[] = [];
 let idSeq = 100;
 const nextId = (prefix: string) => `${prefix}-${++idSeq}-${Date.now().toString(36)}`;
 
+const HISTORY_MAX = 50;
+let past: GraphSlice[] = [];
+let future: GraphSlice[] = [];
+let clipboard: GraphSlice | null = null;
+let componentBackup: GraphSlice | null = null;
+let dragHistoryPushed = false;
+
+function cloneSlice(nodes: FlowNode[], edges: Edge[]): GraphSlice {
+  return structuredClone({ nodes, edges });
+}
+
+function pushHistory(nodes: FlowNode[], edges: Edge[]) {
+  past.push(cloneSlice(nodes, edges));
+  if (past.length > HISTORY_MAX) past.shift();
+  future = [];
+}
+
+function resetHistory() {
+  past = [];
+  future = [];
+  dragHistoryPushed = false;
+}
+
+function dirtyFields(editRevision: number): Pick<State, "isDirty" | "editRevision" | "canUndo" | "canRedo"> {
+  return {
+    isDirty: true,
+    editRevision: editRevision + 1,
+    canUndo: past.length > 0,
+    canRedo: future.length > 0,
+  };
+}
+
+function pruneTransitionTargets(nodes: FlowNode[], liveIds: Set<string>): FlowNode[] {
+  return nodes.map((n) => ({
+    ...n,
+    data: {
+      ...n.data,
+      transitions: (n.data.transitions ?? []).map((t) =>
+        t.target && !liveIds.has(t.target) ? { ...t, target: null } : t,
+      ),
+    },
+  }));
+}
+
+function edgeLabelForConnection(nodes: FlowNode[], c: Connection): string | undefined {
+  if (!c.source || !c.sourceHandle) return undefined;
+  const source = nodes.find((n) => n.id === c.source);
+  const transition = source?.data.transitions?.find((t) => t.id === c.sourceHandle);
+  const text = transition?.condition?.trim();
+  if (text) return text;
+  if (source?.data.kind === "logic_split" && !text) return "else";
+  return undefined;
+}
+
+function deselectAll<T extends { selected?: boolean }>(items: T[]): T[] {
+  return items.map((item) => (item.selected ? { ...item, selected: false } : item));
+}
+
 export const useBuilderStore = create<State>()(
   persist(
     (set, get) => ({
@@ -194,14 +266,61 @@ export const useBuilderStore = create<State>()(
       currentAgentRowId: null,
       flowVersion: 0,
       saveVersion: 0,
-      onNodesChange: (changes) => set({ nodes: applyNodeChanges(changes, get().nodes) }),
-      onEdgesChange: (changes) => set({ edges: applyEdgeChanges(changes, get().edges) }),
-      onConnect: (c) => {
-        const edgeId = `edge-${Date.now().toString(36)}`;
+      isDirty: false,
+      editRevision: 0,
+      canUndo: false,
+      canRedo: false,
+      onNodesChange: (changes) => {
+        const selectOnly = changes.every((c) => c.type === "select");
+        const dragStart = changes.some((c) => c.type === "position" && c.dragging === true);
+        const dragEnd = changes.some((c) => c.type === "position" && c.dragging === false);
+        const structural = changes.some((c) => c.type === "remove" || c.type === "add");
+        const positionCommit =
+          changes.some((c) => c.type === "position" && c.dragging === false) ||
+          changes.some((c) => c.type === "position" && c.dragging === undefined);
+
+        if (!selectOnly) {
+          if (dragStart && !dragHistoryPushed) {
+            pushHistory(get().nodes, get().edges);
+            dragHistoryPushed = true;
+          } else if ((structural || positionCommit) && !dragHistoryPushed) {
+            pushHistory(get().nodes, get().edges);
+          }
+        }
+        if (dragEnd) dragHistoryPushed = false;
+
+        let nodes = applyNodeChanges(changes, get().nodes);
+        let edges = get().edges;
+        if (structural) {
+          const live = new Set(nodes.map((n) => n.id));
+          edges = edges.filter((e) => live.has(e.source) && live.has(e.target));
+          nodes = pruneTransitionTargets(nodes, live);
+        }
         set({
-          edges: addEdge({ ...c, type: "step", animated: false, id: edgeId }, get().edges),
+          nodes,
+          edges,
+          ...(selectOnly ? {} : dirtyFields(get().editRevision)),
         });
-        // If the connection originates from a transition handle, link it.
+      },
+      onEdgesChange: (changes) => {
+        const selectOnly = changes.every((c) => c.type === "select");
+        if (!selectOnly) pushHistory(get().nodes, get().edges);
+        set({
+          edges: applyEdgeChanges(changes, get().edges),
+          ...(selectOnly ? {} : dirtyFields(get().editRevision)),
+        });
+      },
+      onConnect: (c) => {
+        pushHistory(get().nodes, get().edges);
+        const edgeId = `edge-${Date.now().toString(36)}`;
+        const label = edgeLabelForConnection(get().nodes, c);
+        set({
+          edges: addEdge(
+            { ...c, type: "step", animated: false, id: edgeId, label },
+            get().edges,
+          ),
+          ...dirtyFields(get().editRevision),
+        });
         if (c.sourceHandle && c.source && c.target) {
           set({
             nodes: get().nodes.map((n) =>
@@ -220,92 +339,336 @@ export const useBuilderStore = create<State>()(
           });
         }
       },
+      onReconnect: (oldEdge, c) => {
+        pushHistory(get().nodes, get().edges);
+        const label = edgeLabelForConnection(get().nodes, c) ?? oldEdge.label;
+        set({
+          edges: reconnectEdge(oldEdge, c, get().edges).map((e) =>
+            e.id === oldEdge.id ? { ...e, label } : e,
+          ),
+          ...dirtyFields(get().editRevision),
+        });
+        if (oldEdge.sourceHandle && oldEdge.source) {
+          set({
+            nodes: get().nodes.map((n) => {
+              if (n.id !== oldEdge.source && n.id !== c.source) return n;
+              return {
+                ...n,
+                data: {
+                  ...n.data,
+                  transitions: n.data.transitions.map((t) => {
+                    if (n.id === oldEdge.source && t.id === oldEdge.sourceHandle) {
+                      return { ...t, target: t.target === oldEdge.target ? null : t.target };
+                    }
+                    if (n.id === c.source && t.id === c.sourceHandle && c.target) {
+                      return { ...t, target: c.target };
+                    }
+                    return t;
+                  }),
+                },
+              };
+            }),
+          });
+        }
+      },
       addNode: (kind, position) => {
+        pushHistory(get().nodes, get().edges);
         const id = nextId(kind);
         const pos = position ?? {
           x: 320 + Math.random() * 240,
           y: 120 + get().nodes.length * 40,
         };
-        const node = makeNode(kind, id, pos.x, pos.y, {
-          ...(kind === "function" ? { speakDuringExecution: false, waitForResult: true } : {}),
-          ...(kind === "ending"
-            ? { instructionType: "prompt" as const, endingPrompt: "Politely end the call" }
-            : {}),
-          ...(kind === "conversation" ? { instructionType: "prompt" } : {}),
-          ...(kind === "wa_wait_reply" ? { dialogue: "" } : {}),
-          ...(kind === "wa_extract_var" ? { extractVarName: "", extractVarPrompt: "" } : {}),
-          ...(kind === "wa_tag" ? { tagName: "" } : {}),
-          ...(kind === "wa_template" ? { templateBody: "" } : {}),
+        const node = makeNode(kind, id, pos.x, pos.y);
+        let nodes = [...deselectAll(get().nodes), { ...node, selected: true }];
+        if (kind === "begin") {
+          nodes = nodes.map((n) => ({
+            ...n,
+            data: { ...n.data, isStart: n.id === id },
+          }));
+        }
+        set({
+          nodes,
+          selectedNodeId: id,
+          ...dirtyFields(get().editRevision),
         });
-        set({ nodes: [...get().nodes, node], selectedNodeId: id });
       },
       addBookingNode: (position) => {
-        const id = nextId("conversation");
-        const pos = position ?? {
-          x: 320 + Math.random() * 240,
-          y: 120 + get().nodes.length * 40,
-        };
-        const node = makeNode("conversation", id, pos.x, pos.y, {
-          label: "Booking",
-          instructionType: "prompt",
-          dialogue: [
-            "## Goal",
-            "Help the caller schedule, reschedule, or cancel an appointment using the booking tools available to you.",
-            "",
-            "## When to engage",
-            "- The caller asks to book, schedule, reserve, or set up an appointment / call / meeting.",
-            "- The caller asks about available times, openings, or your calendar.",
-            "- The caller asks to reschedule or cancel an existing appointment.",
-            "",
-            "## Required fields you MUST collect before calling book_appointment",
-            '1. `name` — full name (first + last). Ask: "Can I grab your full name?"',
-            '2. `email` — a valid email address. Ask: "What email should I send the confirmation to?" Spell it back letter-by-letter to confirm (e.g. "j-o-h-n at gmail dot com"). Do NOT proceed if unsure — re-ask until confirmed. Never invent or guess an email.',
-            '3. `phone` — REQUIRED. Ask: "And what\'s the best phone number for you?" even if the caller is already calling from a known number — confirm it explicitly.',
-            "4. `start` — the ISO 8601 start time of the slot the caller picked (from check_availability).",
-            '5. `timezone` — IANA timezone. Infer from the caller\'s area code (e.g. 212/917 → America/New_York, 310/424 → America/Los_Angeles, 312 → America/Chicago, 44 prefix → Europe/London) and say it aloud to confirm (e.g. "I\'ll book that in Eastern Time — is that right?"). Ask if you cannot determine it.',
-            "",
-            "## How to handle it",
-            "1. Greet and ask what they'd like to book.",
-            "2. Collect name, email (spelled back to confirm), and phone number.",
-            "3. Determine timezone from area code, state it aloud, and confirm with the caller.",
-            "4. Ask for preferred day and rough time window.",
-            "5. Call `check_availability` with the requested date range to fetch open slots.",
-            '6. Read 2–3 nearby options back in natural language (e.g. "Tuesday at 2pm or Wednesday at 10am").',
-            "7. Once they pick a slot, call `book_appointment` with ALL of: name, email (confirmed), phone (confirmed), start (ISO from the slot), and timezone.",
-            "8. Confirm the booking out loud and tell them a confirmation email and text are on the way.",
-            "9. For reschedules/cancellations, ask for the booking reference or the email used, then call `reschedule_appointment` or `cancel_appointment`.",
-            "",
-            "## Rules",
-            "- NEVER call `book_appointment` without both a confirmed email AND phone — the API will reject the booking if both are missing.",
-            "- Never invent availability — always call `check_availability` first.",
-            "- If a tool returns an error, apologize briefly, explain in one sentence, and offer to try a different time or take a message.",
-            "- Keep responses short and conversational; do not read raw JSON back to the caller.",
-          ].join("\n"),
-        });
-        set({ nodes: [...get().nodes, node], selectedNodeId: id });
+        get().addComponent("booking", position);
       },
-      updateNode: (id, data) =>
+      addComponentSlice: (slice, position) => {
+        if (!slice.nodes.length) return;
+        pushHistory(get().nodes, get().edges);
+        const origin = position ?? {
+          x: 320 + Math.random() * 80,
+          y: 120 + get().nodes.length * 24,
+        };
+        const cloned = cloneGraphSlice(slice, nextId, origin);
         set({
-          nodes: get().nodes.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...data } } : n)),
-        }),
-      deleteNode: (id) =>
+          nodes: [...deselectAll(get().nodes), ...cloned.nodes],
+          edges: [...get().edges, ...cloned.edges],
+          selectedNodeId: cloned.nodes[0]?.id ?? get().selectedNodeId,
+          ...dirtyFields(get().editRevision),
+        });
+      },
+      addComponent: (id, position) => {
+        const slice = flowComponentSlice(id, get().settings.customComponents ?? []);
+        if (!slice) return;
+        get().addComponentSlice(slice, position);
+      },
+      saveSelectionAsComponent: (label, description = "") => {
+        const slice = selectedGraphSlice(get().nodes, get().edges);
+        const fallbackId = get().selectedNodeId;
+        const source =
+          slice.nodes.length > 0
+            ? slice
+            : fallbackId
+              ? { nodes: get().nodes.filter((n) => n.id === fallbackId), edges: [] }
+              : { nodes: [], edges: [] };
+        if (source.nodes.length === 0) return { ok: false, error: "Select one or more nodes first." };
+        const issues = validateComponentSlice(source);
+        if (issues.some((i) => i.level === "error")) {
+          return { ok: false, error: issues.find((i) => i.level === "error")!.message };
+        }
+        const id = nextId("comp");
+        const channel = get().settings.channelType === "whatsapp" ? "whatsapp" : "voice";
+        const entry: SavedFlowComponent = {
+          id,
+          label: label.trim() || "Untitled component",
+          description: description.trim(),
+          channel,
+          icon: "custom",
+          slice: structuredClone(source),
+          createdAt: new Date().toISOString(),
+        };
         set({
-          nodes: get().nodes.filter((n) => n.id !== id),
+          settings: {
+            ...get().settings,
+            customComponents: [...(get().settings.customComponents ?? []), entry],
+          },
+          ...dirtyFields(get().editRevision),
+        });
+        return { ok: true, id };
+      },
+      updateCustomComponent: (id, patch) => {
+        const list = get().settings.customComponents ?? [];
+        set({
+          settings: {
+            ...get().settings,
+            customComponents: list.map((c) =>
+              c.id === id ? { ...c, ...patch, updatedAt: new Date().toISOString() } : c,
+            ),
+          },
+          ...dirtyFields(get().editRevision),
+        });
+      },
+      deleteCustomComponent: (id) => {
+        set({
+          settings: {
+            ...get().settings,
+            customComponents: (get().settings.customComponents ?? []).filter((c) => c.id !== id),
+          },
+          ...dirtyFields(get().editRevision),
+        });
+      },
+      duplicateCustomComponent: (id) => {
+        const src = (get().settings.customComponents ?? []).find((c) => c.id === id);
+        if (!src) return null;
+        const copyId = nextId("comp");
+        const copy: SavedFlowComponent = {
+          ...structuredClone(src),
+          id: copyId,
+          label: `${src.label} copy`,
+          createdAt: new Date().toISOString(),
+        };
+        set({
+          settings: {
+            ...get().settings,
+            customComponents: [...(get().settings.customComponents ?? []), copy],
+          },
+          ...dirtyFields(get().editRevision),
+        });
+        return copyId;
+      },
+      editingComponentId: null,
+      enterComponentEditor: (id) => {
+        const src = (get().settings.customComponents ?? []).find((c) => c.id === id);
+        if (!src) return false;
+        componentBackup = cloneSlice(get().nodes, get().edges);
+        resetHistory();
+        set({
+          editingComponentId: id,
+          nodes: structuredClone(src.slice.nodes),
+          edges: structuredClone(src.slice.edges),
+          selectedNodeId: src.slice.nodes[0]?.id ?? null,
+          flowVersion: get().flowVersion + 1,
+          canUndo: false,
+          canRedo: false,
+        });
+        return true;
+      },
+      exitComponentEditor: (save) => {
+        const id = get().editingComponentId;
+        if (!id || !componentBackup) {
+          set({ editingComponentId: null });
+          return;
+        }
+        if (save) {
+          const list = get().settings.customComponents ?? [];
+          set({
+            settings: {
+              ...get().settings,
+              customComponents: list.map((c) =>
+                c.id === id
+                  ? {
+                      ...c,
+                      slice: cloneSlice(get().nodes, get().edges),
+                      updatedAt: new Date().toISOString(),
+                    }
+                  : c,
+              ),
+            },
+          });
+        }
+        resetHistory();
+        set({
+          editingComponentId: null,
+          nodes: componentBackup.nodes,
+          edges: componentBackup.edges,
+          selectedNodeId: null,
+          flowVersion: get().flowVersion + 1,
+          canUndo: false,
+          canRedo: false,
+          ...dirtyFields(get().editRevision),
+        });
+        componentBackup = null;
+      },
+      recordFlowVersion: (label) => {
+        const version = nextVersionNumber(get().settings.flowHistory);
+        const history = appendFlowVersion(get().settings, {
+          label,
+          flowData: cloneSlice(get().nodes, get().edges),
+          variables: structuredClone(get().variables),
+        });
+        if (history === get().settings.flowHistory) return null;
+        set({ settings: { ...get().settings, flowHistory: history } });
+        return history[history.length - 1]?.version ?? version;
+      },
+      publishFlow: () => {
+        const version = get().recordFlowVersion("Published") ?? nextVersionNumber(get().settings.flowHistory);
+        const published = makePublishedSnapshot(
+          version,
+          get().nodes,
+          get().edges,
+          get().variables,
+        );
+        set({
+          settings: { ...get().settings, publishedSnapshot: published },
+          ...dirtyFields(get().editRevision),
+        });
+        return version;
+      },
+      restoreFlowVersion: (version) => {
+        const snap = (get().settings.flowHistory ?? []).find((v) => v.version === version);
+        if (!snap) return false;
+        pushHistory(get().nodes, get().edges);
+        set({
+          nodes: structuredClone(snap.flowData.nodes),
+          edges: structuredClone(snap.flowData.edges),
+          variables: structuredClone(snap.variables),
+          selectedNodeId: null,
+          flowVersion: get().flowVersion + 1,
+          ...dirtyFields(get().editRevision),
+        });
+        return true;
+      },
+      unpublishFlow: () => {
+        set({
+          settings: { ...get().settings, publishedSnapshot: null },
+          ...dirtyFields(get().editRevision),
+        });
+      },
+      debugEvents: [],
+      debugOpen: false,
+      setDebugOpen: (open) => set({ debugOpen: open }),
+      pushDebugEvent: (event) => {
+        const row: BuilderDebugEvent = {
+          id: nextId("dbg"),
+          ts: event.ts ?? Date.now(),
+          type: event.type,
+          nodeId: event.nodeId,
+          message: event.message,
+          detail: event.detail,
+        };
+        const next = [...get().debugEvents, row].slice(-200);
+        set({ debugEvents: next, debugOpen: true });
+      },
+      clearDebugEvents: () => set({ debugEvents: [] }),
+      updateNode: (id, data) => {
+        pushHistory(get().nodes, get().edges);
+        const nodes = get().nodes.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...data } } : n));
+        let edges = get().edges;
+        if (data.transitions) {
+          edges = edges.map((e) => {
+            if (e.source !== id || !e.sourceHandle) return e;
+            const t = data.transitions!.find((tr) => tr.id === e.sourceHandle);
+            if (!t) return e;
+            const label =
+              t.condition?.trim() ||
+              (nodes.find((n) => n.id === id)?.data.kind === "logic_split" ? "else" : undefined);
+            return { ...e, label };
+          });
+        }
+        set({ nodes, edges, ...dirtyFields(get().editRevision) });
+      },
+      deleteNode: (id) => {
+        pushHistory(get().nodes, get().edges);
+        const remaining = get().nodes.filter((n) => n.id !== id);
+        set({
+          nodes: pruneTransitionTargets(remaining, new Set(remaining.map((n) => n.id))),
           edges: get().edges.filter((e) => e.source !== id && e.target !== id),
           selectedNodeId: get().selectedNodeId === id ? null : get().selectedNodeId,
-        }),
-      deleteEdge: (id) => set({ edges: get().edges.filter((e) => e.id !== id) }),
+          ...dirtyFields(get().editRevision),
+        });
+      },
+      deleteEdge: (id) => {
+        pushHistory(get().nodes, get().edges);
+        set({
+          edges: get().edges.filter((e) => e.id !== id),
+          ...dirtyFields(get().editRevision),
+        });
+      },
+      deleteSelection: () => {
+        const selected = get().nodes.filter((n) => n.selected);
+        const ids = new Set(selected.map((n) => n.id));
+        if (ids.size === 0 && get().selectedNodeId) ids.add(get().selectedNodeId);
+        const selectedEdges = get().edges.filter((e) => e.selected || ids.has(e.source) || ids.has(e.target));
+        if (ids.size === 0 && selectedEdges.length === 0) return;
+        pushHistory(get().nodes, get().edges);
+        const remaining = get().nodes.filter((n) => !ids.has(n.id));
+        const live = new Set(remaining.map((n) => n.id));
+        set({
+          nodes: pruneTransitionTargets(remaining, live),
+          edges: get().edges.filter((e) => !e.selected && live.has(e.source) && live.has(e.target)),
+          selectedNodeId:
+            get().selectedNodeId && ids.has(get().selectedNodeId) ? null : get().selectedNodeId,
+          ...dirtyFields(get().editRevision),
+        });
+      },
       selectNode: (id) => set({ selectedNodeId: id, pendingAddVariable: false }),
       selectNodeAddVar: (id) => set({ selectedNodeId: id, pendingAddVariable: true }),
       setActiveNode: (id) => set({ activeNodeId: id }),
-      setStartNode: (id) =>
+      setStartNode: (id) => {
+        pushHistory(get().nodes, get().edges);
         set({
           nodes: get().nodes.map((n) => ({
             ...n,
             data: { ...n.data, isStart: n.id === id },
           })),
-        }),
+          ...dirtyFields(get().editRevision),
+        });
+      },
       clearAll: () => {
+        pushHistory(get().nodes, get().edges);
         const channelType = get().settings.channelType ?? "voice";
         const isWA = channelType === "whatsapp";
         return set({
@@ -332,49 +695,125 @@ export const useBuilderStore = create<State>()(
                 }),
               ],
           edges: [],
-          // Preserve channelType through clear so WA flows stay in WA mode.
           settings: { ...defaultSettings, channelType },
           variables: [],
           currentAgentRowId: null,
           selectedNodeId: null,
           activeNodeId: null,
           flowVersion: get().flowVersion + 1,
+          ...dirtyFields(get().editRevision),
         });
       },
-      setSettings: (s) => set({ settings: { ...get().settings, ...s } }),
-      setVariables: (v) => set({ variables: v }),
+      setSettings: (s) => set({ settings: { ...get().settings, ...s }, ...dirtyFields(get().editRevision) }),
+      setVariables: (v) => set({ variables: v, ...dirtyFields(get().editRevision) }),
       addTestCallSeconds: (seconds) =>
         set({ testCallTotalSec: get().testCallTotalSec + Math.max(0, seconds) }),
       resetTestCallCost: () => set({ testCallTotalSec: 0 }),
-      loadFlow: (data) =>
+      loadFlow: (data) => {
+        resetHistory();
+        const settings = data.replaceSettings
+          ? {
+              ...defaultSettings,
+              channelType: data.settings?.channelType ?? get().settings.channelType ?? "voice",
+              ...data.settings,
+              publishedSnapshot: data.settings?.publishedSnapshot ?? null,
+            }
+          : data.settings
+            ? { ...get().settings, ...data.settings }
+            : get().settings;
         set({
           nodes: data.nodes,
           edges: data.edges,
-          settings: data.settings ? { ...get().settings, ...data.settings } : get().settings,
-          variables: data.variables ?? get().variables,
+          settings,
+          variables: data.variables ?? (data.replaceSettings ? [] : get().variables),
           currentAgentRowId:
             data.agentRowId === undefined ? get().currentAgentRowId : data.agentRowId,
           selectedNodeId: null,
           flowVersion: get().flowVersion + 1,
-        }),
+          isDirty: false,
+          canUndo: false,
+          canRedo: false,
+        });
+      },
       setCurrentAgentRowId: (id) => set({ currentAgentRowId: id }),
-      bumpSaveVersion: () => set({ saveVersion: get().saveVersion + 1 }),
+      bumpSaveVersion: () => set({ saveVersion: get().saveVersion + 1, isDirty: false }),
       preAutoLayoutPositions: null,
       autoLayout: () => {
         const snapshot: Record<string, { x: number; y: number }> = {};
         for (const n of get().nodes) snapshot[n.id] = { x: n.position.x, y: n.position.y };
+        pushHistory(get().nodes, get().edges);
         set({
           preAutoLayoutPositions: snapshot,
           nodes: autoLayoutNodes(get().nodes, get().edges),
+          ...dirtyFields(get().editRevision),
         });
       },
       revertLayout: () => {
         const snap = get().preAutoLayoutPositions;
         if (!snap) return;
+        pushHistory(get().nodes, get().edges);
         set({
           nodes: get().nodes.map((n) => (snap[n.id] ? { ...n, position: { ...snap[n.id] } } : n)),
           preAutoLayoutPositions: null,
+          ...dirtyFields(get().editRevision),
         });
+      },
+      undo: () => {
+        if (past.length === 0) return;
+        const current = cloneSlice(get().nodes, get().edges);
+        const prev = past.pop()!;
+        future.push(current);
+        set({
+          nodes: prev.nodes,
+          edges: prev.edges,
+          selectedNodeId: null,
+          ...dirtyFields(get().editRevision),
+          canUndo: past.length > 0,
+          canRedo: true,
+        });
+      },
+      redo: () => {
+        if (future.length === 0) return;
+        const current = cloneSlice(get().nodes, get().edges);
+        const next = future.pop()!;
+        past.push(current);
+        set({
+          nodes: next.nodes,
+          edges: next.edges,
+          selectedNodeId: null,
+          ...dirtyFields(get().editRevision),
+          canUndo: true,
+          canRedo: future.length > 0,
+        });
+      },
+      copySelection: () => {
+        const slice = selectedGraphSlice(get().nodes, get().edges);
+        if (slice.nodes.length === 0) {
+          const id = get().selectedNodeId;
+          const node = id ? get().nodes.find((n) => n.id === id) : undefined;
+          if (!node) return false;
+          clipboard = { nodes: [node], edges: [] };
+          return true;
+        }
+        clipboard = structuredClone(slice);
+        return true;
+      },
+      pasteClipboard: () => {
+        if (!clipboard || clipboard.nodes.length === 0) return false;
+        pushHistory(get().nodes, get().edges);
+        const cloned = cloneGraphSlice(clipboard, nextId);
+        set({
+          nodes: [...deselectAll(get().nodes), ...cloned.nodes],
+          edges: [...deselectAll(get().edges), ...cloned.edges],
+          selectedNodeId: cloned.nodes[0]?.id ?? null,
+          ...dirtyFields(get().editRevision),
+        });
+        return true;
+      },
+      duplicateSelection: () => {
+        const copied = get().copySelection();
+        if (!copied) return false;
+        return get().pasteClipboard();
       },
     }),
     {
@@ -387,6 +826,10 @@ export const useBuilderStore = create<State>()(
         testCallTotalSec: s.testCallTotalSec,
         currentAgentRowId: s.currentAgentRowId,
       }),
+      onRehydrateStorage: () => () => {
+        resetHistory();
+        useBuilderStore.setState({ isDirty: false, canUndo: false, canRedo: false });
+      },
     },
   ),
 );

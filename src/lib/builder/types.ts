@@ -1,8 +1,11 @@
+import type { Node } from "@xyflow/react";
+
 export interface ExtractVariableItem {
   id: string;
   name: string;
   description: string;
-  type: "string" | "number" | "boolean" | "date" | "enum";
+  type: "string" | "number" | "boolean" | "date" | "enum" | "json";
+  required?: boolean;
 }
 
 export type NodeKind =
@@ -28,9 +31,34 @@ export type NodeKind =
   | "wa_template"
   | "check_documents"
   | "send_upload_link"
-  | "http_request";
+  | "http_request"
+  | "begin"
+  | "wait"
+  | "subagent"
+  | "mcp";
 
 export type TransitionConditionType = "prompt" | "equation";
+
+export type EquationOperator =
+  | "=="
+  | "!="
+  | ">"
+  | ">="
+  | "<"
+  | "<="
+  | "contains"
+  | "not_contains"
+  | "exists"
+  | "not_exists"
+  | "matches";
+
+export type EquationJoin = "||" | "&&";
+
+export interface EquationClause {
+  left: string;
+  operator: EquationOperator;
+  right?: string;
+}
 
 export interface Transition {
   id: string;
@@ -38,6 +66,10 @@ export interface Transition {
   target: string | null;
   /** How the runtime evaluates this edge. Defaults to prompt (LLM/heuristics). */
   conditionType?: TransitionConditionType;
+  /** If any (||) or if all (&&). Used when conditionType is equation. */
+  equationJoin?: EquationJoin;
+  /** Structured Retell clauses. Preferred over parsing `condition`. */
+  equations?: EquationClause[];
 }
 
 export interface FlowNodeData {
@@ -49,8 +81,10 @@ export interface FlowNodeData {
   isStart?: boolean;
   /** For conversation start nodes — who speaks first */
   startSpeaker?: "agent" | "user";
-  /** For conversation nodes — static vs prompt instruction */
-  instructionType?: "prompt" | "static_text";
+  /** For conversation nodes — LLM prompt, interpolated template, or verbatim static */
+  instructionType?: "prompt" | "static_text" | "template";
+  /** Extra notes that must never be spoken (static/template nodes). */
+  instructions?: string;
   /** For function nodes */
   toolId?: string;
   speakDuringExecution?: boolean;
@@ -165,6 +199,33 @@ export interface FlowNodeData {
   httpToolName?: string;
   /** For http_request — tool description for the LLM */
   httpToolDescription?: string;
+  /** Query string as `key={{var}}` lines (merged into the URL at export). */
+  httpQuery?: string;
+  /** Path params as `id={{id}}` lines (replaces `:id` or `{id}` in the URL). */
+  httpPathParams?: string;
+  httpAuthType?: "none" | "bearer" | "header";
+  /** Header value or bearer token template. Prefer {{secret}} placeholders — do not paste live keys. */
+  httpAuthValue?: string;
+  httpAuthHeaderName?: string;
+  /** Dedicated Begin node */
+  beginSilenceMs?: number;
+  /** Wait node */
+  waitMode?: "user" | "silence";
+  waitTimeoutMs?: number;
+  waitMaxMs?: number;
+  waitRetryCount?: number;
+  /** Subagent — reusable tool names / KB ids for this node only */
+  subagentToolIds?: string;
+  subagentKbIds?: string;
+  subagentModel?: string;
+  /** MCP node */
+  mcpServerUrl?: string;
+  mcpHeaders?: string;
+  mcpToolName?: string;
+  mcpTimeoutMs?: number;
+  /** Press digit */
+  digitTimeoutMs?: number;
+  digitRetryCount?: number;
   /** Outgoing transitions */
   transitions: Transition[];
   /** Dashboard `is_global` — allow other nodes to jump here without an explicit edge. */
@@ -299,6 +360,8 @@ export interface BuilderSettings {
   rawAgent?: Record<string, unknown>;
   /** Raw conversationFlow object (without nodes) round-tripped from import. */
   rawConversationFlow?: Record<string, unknown>;
+  /** conversationFlow.tools — custom/local webhooks keyed by tool_id. */
+  flowTools?: Array<Record<string, unknown>>;
   /**
    * Channel type — controls which nodes and settings panels are shown.
    * "voice" (default) shows the full voice builder.
@@ -491,6 +554,12 @@ export interface BuilderSettings {
     autoRoute?: boolean;
     [key: string]: unknown;
   };
+  /** User-saved mini-graphs (same GraphSlice shape as copy/paste). */
+  customComponents?: SavedFlowComponent[];
+  /** Capped snapshots of the draft graph. */
+  flowHistory?: FlowVersionSnapshot[];
+  /** Live calls use this graph when present; the canvas stays the draft. */
+  publishedSnapshot?: PublishedSnapshot | null;
 }
 
 export interface BuilderVariable {
@@ -501,4 +570,51 @@ export interface BuilderVariable {
   /** UI legacy field; exported as a single example when present. */
   defaultValue: string;
   examples?: string[];
+}
+
+/** Canvas node. Same shape persisted in `agents.flow_data.nodes`. */
+export type FlowNode = Node<FlowNodeData>;
+
+export type FlowComponentIcon =
+  | "booking"
+  | "contact"
+  | "handoff"
+  | "wait"
+  | "http"
+  | "end"
+  | "custom";
+
+export interface SavedFlowComponent {
+  id: string;
+  label: string;
+  description: string;
+  channel: "voice" | "whatsapp" | "both";
+  icon: FlowComponentIcon;
+  slice: { nodes: FlowNode[]; edges: import("@xyflow/react").Edge[] };
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface FlowVersionSnapshot {
+  version: number;
+  label: string;
+  createdAt: string;
+  flowData: { nodes: FlowNode[]; edges: import("@xyflow/react").Edge[] };
+  variables: BuilderVariable[];
+}
+
+export interface PublishedSnapshot {
+  version: number;
+  publishedAt: string;
+  flowData: { nodes: FlowNode[]; edges: import("@xyflow/react").Edge[] };
+  variables: BuilderVariable[];
+}
+
+export interface BuilderDebugEvent {
+  id: string;
+  ts: number;
+  type: string;
+  nodeId?: string;
+  message: string;
+  detail?: Record<string, unknown>;
 }

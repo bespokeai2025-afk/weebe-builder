@@ -98,6 +98,7 @@ class FishStreamingSttSession implements SttSession {
   private latestPartial = "";
   private lastGoodLatinPartial = "";
   private pendingCommit: ((text: string) => void) | null = null;
+  private appendedThisUtterance = false;
 
   private constructor(
     ws: WebSocket,
@@ -120,6 +121,7 @@ class FishStreamingSttSession implements SttSession {
           this.send({
             type: "transcription_session.update",
             session: {
+              ...(lang ? { language: lang } : {}),
               input_audio_format: { type: "audio/pcm", rate: this.options.sampleRate },
               turn_detection: null,
               input_audio_transcription: {
@@ -159,9 +161,16 @@ class FishStreamingSttSession implements SttSession {
           this.resolveCommit(this.latestPartial.trim());
           return;
 
-        case "error":
-          console.error("[fish-stt] ws error event:", msg.error?.message ?? "unknown");
+        case "error": {
+          const message = msg.error?.message ?? "unknown";
+          if (/empty/i.test(message) && !this.appendedThisUtterance) {
+            this.resolveCommit(this.lastGoodLatinPartial || this.latestPartial.trim());
+            return;
+          }
+          console.error("[fish-stt] ws error event:", message);
           this.resolveCommit(this.latestPartial.trim());
+          return;
+        }
       }
     });
 
@@ -241,6 +250,7 @@ class FishStreamingSttSession implements SttSession {
 
   push(frame: Buffer): void {
     if (!this.ready || this.closed || frame.byteLength === 0) return;
+    this.appendedThisUtterance = true;
     this.send({ type: "input_audio_buffer.append", audio: frame.toString("base64") });
   }
 
@@ -248,13 +258,22 @@ class FishStreamingSttSession implements SttSession {
     if (!this.ready || this.closed) return;
     this.latestPartial = "";
     this.lastGoodLatinPartial = "";
+    this.appendedThisUtterance = false;
     this.send({ type: "input_audio_buffer.clear" });
   }
 
   async finalizeUtterance(frames: Buffer[]): Promise<string> {
     if (this.closed || this.ws.readyState !== WebSocket.OPEN) {
+      this.appendedThisUtterance = false;
       return this.batchFallback(frames);
     }
+
+    if (!this.appendedThisUtterance) {
+      const saved = this.lastGoodLatinPartial || this.latestPartial.trim();
+      this.latestPartial = "";
+      return saved || this.batchFallback(frames);
+    }
+    this.appendedThisUtterance = false;
 
     const flushed = await new Promise<string>((resolve) => {
       this.pendingCommit = resolve;

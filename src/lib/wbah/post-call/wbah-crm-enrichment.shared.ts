@@ -87,6 +87,9 @@ export function summaryIndicatesOwnerOccupied(
     /\b(lives?|living) there\b/.test(text) ||
     /\blive in it\b/.test(text) ||
     /\boccupies? the property\b/.test(text) ||
+    /\bcurrently lived in\b/.test(text) ||
+    /\blived in by the (caller|user|owner|vendor)\b/.test(text) ||
+    /\b(lives?|living|lived) (there|in the property|at the property|in it)\b/.test(text) ||
     /\bnot (vacant|empty|tenanted|rented out)\b/.test(text) && /\b(live|living|stay|staying)\b/.test(text)
   );
 }
@@ -117,10 +120,11 @@ export function extractRentAchievedFromSummaries(
 ): void {
   if (!isEmptyValue(working.new_propinfo_rentachieved)) return;
   const text = combinedSummaryText(custom, working);
+  // Do not treat "ground rent £450" as monthly rent (Charlotte / leasehold).
   const m =
-    text.match(/(?:monthly )?rent (?:achieved |of |is |at )?[£$]?\s*(\d[\d,]*(?:\.\d+)?)/i) ||
-    text.match(/[£$]\s*(\d[\d,]*(?:\.\d+)?)\s*(?:per month|pcm|p\.?c\.?m\.?)/i) ||
-    text.match(/(?:achieving|getting|receives?) [£$]?\s*(\d[\d,]*(?:\.\d+)?)\s*(?:per month|pcm|a month|monthly)/i);
+    text.match(/\b(?:monthly\s+)?rent\s+achieved\s*[£$]?\s*(\d[\d,]*(?:\.\d+)?)/i) ||
+    text.match(/\bmonthly\s+rent\s+(?:of|is|at)\s*[£$]?\s*(\d[\d,]*(?:\.\d+)?)/i) ||
+    text.match(/(?:achieving|getting|receives?)\s+[£$]?\s*(\d[\d,]*(?:\.\d+)?)\s*(?:per month|pcm|a month|monthly)/i);
   if (m?.[1]) {
     working.new_propinfo_rentachieved = m[1].replace(/,/g, "");
   }
@@ -243,7 +247,6 @@ export function enrichWbahVerifiedDetailsFromSummaries(
   extractTenureFromSummaries(custom, working);
   extractTimeframeFromSummaries(custom, working);
   extractVacantOrTenantedFromSummaries(custom, working);
-  extractRentAchievedFromSummaries(custom, working);
 
   if (shouldMirrorPropertyToContact(working, custom, transcript)) {
     working.contact_same_as_property = "true";

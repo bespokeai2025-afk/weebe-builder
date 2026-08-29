@@ -4,8 +4,12 @@ import {
   normalizeUkTime24,
   ukLocalToUtcIso,
 } from "./wbah-uk-datetime.shared";
-import { resolveWbahCallbackFromAnalysis, type WbahCallbackHandler } from "./wbah-callback-dynamics.shared";
+import {
+  resolveWbahCallbackFromAnalysis,
+  type WbahCallbackHandler,
+} from "./wbah-callback-dynamics.shared";
 import { resolveWbahCallSummaryText } from "./wbah-timeline-note.shared";
+import { pickWbahCrmEmail } from "./wbah-email.shared";
 
 export type CalendlySlotShape = {
   preferred_slot?: { date?: string; time?: string };
@@ -35,8 +39,13 @@ export type WbahFormattedCallData = {
   callbackDatetimeUtc: string | null;
   callbackType: string | null;
   callbackHandler: WbahCallbackHandler | null;
-  callbackDatetimeSource: "callback_datetime" | "human_callback_datetime" | "booking_callback_datetime" | null;
+  callbackDatetimeSource:
+    | "callback_datetime"
+    | "human_callback_datetime"
+    | "booking_callback_datetime"
+    | null;
   isCallbackRequest: boolean;
+  dynamicsAgentPreference: number | null;
   appointmentDate: string | null;
   appointmentTimeUk: string | null;
   requestedStartUtc: string | null;
@@ -89,8 +98,8 @@ export function resolveWbahCalendlySlot(
 export function wbahWebhookHasCalendlySlot(webhookItem: Record<string, unknown>): boolean {
   const body = (webhookItem.body ?? webhookItem) as Record<string, unknown>;
   const call = (body.call ?? {}) as Record<string, unknown>;
-  const custom = ((call.call_analysis as Record<string, unknown> | undefined)?.custom_analysis_data ??
-    {}) as Record<string, unknown>;
+  const custom = ((call.call_analysis as Record<string, unknown> | undefined)
+    ?.custom_analysis_data ?? {}) as Record<string, unknown>;
   const dyn = (call.retell_llm_dynamic_variables ?? {}) as Record<string, unknown>;
   const calendlySlot = parseJsonField<CalendlySlotShape>(custom.calendly_slot);
   const availableSlots = parseJsonField<AvailableSlotsShape>(
@@ -142,8 +151,7 @@ export function formatWbahRetellCallData(input: WbahFormatDataInput): WbahFormat
 
   const slot = resolveSlot(calendlySlot, availableSlots);
   const timeUk = slot?.time ? normalizeUkTime24(slot.time) : null;
-  const requestedStartUtc =
-    slot?.date && timeUk ? ukLocalToUtcIso(slot.date, timeUk) : null;
+  const requestedStartUtc = slot?.date && timeUk ? ukLocalToUtcIso(slot.date, timeUk) : null;
   const requestedEndUtc = requestedStartUtc ? addMinutesIso(requestedStartUtc, 30) : null;
 
   const structured = parseJsonField<Record<string, unknown>>(custom.structured_json_output);
@@ -170,7 +178,15 @@ export function formatWbahRetellCallData(input: WbahFormatDataInput): WbahFormat
   return {
     leadId,
     customerName: resolveName(dyn, custom),
-    email: pickStr(custom, "email_address", "email") || pickStr(dyn, "email", "Email"),
+    email: pickWbahCrmEmail(
+      verified?.emailaddress1,
+      verified?.user_email,
+      custom.email_address,
+      custom.email,
+      dyn.email,
+      dyn.Email,
+      dyn.user_email,
+    ),
     userSentiment: pickStr(custom, "user_sentiment") || pickStr(analysis, "user_sentiment") || null,
     callSummary: resolveWbahCallSummaryText(custom, analysis),
     callSuccessful,
@@ -180,6 +196,7 @@ export function formatWbahRetellCallData(input: WbahFormatDataInput): WbahFormat
     callbackHandler: callback.callbackHandler,
     callbackDatetimeSource: callback.datetimeSource,
     isCallbackRequest: callback.isCallbackRequest,
+    dynamicsAgentPreference: callback.dynamicsAgentPreference,
     appointmentDate: slot?.date ?? null,
     appointmentTimeUk: timeUk,
     requestedStartUtc,

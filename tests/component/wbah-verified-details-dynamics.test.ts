@@ -79,7 +79,7 @@ describe("mapWbahVerifiedDetailsToDynamicsFields", () => {
         new_propinfo_postalcode: "",
       },
     });
-    expect(patch.new_propinfo_street2).toBeUndefined();
+    expect(patch.new_propinfo_street2).toBeNull();
     expect(patch.new_propinfo_postalcode).toBe("M14 5PQ");
     expect(patch.new_propinfo_city).toBe("Manchester");
   });
@@ -161,7 +161,7 @@ describe("mapWbahVerifiedDetailsToDynamicsFields", () => {
     });
     expect(patch.cos_tenure).toBe(279640001);
     expect(patch.new_propinfo_howquickly).toBe(100000002);
-    expect(patch.new_propinfo_rentachieved).toBe(950);
+    expect(patch.new_propinfo_rentachieved).toBeUndefined();
   });
 
   it("corrects owner-occupied when summary says caller lives there (Andrew pattern)", () => {
@@ -286,5 +286,72 @@ describe("buildWbahAgenticCrmPayload", () => {
     expect(patch.address1_line1).toBe("10 Upping Street");
     expect(patch.address1_city).toBe("London");
     expect(patch.address1_postalcode).toBe("SW1A 2AA");
+  });
+
+  it("moves a postcode out of city (Almas D N12 1LG)", () => {
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails: {
+        new_propinfo_street2: "Woodman Terrace",
+        new_propinfo_city: "D N12 1LG",
+        new_propinfo_postalcode: "DN12 1LG",
+      },
+    });
+    expect(patch.new_propinfo_street2).toBe("Woodman Terrace");
+    expect(patch.new_propinfo_postalcode).toBe("DN12 1LG");
+    expect(patch.new_propinfo_city).toBeNull();
+  });
+
+  it("moves a postcode out of street2 (Charlotte TW14BH)", () => {
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails: {
+        new_propinfo_street2: "TW14BH",
+        new_propinfo_postalcode: "",
+      },
+    });
+    expect(patch.new_propinfo_street2).toBeNull();
+    expect(patch.new_propinfo_postalcode).toBe("TW1 4BH");
+  });
+
+  it("drops spaced STT email and staff mailbox examples", () => {
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails: {
+        emailaddress1: "kieron@webuyanyhouse.co.uk",
+      },
+      fallbackEmail: "alma smarcer@hotmail.co.uk",
+    });
+    expect(patch.emailaddress1).toBeUndefined();
+  });
+
+  it("prefers valid verified email over broken email_address", () => {
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails: {
+        emailaddress1: "almasmarcer@hotmail.co.uk",
+        email_address: "alma smarcer@hotmail.co.uk",
+      },
+    });
+    expect(patch.emailaddress1).toBe("almasmarcer@hotmail.co.uk");
+  });
+
+  it("drops extra-digit UK mobiles (Charlotte 074849738276)", () => {
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails: { mobilephone: "074849738276" },
+    });
+    expect(patch.mobilephone).toBeUndefined();
+  });
+
+  it("corrects currently lived-in as owner occupied", () => {
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails: {
+        vacant_or_tenanted: "181510000",
+        cos_propertyempty: "181510000",
+        cos_propertyrented: "181510001",
+      },
+      custom: {
+        detailed_call_summary:
+          "Three-bedroom semi-detached house currently lived in by the caller, not on the market.",
+      },
+    });
+    expect(patch.cos_propertyempty).toBe(181510000);
+    expect(patch.cos_propertyrented).toBe(181510000);
   });
 });

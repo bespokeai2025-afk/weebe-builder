@@ -15,6 +15,7 @@ import {
   FileSpreadsheet,
   X,
   Users,
+  Calendar,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RelativeTime } from "@/components/ui/relative-time";
@@ -57,9 +58,12 @@ import {
   listWAContacts,
   getBuzzchatOpsDashboard,
   checkCampaignAudienceOverlapFn,
-  backfillWhatsappContactedStatus,
 } from "@/lib/dashboard/whatsapp.functions";
-import { getWatiConnection, listWatiTemplates, getWatiWarmupDashboard } from "@/lib/whatsapp/wati.functions";
+import {
+  getWatiConnection,
+  listWatiTemplates,
+  getWatiWarmupDashboard,
+} from "@/lib/whatsapp/wati.functions";
 import {
   autoDetectCsvColumnMapping,
   csvScanRowCount,
@@ -83,12 +87,6 @@ import {
 } from "@/lib/whatsapp/wati-template-params.shared";
 import { toast } from "sonner";
 
-const TYPE_LABELS: Record<string, string> = {
-  broadcast: "Broadcast",
-  follow_up: "Follow-up",
-  scheduled: "Scheduled",
-};
-
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof AlertCircle }> = {
   draft: { label: "Draft", color: "secondary", icon: AlertCircle },
   scheduled: { label: "Scheduled", color: "outline", icon: Clock },
@@ -105,10 +103,12 @@ function watiTemplateBodyPreview(template: Record<string, unknown> | null | unde
 }
 
 type AudienceMode = "filters" | "csv" | "contacts";
+type SendWhen = "now" | "later";
 
 type CampaignForm = {
   name: string;
   type: "broadcast" | "follow_up" | "scheduled";
+  sendWhen: SendWhen;
   template_id: string;
   scheduled_at: string;
   wati_template_name: string;
@@ -127,6 +127,7 @@ function emptyForm(): CampaignForm {
   return {
     name: "",
     type: "broadcast",
+    sendWhen: "now",
     template_id: "",
     scheduled_at: "",
     wati_template_name: "",
@@ -140,6 +141,15 @@ function emptyForm(): CampaignForm {
       whatsapp_opt_in_only: true,
     },
   };
+}
+
+function toDatetimeLocal(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function defaultScheduleLocal(): string {
+  return toDatetimeLocal(new Date(Date.now() + 60 * 60 * 1000));
 }
 
 function watiTemplateParamSlots(template: Record<string, unknown> | null | undefined): string[] {
@@ -172,7 +182,6 @@ export function WhatsAppCampaigns() {
   const warmupDashFn = useServerFn(getWatiWarmupDashboard);
   const buzzchatOpsFn = useServerFn(getBuzzchatOpsDashboard);
   const overlapFn = useServerFn(checkCampaignAudienceOverlapFn);
-  const backfillFn = useServerFn(backfillWhatsappContactedStatus);
   const importCsvFn = useServerFn(importWatiCampaignLeadsCsv);
   const loadContactsAudienceFn = useServerFn(prepareCampaignAudienceFromContacts);
   const listContactsFn = useServerFn(listWAContacts);
@@ -229,6 +238,9 @@ export function WhatsAppCampaigns() {
     updated: number;
     skipped: number;
     total: number;
+    remaining?: number;
+    unsentTotal?: number;
+    source?: AudienceMode;
   } | null>(null);
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [csvRows, setCsvRows] = useState<Record<string, string>[]>([]);
@@ -241,6 +253,7 @@ export function WhatsAppCampaigns() {
   const [csvBuyersOnly, setCsvBuyersOnly] = useState(true);
   const [csvFileName, setCsvFileName] = useState<string | null>(null);
   const [loadingContactsAudience, setLoadingContactsAudience] = useState(false);
+  const [skipAlreadySent, setSkipAlreadySent] = useState(true);
 
   const { data: waContactsPayload } = useQuery({
     queryKey: ["wa-contacts"],
@@ -273,6 +286,7 @@ export function WhatsAppCampaigns() {
   function openCreateDialog() {
     setForm(emptyForm());
     resetCsvState();
+    setSkipAlreadySent(true);
     setOpen(true);
   }
 
@@ -291,9 +305,12 @@ export function WhatsAppCampaigns() {
       return createFn({
         data: {
           name: form.name,
-          type: form.type,
+          type: form.sendWhen === "later" ? "scheduled" : "broadcast",
           template_id: !watiConnected ? form.template_id || undefined : undefined,
-          scheduled_at: form.scheduled_at || undefined,
+          scheduled_at:
+            form.sendWhen === "later" && form.scheduled_at
+              ? new Date(form.scheduled_at).toISOString()
+              : undefined,
           provider: watiConnected ? "wati" : undefined,
           wati_template_name: watiConnected ? form.wati_template_name || undefined : undefined,
           wati_broadcast_name: watiConnected ? form.wati_broadcast_name || form.name : undefined,
@@ -305,10 +322,15 @@ export function WhatsAppCampaigns() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["wa-campaigns"] });
       qc.invalidateQueries({ queryKey: ["leads-all"] });
+      const scheduled = form.sendWhen === "later" && form.scheduled_at;
       setOpen(false);
       setForm(emptyForm());
       resetCsvState();
-      toast.success("Campaign created");
+      toast.success(
+        scheduled
+          ? `Scheduled for ${new Date(form.scheduled_at).toLocaleString()}`
+          : "Draft saved — click the rocket to send",
+      );
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -324,8 +346,7 @@ export function WhatsAppCampaigns() {
   });
 
   const launch = useMutation({
-    mutationFn: () =>
-      launchFn({ data: { id: launchId!, allowOverlap: launchAllowOverlap } }),
+    mutationFn: () => launchFn({ data: { id: launchId!, allowOverlap: launchAllowOverlap } }),
     onSuccess: (res: {
       sent?: number;
       failed?: number;
@@ -386,8 +407,13 @@ export function WhatsAppCampaigns() {
     },
   });
 
+  const scheduleOk =
+    form.sendWhen === "now" ||
+    (!!form.scheduled_at && new Date(form.scheduled_at).getTime() > Date.now() + 15_000);
+
   const canCreate =
     !!form.name &&
+    scheduleOk &&
     (watiConnected
       ? !!form.wati_template_name &&
         (form.audienceMode === "filters" || csvLeadIds.length > 0) &&
@@ -395,25 +421,52 @@ export function WhatsAppCampaigns() {
       : true);
 
   const audienceReady = csvLeadIds.length > 0;
+  const contactsBatchCap = Math.max(
+    1,
+    Math.min(warmupDash?.remaining ?? warmupDash?.dailyCap ?? 50, 50),
+  );
+
+  function useContactsAudience() {
+    setForm({ ...form, audienceMode: "contacts" });
+    setCsvImportLimit(contactsBatchCap);
+    setSkipAlreadySent(true);
+    setCsvSkipCount(0);
+  }
 
   async function loadExistingContactsAudience() {
     setLoadingContactsAudience(true);
     try {
       const limit = Math.max(1, Math.min(csvImportLimit, 5000));
       const offset = Math.max(0, csvSkipCount);
-      const result = await loadContactsAudienceFn({ data: { limit, offset } });
+      const result = await loadContactsAudienceFn({
+        data: { limit, offset: skipAlreadySent ? 0 : offset, skipMessaged: skipAlreadySent },
+      });
       setCsvLeadIds(result.leadIds ?? []);
+      const loaded = result.total ?? 0;
+      const remaining = result.remainingUnsent ?? 0;
+      const skipped = result.skippedMessaged ?? 0;
+      const unsentTotal = result.unsentTotal ?? loaded + remaining;
       setCsvStats({
         inserted: result.inserted ?? 0,
         updated: result.updated ?? 0,
-        skipped: 0,
-        total: result.total ?? 0,
+        skipped,
+        total: loaded,
+        remaining,
+        unsentTotal,
+        source: "contacts",
       });
-      toast.success(`${result.total} contact(s) ready for this campaign`, {
-        description: `${result.inserted} new leads · ${result.updated} updated`,
-      });
-      const nextSkip = offset + (result.total ?? 0);
-      setCsvSkipCount(nextSkip);
+      toast.success(
+        `Loaded ${loaded} unsent contact${loaded === 1 ? "" : "s"} for this campaign`,
+        {
+          description: skipAlreadySent
+            ? `${skipped} already messaged were left out · ${remaining} unsent still available for the next campaign`
+            : `${result.inserted} new phones · ${result.updated} already on file`,
+        },
+      );
+      if (!skipAlreadySent) {
+        const nextSkip = offset + (result.total ?? 0);
+        setCsvSkipCount(nextSkip);
+      }
     } catch (err) {
       toast.error("Could not load contacts", { description: (err as Error).message });
     } finally {
@@ -434,7 +487,11 @@ export function WhatsAppCampaigns() {
       const mapping = autoDetectCsvColumnMapping(headers);
       setCsvHeaders(headers);
       setCsvRows(rows);
-      setCsvMapping(mapping ?? { phone: headers.find((h) => h.toLowerCase().includes("mobile")) ?? headers[0] ?? "" });
+      setCsvMapping(
+        mapping ?? {
+          phone: headers.find((h) => h.toLowerCase().includes("mobile")) ?? headers[0] ?? "",
+        },
+      );
       setCsvNeedsMapping(!mapping);
       setCsvFileName(file.name);
       const savedSkip = loadCsvSkipForFile(file.name);
@@ -501,10 +558,11 @@ export function WhatsAppCampaigns() {
       const nextSkip = skipLeads + (result.total ?? 0);
       setCsvSkipCount(nextSkip);
       if (csvFileName) saveCsvSkipForFile(csvFileName, nextSkip);
-      toast.success(`Imported ${result.total} leads for this campaign`, {
-        description: `${result.inserted} new · ${result.updated} updated · next batch: skip ${nextSkip}`,
+      toast.success(`Imported ${result.total} for this campaign`, {
+        description: `${result.inserted} new · ${result.updated} already in Contacts (updated, not duplicated) · next skip ${nextSkip}`,
       });
       qc.invalidateQueries({ queryKey: ["wa-contacts"] });
+      qc.invalidateQueries({ queryKey: ["campaign-leads"] });
     } catch (err) {
       toast.error("CSV import failed", { description: (err as Error).message });
     } finally {
@@ -517,24 +575,14 @@ export function WhatsAppCampaigns() {
     await runCsvImport(csvRows, csvMapping, csvImportLimit);
   }
 
-  const backfillContacted = useMutation({
-    mutationFn: () => backfillFn(),
-    onSuccess: (res: { updated?: number }) => {
-      qc.invalidateQueries({ queryKey: ["wa-contacts"] });
-      toast.success(`Backfilled contacted status for ${res.updated ?? 0} phone(s)`);
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
   function openContinueWarmup() {
-    const skip = contactsSummary?.messaged ?? 0;
     const batch = warmupDash?.dailyCap ?? csvImportLimit;
     resetCsvState();
+    setSkipAlreadySent(true);
     setForm({ ...emptyForm(), audienceMode: "contacts" });
     setCsvImportLimit(Math.min(batch, 5000));
-    setCsvSkipCount(skip);
+    setCsvSkipCount(0);
     setOpen(true);
-    toast.message(`Continue warm-up: skip ${skip}, batch ${Math.min(batch, 5000)}`);
   }
 
   function openLaunchDialog(c: any) {
@@ -551,29 +599,16 @@ export function WhatsAppCampaigns() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-sm text-muted-foreground">
-            {watiConnected
-              ? "Launch WATI template campaigns to leads from Webee."
-              : "Create and manage broadcast campaigns (Twilio or connect WATI in Settings)."}
-          </p>
-          {watiConnected && (
-            <p className="text-[11px] text-muted-foreground/70 mt-1">
-              Upload a CSV audience or filter existing leads. Sync WATI templates under Templates
-              first.
-            </p>
-          )}
-        </div>
+        <p className="text-sm text-muted-foreground">
+          {watiConnected
+            ? `${contactsSummary?.not_messaged ?? 0} not sent · ${contactsSummary?.messaged ?? 0} already sent`
+            : "Connect WATI in Settings to send template campaigns."}
+        </p>
         <div className="flex items-center gap-2 shrink-0">
           {watiConnected && (contactsSummary?.messaged ?? 0) > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={openContinueWarmup}
-            >
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={openContinueWarmup}>
               <PlayCircle className="h-3.5 w-3.5" />
-              Continue warm-up
+              Next unsent batch
             </Button>
           )}
           <Button size="sm" onClick={openCreateDialog} className="gap-1.5 shrink-0">
@@ -611,28 +646,6 @@ export function WhatsAppCampaigns() {
               Refresh
             </Button>
           </div>
-          <details className="text-[11px] text-muted-foreground">
-            <summary className="cursor-pointer font-medium text-foreground/80 select-none">
-              Batch warm-up playbook
-            </summary>
-            <ol className="mt-2 ml-4 list-decimal space-y-1">
-              <li>Import property CSV under Contacts (or use campaign CSV upload).</li>
-              <li>Create campaign → audience Contacts or CSV → batch size = daily warm-up cap (e.g. 50).</li>
-              <li>Skip first = number already messaged (auto-advances after each import).</li>
-              <li>Launch → check Contacts tab for ✓ / delivery status / last campaign.</li>
-              <li>Next day: Continue warm-up or set skip to messaged count for contacts 51–100.</li>
-              <li>STOP replies auto-mark DNC — excluded from future sends.</li>
-            </ol>
-            <Button
-              type="button"
-              variant="link"
-              className="h-auto p-0 text-[11px] mt-1"
-              disabled={backfillContacted.isPending}
-              onClick={() => backfillContacted.mutate()}
-            >
-              {backfillContacted.isPending ? "Backfilling…" : "Backfill contacted status from message history"}
-            </Button>
-          </details>
         </div>
       )}
 
@@ -644,24 +657,22 @@ export function WhatsAppCampaigns() {
           <p className="text-sm font-medium">No campaigns yet</p>
           <p className="text-xs text-center max-w-sm">
             {watiConnected
-              ? "Create a campaign, upload a CSV audience or filter leads, map template variables, and launch."
+              ? "Create a campaign, pick a template, then send now or schedule."
               : "Create a campaign to send messages to contacts."}
           </p>
         </div>
       ) : (
-        <div className="rounded-lg border border-border overflow-hidden">
+        <div className="overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
           <table className="w-full text-sm">
             <thead className="bg-muted/50 border-b border-border">
               <tr>
                 {[
                   "Name",
-                  "Type",
                   "Template",
-                  "Provider",
                   "Status",
                   "Sent",
                   "Replied",
-                  "Created",
+                  "When",
                   "",
                 ].map((h) => (
                   <th
@@ -682,18 +693,8 @@ export function WhatsAppCampaigns() {
                 return (
                   <tr key={c.id} className="hover:bg-muted/20 transition-colors">
                     <td className="px-4 py-2.5 font-medium">{c.name}</td>
-                    <td className="px-4 py-2.5">
-                      <Badge variant="outline" className="text-[10px]">
-                        {TYPE_LABELS[c.type] ?? c.type}
-                      </Badge>
-                    </td>
                     <td className="px-4 py-2.5 text-xs text-muted-foreground">
                       {templateLabel(c)}
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <Badge variant="outline" className="text-[10px] uppercase">
-                        {c.provider ?? "twilio"}
-                      </Badge>
                     </td>
                     <td className="px-4 py-2.5">
                       <Badge
@@ -707,7 +708,19 @@ export function WhatsAppCampaigns() {
                     <td className="px-4 py-2.5 text-xs tabular-nums">{stats.sent ?? 0}</td>
                     <td className="px-4 py-2.5 text-xs tabular-nums">{stats.replied ?? 0}</td>
                     <td className="px-4 py-2.5 text-[11px] text-muted-foreground">
-                      <RelativeTime date={c.created_at} />
+                      {c.status === "scheduled" && c.scheduled_at ? (
+                        <span className="inline-flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {new Date(c.scheduled_at).toLocaleString(undefined, {
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      ) : (
+                        <RelativeTime date={c.created_at} />
+                      )}
                     </td>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-1">
@@ -716,7 +729,7 @@ export function WhatsAppCampaigns() {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 text-green-500 hover:text-green-400"
-                            title="Launch campaign"
+                            title={c.status === "scheduled" ? "Send now" : "Launch campaign"}
                             onClick={() => openLaunchDialog(c)}
                           >
                             <Rocket className="h-3.5 w-3.5" />
@@ -741,7 +754,7 @@ export function WhatsAppCampaigns() {
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>New Campaign</DialogTitle>
           </DialogHeader>
@@ -757,20 +770,44 @@ export function WhatsAppCampaigns() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Type</Label>
-              <Select
-                value={form.type}
-                onValueChange={(v: CampaignForm["type"]) => setForm({ ...form, type: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="broadcast">Broadcast — send to lead audience</SelectItem>
-                  <SelectItem value="follow_up">Follow-up</SelectItem>
-                  <SelectItem value="scheduled">Scheduled</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label className="text-xs">When</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={form.sendWhen === "now" ? "default" : "outline"}
+                  className="h-8 text-xs"
+                  onClick={() => setForm({ ...form, sendWhen: "now", type: "broadcast", scheduled_at: "" })}
+                >
+                  Send now (draft)
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={form.sendWhen === "later" ? "default" : "outline"}
+                  className="h-8 text-xs gap-1.5"
+                  onClick={() =>
+                    setForm({
+                      ...form,
+                      sendWhen: "later",
+                      type: "scheduled",
+                      scheduled_at: form.scheduled_at || defaultScheduleLocal(),
+                    })
+                  }
+                >
+                  <Calendar className="h-3.5 w-3.5" />
+                  Schedule
+                </Button>
+              </div>
+              {form.sendWhen === "later" && (
+                <Input
+                  type="datetime-local"
+                  value={form.scheduled_at}
+                  min={toDatetimeLocal(new Date())}
+                  onChange={(e) => setForm({ ...form, scheduled_at: e.target.value })}
+                  className="h-9 text-sm"
+                />
+              )}
             </div>
 
             {watiConnected ? (
@@ -812,90 +849,86 @@ export function WhatsAppCampaigns() {
 
                 {paramSlots.length > 0 && (
                   <div className="space-y-2 rounded-md border border-border/60 p-3">
-                    <Label className="text-xs">Template variable mapping</Label>
-                    <p className="text-[10px] text-muted-foreground">
-                      Map each {"{{variable}}"} to a contact/CSV field. Property fields come from your
-                      JVC import (Building, Unit, Location, etc.).
-                    </p>
+                    <Label className="text-xs">Fill each {"{{variable}}"}</Label>
                     {paramSlots.map((slot) => {
                       const mapped = form.template_params[slot] ?? "";
                       const isFixed = isLiteralTemplateField(mapped);
                       const selectValue = isFixed ? "__fixed__" : mapped;
                       const slotHint = getTemplateSlotHint(selectedWatiTemplate, slot);
                       return (
-                      <div key={slot} className="space-y-1.5">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-muted-foreground w-20 shrink-0">{`{{${slot}}}`}</span>
-                          <Select
-                            value={selectValue || undefined}
-                            onValueChange={(v) =>
-                              setForm({
-                                ...form,
-                                template_params: {
-                                  ...form.template_params,
-                                  [slot]: v === "__fixed__" ? encodeLiteralTemplateField("") : v,
-                                },
-                              })
-                            }
-                          >
-                            <SelectTrigger className="h-8 text-xs flex-1">
-                              <SelectValue placeholder="Lead / property field…" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="__fixed__">Fixed text (same for everyone)</SelectItem>
-                              <SelectItem value="__group_lead__" disabled>
-                                — Lead fields —
-                              </SelectItem>
-                              {LEAD_PARAM_FIELDS.filter((f) => f.group === "lead").map((f) => (
-                                <SelectItem key={f.value} value={f.value}>
-                                  {f.label}
+                        <div key={slot} className="space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-muted-foreground w-20 shrink-0">{`{{${slot}}}`}</span>
+                            <Select
+                              value={selectValue || undefined}
+                              onValueChange={(v) =>
+                                setForm({
+                                  ...form,
+                                  template_params: {
+                                    ...form.template_params,
+                                    [slot]: v === "__fixed__" ? encodeLiteralTemplateField("") : v,
+                                  },
+                                })
+                              }
+                            >
+                              <SelectTrigger className="h-8 text-xs flex-1">
+                                <SelectValue placeholder="Lead / property field…" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__fixed__">
+                                  Fixed text (same for everyone)
                                 </SelectItem>
-                              ))}
-                              <SelectItem value="__group_property__" disabled>
-                                — Property / CSV fields —
-                              </SelectItem>
-                              {LEAD_PARAM_FIELDS.filter((f) => f.group === "property").map((f) => (
-                                <SelectItem key={f.value} value={f.value}>
-                                  {f.label}
+                                <SelectItem value="__group_lead__" disabled>
+                                  — Lead fields —
                                 </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                                {LEAD_PARAM_FIELDS.filter((f) => f.group === "lead").map((f) => (
+                                  <SelectItem key={f.value} value={f.value}>
+                                    {f.label}
+                                  </SelectItem>
+                                ))}
+                                <SelectItem value="__group_property__" disabled>
+                                  — Property / CSV fields —
+                                </SelectItem>
+                                {LEAD_PARAM_FIELDS.filter((f) => f.group === "property").map(
+                                  (f) => (
+                                    <SelectItem key={f.value} value={f.value}>
+                                      {f.label}
+                                    </SelectItem>
+                                  ),
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          {slotHint && (
+                            <p className="text-[10px] text-muted-foreground ml-[5.5rem]">
+                              {slotHint}
+                            </p>
+                          )}
+                          {isFixed && (
+                            <Input
+                              className="h-8 text-xs ml-[5.5rem]"
+                              placeholder={
+                                slotHint?.includes("agent")
+                                  ? "Your agent name, e.g. Khisha"
+                                  : "Same text on every message"
+                              }
+                              value={literalTemplateFieldText(mapped)}
+                              onChange={(e) =>
+                                setForm({
+                                  ...form,
+                                  template_params: {
+                                    ...form.template_params,
+                                    [slot]: encodeLiteralTemplateField(e.target.value),
+                                  },
+                                })
+                              }
+                            />
+                          )}
                         </div>
-                        {slotHint && (
-                          <p className="text-[10px] text-muted-foreground ml-[5.5rem]">{slotHint}</p>
-                        )}
-                        {isFixed && (
-                          <Input
-                            className="h-8 text-xs ml-[5.5rem]"
-                            placeholder={
-                              slotHint?.includes("agent")
-                                ? "Your agent name, e.g. Khisha"
-                                : "Same text on every message"
-                            }
-                            value={literalTemplateFieldText(mapped)}
-                            onChange={(e) =>
-                              setForm({
-                                ...form,
-                                template_params: {
-                                  ...form.template_params,
-                                  [slot]: encodeLiteralTemplateField(e.target.value),
-                                },
-                              })
-                            }
-                          />
-                        )}
-                      </div>
                       );
                     })}
                     {paramMappingError && (
                       <p className="text-[11px] text-destructive">{paramMappingError}</p>
-                    )}
-                    {paramSlots.length > 0 && (
-                      <p className="text-[10px] text-muted-foreground">
-                        Map each variable using the hints above. WATI sends using the registered template
-                        order shown in the preview — slot numbers may not match a edited display body.
-                      </p>
                     )}
                   </div>
                 )}
@@ -917,7 +950,7 @@ export function WhatsAppCampaigns() {
                       size="sm"
                       variant={form.audienceMode === "contacts" ? "default" : "outline"}
                       className="h-7 text-xs"
-                      onClick={() => setForm({ ...form, audienceMode: "contacts" })}
+                      onClick={() => useContactsAudience()}
                     >
                       <Users className="h-3 w-3 mr-1" /> Contacts
                     </Button>
@@ -932,27 +965,68 @@ export function WhatsAppCampaigns() {
                     </Button>
                   </div>
 
-                  {audienceReady && (
-                    <div className="rounded-md bg-green-500/10 border border-green-500/20 px-2.5 py-2 text-xs text-green-700 dark:text-green-400">
-                      <strong>{csvStats?.total ?? csvLeadIds.length}</strong> recipients ready for
-                      this campaign
-                      {csvStats && (
-                        <span className="text-muted-foreground ml-1">
-                          ({csvStats.inserted} new, {csvStats.updated} matched)
-                        </span>
+                      {audienceReady && (
+                    <div className="rounded-md bg-green-500/10 border border-green-500/20 px-2.5 py-2 text-xs text-green-700 dark:text-green-400 space-y-0.5">
+                      {csvStats?.source === "contacts" ? (
+                        <>
+                          <p>
+                            <strong>{csvStats.total}</strong> unsent people are on this campaign
+                            {csvStats.unsentTotal != null && csvStats.unsentTotal > csvStats.total
+                              ? ` (${csvStats.unsentTotal} unsent in total)`
+                              : ""}
+                            .
+                          </p>
+                          <p className="text-muted-foreground">
+                            {csvStats.skipped} already messaged were not included.
+                            {csvStats.remaining
+                              ? ` ${csvStats.remaining} unsent left for the next campaign.`
+                              : " No unsent contacts left after this batch."}
+                          </p>
+                        </>
+                      ) : (
+                        <p>
+                          <strong>{csvStats?.total ?? csvLeadIds.length}</strong> ready
+                          {csvStats && (
+                            <span className="text-muted-foreground ml-1">
+                              ({csvStats.inserted} new phones · {csvStats.updated} matched existing)
+                            </span>
+                          )}
+                        </p>
                       )}
                     </div>
                   )}
 
                   {form.audienceMode === "contacts" ? (
                     <div className="space-y-2 pt-1">
-                      <p className="text-[10px] text-muted-foreground">
-                        Use contacts already imported under Buzzchat → Contacts ({waContacts.length}{" "}
-                        in workspace).
-                      </p>
+                      <div className="grid grid-cols-3 gap-2 text-center">
+                        <div className="rounded-md bg-muted/30 px-2 py-1.5">
+                          <p className="text-sm font-semibold tabular-nums">{contactsSummary?.total ?? waContacts.length}</p>
+                          <p className="text-[10px] text-muted-foreground">Contacts</p>
+                        </div>
+                        <div className="rounded-md bg-muted/30 px-2 py-1.5">
+                          <p className="text-sm font-semibold tabular-nums">{contactsSummary?.not_messaged ?? 0}</p>
+                          <p className="text-[10px] text-muted-foreground">Not sent</p>
+                        </div>
+                        <div className="rounded-md bg-muted/30 px-2 py-1.5">
+                          <p className="text-sm font-semibold tabular-nums">{contactsSummary?.messaged ?? 0}</p>
+                          <p className="text-[10px] text-muted-foreground">Already sent</p>
+                        </div>
+                      </div>
+                      <label className="flex items-center gap-2 text-xs cursor-pointer">
+                        <Checkbox
+                          checked={skipAlreadySent}
+                          onCheckedChange={(v) => setSkipAlreadySent(v === true)}
+                        />
+                        Skip already sent (recommended)
+                      </label>
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <Label className="text-xs">Batch size</Label>
+                          <Label className="text-xs">
+                            This batch
+                            {skipAlreadySent && (contactsSummary?.not_messaged ?? 0) > 0
+                              ? ` of ${contactsSummary?.not_messaged} unsent`
+                              : ""}
+                          </Label>
                           <Input
                             type="number"
                             min={1}
@@ -964,19 +1038,21 @@ export function WhatsAppCampaigns() {
                             className="mt-1 h-8 text-xs"
                           />
                         </div>
-                        <div>
-                          <Label className="text-xs">Skip first (already sent)</Label>
-                          <Input
-                            type="number"
-                            min={0}
-                            max={500000}
-                            value={csvSkipCount}
-                            onChange={(e) =>
-                              setCsvSkipCount(Math.max(0, parseInt(e.target.value, 10) || 0))
-                            }
-                            className="mt-1 h-8 text-xs"
-                          />
-                        </div>
+                        {!skipAlreadySent && (
+                          <div>
+                            <Label className="text-xs">Skip first</Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              max={500000}
+                              value={csvSkipCount}
+                              onChange={(e) =>
+                                setCsvSkipCount(Math.max(0, parseInt(e.target.value, 10) || 0))
+                              }
+                              className="mt-1 h-8 text-xs"
+                            />
+                          </div>
+                        )}
                       </div>
                       <Button
                         type="button"
@@ -991,11 +1067,11 @@ export function WhatsAppCampaigns() {
                         ) : (
                           <Users className="h-3.5 w-3.5" />
                         )}
-                        Load up to {csvImportLimit} contacts
+                        Load {csvImportLimit} {skipAlreadySent ? "unsent" : ""} contacts
                       </Button>
                       {waContacts.length === 0 && (
                         <p className="text-[10px] text-amber-400">
-                          No contacts yet — switch to New CSV or import under Contacts first.
+                          Import contacts first, or switch to New CSV.
                         </p>
                       )}
                     </div>
@@ -1003,7 +1079,7 @@ export function WhatsAppCampaigns() {
                     <div className="space-y-2 pt-1">
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <Label className="text-xs">Batch size</Label>
+                          <Label className="text-xs">This batch</Label>
                           <Input
                             type="number"
                             min={1}
@@ -1016,7 +1092,7 @@ export function WhatsAppCampaigns() {
                           />
                         </div>
                         <div>
-                          <Label className="text-xs">Skip first (already sent)</Label>
+                          <Label className="text-xs">Skip already used rows</Label>
                           <Input
                             type="number"
                             min={0}
@@ -1029,17 +1105,17 @@ export function WhatsAppCampaigns() {
                           />
                         </div>
                       </div>
-                      <p className="text-[10px] text-muted-foreground">
-                        Warm-up batches: size <strong>50</strong>, skip <strong>0</strong> → contacts
-                        1–50. Next campaign: skip <strong>50</strong> → contacts 51–100. Skip auto-advances
-                        after each import (saved per CSV filename).
+                      <p className="text-[11px] text-muted-foreground leading-snug">
+                        Same phone updates the existing contact — it is never added twice.
+                        Skip 0 = first batch. After import this becomes the next start row
+                        {csvSkipCount > 0 ? ` (currently ${csvSkipCount}).` : "."}
                       </p>
                       <label className="mt-2 flex items-center gap-2 text-xs">
                         <Checkbox
                           checked={csvBuyersOnly}
                           onCheckedChange={(v) => setCsvBuyersOnly(v === true)}
                         />
-                        Buyers only (skip Seller rows without phones)
+                        Buyers only
                       </label>
                       <input
                         ref={csvInputRef}
@@ -1135,10 +1211,6 @@ export function WhatsAppCampaigns() {
                           </Button>
                         </div>
                       )}
-                      <p className="text-[10px] text-muted-foreground leading-relaxed">
-                        JVC files: use Mobile + NameEn, keep Buyers only on. Wait for the green
-                        “recipients ready” banner before Create.
-                      </p>
                     </div>
                   ) : (
                     <>
@@ -1189,8 +1261,11 @@ export function WhatsAppCampaigns() {
                         })
                       }
                     />
-                    Only leads with WhatsApp opt-in
-                  </label>
+                  Only opted-in WhatsApp numbers
+                </label>
+                <p className="text-[11px] text-muted-foreground">
+                  Launch still skips DNC and already-sent numbers unless you allow a resend.
+                </p>
                 </div>
               </>
             ) : (
@@ -1213,36 +1288,28 @@ export function WhatsAppCampaigns() {
                 </Select>
               </div>
             )}
-
-            {form.type === "scheduled" && (
-              <div className="space-y-1.5">
-                <Label className="text-xs">Schedule Date & Time</Label>
-                <Input
-                  type="datetime-local"
-                  value={form.scheduled_at}
-                  onChange={(e) => setForm({ ...form, scheduled_at: e.target.value })}
-                />
-              </div>
-            )}
           </div>
           <DialogFooter className="flex-col items-stretch gap-2 sm:flex-col sm:space-x-0">
-            {!canCreate &&
-              watiConnected &&
-              form.audienceMode !== "filters" &&
-              !audienceReady && (
-                <p className="text-xs text-amber-400 text-center">
-                  {form.audienceMode === "csv"
-                    ? "Upload your CSV and wait for “Imported N leads” before creating."
-                    : "Click “Load contacts” to attach an audience before creating."}
-                </p>
-              )}
+            {!canCreate && watiConnected && form.audienceMode !== "filters" && !audienceReady && (
+              <p className="text-xs text-amber-400 text-center">
+                {form.audienceMode === "csv"
+                  ? "Upload a CSV first."
+                  : "Load contacts first."}
+              </p>
+            )}
             <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => create.mutate()} disabled={!canCreate || create.isPending}>
-              {create.isPending ? "Creating…" : "Create Campaign"}
-            </Button>
+              <Button variant="outline" onClick={() => setOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={() => create.mutate()} disabled={!canCreate || create.isPending}>
+                {create.isPending
+                  ? form.sendWhen === "later"
+                    ? "Scheduling…"
+                    : "Creating…"
+                  : form.sendWhen === "later"
+                    ? "Schedule campaign"
+                    : "Create draft"}
+              </Button>
             </div>
           </DialogFooter>
         </DialogContent>
@@ -1301,8 +1368,8 @@ export function WhatsAppCampaigns() {
                   launchOverlap.alreadyMessaged > 0 &&
                   launchOverlap.alreadyMessaged === launchOverlap.total && (
                     <p className="text-xs text-destructive">
-                      Everyone in this audience was already messaged. Enable resend below or load the
-                      next batch with a higher skip.
+                      Everyone in this audience was already messaged. Enable resend below or load
+                      the next batch with a higher skip.
                     </p>
                   )}
                 {launchOverlap && launchOverlap.alreadyMessaged > 0 && (
@@ -1316,10 +1383,9 @@ export function WhatsAppCampaigns() {
                 )}
                 {warmupDash?.config?.enabled && !warmupDash.config.paused && (
                   <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-xs text-amber-200/90">
-                    Warm-up day {warmupDash.warmupDay}: max{" "}
-                    <strong>{warmupDash.dailyCap}</strong> sends today (
-                    <strong>{warmupDash.remaining}</strong> remaining). Audiences larger than
-                    the daily cap are sent in batches.
+                    Warm-up day {warmupDash.warmupDay}: max <strong>{warmupDash.dailyCap}</strong>{" "}
+                    sends today (<strong>{warmupDash.remaining}</strong> remaining). Audiences
+                    larger than the daily cap are sent in batches.
                   </p>
                 )}
               </div>

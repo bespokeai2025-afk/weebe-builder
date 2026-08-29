@@ -146,6 +146,14 @@ describe("routing heuristics", () => {
         "Double nine six four nine one nine triple zero.",
       ),
     ).toBe(0);
+    const { looksLikeEmailAnswer } = await import("@/lib/voice/graph/router");
+    expect(looksLikeEmailAnswer("ada@webee.ai")).toBe(true);
+    expect(
+      tryHeuristicEdgeIndex(
+        ["caller provides email address", "caller refuses"],
+        "ada@webee.ai",
+      ),
+    ).toBe(0);
   });
 
   it("routes any answer edges on okay without classifier", async () => {
@@ -365,6 +373,15 @@ describe("cascade tuning", () => {
     expect(resolveEndpointHangoverMs("Twenty Four Street Dubai", 500)).toBe(500);
   });
 
+  it("does not treat in-flight agent speech as an idle caller turn", async () => {
+    const { isIdleCallerTurn } = await import("@/lib/voice/turn-commit.shared");
+    expect(isIdleCallerTurn({ })).toBe(true);
+    expect(isIdleCallerTurn({ sttAt: 1 })).toBe(false);
+    expect(isIdleCallerTurn({ speakAt: 1 })).toBe(false);
+    expect(isIdleCallerTurn({ firstAudioAt: 1 })).toBe(false);
+    expect(isIdleCallerTurn(null)).toBe(false);
+  });
+
   it("uses a 500ms hangover at default responsiveness", () => {
     const tuned = resolveCascadeTuning({ responsiveness: 1 });
     expect(tuned.silenceDurationMs).toBe(500);
@@ -419,6 +436,8 @@ describe("speech prompt", () => {
       "@/lib/voice/graph/speech-prompt.shared"
     );
     expect(spokenQuestionFromTask("Ask the preferred title")).toBe("What's your preferred title?");
+    expect(spokenQuestionFromTask("Ask their preferred title")).toBe("What's your preferred title?");
+    expect(spokenQuestionFromTask("Ask there preferred title")).toBe("What's your preferred title?");
     expect(spokenQuestionFromTask("Ask what type of property it is.")).toBe(
       "What type of property is it?",
     );
@@ -435,5 +454,75 @@ describe("speech prompt", () => {
     expect(parts.script).toBe("");
     expect(parts.task).toContain("Ask the preferred title");
     expect(spokenFallback(parts)).toBe("What's your preferred title?");
+  });
+
+  it("speaks collect Ask/static lines instantly and leaves why/how to the model", async () => {
+    const { instantSpeechText, wantsSpokenFlavor } = await import(
+      "@/lib/voice/graph/speech-prompt.shared"
+    );
+    expect(instantSpeechText("Ask the preferred title")).toBe("What's your preferred title?");
+    expect(instantSpeechText("Can I take your postcode?")).toBe("Can I take your postcode?");
+    expect(instantSpeechText("Ask why they want to sell.")).toBeNull();
+    expect(instantSpeechText("Ask how they heard about us.")).toBeNull();
+    expect(wantsSpokenFlavor("Be funny and quirky")).toBe(true);
+    expect(instantSpeechText("Ask the preferred title\nBe funny about it")).toBeNull();
+    expect(
+      instantSpeechText(
+        "this is nathan\nspeaking... Can i just have 30 seconds?\nbe funny and quirky to be inviting",
+      ),
+    ).toBeNull();
+    expect(
+      instantSpeechText(
+        "Would you like to reschedule?\nIf the user would like a callback, ask for a day.\nExtract the callback date.",
+      ),
+    ).toBeNull();
+    expect(
+      instantSpeechText(
+        "can i just check your Arjav and i will be as quick as possible\nonly ask for first name",
+      ),
+    ).toBe("Can I just check your Arjav and I will be as quick as possible?");
+    expect(
+      instantSpeechText(
+        "can i just check your Arjav and i will be as quick as possible only ask for first name",
+      ),
+    ).toBe("Can I just check your Arjav and I will be as quick as possible?");
+  });
+});
+
+describe("prompt phrase routing", () => {
+  it("matches spoken phrases to transition prompts and interrupt edges", async () => {
+    const { tryHeuristicEdgeIndex } = await import("@/lib/voice/graph/router");
+    const conditions = [
+      "it isn't a good time",
+      "yes it is",
+      "how long will it take?",
+      "No i dont want to sell it",
+      "it is already sold",
+      "they heard a bad review",
+      "user interrupts and asks a question",
+    ];
+    expect(tryHeuristicEdgeIndex(conditions, "it's not a good time")).toBe(0);
+    expect(tryHeuristicEdgeIndex(conditions, "how long will this take")).toBe(2);
+    expect(tryHeuristicEdgeIndex(conditions, "it's already sold")).toBe(4);
+    expect(tryHeuristicEdgeIndex(conditions, "wait, can I ask something")).toBe(6);
+  });
+
+  it("does not route a short Yes onto a sibling question edge via the agent script", async () => {
+    const { tryHeuristicEdgeIndex } = await import("@/lib/voice/graph/router");
+    const conditions = [
+      "it isn't a good time",
+      "yes it is",
+      "how long will it take?",
+      "No i dont want to sell it anymore",
+      "it is already sold",
+      "they heard a bad review",
+      "user interrupts and asks to move forward!",
+      "if variables {{first_name}} {{last_name}} {{email}} {{mobile}} are present. and client says yes",
+    ];
+    const agent =
+      "I'll start by explaining how we operate. We can purchase in a timeframe that suits you. I need to take down some details. How does that sound?";
+    expect(tryHeuristicEdgeIndex(conditions, "Yes.", agent)).toBe(1);
+    expect(tryHeuristicEdgeIndex(conditions, "yes", agent)).toBe(1);
+    expect(tryHeuristicEdgeIndex(conditions, "how long will this take", agent)).toBe(2);
   });
 });

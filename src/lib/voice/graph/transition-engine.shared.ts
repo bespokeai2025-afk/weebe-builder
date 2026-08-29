@@ -11,6 +11,11 @@
  */
 
 import type { FlowEdge, LlmMessage, VariableValue } from "./types";
+import {
+  evaluateEquationGroup,
+  parseEquationGroup,
+  promptToEquationGroup,
+} from "./equations.shared";
 
 export interface TransitionState {
   currentNodeHint?: string;
@@ -28,77 +33,30 @@ export interface TransitionState {
 export function isEquationCondition(prompt: string): boolean {
   const p = prompt.trim();
   if (!p) return false;
-  if (/^\{\{[^}]+\}\}\s*(==|!=|<=|>=|<|>|=)\s*.+/i.test(p)) return true;
-  if (/^\{\{[^}]+\}\}$/.test(p)) return true;
-  return false;
-}
-
-function parseRhs(raw: string): VariableValue {
-  const t = raw.trim();
-  if (/^".*"$/.test(t) || /^'.*'$/.test(t)) return t.slice(1, -1);
-  if (/^true$/i.test(t)) return true;
-  if (/^false$/i.test(t)) return false;
-  if (/^null$/i.test(t)) return null;
-  const n = Number(t);
-  if (!Number.isNaN(n) && t !== "") return n;
-  return t;
+  return promptToEquationGroup(p) !== null;
 }
 
 /**
  * Evaluate a Retell-style equation condition against flow variables.
- * Returns null when the prompt is not an equation.
+ * Supports structured `equations[]` (preferred) and prompt strings
+ * (`{{var}} == "value"`, contains / not contains, AND / OR).
  */
 export function evaluateEquationCondition(
   prompt: string,
   variables: Record<string, VariableValue>,
 ): boolean | null {
-  const p = prompt.trim();
-  if (!p) return null;
-
-  const bare = p.match(/^\{\{\s*([a-zA-Z0-9_]+)\s*\}\}$/);
-  if (bare) {
-    const v = variables[bare[1]!];
-    return v !== null && v !== undefined && v !== "" && v !== false;
-  }
-
-  const m = p.match(
-    /^\{\{\s*([a-zA-Z0-9_]+)\s*\}\}\s*(===|!==|==|!=|<=|>=|<|>)\s*(.+)$/i,
-  );
-  if (!m) return null;
-
-  const left = variables[m[1]!];
-  const op = m[2]!.replace("===", "==").replace("!==", "!=");
-  const right = parseRhs(m[3]!);
-
-  const ln = typeof left === "number" ? left : Number(left);
-  const rn = typeof right === "number" ? right : Number(right);
-  const numeric = !Number.isNaN(ln) && !Number.isNaN(rn) && String(left).trim() !== "" && String(right).trim() !== "";
-
-  switch (op) {
-    case "==":
-      return numeric ? ln === rn : String(left ?? "") === String(right ?? "");
-    case "!=":
-      return numeric ? ln !== rn : String(left ?? "") !== String(right ?? "");
-    case "<":
-      return numeric ? ln < rn : false;
-    case "<=":
-      return numeric ? ln <= rn : false;
-    case ">":
-      return numeric ? ln > rn : false;
-    case ">=":
-      return numeric ? ln >= rn : false;
-    default:
-      return null;
-  }
+  const group = parseEquationGroup({ prompt });
+  return evaluateEquationGroup(group, variables);
 }
 
 /** First edge whose equation condition matches; null if none or no equations. */
 export function tryEquationEdge(edges: FlowEdge[], variables: Record<string, VariableValue>): FlowEdge | null {
   for (const edge of edges) {
     if (!edge.destination_node_id) continue;
-    const { type, prompt } = edge.transition_condition;
-    if (type === "prompt") continue;
-    const hit = evaluateEquationCondition(prompt.trim(), variables);
+    const cond = edge.transition_condition;
+    if (cond.type === "prompt") continue;
+    const group = parseEquationGroup(cond);
+    const hit = evaluateEquationGroup(group, variables);
     if (hit === true) return edge;
   }
   return null;

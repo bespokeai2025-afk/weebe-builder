@@ -17,6 +17,8 @@ export interface LoadedFlow {
   flow: ConversationFlow;
   /** Seeded at call time from CRM/dialer or explicit runtimeDefault — not analysis examples. */
   variables: Record<string, VariableValue>;
+  /** Declared collect / analysis variable names. */
+  variableNames: string[];
   /** Non-fatal problems, surfaced rather than swallowed. */
   warnings: string[];
 }
@@ -40,16 +42,23 @@ export function loadFlowFromAgent(
   dynamicVariables: Record<string, VariableValue> = {},
 ): LoadedFlow {
   const warnings: string[] = [];
-  const data = isRecord(flowData) ? flowData : {};
   const cfg = isRecord(settings) ? settings : {};
+  const published = isRecord(cfg.publishedSnapshot) ? cfg.publishedSnapshot : null;
+  const publishedFlow = published && isRecord(published.flowData) ? published.flowData : null;
+  const data = publishedFlow ?? (isRecord(flowData) ? flowData : {});
+  if (publishedFlow) {
+    warnings.push("using published snapshot for the live call");
+  }
 
   const nodes = Array.isArray(data.nodes) ? data.nodes : [];
   const edges = Array.isArray(data.edges) ? data.edges : [];
-  const declared = Array.isArray(data.variables)
-    ? data.variables
-    : Array.isArray(cfg.variables)
-      ? cfg.variables
-      : [];
+  const declared = Array.isArray(published?.variables)
+    ? published.variables
+    : Array.isArray(data.variables)
+      ? data.variables
+      : Array.isArray(cfg.variables)
+        ? cfg.variables
+        : [];
 
   let flow: ConversationFlow = {};
   try {
@@ -80,6 +89,9 @@ export function loadFlowFromAgent(
   return {
     flow,
     variables: { ...seedVariables(declared), ...dynamicVariables },
+    variableNames: declared
+      .map((item) => (isRecord(item) ? String(item.name ?? "").trim() : ""))
+      .filter(Boolean),
     warnings,
   };
 }

@@ -3,6 +3,8 @@
  * Only attributes that exist on the opportunity entity (Lead cos_* fields are invalid).
  */
 import { isWbahAppointmentConfirmed } from "./wbah-allens-logic.shared";
+import { pickWbahCrmEmail } from "./wbah-email.shared";
+import { normalizeWbahUkMobilePhone } from "./wbah-uk-phone.shared";
 import type { formatWbahRetellCallData } from "./wbah-format-data.shared";
 
 type FormatResult = ReturnType<typeof formatWbahRetellCallData>;
@@ -104,12 +106,22 @@ export function buildWbahRebookOpportunityPayload(input: {
   if (last && !patch.new_lastname) patch.new_lastname = last;
 
   const mobile =
-    pickStr(input.dynVars.user_mobile ?? input.dynVars.mobile ?? input.formatted.phone) ??
-    pickStr(input.dynVars.phone);
-  if (mobile && !patch.new_mobile) patch.new_mobile = mobile;
+    pickStr(input.dynVars.user_mobile ?? input.dynVars.mobile) ?? pickStr(input.dynVars.phone);
+  if (mobile && !patch.new_mobile) {
+    const normalized = normalizeWbahUkMobilePhone(mobile);
+    if (normalized) patch.new_mobile = normalized;
+  }
 
-  const email = pickStr(input.formatted.email ?? input.dynVars.user_email ?? input.dynVars.email);
-  if (email && !patch.emailaddress) patch.emailaddress = email;
+  const email = pickWbahCrmEmail(
+    patch.emailaddress,
+    input.formatted.email,
+    flattenStructured(input.formatted.structuredJsonOutput ?? undefined).emailaddress1,
+    input.custom.email_address,
+    input.dynVars.user_email,
+    input.dynVars.email,
+  );
+  if (email) patch.emailaddress = email;
+  else delete patch.emailaddress;
 
   applyRebookConsultationBooking(patch, input.formatted);
 

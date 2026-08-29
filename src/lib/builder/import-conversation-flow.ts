@@ -1,13 +1,22 @@
 import type { Edge } from "@xyflow/react";
 import type { FlowNode } from "./store";
-import type { BuilderSettings, BuilderVariable, FlowNodeData, NodeKind, Transition, TransitionConditionType } from "./types";
+import type { BuilderSettings, BuilderVariable, ExtractVariableItem, FlowNodeData, NodeKind, Transition, TransitionConditionType } from "./types";
 import { isEquationCondition } from "../voice/graph/transition-engine.shared";
+import {
+  parseEquationGroup,
+  serializeEquationPrompt,
+  type EquationClause,
+} from "../voice/graph/equations.shared";
+import { allNodeKinds } from "./node-registry";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type AnyObj = Record<string, any>;
 
 const TYPE_MAP: Record<string, NodeKind> = {
   conversation: "conversation",
+  begin: "begin",
+  wait: "wait",
+  subagent: "subagent",
   function: "function",
   transfer_call: "call_transfer",
   call_transfer: "call_transfer",
@@ -22,7 +31,11 @@ const TYPE_MAP: Record<string, NodeKind> = {
   code: "code",
   end: "ending",
   ending: "ending",
+  mcp: "mcp",
+  http_request: "http_request",
 };
+
+const KNOWN_KINDS = new Set<string>(allNodeKinds());
 
 const NODE_OVERRIDE_KEYS = [
   "voice_speed",
@@ -76,6 +89,102 @@ function readHandoffText(option: AnyObj | undefined): string | undefined {
   return option.prompt ?? option.message ?? option.message_to_agent;
 }
 
+function readTransition(e: AnyObj, nodeId: string, i: number): Transition {
+  const cond = (e.transition_condition ?? {}) as AnyObj;
+  const group = parseEquationGroup(cond);
+  const prompt = String(cond.prompt ?? "").trim();
+  const rawType = cond.type as TransitionConditionType | undefined;
+  const conditionType: TransitionConditionType =
+    rawType === "equation" || rawType === "prompt"
+      ? rawType
+      : group || isEquationCondition(prompt)
+        ? "equation"
+        : "prompt";
+  const condition =
+    conditionType === "equation"
+      ? prompt || (group ? serializeEquationPrompt(group) : "")
+      : prompt;
+  return {
+    id: e.id ?? `t-${nodeId}-${i}`,
+    target: e.destination_node_id ?? null,
+    condition,
+    conditionType,
+    ...(group
+      ? {
+          equationJoin: group.join,
+          equations: group.equations as EquationClause[],
+        }
+      : {}),
+  };
+}
+
+function formatQueryLines(params: AnyObj | undefined): string | undefined {
+  if (!params || typeof params !== "object") return undefined;
+  const lines = Object.entries(params)
+    .filter(([, v]) => v != null && String(v).trim() !== "")
+    .map(([k, v]) => `${k}=${String(v)}`);
+  return lines.length ? lines.join("\n") : undefined;
+}
+
+function formatResponseMapping(vars: AnyObj | undefined): string | undefined {
+  if (!vars || typeof vars !== "object") return undefined;
+  const lines = Object.entries(vars)
+    .filter(([k]) => k.trim())
+    .map(([k, v]) => (v ? `${v} -> {{${k}}}` : k));
+  return lines.length ? lines.join("\n") : undefined;
+}
+
+function hydrateFunctionNodes(nodes: FlowNode[], tools: AnyObj[]): void {
+  const byId = new Map<string, AnyObj>();
+  const byName = new Map<string, AnyObj>();
+  for (const tool of tools) {
+    const id = String(tool.tool_id ?? tool.id ?? "").trim();
+    const name = String(tool.name ?? "").trim();
+    if (id) byId.set(id, tool);
+    if (name) byName.set(name.toLowerCase(), tool);
+  }
+  for (const node of nodes) {
+    if (node.data.kind !== "function") continue;
+    const tool =
+      byId.get(String(node.data.toolId ?? "").trim()) ??
+      byName.get(String(node.data.label ?? node.data.toolName ?? "").trim().toLowerCase());
+    if (!tool) continue;
+    const d = node.data;
+    if (!d.toolId && tool.tool_id) d.toolId = String(tool.tool_id);
+    if (tool.name) d.toolName = String(tool.name);
+    if (!d.toolDescription && typeof tool.description === "string") {
+      d.toolDescription = tool.description;
+    }
+    if (!d.httpUrl && typeof tool.url === "string") d.httpUrl = tool.url;
+    if (!d.httpMethod && typeof tool.method === "string") {
+      const m = String(tool.method).toUpperCase();
+      if (["GET", "POST", "PUT", "PATCH", "DELETE"].includes(m)) {
+        d.httpMethod = m as FlowNodeData["httpMethod"];
+      }
+    }
+    if (d.httpTimeoutMs == null && typeof tool.timeout_ms === "number") {
+      d.httpTimeoutMs = tool.timeout_ms;
+    }
+    if (!d.httpHeaders && tool.headers && typeof tool.headers === "object") {
+      d.httpHeaders = JSON.stringify(tool.headers);
+    }
+    if (!d.httpQuery) {
+      const q = formatQueryLines(tool.query_params as AnyObj | undefined);
+      if (q) d.httpQuery = q;
+    }
+    if (!d.httpResponseMapping) {
+      const map = formatResponseMapping(tool.response_variables as AnyObj | undefined);
+      if (map) d.httpResponseMapping = map;
+    }
+    if (!d.httpBody && tool.parameters && typeof tool.parameters === "object") {
+      d.httpBody = JSON.stringify(tool.parameters);
+    }
+    if (d.label === "function" || d.label === "Function" || !d.label) {
+      d.label = String(tool.name ?? d.label);
+    }
+  }
+}
+
 /**
  * Parse a Webespoke AI agent JSON (or just a conversation flow) back into
  * builder nodes, edges, and settings.
@@ -96,29 +205,20 @@ export function importAgentJson(raw: string): {
 
   // Build nodes
   const nodes: FlowNode[] = rawNodes.map((rn, idx) => {
-    const kind: NodeKind = TYPE_MAP[rn.type] ?? "conversation";
+    const kind: NodeKind = KNOWN_KINDS.has(String(rn.builder_kind ?? ""))
+      ? (rn.builder_kind as NodeKind)
+      : rn.tool_type === "mcp"
+        ? "mcp"
+        : rn.tool_type === "webhook"
+          ? "http_request"
+          : (TYPE_MAP[rn.type] ?? "conversation");
     const pos =
       rn.display_position && typeof rn.display_position.x === "number"
         ? rn.display_position
         : { x: 200 + (idx % 8) * 260, y: 200 + Math.floor(idx / 8) * 200 };
 
     const rEdges = collectRawEdges(rn);
-    const transitions: Transition[] = rEdges.map((e, i) => {
-      const condition = e.transition_condition?.prompt ?? "";
-      const rawType = e.transition_condition?.type as TransitionConditionType | undefined;
-      const conditionType: TransitionConditionType =
-        rawType === "equation" || rawType === "prompt"
-          ? rawType
-          : isEquationCondition(condition.trim())
-            ? "equation"
-            : "prompt";
-      return {
-        id: e.id ?? `t-${rn.id}-${i}`,
-        target: e.destination_node_id ?? null,
-        condition,
-        conditionType,
-      };
-    });
+    const transitions: Transition[] = rEdges.map((e, i) => readTransition(e, rn.id, i));
 
     const nodeData: FlowNodeData = {
       kind,
@@ -135,8 +235,11 @@ export function importAgentJson(raw: string): {
       isStart: rn.id === cf.start_node_id,
       startSpeaker: rn.start_speaker,
       instructionType: rn.instruction?.type,
+      instructions: (rn.instruction as { notes?: string } | undefined)?.notes,
       smsMessage: rn.message,
       pauseDetectionMs: rn.pause_detection_ms,
+      digitTimeoutMs: rn.digit_timeout_ms,
+      digitRetryCount: kind === "press_digit" ? rn.retry_count : undefined,
       transferNumber: rn.transfer_destination?.number,
       transferMode:
         rn.transfer_destination?.type === "dynamic_variable" ||
@@ -179,6 +282,53 @@ export function importAgentJson(raw: string): {
         ? String(rn.tool_id).replace(/_cal$/, "")
         : undefined,
       codeSource: rn.code,
+      waitTimeoutMs: rn.silence_timeout_ms,
+      waitMaxMs: rn.max_wait_ms,
+      waitRetryCount: kind === "wait" ? rn.retry_count : undefined,
+      waitMode: kind === "wait" ? (rn.start_speaker === "user" ? "user" : "silence") : undefined,
+      beginSilenceMs: rn.begin_after_user_silence_ms,
+      subagentToolIds: Array.isArray(rn.subagent_tools) ? rn.subagent_tools.join(", ") : undefined,
+      subagentKbIds: Array.isArray(rn.knowledge_base_ids) ? rn.knowledge_base_ids.join(", ") : undefined,
+      subagentModel: kind === "subagent" ? resolveModelId(rn.model_choice) : undefined,
+      mcpServerUrl: rn.tool_type === "mcp" || kind === "mcp" ? rn.url : undefined,
+      mcpToolName: rn.mcp_tool ?? (kind === "mcp" ? rn.name : undefined),
+      mcpTimeoutMs: kind === "mcp" ? rn.timeout : undefined,
+      mcpHeaders:
+        (rn.tool_type === "mcp" || kind === "mcp") && rn.headers && typeof rn.headers === "object"
+          ? JSON.stringify(rn.headers)
+          : undefined,
+      toolName: rn.name,
+      toolDescription: typeof rn.description === "string" ? rn.description : undefined,
+      httpUrl:
+        rn.tool_type === "webhook" || kind === "http_request" || kind === "function"
+          ? rn.url
+          : undefined,
+      httpMethod: rn.method,
+      httpTimeoutMs:
+        kind === "http_request" || rn.tool_type === "webhook" || kind === "function"
+          ? rn.timeout ?? rn.timeout_ms
+          : undefined,
+      httpToolName: kind === "http_request" || rn.tool_type === "webhook" ? rn.name : undefined,
+      httpBody: typeof rn.body === "string" ? rn.body : undefined,
+      httpHeaders:
+        (kind === "http_request" || rn.tool_type === "webhook") &&
+        rn.headers &&
+        typeof rn.headers === "object"
+          ? JSON.stringify(rn.headers)
+          : undefined,
+      extractVariables: Array.isArray(rn.variables)
+        ? rn.variables.map((v: AnyObj, i: number) => ({
+            id: String(v.id ?? `var-${i}`),
+            name: String(v.name ?? ""),
+            description: String(v.description ?? ""),
+            type: (["string", "number", "boolean", "date", "enum", "json"].includes(String(v.type))
+              ? v.type
+              : String(v.description ?? "").includes("JSON object")
+                ? "json"
+                : "string") as ExtractVariableItem["type"],
+            required: v.required === true,
+          }))
+        : undefined,
       endingPrompt: kind === "ending" ? rn.instruction?.text : undefined,
       variableName: rn.variable?.name,
       variableDescription: rn.variable?.description,
@@ -201,6 +351,9 @@ export function importAgentJson(raw: string): {
       data: nodeData,
     };
   });
+
+  const importedTools: AnyObj[] = Array.isArray(cf.tools) ? cf.tools : [];
+  hydrateFunctionNodes(nodes, importedTools);
 
   const nodeIds = new Set(nodes.map((n) => n.id));
 
@@ -241,7 +394,10 @@ export function importAgentJson(raw: string): {
     agentName: data.agent_name ?? cf.agent_name,
     agentId: data.agent_id || undefined,
     conversationFlowId: cf.conversation_flow_id,
-    globalPrompt: cf.global_prompt,
+    globalPrompt:
+      typeof cf.global_prompt === "string" && cf.global_prompt.trim()
+        ? cf.global_prompt
+        : "You should be polite and humble. Stay on this node's task only. Keep responses concise.",
     model: resolveModelId(cf.model_choice),
     voiceId: data.voice_id,
     language: data.language,
@@ -288,6 +444,7 @@ export function importAgentJson(raw: string): {
     handbookSmartMatching: hc.smart_matching,
     rawAgent,
     rawConversationFlow,
+    flowTools: importedTools,
   };
 
   const variables: BuilderVariable[] = Array.isArray(data.post_call_analysis_data)

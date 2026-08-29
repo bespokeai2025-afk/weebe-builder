@@ -17,14 +17,25 @@ import {
   type EdgeMouseHandler,
   type Node,
   type Viewport,
+  type Connection,
+  type Edge,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useBuilderStore } from "@/lib/builder/store";
 import { NodeRenderers } from "./FlowNodes";
+import { FlowDeletableEdge } from "./FlowDeletableEdge";
 import type { FlowNodeData } from "@/lib/builder/types";
+import { validateFlow } from "@/lib/builder/validate";
+import { isEditableHotkeyTarget } from "@/lib/builder/graph-ops";
+import { NodeIssueContext, issueMapFromList } from "./flow-validation-context";
+import { toast } from "sonner";
 
 const KIND_COLOR: Record<string, string> = {
   conversation: "var(--flow-minimap-node-fill)",
+  begin: "var(--flow-minimap-node-fill)",
+  wait: "var(--flow-minimap-node-fill)",
+  subagent: "var(--flow-minimap-node-fill)",
+  mcp: "var(--flow-minimap-node-fill)",
   function: "var(--flow-minimap-node-fill)",
   call_transfer: "var(--flow-minimap-node-fill)",
   agent_transfer: "var(--flow-minimap-node-fill)",
@@ -241,11 +252,46 @@ function CanvasInner({
     }
   }, [rf, onReady]);
 
-  const { nodes, edges, onNodesChange, onEdgesChange, onConnect, deleteEdge, flowVersion, selectNode } =
-    useBuilderStore();
+  const {
+    nodes,
+    edges,
+    variables,
+    onNodesChange,
+    onEdgesChange,
+    onConnect,
+    onReconnect,
+    flowVersion,
+    selectNode,
+    undo,
+    redo,
+    copySelection,
+    pasteClipboard,
+    duplicateSelection,
+    deleteSelection,
+    setStartNode,
+    saveSelectionAsComponent,
+    addNode,
+  } = useBuilderStore();
+  const [menu, setMenu] = useState<{ x: number; y: number; nodeId?: string } | null>(null);
+  useEffect(() => {
+    if (!menu) return;
+    const close = () => setMenu(null);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [menu]);
   const renderEdges = useMemo(
-    () => edges.map((edge) => (edge.type === "step" ? edge : { ...edge, type: "step" })),
+    () =>
+      edges.map((edge) => ({
+        ...edge,
+        type: "smoothstep",
+        reconnectable: true,
+      })),
     [edges],
+  );
+  const edgeTypes = useMemo(() => ({ smoothstep: FlowDeletableEdge }), []);
+  const issueMap = useMemo(
+    () => issueMapFromList(validateFlow(nodes, edges, variables)),
+    [nodes, edges, variables],
   );
 
   useEffect(() => {
@@ -266,37 +312,98 @@ function CanvasInner({
     return () => clearTimeout(t);
   }, [flowVersion, rf]);
 
-  const onEdgeClick: EdgeMouseHandler = (_, edge) => {
-    if (confirm("Delete this connection?")) deleteEdge(edge.id);
+  const onEdgeClick: EdgeMouseHandler = () => {
+    /* removal is the mid-edge X — keep the click for selection only */
   };
 
   const memoTypes = useMemo(() => NodeRenderers, []);
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (isEditableHotkeyTarget(e.target)) return;
+      const meta = e.metaKey || e.ctrlKey;
+      if (meta && e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+        return;
+      }
+      if (meta && ((e.key === "z" && e.shiftKey) || e.key === "y")) {
+        e.preventDefault();
+        redo();
+        return;
+      }
+      if (meta && e.key === "c") {
+        e.preventDefault();
+        copySelection();
+        return;
+      }
+      if (meta && e.key === "v") {
+        e.preventDefault();
+        pasteClipboard();
+        return;
+      }
+      if (meta && e.key === "d") {
+        e.preventDefault();
+        duplicateSelection();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [copySelection, duplicateSelection, pasteClipboard, redo, undo]);
+
   return (
+    <NodeIssueContext.Provider value={issueMap}>
     <ReactFlow
       nodes={nodes}
       edges={renderEdges}
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       onConnect={onConnect}
+      onReconnect={(oldEdge: Edge, c: Connection) => onReconnect(oldEdge, c)}
+      edgesReconnectable
       onEdgeClick={onEdgeClick}
-      onNodeClick={(_, node) => selectNode(node.id)}
-      onPaneClick={() => selectNode(null)}
+      onNodeClick={(_, node) => {
+        setMenu(null);
+        selectNode(node.id);
+      }}
+      onPaneClick={() => {
+        setMenu(null);
+        selectNode(null);
+      }}
+      onNodeContextMenu={(e, node) => {
+        e.preventDefault();
+        selectNode(node.id);
+        setMenu({ x: e.clientX, y: e.clientY, nodeId: node.id });
+      }}
+      onPaneContextMenu={(e) => {
+        e.preventDefault();
+        setMenu({ x: e.clientX, y: e.clientY });
+      }}
       onMove={(_, nextViewport) => setViewport(nextViewport)}
       nodeTypes={memoTypes}
+      edgeTypes={edgeTypes}
       fitView
       fitViewOptions={{ padding: 0.4, maxZoom: 0.7 }}
       minZoom={0.2}
       maxZoom={2}
+      snapToGrid
+      snapGrid={[18, 18]}
+      multiSelectionKeyCode="Shift"
+      selectionKeyCode="Shift"
+      deleteKeyCode={["Backspace", "Delete"]}
       proOptions={{ hideAttribution: true }}
       defaultEdgeOptions={{
-        type: "step",
+        type: "smoothstep",
         animated: false,
         style: {
           stroke: "var(--flow-edge)",
           strokeWidth: 1.35,
           filter: "drop-shadow(0 0 4px rgba(125, 211, 252, 0.28))",
         },
+        labelStyle: { fill: "#cbd5e1", fontSize: 10, fontWeight: 500 },
+        labelBgStyle: { fill: "#0b1220", fillOpacity: 0.92 },
+        labelBgPadding: [4, 2],
+        labelBgBorderRadius: 4,
       }}
     >
       <Background id="flow-lines" variant="lines" gap={72} color="var(--flow-grid-major)" />
@@ -306,7 +413,64 @@ function CanvasInner({
         className="!bg-primary !text-primary-foreground !border-primary [&>button]:!bg-primary [&>button]:!text-primary-foreground [&>button]:!border-primary/40 [&>button:hover]:!bg-primary/80"
       />
       <FlowMiniMap nodes={nodes} viewport={viewport} canvasSize={canvasSize} />
+      {nodes.length === 0 && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <div className="rounded-lg border border-white/[0.08] bg-background/80 px-4 py-3 text-center text-[12px] text-muted-foreground">
+            Empty canvas. Right-click to add a node, or open Components.
+          </div>
+        </div>
+      )}
     </ReactFlow>
+    {menu && (
+      <div
+        className="fixed z-50 min-w-40 rounded-md border border-white/[0.08] bg-popover p-1 text-[12px] shadow-md"
+        style={{ left: menu.x, top: menu.y }}
+        onClick={() => setMenu(null)}
+      >
+        {menu.nodeId ? (
+          <>
+            <button className="block w-full rounded px-2 py-1 text-left hover:bg-white/[0.06]" onClick={() => selectNode(menu.nodeId!)}>
+              Edit
+            </button>
+            <button className="block w-full rounded px-2 py-1 text-left hover:bg-white/[0.06]" onClick={() => duplicateSelection()}>
+              Duplicate
+            </button>
+            <button
+              className="block w-full rounded px-2 py-1 text-left hover:bg-white/[0.06]"
+              onClick={() => setStartNode(menu.nodeId!)}
+            >
+              Set as start
+            </button>
+            <button
+              className="block w-full rounded px-2 py-1 text-left hover:bg-white/[0.06]"
+              onClick={() => {
+                const result = saveSelectionAsComponent("Saved selection");
+                if (result.ok) toast.success("Saved as component");
+                else toast.error(result.error);
+              }}
+            >
+              Save as component
+            </button>
+            <button className="block w-full rounded px-2 py-1 text-left text-rose-300 hover:bg-white/[0.06]" onClick={() => deleteSelection()}>
+              Delete
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              className="block w-full rounded px-2 py-1 text-left hover:bg-white/[0.06]"
+              onClick={() => addNode("conversation")}
+            >
+              Add conversation
+            </button>
+            <button className="block w-full rounded px-2 py-1 text-left hover:bg-white/[0.06]" onClick={() => pasteClipboard()}>
+              Paste
+            </button>
+          </>
+        )}
+      </div>
+    )}
+    </NodeIssueContext.Provider>
   );
 }
 

@@ -75,6 +75,36 @@ describe("loadFlowFromAgent", () => {
     expect(compiled.warnings).toEqual([]);
   });
 
+  it("uses the published snapshot for live calls instead of the draft graph", () => {
+    const draft = {
+      nodes: [
+        builderNode("draft", "conversation", {
+          isStart: true,
+          instructionType: "static_text",
+          dialogue: "Draft hello",
+        }),
+      ],
+      edges: [],
+    };
+    const published = {
+      nodes: [
+        builderNode("live", "conversation", {
+          isStart: true,
+          instructionType: "static_text",
+          dialogue: "Published hello",
+        }),
+      ],
+      edges: [],
+    };
+    const loaded = loadFlowFromAgent(draft, {
+      agentName: "Test",
+      globalPrompt: "Be brief.",
+      publishedSnapshot: { version: 2, publishedAt: "2026-01-01", flowData: published, variables: [] },
+    });
+    expect(loaded.warnings.some((w) => w.includes("published snapshot"))).toBe(true);
+    expect(compileFlow(loaded.flow).startNodeId).toBe("live");
+  });
+
   it("maps every voice node kind onto an executable flow node type", () => {
     const flowData = {
       nodes: [

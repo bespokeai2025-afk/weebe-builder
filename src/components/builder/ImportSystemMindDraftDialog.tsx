@@ -130,6 +130,8 @@ export function ImportSystemMindDraftDialog({
           description: v.description ?? "",
           type:        v.type ?? "string",
         })),
+        agentRowId: null,
+        replaceSettings: true,
       });
       await updateFn({ data: { draftId: selectedDraft.id, status: "sent_to_builder" } });
       qc.invalidateQueries({ queryKey: ["generator-drafts"] });

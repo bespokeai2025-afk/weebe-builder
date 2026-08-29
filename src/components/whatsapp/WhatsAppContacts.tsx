@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Download, Upload, Search, Users, RefreshCw, Loader2, FolderOpen, FileSpreadsheet, Eye, CheckCircle2, MessageCircle, Circle, Ban } from "lucide-react";
+import { Plus, Pencil, Trash2, Download, Upload, Search, Users, RefreshCw, Loader2, FolderOpen, FileSpreadsheet, ChevronDown, CheckCircle2, MessageCircle, Circle, Ban, Copy, X, Phone, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,13 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
+import {
   listWAContacts,
   createWAContact,
   updateWAContact,
@@ -37,7 +44,9 @@ import {
   getContactField,
   getContactFieldsMap,
   getContactPhones,
-  getContactDetailFields,
+  getContactPropertySummary,
+  getContactRequirementLabel,
+  groupContactDetailFields,
   type CsvColumnMapping,
 } from "@/lib/whatsapp/csv-leads.shared";
 import { listContactDocsByPhone } from "@/lib/dashboard/documents.functions";
@@ -59,6 +68,7 @@ type WaContactRow = {
   notes?: string | null;
   created_at?: string;
   do_not_contact?: boolean;
+  import_meta?: Record<string, unknown> | null;
   wa_stats?: {
     outbound_count: number;
     inbound_count: number;
@@ -98,6 +108,203 @@ function contactSearchHaystack(c: any): string {
 
 function emptyForm() {
   return { name: "", phone: "", tags: "", source: "", lead_status: "", notes: "" };
+}
+
+function copyText(value: string, label = "Copied") {
+  void navigator.clipboard.writeText(value).then(() => toast.success(label));
+}
+
+function ContactPersonPane({
+  contact,
+  onClose,
+  onEdit,
+  onDocs,
+}: {
+  contact: WaContactRow | null;
+  onClose: () => void;
+  onEdit: () => void;
+  onDocs: () => void;
+}) {
+  if (!contact) {
+    return (
+      <aside className="hidden h-full min-h-0 w-full flex-col border-l border-white/[0.06] bg-muted/20 lg:flex">
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
+          <User className="h-9 w-9 text-muted-foreground/40" />
+          <p className="text-sm font-medium text-muted-foreground">Select a contact</p>
+          <p className="text-xs text-muted-foreground">
+            Owner, property, and requirement details open here.
+          </p>
+        </div>
+      </aside>
+    );
+  }
+
+  const grouped = groupContactDetailFields(contact);
+  const req = getContactRequirementLabel(contact);
+  const stats = contact.wa_stats;
+  const phones = getContactPhones(contact);
+  const waDigits = (contact.phone ?? "").replace(/\D/g, "");
+
+  return (
+    <aside className="flex h-full min-h-0 w-full flex-col border-l border-white/[0.06] bg-muted/20">
+      <div className="flex items-start gap-3 border-b border-white/[0.06] bg-card/80 px-4 py-4">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-base font-semibold text-primary">
+          {(contact.name ?? contact.phone).slice(0, 1).toUpperCase()}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="truncate text-base font-semibold leading-tight">
+                {contact.name || "Unnamed"}
+              </p>
+              <button
+                type="button"
+                className="mt-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => copyText(contact.phone, "Number copied")}
+              >
+                <Phone className="h-3 w-3" />
+                {contact.phone}
+                <Copy className="h-3 w-3 opacity-50" />
+              </button>
+              {phones.slice(1).map((p) => (
+                <button
+                  key={`${p.label}-${p.phone}`}
+                  type="button"
+                  className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+                  onClick={() => copyText(p.phone, "Number copied")}
+                >
+                  {p.label}: {p.phone}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              onClick={onClose}
+              aria-label="Close contact"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {contact.do_not_contact ? (
+              <span className="inline-flex items-center gap-0.5 rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] font-medium text-destructive">
+                <Ban className="h-2.5 w-2.5" /> DNC
+              </span>
+            ) : null}
+            {contact.lead_status ? (
+              <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium capitalize text-muted-foreground">
+                {contact.lead_status}
+              </span>
+            ) : null}
+            {req ? (
+              <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                {req}
+              </span>
+            ) : null}
+            {contact.source ? (
+              <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                {contact.source}
+              </span>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
+        {stats ? (
+          <section>
+            <p className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <MessageCircle className="h-3.5 w-3.5" />
+              WhatsApp
+            </p>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-lg border border-white/[0.06] bg-card/80 p-3 text-xs">
+              <span className="text-muted-foreground">Sent</span>
+              <span>{stats.messaged ? `${stats.outbound_count} messages` : "Not yet"}</span>
+              <span className="text-muted-foreground">Replies</span>
+              <span>{stats.inbound_count || "—"}</span>
+              <span className="text-muted-foreground">Last status</span>
+              <span>{stats.last_outbound_status ?? "—"}</span>
+              <span className="text-muted-foreground">Last campaign</span>
+              <span className="truncate">{stats.last_campaign_name ?? "—"}</span>
+              <span className="text-muted-foreground">Last sent</span>
+              <span>
+                {stats.last_outbound_at
+                  ? new Date(stats.last_outbound_at).toLocaleString()
+                  : "—"}
+              </span>
+              <span className="text-muted-foreground">Last reply</span>
+              <span>
+                {stats.last_inbound_at
+                  ? new Date(stats.last_inbound_at).toLocaleString()
+                  : "—"}
+              </span>
+            </div>
+          </section>
+        ) : null}
+
+        {grouped.map((group) => (
+          <section key={group.title}>
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              {group.title}
+            </p>
+            <dl className="grid grid-cols-[minmax(0,38%)_1fr] gap-x-3 gap-y-1.5 rounded-lg border border-white/[0.06] bg-card/80 p-3 text-xs">
+              {group.fields.map(({ label, value }) => (
+                <div key={`${label}-${value}`} className="contents">
+                  <dt className="text-muted-foreground">{label}</dt>
+                  <dd className="wrap-break-word font-medium">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        ))}
+
+        {grouped.length === 0 && (
+          <p className="text-xs text-muted-foreground">
+            No extra fields stored. Re-import the CSV to capture property columns.
+          </p>
+        )}
+
+        {(contact.tags ?? []).length > 0 && (
+          <section>
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Tags
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {(contact.tags ?? []).map((t) => (
+                <span key={t} className="rounded-full bg-muted px-2 py-0.5 text-[11px]">
+                  {t}
+                </span>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {contact.notes ? (
+          <p className="text-xs text-muted-foreground">{contact.notes}</p>
+        ) : null}
+      </div>
+
+      <div className="grid shrink-0 grid-cols-2 gap-2 border-t border-white/[0.06] bg-card/80 p-3">
+        <Button size="sm" variant="outline" onClick={onEdit}>
+          <Pencil className="mr-1.5 h-3.5 w-3.5" />
+          Edit
+        </Button>
+        <Button size="sm" variant="outline" onClick={onDocs}>
+          <FolderOpen className="mr-1.5 h-3.5 w-3.5" />
+          Documents
+        </Button>
+        {waDigits ? (
+          <Button size="sm" variant="outline" className="col-span-2" asChild>
+            <a href={`https://wa.me/${waDigits}`} target="_blank" rel="noreferrer">
+              <MessageCircle className="mr-1.5 h-3.5 w-3.5" />
+              Open WhatsApp
+            </a>
+          </Button>
+        ) : null}
+      </div>
+    </aside>
+  );
 }
 
 /** Resolves the data_records contact by WA phone, then shows the documents panel */
@@ -265,6 +472,7 @@ export function WhatsAppContacts() {
     mutationFn: () => deleteFn({ data: { id: deleteId! } }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["wa-contacts"] });
+      if (detailContact?.id === deleteId) setDetailContact(null);
       setDeleteId(null);
       toast.success("Contact deleted");
     },
@@ -359,6 +567,7 @@ export function WhatsAppContacts() {
     try {
       const result = await importCsvFn({ data: { rows: leads } });
       qc.invalidateQueries({ queryKey: ["wa-contacts"] });
+      qc.invalidateQueries({ queryKey: ["campaign-leads"] });
       toast.success(`Imported ${result.total} contact(s)`, {
         description: `${result.inserted} new · ${result.updated} updated`,
       });
@@ -420,292 +629,249 @@ export function WhatsAppContacts() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+    <div className="flex h-full min-h-0 flex-col gap-3">
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
+        <div className="relative min-w-[220px] flex-1">
+          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search contacts…"
+            placeholder="Search name, phone, building, project…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-8 h-8 text-sm"
+            className="h-9 pl-8 text-sm"
           />
         </div>
-        <div className="ml-auto flex items-center gap-2">
-          {watiConnected && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5 border-purple-500/30 text-purple-400 hover:text-purple-300"
-              disabled={syncFromWati.isPending}
-              onClick={() => syncFromWati.mutate()}
-            >
-              {syncFromWati.isPending
-                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                : <RefreshCw className="h-3.5 w-3.5" />}
-              Import from WATI
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="h-9 gap-1.5">
+              <Download className="h-3.5 w-3.5" />
+              Export
+              <ChevronDown className="h-3 w-3 opacity-60" />
             </Button>
-          )}
-          <Button variant="outline" size="sm" onClick={() => exportBuzzchat("messaged")} className="gap-1.5">
-            <Download className="h-3.5 w-3.5" /> Export messaged
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => exportBuzzchat("not_messaged")} className="gap-1.5">
-            <Download className="h-3.5 w-3.5" /> Export not sent
-          </Button>
-          <Button variant="outline" size="sm" onClick={exportCsv} className="gap-1.5">
-            <Download className="h-3.5 w-3.5" /> Property CSV
-          </Button>
-          {(contacts.length) > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5 text-destructive hover:text-destructive"
-              onClick={() => setClearAllOpen(true)}
-            >
-              <Trash2 className="h-3.5 w-3.5" /> Clear all
-            </Button>
-          )}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => exportBuzzchat("all")}>All contacts</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => exportBuzzchat("messaged")}>Messaged</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => exportBuzzchat("not_messaged")}>Not sent</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => exportBuzzchat("replied")}>Replied</DropdownMenuItem>
+            <DropdownMenuItem onClick={exportCsv}>Property CSV</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        {watiConnected && (
           <Button
             variant="outline"
             size="sm"
-            className="gap-1.5"
-            onClick={() => {
-              resetCsvImportState();
-              setImportOpen(true);
-            }}
+            className="h-9 gap-1.5"
+            disabled={syncFromWati.isPending}
+            onClick={() => syncFromWati.mutate()}
           >
-            <Upload className="h-3.5 w-3.5" /> Import CSV
+            {syncFromWati.isPending
+              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              : <RefreshCw className="h-3.5 w-3.5" />}
+            From WATI
           </Button>
-          <Button size="sm" onClick={openCreate} className="gap-1.5">
-            <Plus className="h-3.5 w-3.5" /> Add Contact
+        )}
+        {contacts.length > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 gap-1.5 text-destructive hover:text-destructive"
+            onClick={() => setClearAllOpen(true)}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Clear
           </Button>
-        </div>
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-9 gap-1.5"
+          onClick={() => {
+            resetCsvImportState();
+            setImportOpen(true);
+          }}
+        >
+          <Upload className="h-3.5 w-3.5" /> Import CSV
+        </Button>
+        <Button size="sm" className="h-9 gap-1.5" onClick={openCreate}>
+          <Plus className="h-3.5 w-3.5" /> Add
+        </Button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs">
-          <span>
-            <strong className="text-foreground">{summary.messaged}</strong>
-            <span className="text-muted-foreground"> / {summary.total} messaged</span>
-          </span>
-          <span className="text-muted-foreground">·</span>
-          <span className="text-muted-foreground">{summary.not_messaged} not yet sent</span>
-          <span className="text-muted-foreground">·</span>
-          <span className="text-emerald-400">{summary.replied} replied</span>
-          {(summary.dnc ?? 0) > 0 && (
-            <>
-              <span className="text-muted-foreground">·</span>
-              <span className="text-destructive">{summary.dnc} DNC</span>
-            </>
-          )}
-        </div>
-        <div className="flex flex-wrap gap-1">
-          {(
-            [
-              ["all", "All"],
-              ["messaged", "Messaged ✓"],
-              ["not_messaged", "Not sent"],
-              ["replied", "Replied"],
-              ["dnc", "DNC"],
-            ] as const
-          ).map(([id, label]) => (
-            <Button
-              key={id}
-              type="button"
-              size="sm"
-              variant={messagedFilter === id ? "default" : "outline"}
-              className="h-7 text-[11px]"
-              onClick={() => setMessagedFilter(id)}
-            >
-              {label}
-            </Button>
-          ))}
-        </div>
-      </div>
+      <div className="grid min-h-0 flex-1 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60 lg:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
+        <div className={cn("flex min-h-0 flex-col", detailContact && "hidden lg:flex")}>
+          <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-white/[0.06] bg-muted/20 px-3 py-2.5">
+            {(
+              [
+                ["all", "All", summary.total],
+                ["not_messaged", "Not sent", summary.not_messaged],
+                ["messaged", "Sent", summary.messaged],
+                ["replied", "Replied", summary.replied],
+                ["dnc", "DNC", summary.dnc ?? 0],
+              ] as const
+            ).map(([id, label, count]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setMessagedFilter(id)}
+                className={
+                  messagedFilter === id
+                    ? "rounded-full bg-primary px-3 py-1 text-xs font-medium text-primary-foreground"
+                    : "rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-accent"
+                }
+              >
+                {label}
+                <span className="ml-1.5 tabular-nums opacity-70">{count}</span>
+              </button>
+            ))}
+            {filtered.length > 0 && (
+              <span className="ml-auto text-[11px] text-muted-foreground">
+                {filtered.length} shown
+              </span>
+            )}
+          </div>
 
-      {isLoading ? (
-        <div className="py-16 text-center text-sm text-muted-foreground">Loading…</div>
-      ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
-          <Users className="h-10 w-10 opacity-30" />
-          <p className="text-sm font-medium">No contacts yet</p>
-          <p className="text-xs">Add contacts manually or import a CSV file.</p>
-        </div>
-      ) : (
-        <div className="rounded-lg border border-border overflow-x-auto">
-          <table className="w-full text-sm min-w-[1560px]">
-            <thead className="bg-muted/50 border-b border-border">
-              <tr>
-                {[
-                  "WhatsApp",
-                  "Name",
-                  "Phones",
-                  "Master Project",
-                  "Building",
-                  "Property",
-                  "Unit",
-                  "Location",
-                  "Date",
-                  "Amount",
-                  "Beds",
-                  "Size",
-                  "Tags",
-                  "Source",
-                  "Status",
-                  "Delivery",
-                  "Last campaign",
-                  "Last messaged",
-                  "Created",
-                  "",
-                ].map((h) => (
-                  <th key={h} className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/60">
-              {filtered.map((c) => {
-                const stats = c.wa_stats;
-                const phones = getContactPhones(c);
-                const project = getContactField(c, "Master Project", "Project");
-                const building = getContactField(c, "Building", "BuildingName 2", "Building 1");
-                const property = getContactField(c, "Property Type", "Sub Type", "Usage");
-                const unit = getContactField(c, "UnitNumber", "property_number");
-                const location = getContactField(c, "Master Location");
-                const date = getContactField(c, "Date");
-                const amount = getContactField(c, "Transaction Amount");
-                const beds = getContactField(c, "beds");
-                const size = getContactField(c, "Size");
-                const extraCount = getContactDetailFields(c).length;
-
-                return (
-                <tr key={c.id} className="hover:bg-muted/20 transition-colors">
-                  <td className="px-3 py-2.5 whitespace-nowrap">
-                    <div className="flex items-center gap-2">
-                      {stats?.messaged ? (
-                        <span title="Template or inbox message sent">
-                          <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                        </span>
-                      ) : (
-                        <span title="Not messaged yet">
-                          <Circle className="h-4 w-4 text-muted-foreground/40 shrink-0" />
-                        </span>
-                      )}
-                      <Badge
-                        variant={stats?.messaged ? "secondary" : "outline"}
-                        className="text-[10px] font-mono tabular-nums px-1.5"
-                        title="Outbound messages logged"
+          {isLoading ? (
+            <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+              Loading…
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 text-muted-foreground">
+              <Users className="h-10 w-10 opacity-30" />
+              <p className="text-sm font-medium">No contacts yet</p>
+              <p className="text-xs">Add contacts manually or import a CSV file.</p>
+            </div>
+          ) : (
+            <div className="min-h-0 flex-1 overflow-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 z-10 border-b border-white/[0.06] bg-muted/50">
+                  <tr>
+                    {["Owner", "Property", "Requirement", "WhatsApp", "Status", "Last contact", ""].map((h) => (
+                      <th key={h} className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/[0.06]">
+                  {filtered.map((c) => {
+                    const stats = c.wa_stats;
+                    const phones = getContactPhones(c);
+                    const property = getContactPropertySummary(c);
+                    const requirement = getContactRequirementLabel(c);
+                    const lastAt = stats?.last_inbound_at || stats?.last_outbound_at;
+                    const selected = detailContact?.id === c.id;
+                    return (
+                      <tr
+                        key={c.id}
+                        className={cn(
+                          "cursor-pointer transition-colors hover:bg-muted/30",
+                          selected && "bg-primary/5",
+                        )}
+                        onClick={() => setDetailContact(c)}
                       >
-                        {stats?.outbound_count ?? 0}
-                      </Badge>
-                      {(stats?.inbound_count ?? 0) > 0 && (
-                        <Badge variant="outline" className="text-[10px] text-emerald-400 border-emerald-500/30 px-1.5">
-                          ↩ {stats?.inbound_count}
-                        </Badge>
+                    <td className="px-4 py-3">
+                      <p className="font-medium leading-tight">{c.name || "—"}</p>
+                      <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+                        {phones[0]?.phone ?? c.phone}
+                      </p>
+                      {phones.length > 1 && (
+                        <p className="text-[10px] text-muted-foreground">+{phones.length - 1} more</p>
                       )}
-                    </div>
-                  </td>
-                  <td className="px-3 py-2.5 font-medium max-w-[140px] truncate">{c.name ?? <span className="text-muted-foreground">—</span>}</td>
-                  <td className="px-3 py-2.5 text-muted-foreground max-w-[130px]">
-                    <div className="flex flex-col gap-0.5">
-                      {phones.length > 0 ? phones.map(({ label, phone }) => (
-                        <div key={`${label}-${phone}`} className="text-[11px] font-mono leading-tight" title={`${label}: ${phone}`}>
-                          <span className="text-muted-foreground/70">{label}: </span>{phone}
+                    </td>
+                    <td className="max-w-[240px] px-4 py-3 text-xs leading-snug text-muted-foreground">
+                      {property || "—"}
+                    </td>
+                    <td className="px-4 py-3 text-xs">
+                      {requirement || "—"}
+                      {(c.tags ?? []).length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {(c.tags ?? []).slice(0, 3).map((tag) => (
+                            <Badge key={tag} variant="secondary" className="px-1.5 py-0 text-[10px]">
+                              {tag}
+                            </Badge>
+                          ))}
                         </div>
-                      )) : (
-                        <span className="text-xs font-mono">{c.phone ?? "—"}</span>
                       )}
-                    </div>
-                  </td>
-                  <td className="px-3 py-2.5 text-xs max-w-[120px] truncate" title={project ?? undefined}>{project ?? "—"}</td>
-                  <td className="px-3 py-2.5 text-xs max-w-[140px] truncate" title={building ?? undefined}>{building ?? "—"}</td>
-                  <td className="px-3 py-2.5 text-xs max-w-[100px] truncate" title={property ?? undefined}>{property ?? "—"}</td>
-                  <td className="px-3 py-2.5 text-xs max-w-[80px] truncate" title={unit ?? undefined}>{unit ?? "—"}</td>
-                  <td className="px-3 py-2.5 text-xs max-w-[120px] truncate" title={location ?? undefined}>{location ?? "—"}</td>
-                  <td className="px-3 py-2.5 text-xs whitespace-nowrap">{date ?? "—"}</td>
-                  <td className="px-3 py-2.5 text-xs whitespace-nowrap">{amount ?? "—"}</td>
-                  <td className="px-3 py-2.5 text-xs whitespace-nowrap">{beds ?? "—"}</td>
-                  <td className="px-3 py-2.5 text-xs whitespace-nowrap">{size ?? "—"}</td>
-                  <td className="px-3 py-2.5">
-                    <div className="flex flex-wrap gap-1">
-                      {(c.tags ?? []).map((tag: string) => (
-                        <Badge key={tag} variant="secondary" className="text-[10px] px-1.5 py-0">{tag}</Badge>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="px-3 py-2.5 text-xs text-muted-foreground">{c.source ?? "—"}</td>
-                  <td className="px-3 py-2.5">
-                    <div className="flex items-center gap-1">
-                      {c.do_not_contact && (
-                        <Badge variant="destructive" className="text-[10px] gap-0.5">
-                          <Ban className="h-2.5 w-2.5" /> DNC
-                        </Badge>
-                      )}
-                      {c.lead_status ? (
-                        <Badge variant="outline" className="text-[10px]">{c.lead_status}</Badge>
-                      ) : !c.do_not_contact ? "—" : null}
-                    </div>
-                  </td>
-                  <td className="px-3 py-2.5 whitespace-nowrap">
-                    {stats?.messaged ? (
-                      <div className="flex flex-col gap-0.5">
-                        {stats.last_outbound_status && (
-                          <Badge
-                            variant="outline"
-                            className={`text-[10px] w-fit ${outboundStatusBadgeClass(stats.last_outbound_status)}`}
-                          >
-                            {stats.last_outbound_status}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        {stats?.messaged ? (
+                          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+                        ) : (
+                          <Circle className="h-4 w-4 shrink-0 text-muted-foreground/40" />
+                        )}
+                        <span className="text-xs tabular-nums text-muted-foreground">
+                          {stats?.outbound_count ?? 0} sent
+                        </span>
+                        {(stats?.inbound_count ?? 0) > 0 && (
+                          <Badge variant="outline" className="border-emerald-500/30 px-1.5 text-[10px] text-emerald-500">
+                            {stats?.inbound_count} replied
                           </Badge>
                         )}
-                        <span className="text-[10px] text-muted-foreground tabular-nums">
-                          {(stats.delivered_count ?? 0) > 0 && `${stats.delivered_count}✓ `}
-                          {(stats.read_count ?? 0) > 0 && `${stats.read_count} read `}
-                          {(stats.failed_count ?? 0) > 0 && (
-                            <span className="text-destructive">{stats.failed_count} fail</span>
-                          )}
-                        </span>
                       </div>
-                    ) : (
-                      <span className="text-muted-foreground/50">—</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2.5 text-[11px] text-muted-foreground max-w-[120px] truncate" title={stats?.last_campaign_name ?? undefined}>
-                    {stats?.last_campaign_name ?? "—"}
-                  </td>
-                  <td className="px-3 py-2.5 text-[11px] text-muted-foreground whitespace-nowrap">
-                    {stats?.last_outbound_at ? (
-                      <span title={new Date(stats.last_outbound_at).toLocaleString()}>
-                        <RelativeTime date={stats.last_outbound_at} />
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground/50">—</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2.5 text-[11px] text-muted-foreground whitespace-nowrap">
-                    <RelativeTime date={c.created_at} />
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <div className="flex items-center gap-1 justify-end">
-                      <Button variant="ghost" size="icon" className="h-7 w-7" title={`View all ${extraCount} fields`} onClick={() => setDetailContact(c)}>
-                        <Eye className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7" title="Documents" onClick={() => setDocsContact(c)}>
-                        <FolderOpen className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(c)}>
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteId(c.id)}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
+                      {stats?.last_outbound_status && (
+                        <p className={`mt-0.5 text-[10px] ${outboundStatusBadgeClass(stats.last_outbound_status)}`}>
+                          {stats.last_outbound_status}
+                          {stats.last_campaign_name ? ` · ${stats.last_campaign_name}` : ""}
+                        </p>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap items-center gap-1">
+                        {c.do_not_contact && (
+                          <Badge variant="destructive" className="gap-0.5 text-[10px]">
+                            <Ban className="h-2.5 w-2.5" /> DNC
+                          </Badge>
+                        )}
+                        {c.lead_status ? (
+                          <Badge variant="outline" className="text-[10px] capitalize">{c.lead_status}</Badge>
+                        ) : !c.do_not_contact ? (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        ) : null}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                      {lastAt ? <RelativeTime date={lastAt} /> : "—"}
+                    </td>
+                    <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex justify-end gap-0.5">
+                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Documents" onClick={() => setDocsContact(c)}>
+                          <FolderOpen className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(c)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteId(c.id)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
                 );
               })}
             </tbody>
           </table>
+            </div>
+          )}
         </div>
-      )}
+
+        <div className={cn("h-full min-h-0", detailContact ? "flex" : "hidden lg:flex")}>
+          <ContactPersonPane
+            contact={
+              (detailContact
+                ? contacts.find((c) => c.id === detailContact.id) ?? detailContact
+                : null)
+            }
+            onClose={() => setDetailContact(null)}
+            onEdit={() => {
+              if (detailContact) openEdit(detailContact);
+            }}
+            onDocs={() => {
+              if (detailContact) setDocsContact(detailContact);
+            }}
+          />
+        </div>
+      </div>
 
       {/* Create/Edit dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
@@ -765,80 +931,6 @@ export function WhatsAppContacts() {
       {/* Documents dialog — looks up data_records by phone */}
       <WADocsDialog contact={docsContact} onClose={() => setDocsContact(null)} />
 
-      <Dialog open={!!detailContact} onOpenChange={(o) => !o && setDetailContact(null)}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Eye className="h-4 w-4 text-muted-foreground" />
-              {detailContact?.name ?? detailContact?.phone ?? "Contact details"}
-            </DialogTitle>
-          </DialogHeader>
-          {detailContact && (
-            <div className="space-y-3">
-              {detailContact.wa_stats && (
-                <div className="rounded-md border border-border/60 bg-muted/10 p-3 space-y-1.5">
-                  <p className="text-xs font-medium flex items-center gap-1.5">
-                    <MessageCircle className="h-3.5 w-3.5" />
-                    WhatsApp activity
-                  </p>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
-                    <span className="text-muted-foreground">Messaged</span>
-                    <span>{detailContact.wa_stats.messaged ? "Yes ✓" : "No"}</span>
-                    <span className="text-muted-foreground">Sent count</span>
-                    <span>{detailContact.wa_stats.outbound_count}</span>
-                    <span className="text-muted-foreground">Replies</span>
-                    <span>{detailContact.wa_stats.inbound_count}</span>
-                    <span className="text-muted-foreground">Last status</span>
-                    <span>{detailContact.wa_stats.last_outbound_status ?? "—"}</span>
-                    <span className="text-muted-foreground">Last campaign</span>
-                    <span>{detailContact.wa_stats.last_campaign_name ?? "—"}</span>
-                    {detailContact.do_not_contact && (
-                      <>
-                        <span className="text-muted-foreground">DNC</span>
-                        <span className="text-destructive">Do not contact</span>
-                      </>
-                    )}
-                    <span className="text-muted-foreground">Last sent</span>
-                    <span>
-                      {detailContact.wa_stats.last_outbound_at
-                        ? new Date(detailContact.wa_stats.last_outbound_at).toLocaleString()
-                        : "—"}
-                    </span>
-                    <span className="text-muted-foreground">Last reply</span>
-                    <span>
-                      {detailContact.wa_stats.last_inbound_at
-                        ? new Date(detailContact.wa_stats.last_inbound_at).toLocaleString()
-                        : "—"}
-                    </span>
-                  </div>
-                </div>
-              )}
-            <div className="grid grid-cols-[minmax(0,34%)_1fr] gap-x-4 gap-y-1.5 text-sm border rounded-md p-3 bg-muted/20">
-              {getContactDetailFields(detailContact).map(({ label, value }) => (
-                <div key={`${label}-${value}`} className="contents">
-                  <div className="text-xs font-medium text-muted-foreground py-1">{label}</div>
-                  <div className="text-xs py-1 wrap-break-word">{value}</div>
-                </div>
-              ))}
-              {getContactDetailFields(detailContact).length === 0 && (
-                <p className="col-span-2 text-xs text-muted-foreground py-2">
-                  No extra fields stored. Re-import your CSV to capture all property columns.
-                </p>
-              )}
-            </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDetailContact(null)}>Close</Button>
-            {detailContact && (
-              <Button onClick={() => { openEdit(detailContact); setDetailContact(null); }}>
-                Edit contact
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Delete confirmation */}
       <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
         <AlertDialogContent>
@@ -893,9 +985,10 @@ export function WhatsAppContacts() {
           </DialogHeader>
           <div className="space-y-3 py-1">
             <p className="text-xs text-muted-foreground">
-              Supports property files (JVC): maps <strong>Owner Name</strong> → name, saves{" "}
-              <strong>Mobile 1, Mobile 2, Phone 1, Phone 2</strong> and all other columns.
-              Turn off Buyers only for JVC owner registry files. Re-import to refresh phone numbers.
+              Same columns as campaign CSV: <strong>Owner Name</strong> → name,{" "}
+              <strong>Mobile 1 / 2, Phone 1 / 2</strong> → WhatsApp numbers, plus Project, Building,
+              Requirement (Sell / Rent / Both), Asking Price, Rental Price, and Tags. Turn off Buyers
+              only for JVC owner registry files. Re-import to refresh numbers and property fields.
             </p>
             <div>
               <Label className="text-xs">Max contacts</Label>

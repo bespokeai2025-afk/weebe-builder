@@ -75,8 +75,14 @@ export async function getWbahLeadCurrentStatus(
   };
 }
 
-export async function patchWbahLead(
-  leadId: string,
+function unknownDynamicsProperty(body: string): string | null {
+  const m = body.match(/Could not find a property named '([^']+)'/i);
+  return m?.[1] ?? null;
+}
+
+async function patchDynamicsEntity(
+  kind: "lead" | "opportunity",
+  id: string,
   fields: Record<string, string | number | boolean | null>,
 ): Promise<void> {
   if (!Object.keys(fields).length) return;
@@ -85,38 +91,40 @@ export async function patchWbahLead(
   if (!cfg) throw new Error("Dynamics credentials not configured");
 
   const headers = await dynamicsHeaders(cfg);
-  const url = `${apiBase(cfg)}/leads(${leadId})`;
-  const res = await fetch(url, {
-    method: "PATCH",
-    headers,
-    body: JSON.stringify(fields),
-  });
-  if (!res.ok) {
+  const path = kind === "lead" ? "leads" : "opportunities";
+  const url = `${apiBase(cfg)}/${path}(${id})`;
+  const remaining: Record<string, string | number | boolean | null> = { ...fields };
+
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const res = await fetch(url, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify(remaining),
+    });
+    if (res.ok) return;
     const body = await res.text().catch(() => "");
-    throw new Error(`Dynamics PATCH lead failed (${res.status}): ${body.slice(0, 400)}`);
+    const unknown = unknownDynamicsProperty(body);
+    if (!unknown || !(unknown in remaining)) {
+      throw new Error(`Dynamics PATCH ${kind} failed (${res.status}): ${body.slice(0, 400)}`);
+    }
+    console.warn(`[Dynamics] dropping unknown ${kind} attribute`, { id, field: unknown });
+    delete remaining[unknown];
+    if (!Object.keys(remaining).length) return;
   }
+}
+
+export async function patchWbahLead(
+  leadId: string,
+  fields: Record<string, string | number | boolean | null>,
+): Promise<void> {
+  await patchDynamicsEntity("lead", leadId, fields);
 }
 
 export async function patchWbahOpportunity(
   opportunityId: string,
   fields: Record<string, string | number | boolean | null>,
 ): Promise<void> {
-  if (!Object.keys(fields).length) return;
-
-  const cfg = getWbahDynamicsConfig();
-  if (!cfg) throw new Error("Dynamics credentials not configured");
-
-  const headers = await dynamicsHeaders(cfg);
-  const url = `${apiBase(cfg)}/opportunities(${opportunityId})`;
-  const res = await fetch(url, {
-    method: "PATCH",
-    headers,
-    body: JSON.stringify(fields),
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`Dynamics PATCH opportunity failed (${res.status}): ${body.slice(0, 400)}`);
-  }
+  await patchDynamicsEntity("opportunity", opportunityId, fields);
   console.log("[DynamicsOpportunity] Synced opportunity", {
     opportunityId,
     fields: Object.keys(fields),

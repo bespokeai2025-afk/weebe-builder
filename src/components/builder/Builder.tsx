@@ -9,7 +9,6 @@ import { WebeeMigrationDialog } from "@/components/builder/WebeeMigrationDialog"
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -68,13 +67,19 @@ import {
   CalendarClock,
   LayoutGrid,
   Undo2,
+  Redo2,
   PauseCircle,
   Tag,
   FileText,
   FolderOpen,
   Link,
+  Flag,
+  Pencil,
+  Copy,
 } from "lucide-react";
 import { FlowCanvas } from "./FlowCanvas";
+import { BuilderCommandPalette } from "./BuilderCommandPalette";
+import { BuilderDebugConsole } from "./BuilderDebugConsole";
 import { useSystemMindBuildLauncher } from "./SystemMindPromptDock";
 import { NodeEditorDialog } from "./NodeEditorDialog";
 import { ExportJsonDialog } from "./ExportJsonDialog";
@@ -85,11 +90,15 @@ import { RetellDeployDialog, type TxEntry, type CallEndMeta } from "./RetellDepl
 import { VoiceCopilotButton } from "./VoiceCopilot";
 import { PlatformGuideDrawer } from "./PlatformGuideDrawer";
 import { PostCallDataSection } from "./PostCallDataSection";
+import { FlowVariablesSection } from "./FlowVariablesSection";
+import { VariableTextarea } from "./VariableAutocompleteField";
 import { PostCallAnalysis } from "./PostCallAnalysis";
 import { BookingConfigSection } from "./BookingConfigSection";
 import { LeadGenSection } from "./LeadGenSection";
 import { ClientQualificationSection } from "./ClientQualificationSection";
 import type { BuilderSettings, NodeKind } from "@/lib/builder/types";
+import { paletteFor } from "@/lib/builder/node-registry";
+import { componentsFor, type FlowComponentDef } from "@/lib/builder/flow-components";
 import { cn } from "@/lib/utils";
 import { MODELS, HYPERSTREAM_MODELS } from "@/lib/builder/pricing";
 import { searchElevenLabsVoices, previewElevenLabsVoice, previewRetellVoice } from "@/lib/builder/retell.functions";
@@ -110,38 +119,54 @@ import { saveHyperStreamTestCall, updateCallSentiment } from "@/lib/builder/save
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
-const VOICE_PALETTE: { kind: NodeKind; label: string; icon: React.ElementType; color: string }[] = [
-  { kind: "ending", label: "End Call", icon: Square, color: "text-rose-600" },
-  { kind: "conversation", label: "Conversation", icon: MessageCircle, color: "text-sky-600" },
-  { kind: "function", label: "Function", icon: Cpu, color: "text-violet-600" },
-  { kind: "call_transfer", label: "Call Transfer", icon: PhoneForwarded, color: "text-emerald-600" },
-  { kind: "press_digit", label: "Press Digit", icon: Hash, color: "text-cyan-600" },
-  { kind: "logic_split", label: "Logic Split", icon: GitBranch, color: "text-pink-600" },
-  { kind: "agent_transfer", label: "Agent Transfer", icon: Users, color: "text-orange-600" },
-  { kind: "sms", label: "In-Call SMS", icon: MessageSquare, color: "text-amber-600" },
-  { kind: "extract_variable", label: "Extract Variable", icon: Braces, color: "text-indigo-600" },
-  { kind: "code", label: "Code", icon: CodeIcon, color: "text-slate-700" },
-  { kind: "note", label: "Note", icon: StickyNote, color: "text-yellow-700" },
-  { kind: "check_documents", label: "Check Documents", icon: FolderOpen, color: "text-teal-600" },
-  { kind: "send_upload_link", label: "Send Upload Link", icon: Link, color: "text-sky-600" },
-  { kind: "http_request", label: "HTTP Request", icon: Globe, color: "text-blue-600" },
-];
+const PALETTE_UI: Record<NodeKind, { icon: React.ElementType; color: string }> = {
+  begin: { icon: Flag, color: "text-violet-500" },
+  conversation: { icon: MessageCircle, color: "text-sky-600" },
+  wait: { icon: PauseCircle, color: "text-amber-500" },
+  subagent: { icon: Users, color: "text-sky-500" },
+  ending: { icon: Square, color: "text-rose-600" },
+  function: { icon: Cpu, color: "text-violet-600" },
+  call_transfer: { icon: PhoneForwarded, color: "text-emerald-600" },
+  press_digit: { icon: Hash, color: "text-cyan-600" },
+  logic_split: { icon: GitBranch, color: "text-pink-600" },
+  agent_transfer: { icon: Users, color: "text-orange-600" },
+  sms: { icon: MessageSquare, color: "text-amber-600" },
+  extract_variable: { icon: Braces, color: "text-indigo-600" },
+  code: { icon: CodeIcon, color: "text-slate-700" },
+  note: { icon: StickyNote, color: "text-yellow-700" },
+  check_documents: { icon: FolderOpen, color: "text-teal-600" },
+  send_upload_link: { icon: Link, color: "text-sky-600" },
+  http_request: { icon: Globe, color: "text-blue-600" },
+  mcp: { icon: Radio, color: "text-fuchsia-500" },
+  wa_start: { icon: MsgSq, color: "text-green-500" },
+  wa_message: { icon: MsgSq, color: "text-green-600" },
+  wa_media: { icon: ImageIcon, color: "text-lime-600" },
+  wa_booking: { icon: CalendarCheck, color: "text-sky-600" },
+  wa_delay: { icon: Clock, color: "text-teal-600" },
+  wa_wait_reply: { icon: PauseCircle, color: "text-amber-600" },
+  wa_extract_var: { icon: Braces, color: "text-indigo-600" },
+  wa_tag: { icon: Tag, color: "text-purple-600" },
+  wa_template: { icon: FileText, color: "text-blue-600" },
+};
 
-const WA_PALETTE: { kind: NodeKind; label: string; icon: React.ElementType; color: string }[] = [
-  { kind: "wa_start",        label: "WA Start",        icon: MsgSq,            color: "text-green-500" },
-  { kind: "wa_message",      label: "WA Message",      icon: MsgSq,            color: "text-green-600" },
-  { kind: "wa_media",        label: "WA Media",        icon: ImageIcon,        color: "text-lime-600"  },
-  { kind: "wa_booking",      label: "WA Booking",      icon: CalendarCheck,    color: "text-sky-600"   },
-  { kind: "wa_delay",        label: "WA Delay",        icon: Clock,            color: "text-teal-600"  },
-  { kind: "wa_wait_reply",   label: "WA Wait Reply",   icon: PauseCircle,      color: "text-amber-600" },
-  { kind: "wa_extract_var",  label: "Extract Variable",icon: Braces,           color: "text-indigo-600"},
-  { kind: "wa_tag",          label: "WA Tag",          icon: Tag,              color: "text-purple-600"},
-  { kind: "wa_template",     label: "WA Template",     icon: FileText,         color: "text-blue-600"  },
-  { kind: "logic_split",     label: "Logic Split",     icon: GitBranch,        color: "text-pink-600"  },
-  { kind: "extract_variable",label: "Extract Variable",icon: Braces,           color: "text-indigo-600"},
-  { kind: "code",            label: "Code",            icon: CodeIcon,         color: "text-slate-700" },
-  { kind: "note",            label: "Note",            icon: StickyNote,       color: "text-yellow-700"},
-];
+function paletteButtons(channel: "voice" | "whatsapp") {
+  return paletteFor(channel).map((d) => ({
+    kind: d.kind,
+    label: d.label,
+    icon: PALETTE_UI[d.kind]?.icon ?? MessageCircle,
+    color: PALETTE_UI[d.kind]?.color ?? "text-muted-foreground",
+  }));
+}
+
+const COMPONENT_ICONS: Record<FlowComponentDef["icon"], typeof CalendarClock> = {
+  booking: CalendarClock,
+  contact: Users,
+  handoff: PhoneForwarded,
+  wait: PauseCircle,
+  http: Globe,
+  end: Square,
+  custom: LayoutGrid,
+};
 
 const LANGUAGES: { code: string; flag: string; name: string; region: string }[] = [
   { code: "en-US",  flag: "🇺🇸", name: "English",    region: "US"            },
@@ -404,9 +429,28 @@ export function Builder({
   toolbarLeading?: React.ReactNode;
   toolbarTrailing?: React.ReactNode;
 }) {
-  const { addNode, addBookingNode, clearAll, autoLayout, revertLayout, settings, setSettings, selectedNodeId } =
-    useBuilderStore();
-  const PALETTE = settings.channelType === "whatsapp" ? WA_PALETTE : VOICE_PALETTE;
+  const {
+    addNode,
+    addComponent,
+    clearAll,
+    autoLayout,
+    revertLayout,
+    settings,
+    setSettings,
+    selectedNodeId,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    saveSelectionAsComponent,
+    updateCustomComponent,
+    deleteCustomComponent,
+    duplicateCustomComponent,
+    enterComponentEditor,
+    exitComponentEditor,
+    editingComponentId,
+  } = useBuilderStore();
+  const PALETTE = paletteButtons(settings.channelType === "whatsapp" ? "whatsapp" : "voice");
   const currentAgentRowId = useBuilderStore((s) => s.currentAgentRowId);
   const saveVersion = useBuilderStore((s) => s.saveVersion);
   // SystemMind Build Workspace entry point (prompt dock + right-side drawer)
@@ -441,6 +485,38 @@ export function Builder({
   const preAutoLayoutPositions = useBuilderStore((s) => s.preAutoLayoutPositions);
   const [rf, setRf] = useState<ReturnType<typeof useReactFlow> | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const canvasCenter = () => {
+    if (!rf || !canvasRef.current) return undefined;
+    const b = canvasRef.current.getBoundingClientRect();
+    return rf.screenToFlowPosition({
+      x: b.left + b.width / 2,
+      y: b.top + b.height / 2,
+    });
+  };
+  const placeNode = (kind: NodeKind) => {
+    const position = canvasCenter();
+    addNode(kind, position);
+    if (rf && position) {
+      setTimeout(() => {
+        rf.setCenter(position.x + 140, position.y + 80, {
+          zoom: Math.max(rf.getZoom(), 0.8),
+          duration: 400,
+        });
+      }, 30);
+    }
+  };
+  const dropComponent = (id: string) => {
+    const position = canvasCenter();
+    addComponent(id, position);
+    if (rf && position) {
+      setTimeout(() => {
+        rf.setCenter(position.x + 140, position.y + 80, {
+          zoom: Math.max(rf.getZoom(), 0.8),
+          duration: 400,
+        });
+      }, 30);
+    }
+  };
   const [tab, setTab] = useState<"node" | "components">("node");
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
@@ -871,6 +947,26 @@ export function Builder({
             <Button
               size="sm"
               variant="ghost"
+              onClick={() => undo()}
+              disabled={!canUndo}
+              title="Undo (⌘Z)"
+              className="!w-8 !p-0 text-muted-foreground/60 hover:text-foreground"
+            >
+              <Undo2 />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => redo()}
+              disabled={!canRedo}
+              title="Redo (⌘⇧Z)"
+              className="!w-8 !p-0 text-muted-foreground/60 hover:text-foreground"
+            >
+              <Redo2 />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
               onClick={() => {
                 autoLayout();
                 requestAnimationFrame(() => rf?.fitView({ padding: 0.2, duration: 200 }));
@@ -888,10 +984,10 @@ export function Builder({
                 requestAnimationFrame(() => rf?.fitView({ padding: 0.2, duration: 200 }));
               }}
               disabled={!preAutoLayoutPositions}
-              title="Revert to original layout"
+              title="Revert auto-arrange"
               className="!w-8 !p-0 text-muted-foreground/60 hover:text-foreground"
             >
-              <Undo2 />
+              <Undo2 className="opacity-70" />
             </Button>
             <Button
               size="sm"
@@ -1072,11 +1168,27 @@ export function Builder({
         </div>
       </div>
 
+      {editingComponentId && (
+        <div className="flex items-center gap-2 border-b border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-[11px]">
+          <span className="font-medium text-amber-200">
+            Editing component{" "}
+            {(settings.customComponents ?? []).find((c) => c.id === editingComponentId)?.label ?? ""}
+          </span>
+          <span className="ml-auto" />
+          <Button size="sm" variant="ghost" className="h-6 text-[11px]" onClick={() => exitComponentEditor(false)}>
+            Discard
+          </Button>
+          <Button size="sm" className="h-6 text-[11px]" onClick={() => exitComponentEditor(true)}>
+            Save & exit
+          </Button>
+        </div>
+      )}
+
       {/* 3-column layout */}
       <div className="flex flex-1 min-h-0">
         {/* Left palette */}
         {leftOpen && (
-          <aside className="w-36 shrink-0 border-r border-white/[0.04] bg-background/40 overflow-y-auto">
+          <aside className="w-44 shrink-0 resize-x overflow-y-auto border-r border-white/[0.04] bg-background/40">
             <div className="flex border-b border-white/[0.04] text-[10px] uppercase tracking-wider">
               <button
                 className={cn(
@@ -1107,26 +1219,7 @@ export function Builder({
                 PALETTE.map((p) => (
                   <button
                     key={p.kind}
-                    onClick={() => {
-                      let position: { x: number; y: number } | undefined;
-                      if (rf && canvasRef.current) {
-                        const b = canvasRef.current.getBoundingClientRect();
-                        position = rf.screenToFlowPosition({
-                          x: b.left + b.width / 2,
-                          y: b.top + b.height / 2,
-                        });
-                      }
-                      const id = addNode(p.kind, position);
-                      if (rf && position) {
-                        setTimeout(() => {
-                          rf.setCenter(position!.x + 140, position!.y + 80, {
-                            zoom: Math.max(rf.getZoom(), 0.8),
-                            duration: 400,
-                          });
-                        }, 30);
-                      }
-                      void id;
-                    }}
+                    onClick={() => placeNode(p.kind)}
                     className="w-full flex items-center gap-2 rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-white/[0.04] hover:text-foreground text-left transition-colors"
                   >
                     <p.icon className={cn("h-3 w-3", p.color)} />
@@ -1136,34 +1229,78 @@ export function Builder({
               ) : (
                 <>
                   <button
+                    type="button"
                     onClick={() => {
-                      let position: { x: number; y: number } | undefined;
-                      if (rf && canvasRef.current) {
-                        const b = canvasRef.current.getBoundingClientRect();
-                        position = rf.screenToFlowPosition({
-                          x: b.left + b.width / 2,
-                          y: b.top + b.height / 2,
-                        });
-                      }
-                      addBookingNode(position);
-                      if (rf && position) {
-                        setTimeout(() => {
-                          rf.setCenter(position!.x + 140, position!.y + 80, {
-                            zoom: Math.max(rf.getZoom(), 0.8),
-                            duration: 400,
-                          });
-                        }, 30);
-                      }
+                      const name = window.prompt("Component name", "My component");
+                      if (!name) return;
+                      const result = saveSelectionAsComponent(name);
+                      if (result.ok) toast.success("Component saved");
+                      else toast.error(result.error);
                     }}
-                    className="w-full flex items-center gap-2 rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-white/[0.04] hover:text-foreground text-left transition-colors"
+                    className="mb-1 w-full rounded-md border border-dashed border-white/[0.08] px-2 py-1.5 text-left text-[10px] text-muted-foreground hover:bg-white/[0.04] hover:text-foreground"
                   >
-                    <CalendarClock className="h-3 w-3 text-emerald-600" />
-                    <span>Booking</span>
+                    Save selection as component
                   </button>
-                  <p className="text-[10px] text-muted-foreground px-2 pt-1 leading-snug">
-                    Drops a conversation node prefilled with instructions for when to call the
-                    booking tools. Requires Cal.com connected and booking enabled in settings.
-                  </p>
+                  {componentsFor(
+                    settings.channelType === "whatsapp" ? "whatsapp" : "voice",
+                    settings.customComponents ?? [],
+                  ).map((c) => {
+                    const Icon = COMPONENT_ICONS[c.icon] ?? LayoutGrid;
+                    const custom = !c.builtin;
+                    return (
+                      <div key={c.id} className="group flex items-start gap-1">
+                        <button
+                          onClick={() => dropComponent(c.id)}
+                          className="min-w-0 flex-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-[11px] text-muted-foreground hover:bg-white/[0.04] hover:text-foreground text-left transition-colors"
+                        >
+                          <Icon className="h-3 w-3 shrink-0 text-emerald-600" />
+                          <span className="flex min-w-0 flex-col">
+                            <span className="truncate">{c.label}</span>
+                            <span className="truncate text-[10px] text-muted-foreground/70">{c.description}</span>
+                          </span>
+                        </button>
+                        {custom && (
+                          <div className="flex flex-col pt-1 opacity-0 group-hover:opacity-100">
+                            <button
+                              type="button"
+                              title="Edit mini-graph"
+                              className="p-0.5 text-muted-foreground hover:text-foreground"
+                              onClick={() => enterComponentEditor(c.id)}
+                            >
+                              <Pencil className="h-2.5 w-2.5" />
+                            </button>
+                            <button
+                              type="button"
+                              title="Rename"
+                              className="p-0.5 text-muted-foreground hover:text-foreground"
+                              onClick={() => {
+                                const next = window.prompt("Rename component", c.label);
+                                if (next) updateCustomComponent(c.id, { label: next });
+                              }}
+                            >
+                              <Copy className="h-2.5 w-2.5" />
+                            </button>
+                            <button
+                              type="button"
+                              title="Duplicate"
+                              className="p-0.5 text-muted-foreground hover:text-foreground"
+                              onClick={() => duplicateCustomComponent(c.id)}
+                            >
+                              <LayoutGrid className="h-2.5 w-2.5" />
+                            </button>
+                            <button
+                              type="button"
+                              title="Delete"
+                              className="p-0.5 text-rose-400 hover:text-rose-300"
+                              onClick={() => deleteCustomComponent(c.id)}
+                            >
+                              <Trash className="h-2.5 w-2.5" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </>
               )}
             </div>
@@ -1230,13 +1367,17 @@ export function Builder({
           </button>
 
           <FlowCanvas canvasRef={canvasRef} onReady={setRf} />
+          <BuilderCommandPalette
+            onAddNode={placeNode}
+            onFitView={() => rf?.fitView({ padding: 0.2 })}
+          />
           {smBuild.dock}
         </div>
 
         {/* Right global settings / live transcript */}
         {(rightOpen || callActive || showTranscriptPanel || selectedNodeId) && (
           <aside data-tour="right-panel" className={cn(
-            "min-w-[300px] shrink-0 border-l border-white/[0.04] bg-background/40 overflow-y-auto px-2.5 py-2 space-y-1.5 hidden md:block text-[11px] [&_label]:text-[10px] [&_label]:uppercase [&_label]:tracking-wider [&_label]:text-muted-foreground [&_textarea]:text-[11px] [&_button[role=combobox]]:h-7 [&_button[role=combobox]]:text-[11px] [&_input]:text-[11px] [&_select]:text-[11px]",
+            "min-w-[300px] shrink-0 overflow-y-auto border-l border-white/[0.04] bg-background/40 px-2.5 py-2 space-y-1.5 hidden md:block text-[11px] [&_label]:text-[10px] [&_label]:uppercase [&_label]:tracking-wider [&_label]:text-muted-foreground [&_textarea]:text-[11px] [&_button[role=combobox]]:h-7 [&_button[role=combobox]]:text-[11px] [&_input]:text-[11px] [&_select]:text-[11px]",
             selectedNodeId && rightView === "node" ? "w-[380px] max-w-[420px]" : "w-[320px] max-w-[360px]",
           )}>
 
@@ -2232,11 +2373,11 @@ export function Builder({
                 <SliderField label="Temperature" value={settings.temperature ?? 1} min={0} max={2} step={0.1} onChange={(v) => setSettings({ temperature: v })} />
                 <div className="space-y-1.5">
                   <Label className="text-[10px] text-muted-foreground">Prompt</Label>
-                  <Textarea
+                  <VariableTextarea
                     rows={14}
                     value={settings.globalPrompt}
-                    onChange={(e) => setSettings({ globalPrompt: e.target.value })}
-                    placeholder="Enter your global prompt here"
+                    onValueChange={(v) => setSettings({ globalPrompt: v })}
+                    placeholder="Enter your global prompt here. Type {{ to insert a variable."
                     className="min-h-[240px] resize-y text-[11px] leading-relaxed"
                   />
                 </div>
@@ -2421,11 +2562,11 @@ export function Builder({
                     </p>
                   </div>
                   <SliderField label="Temperature" value={settings.temperature ?? 1} min={0} max={2} step={0.1} onChange={(v) => setSettings({ temperature: v })} />
-                  <Textarea
+                  <VariableTextarea
                     rows={14}
                     value={settings.globalPrompt}
-                    onChange={(e) => setSettings({ globalPrompt: e.target.value })}
-                    placeholder="Enter your global prompt here"
+                    onValueChange={(v) => setSettings({ globalPrompt: v })}
+                    placeholder="Enter your global prompt here. Type {{ to insert a variable."
                     className="min-h-[240px] resize-y text-[11px] leading-relaxed"
                   />
                 </CollapsibleContent>
@@ -2476,6 +2617,8 @@ export function Builder({
                 )}
               </CollapsibleContent>
             </Collapsible>
+
+            <FlowVariablesSection />
 
             {settings.channelType !== "whatsapp" && <PostCallDataSection />}
 
@@ -2609,6 +2752,7 @@ export function Builder({
         {/* Platform Guide Drawer — 4th flex column, pushes canvas on open */}
         <PlatformGuideDrawer open={guideOpen} onClose={() => setGuideOpen(false)} />
       </div>
+      <BuilderDebugConsole />
     </div>
   );
 }

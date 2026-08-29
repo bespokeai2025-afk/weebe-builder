@@ -75,6 +75,7 @@ export function AssignLeadsDialog({
       qc.invalidateQueries({ queryKey: ["leads-all"] });
       qc.invalidateQueries({ queryKey: ["leads-qualified"] });
       qc.invalidateQueries({ queryKey: ["pipeline-leads"] });
+      qc.invalidateQueries({ queryKey: ["campaign-leads"] });
       onAssigned?.();
       onOpenChange(false);
     },

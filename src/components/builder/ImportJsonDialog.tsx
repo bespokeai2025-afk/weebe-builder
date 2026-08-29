@@ -80,7 +80,7 @@ export function ImportJsonDialog({
       }
       // agentRowId: null detaches the builder from any previously-open local
       // agent so saving the loaded flow can't silently overwrite that row.
-      loadFlow({ nodes, edges, settings, variables, agentRowId: null });
+      loadFlow({ nodes, edges, settings, variables, agentRowId: null, replaceSettings: true });
       setOpen(false);
       setText("");
       setSelectedAgentId("");
@@ -105,7 +105,7 @@ export function ImportJsonDialog({
         setError("No nodes found in JSON.");
         return;
       }
-      loadFlow({ nodes, edges, settings, variables });
+      loadFlow({ nodes, edges, settings, variables, agentRowId: null, replaceSettings: true });
       setOpen(false);
       setText("");
       setError(null);

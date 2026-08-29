@@ -124,22 +124,23 @@ export function applyAllensLogicV5(input: AllensLogicInput): AllensLogicResult {
     };
   }
 
+  const hasBooking = hasValidCalendly(bookingUrl) || input.appointmentBooked === true;
+  if (hasBooking) {
+    return {
+      ...base,
+      newCurrentStatus: WBAH_DYNAMICS_STATUS.LOGGED,
+      statecodeOverride: WBAH_DYNAMICS_STATE_OPEN,
+      skipStatusUpdate: false,
+      skipStatecodeUpdate: false,
+      skipAppointmentUpdate: false,
+      rule: "logged",
+      allenLogicResult: hasValidCalendly(bookingUrl)
+        ? `RULE 2: BOOKED + Calendly URL → Logged (${WBAH_DYNAMICS_STATUS.LOGGED}) + Open`
+        : `RULE 2: BOOKED (calendly_slot) → Logged (${WBAH_DYNAMICS_STATUS.LOGGED}) + Open`,
+    };
+  }
+
   if (sentiment.includes("positive")) {
-    const hasBooking = hasValidCalendly(bookingUrl) || input.appointmentBooked === true;
-    if (hasBooking) {
-      return {
-        ...base,
-        newCurrentStatus: WBAH_DYNAMICS_STATUS.LOGGED,
-        statecodeOverride: WBAH_DYNAMICS_STATE_OPEN,
-        skipStatusUpdate: false,
-        skipStatecodeUpdate: false,
-        skipAppointmentUpdate: false,
-        rule: "logged",
-        allenLogicResult: hasValidCalendly(bookingUrl)
-          ? `RULE 2: POSITIVE + Calendly URL → Logged (${WBAH_DYNAMICS_STATUS.LOGGED}) + Open`
-          : `RULE 2: POSITIVE + appointment booked → Logged (${WBAH_DYNAMICS_STATUS.LOGGED}) + Open`,
-      };
-    }
     return {
       ...base,
       newCurrentStatus: WBAH_DYNAMICS_STATUS.TRIED_TO_CONTACT,

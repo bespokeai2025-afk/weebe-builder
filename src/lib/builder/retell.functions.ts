@@ -38,6 +38,26 @@ async function maybeBuildBookingToolsForWorkspace(workspaceId: string) {
   return buildBookingTools();
 }
 
+function sanitizeRetellConversationFlow(cf: Record<string, unknown>): Record<string, unknown> {
+  const nodes = Array.isArray(cf.nodes) ? cf.nodes : [];
+  return {
+    ...cf,
+    nodes: nodes.map((node) => {
+      if (!node || typeof node !== "object") return node;
+      const rec = node as Record<string, unknown>;
+      const instruction = rec.instruction;
+      if (!instruction || typeof instruction !== "object") return rec;
+      const instr = instruction as Record<string, unknown>;
+      const type = String(instr.type ?? "");
+      if (type !== "template") return rec;
+      return {
+        ...rec,
+        instruction: { ...instr, type: "static_text" },
+      };
+    }),
+  };
+}
+
 function resolveProductionApiKey(explicitKey: string | undefined): string {
   const trimmed = explicitKey?.trim();
   if (trimmed) return trimmed;
@@ -536,7 +556,7 @@ Read the \`confirmation_message\` field from the response. If a \`meeting_url\` 
     }
 
     // ---- Conversation flow ----
-    const cfBody = stripKeys(cf, READONLY_KEYS);
+    const cfBody = sanitizeRetellConversationFlow(stripKeys(cf, READONLY_KEYS));
 
     // Fix relative tool URLs: Retell requires absolute URLs for custom-type
     // tools. Tools stored from a previous import may have relative paths
@@ -893,7 +913,7 @@ Read the \`confirmation_message\` field from the response. If a \`meeting_url\` 
 
 export const createRetellWebCall = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: { agentId: string }) => input)
+  .validator((input: { agentId: string; dynamicVariables?: Record<string, string> }) => input)
   .handler(async ({ data, context }) => {
     const agentId = (data.agentId ?? "").trim();
     if (!agentId || !agentId.startsWith("agent_")) {
@@ -930,7 +950,18 @@ export const createRetellWebCall = createServerFn({ method: "POST" })
       if (wk && wk.startsWith("key_")) webCallKey = wk;
     }
 
-    const resp = await retellFetch(`/v2/create-web-call`, { agent_id: agentId }, "POST", webCallKey);
+    const dynamicVariables = data.dynamicVariables ?? {};
+    const resp = await retellFetch(
+      `/v2/create-web-call`,
+      {
+        agent_id: agentId,
+        ...(Object.keys(dynamicVariables).length > 0
+          ? { retell_llm_dynamic_variables: dynamicVariables }
+          : {}),
+      },
+      "POST",
+      webCallKey,
+    );
     return {
       callId: String(resp.call_id ?? ""),
       accessToken: String(resp.access_token ?? ""),
@@ -1626,7 +1657,7 @@ export const cloneRetellAgentForDeploy = createServerFn({ method: "POST" })
       actualSrcKey,
     )) as Record<string, unknown>;
 
-    const cfBody = stripKeys(cf, READONLY_KEYS);
+    const cfBody = sanitizeRetellConversationFlow(stripKeys(cf, READONLY_KEYS));
 
     // Absolutize relative tool URLs so Retell's production workspace doesn't
     // reject the CF with a URL validation error.

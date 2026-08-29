@@ -536,10 +536,13 @@ export async function runWbahPostCallPipelineCore(
           userSentiment: formatted.userSentiment,
           callSummary: formatted.callSummary,
           transcript: call.transcript ?? null,
+          appointmentDate: formatted.appointmentDate,
+          appointmentTime: formatted.appointmentTimeUk ?? formatted.requestedStartUtc,
+          callbackUtc: formatted.callbackDatetimeUtc,
         });
         await postWbahLeadTimelineNote({
           leadId,
-          subject: "WBAH AI call summary",
+          subject: `WBAH AI call summary${call.call_id ? ` — ${call.call_id}` : ""}`.slice(0, 200),
           noteText,
         });
         branches.push("dynamics_lead_note");

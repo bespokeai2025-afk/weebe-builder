@@ -58,16 +58,13 @@ describe("Lead Gen Seller routing", () => {
     ).toBe(false);
   });
 
-  it("routes to Nathan node and preserves the pitch script in the LLM prompt", async () => {
+  it("routes to Nathan node and speaks the pitch script without waiting on the LLM", async () => {
     const cf = loadLeadGenFlow();
-    let capturedSystem = "";
     const llm = {
-      async generate(msgs: Array<{ role: string; content: string }>) {
-        capturedSystem = msgs.find((m) => m.role === "system")?.content ?? "";
+      async generate() {
         return "Hi, this is Nathan from Mister G Realty — got thirty seconds?";
       },
-      async *generateStream(msgs: Array<{ role: string; content: string }>) {
-        capturedSystem = msgs.find((m) => m.role === "system")?.content ?? "";
+      async *generateStream() {
         yield "Hi, this is Nathan from Mister G Realty — got thirty seconds?";
       },
       async classify(_messages: unknown[], choices: string[]) {
@@ -80,13 +77,17 @@ describe("Lead Gen Seller routing", () => {
     };
 
     const vm = new ConversationVm({ flow: cf, llm, variables: {} });
+    const spoken: string[] = [];
     async function drain(input: Parameters<ConversationVm["run"]>[0]) {
       for await (const d of vm.run(input)) {
         if (d.type !== "speak") continue;
+        if (d.text) spoken.push(d.text);
         if (d.textStream) {
-          for await (const _chunk of d.textStream) {
-            /* consume stream */
+          let full = "";
+          for await (const chunk of d.textStream) {
+            full += chunk;
           }
+          if (full.trim()) spoken.push(full.trim());
         }
       }
     }
@@ -95,12 +96,9 @@ describe("Lead Gen Seller routing", () => {
     await drain({ type: "user_utterance", text: "aarajo" });
 
     expect(vm.nodeId).toBe("node-1754206861810");
-    expect(capturedSystem).toContain("Script:");
-    expect(capturedSystem).toMatch(/this is nathan/i);
-    expect(capturedSystem).toMatch(/Mister G realty/i);
-    expect(capturedSystem).toMatch(/30 seconds/i);
-    expect(capturedSystem).toMatch(/Do not ask any question beyond what the script already contains/);
-    expect(capturedSystem).not.toMatch(/# Your task for this turn/);
+    const line = spoken.join(" ");
+    expect(line).toMatch(/nathan/i);
+    expect(line).toMatch(/Mister G realty/i);
   });
 
   it("runs start → name → phone without stalling", async () => {

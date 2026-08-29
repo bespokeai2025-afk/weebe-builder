@@ -65,6 +65,27 @@ function movePostcodeOutOfLine1(target: Record<string, unknown>, fields: Address
   }
 }
 
+function movePostcodeOutOfField(
+  target: Record<string, unknown>,
+  fieldKey: string | undefined,
+  postcodeKey: string,
+): void {
+  if (!fieldKey) return;
+  const raw = target[fieldKey];
+  if (isEmptyValue(raw) || !looksLikeUkPostcode(raw)) return;
+
+  const formatted = formatUkPostcode(String(raw).trim()) ?? String(raw).trim().toUpperCase();
+  const existingPostcode = isEmptyValue(target[postcodeKey])
+    ? null
+    : formatUkPostcode(String(target[postcodeKey]).trim()) ??
+      String(target[postcodeKey]).trim().toUpperCase();
+
+  if (!existingPostcode || existingPostcode.replace(/\s/g, "") === formatted.replace(/\s/g, "")) {
+    target[postcodeKey] = formatted;
+    target[fieldKey] = "";
+  }
+}
+
 function normalizePostcodeFields(target: Record<string, unknown>, fields: AddressFieldSet): void {
   const pcKey = fields.postcode!;
   if (isEmptyValue(target[pcKey])) return;
@@ -73,12 +94,15 @@ function normalizePostcodeFields(target: Record<string, unknown>, fields: Addres
 }
 
 /**
- * Fix Retell mis-extraction where a postcode lands in address line 1 (Patricia Stocker pattern).
+ * Fix Retell mis-extraction where a postcode lands in address line 1 or city
+ * (Patricia Stocker / Almas / Charlotte patterns).
  * Runs on property + contact address field groups.
  */
 export function sanitizeWbahUkAddressFields(target: Record<string, unknown>): void {
   for (const fields of [PROPERTY_FIELDS, CONTACT_FIELDS]) {
     movePostcodeOutOfLine1(target, fields);
+    movePostcodeOutOfField(target, fields.city, fields.postcode!);
+    movePostcodeOutOfField(target, fields.line2, fields.postcode!);
     normalizePostcodeFields(target, fields);
   }
 

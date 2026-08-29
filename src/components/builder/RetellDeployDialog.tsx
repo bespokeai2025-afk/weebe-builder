@@ -48,6 +48,7 @@ import { validateFlow } from "@/lib/builder/validate";
 import { resolveWebeeSpeechModel } from "@/lib/voice/webee-native.shared";
 import { AudioPlaybackController } from "@/lib/voice/browser/audio-playback-controller.shared";
 import { cn } from "@/lib/utils";
+import { TestCallPrepDialog, type TestCallPrepResult } from "./TestCallPrepDialog";
 
 export type TxEntry = { id: string; role: "user" | "agent"; text: string; partial: boolean };
 
@@ -75,9 +76,19 @@ export function RetellDeployDialog({
 
     setSettings,
     setActiveNode,
+    selectNode,
     addTestCallSeconds,
     loadFlow,
+    pushDebugEvent,
+    clearDebugEvents,
   } = useBuilderStore();
+  const emitDebug = (
+    type: string,
+    message: string,
+    extra?: { nodeId?: string; detail?: Record<string, unknown> },
+  ) => {
+    pushDebugEvent({ type, message, nodeId: extra?.nodeId, detail: extra?.detail });
+  };
   const currentAgentRowId = useBuilderStore((s) => s.currentAgentRowId);
   const setCurrentAgentRowId = useBuilderStore((s) => s.setCurrentAgentRowId);
   const bumpSaveVersion = useBuilderStore((s) => s.bumpSaveVersion);
@@ -98,6 +109,8 @@ export function RetellDeployDialog({
   const [loadOpen, setLoadOpen] = useState(false);
   const [loadId, setLoadId] = useState("");
   const [loading, setLoading] = useState(false);
+  const [testPrepOpen, setTestPrepOpen] = useState(false);
+  const testCallPrepRef = useRef<TestCallPrepResult>({ variables: {}, startSpeaker: "agent" });
   const clientRef = useRef<RetellWebClient | null>(null);
   const wsRelayRef = useRef<WebSocket | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -652,7 +665,12 @@ export function RetellDeployDialog({
     }
     setCalling(true);
     try {
-      const { accessToken } = await startCall({ data: { agentId } });
+      const { accessToken } = await startCall({
+        data: {
+          agentId,
+          dynamicVariables: testCallPrepRef.current.variables,
+        },
+      });
       const client = new RetellWebClient();
       clientRef.current = client;
 
@@ -665,6 +683,8 @@ export function RetellDeployDialog({
         // Highlight the start node immediately.
         const startNode = nodes.find((n) => n.data.isStart) ?? nodes[0];
         if (startNode) setActiveNode(startNode.id);
+        clearDebugEvents();
+        emitDebug("call", "Test call started", { nodeId: startNode?.id });
       });
 
       client.on("call_ended", () => {
@@ -1400,6 +1420,9 @@ export function RetellDeployDialog({
               tool: msg.tool,
               call_id: msg.call_id,
               resultBytes: typeof msg.result === "string" ? msg.result.length : 0,
+            });
+            emitDebug("tool", `Tool ${String(msg.tool ?? "unknown")} ran`, {
+              detail: { call_id: msg.call_id },
             });
             return;
           }
@@ -2339,7 +2362,8 @@ export function RetellDeployDialog({
           boostedKeywords: settings.boostedKeywords,
           ttsProvider: isWebeeNative ? "fish" : undefined,
           sttProvider: isWebeeNative ? "fish" : undefined,
-          variables: {},
+          variables: testCallPrepRef.current.variables,
+          startSpeaker: testCallPrepRef.current.startSpeaker,
         }));
         // Keep-alive: send a ping every 5 s so the reverse-proxy never sees an
         // idle connection and closes it (happens when EL streams audio quickly,
@@ -2388,6 +2412,8 @@ export function RetellDeployDialog({
           }
           const startNode = nodes.find((n) => n.data.isStart) ?? nodes[0];
           if (startNode) setActiveNode(startNode.id);
+          clearDebugEvents();
+          emitDebug("call", "WEBEE Native call live", { nodeId: startNode?.id });
           return;
         }
 
@@ -2402,6 +2428,7 @@ export function RetellDeployDialog({
             ...prev.filter((e) => !e.partial),
             { id: crypto.randomUUID(), role, text, partial: false },
           ]);
+          emitDebug(role === "user" ? "stt" : "tts", `${role}: ${text.slice(0, 160)}`);
           return;
         }
 
@@ -2410,9 +2437,10 @@ export function RetellDeployDialog({
         if (msg.type === "transcript.partial") {
           const text = String(msg.text ?? "");
           if (!text) return;
+          const role = msg.role === "agent" ? "agent" : "user";
           pushTranscript((prev) => {
             const withoutPartial = prev.filter((e) => !e.partial);
-            return [...withoutPartial, { id: "partial", role: "user", text, partial: true }];
+            return [...withoutPartial, { id: `partial-${role}`, role, text, partial: true }];
           });
           return;
         }
@@ -2437,6 +2465,8 @@ export function RetellDeployDialog({
           playback.setActiveResponse(activeResponseId);
           audioDeltaReceived = 0;
           console.log(`[elv-relay] response.start id=${activeResponseId}`);
+          const nodeId = typeof msg.nodeId === "string" ? msg.nodeId : undefined;
+          if (nodeId) emitDebug("llm", "Speech response started", { nodeId });
           return;
         }
 
@@ -2475,10 +2505,22 @@ export function RetellDeployDialog({
         if (msg.type === "node.active" && typeof msg.nodeId === "string") {
           const nodeId = String(msg.nodeId);
           if (nodes.some((n) => n.id === nodeId)) setActiveNode(nodeId);
+          const label = nodes.find((n) => n.id === nodeId)?.data.label ?? nodeId;
+          emitDebug("node", `Active: ${label}`, { nodeId, detail: { reason: String(msg.reason ?? "") } });
+          return;
+        }
+
+        if (msg.type === "tool.result") {
+          const toolId = String(msg.toolId ?? "tool");
+          const ok = msg.ok === true;
+          emitDebug("tool", `${toolId} ${ok ? "ok" : "fail"}`, {
+            detail: { result: String(msg.result ?? "").slice(0, 500) },
+          });
           return;
         }
 
         if (msg.type === "relay.error") {
+          emitDebug("error", String(msg.message ?? "EL Voice error"));
           toast.error("EL Voice error", { description: String(msg.message ?? "") });
           return;
         }
@@ -2800,7 +2842,7 @@ export function RetellDeployDialog({
       // Clear any stale row id from a previously open agent BEFORE loading —
       // persistAgent below re-links to the correct local row for this Retell
       // agent, so the SystemMind dock never targets the wrong agent.
-      loadFlow({ ...parsed, agentRowId: null });
+      loadFlow({ ...parsed, agentRowId: null, replaceSettings: true });
       await persistAgent(id);
       toast.success("Agent loaded", { description: id });
       setLoadOpen(false);
@@ -2864,7 +2906,7 @@ export function RetellDeployDialog({
               )}
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Errors block deployment. Warnings are advisory.
+              Errors block deployment. Warnings are advisory. Click an issue to select that node.
             </DialogDescription>
           </DialogHeader>
           {flowIssues.length === 0 ? (
@@ -2873,15 +2915,22 @@ export function RetellDeployDialog({
               Agent is ready to deploy — no issues found.
             </div>
           ) : (
-            <div className="flex flex-col gap-2">
-              {flowIssues.map((issue, i) => (
-                <div
-                  key={i}
+            <div className="flex max-h-80 flex-col gap-2 overflow-y-auto pr-1">
+              {flowIssues.map((issue) => (
+                <button
+                  key={`${issue.level}|${issue.nodeId ?? ""}|${issue.message}`}
+                  type="button"
+                  onClick={() => {
+                    if (!issue.nodeId) return;
+                    selectNode(issue.nodeId);
+                    setCheckOpen(false);
+                  }}
                   className={cn(
-                    "flex items-start gap-2 rounded-lg px-3 py-2 text-xs",
+                    "flex items-start gap-2 rounded-lg px-3 py-2 text-left text-xs",
                     issue.level === "error"
                       ? "bg-destructive/10 text-destructive"
                       : "bg-amber-500/10 text-amber-400",
+                    issue.nodeId && "hover:bg-white/[0.06]",
                   )}
                 >
                   {issue.level === "error" ? (
@@ -2890,12 +2939,32 @@ export function RetellDeployDialog({
                     <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                   )}
                   {issue.message}
-                </div>
+                </button>
               ))}
             </div>
           )}
         </DialogContent>
       </Dialog>
+
+      <TestCallPrepDialog
+        open={testPrepOpen}
+        onOpenChange={setTestPrepOpen}
+        nodes={nodes}
+        declared={variables}
+        agentId={currentAgentRowId ?? String(settings.agentId ?? "draft")}
+        onStart={(prep) => {
+          testCallPrepRef.current = prep;
+          if (isWebeeNative || (isOpenAI && settings.voiceOutputProvider === "elevenlabs")) {
+            void handleElVoiceTestCall();
+          } else if (isOpenAI) {
+            void handleHyperStreamTestCall();
+          } else if (isElevenLabs) {
+            void handleVoxStreamTestCall();
+          } else {
+            void handleTestCall();
+          }
+        }}
+      />
 
       {/* Deploy / utility cluster */}
       <div className="flex items-center gap-0.5 rounded-md border border-white/[0.05] bg-white/[0.02] px-1 py-0.5">
@@ -2956,15 +3025,7 @@ export function RetellDeployDialog({
           <Button
             size="sm"
             variant="ghost"
-            onClick={
-              isWebeeNative || (isOpenAI && settings.voiceOutputProvider === "elevenlabs")
-                ? handleElVoiceTestCall
-                : isOpenAI
-                  ? handleHyperStreamTestCall
-                  : isElevenLabs
-                    ? handleVoxStreamTestCall
-                    : handleTestCall
-            }
+            onClick={() => setTestPrepOpen(true)}
             disabled={!hasAgent || (!isOpenAI && !isWebeeNative && overLimit)}
             className="!h-8 !w-8 !p-0 text-muted-foreground/60 hover:bg-violet-500/10 hover:text-violet-300 disabled:opacity-40"
             title={

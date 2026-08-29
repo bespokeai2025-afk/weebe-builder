@@ -62,16 +62,29 @@ export async function selectEdge(
   ctx: RouteContext,
   llm: VmLlm,
 ): Promise<EdgeRouteDecision> {
-  const usable = edges.filter((e) => e.destination_node_id);
+  let usable = edges.filter((e) => e.destination_node_id);
   if (usable.length === 0) return { edge: null, method: "none" };
 
-  const conditions = usable.map((e) => interpolate(e.transition_condition.prompt.trim(), ctx.variables));
+  let conditions = usable.map((e) => interpolate(e.transition_condition.prompt.trim(), ctx.variables));
   const userText = lastUserText(ctx.history);
   const lastAgentText = lastAssistantText(ctx.history);
 
   // Repair turns ("what?", "pardon?") stay on the current node — Retell does not
   // treat them as a transition.
   if (looksLikeRepairRequest(userText)) return { edge: null, method: "none" };
+
+  const isTimeoutCondition = (c: string) =>
+    /^(timeout|silence|no.?input|no.?response)$/i.test(c.trim());
+
+  // Silence / wait-timeout edges fire only when the caller said nothing.
+  if (!userText.trim()) {
+    const timeoutIdx = conditions.findIndex(isTimeoutCondition);
+    if (timeoutIdx >= 0) return { edge: usable[timeoutIdx]!, method: "unconditional" };
+  } else {
+    usable = usable.filter((_, i) => !isTimeoutCondition(conditions[i]!));
+    if (usable.length === 0) return { edge: null, method: "none" };
+    conditions = usable.map((e) => interpolate(e.transition_condition.prompt.trim(), ctx.variables));
+  }
 
   // 1. Always edge — Retell skips every other check once the caller has spoken.
   const alwaysIdx = conditions.findIndex((c) => edgeIsAlwaysCondition(c));
@@ -109,7 +122,7 @@ export async function selectEdge(
     };
   }
 
-  // 5. Heuristic text matching (yes/no, phone, address, …).
+  // 5. Heuristic text matching (yes/no, phrase overlap, interrupt, …).
   const choices = conditions.map((c, i) => c || `Continue (option ${i + 1})`);
   const heuristic = tryHeuristicEdgeIndex(conditions, userText, lastAgentText);
   if (heuristic !== null) return { edge: usable[heuristic]!, method: "heuristic" };
@@ -276,6 +289,18 @@ function edgeExpectsPhone(condition: string): boolean {
   return /\b(phone|mobile|contact|number|callback|telephone|cell|reach you|call you back|digits)\b/.test(
     condition.toLowerCase(),
   );
+}
+
+function edgeExpectsEmail(condition: string): boolean {
+  return /\b(e-?mail|mail address|inbox)\b/.test(condition.toLowerCase());
+}
+
+/** Spoken or typed email — "name at gmail dot com" or foo@bar.com. */
+export function looksLikeEmailAnswer(userText: string): boolean {
+  const t = userText.trim();
+  if (!t) return false;
+  if (/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i.test(t)) return true;
+  return /\b\S+\s+at\s+\S+\s+(dot|\.)\s*\S+/i.test(t);
 }
 
 function edgeExpectsAddress(condition: string): boolean {
@@ -559,7 +584,44 @@ function pickYesEdge(
       best = i;
     }
   }
-  return bestScore >= 1 ? best : null;
+  if (bestScore >= 1 && best !== null) return best;
+  return pickMostDirectYesEdge(hits, conditions);
+}
+
+/** Prefer "yes it is" over a long "if variables … and client says yes" prompt. */
+function pickMostDirectYesEdge(hits: number[], conditions: string[]): number {
+  let best = hits[0]!;
+  let bestRank = Number.NEGATIVE_INFINITY;
+  for (const i of hits) {
+    const rank = yesEdgeDirectness(conditions[i] ?? "");
+    if (rank > bestRank) {
+      bestRank = rank;
+      best = i;
+    }
+  }
+  return best;
+}
+
+function yesEdgeDirectness(condition: string): number {
+  const c = condition.toLowerCase().replace(/\s+/g, " ").trim();
+  let n = 0;
+  if (/^yes\b/.test(c)) n += 8;
+  if (/^(yes|yeah|yep|sure|ok|okay)\b/.test(c)) n += 3;
+  if (/\b(yes it is|yes of course|any acknowledgment|any acknowledgement|positive)\b/.test(c)) {
+    n += 3;
+  }
+  if (looksLikeCallerQuestionCondition(c)) n -= 12;
+  if (/\bvariables?\b/.test(c) || /\{\{/.test(condition)) n -= 4;
+  n -= Math.min(6, Math.floor(c.split(/\s+/).filter(Boolean).length / 3));
+  return n;
+}
+
+function looksLikeCallerQuestionCondition(condition: string): boolean {
+  const c = condition.toLowerCase();
+  return (
+    /\?/.test(c) ||
+    /\b(how long|how much|what if|why|when will|can i ask|asks? (?:a |the )?question)\b/.test(c)
+  );
 }
 
 /** When the caller said yes, pick the edge whose wording matches what was just asked. */
@@ -609,16 +671,16 @@ export function tryHeuristicEdgeIndex(
   if (YES.test(t) || startsWithAffirmative(t)) {
     const yesHit = pickYesEdge(conditions, userText, lastAgentText);
     if (yesHit !== null) return yesHit;
-    const scored = pickBestScoredEdge(conditions, userText, lastAgentText, 1);
-    if (scored !== null) return scored;
-    // Single continue path (Retell Always-style collect) — "Yes" after "does that
-    // sound ok?" often has no "yes" in the edge prompt.
+    // Do not score the agent's monologue against sibling edges ("how long will
+    // it take?" matches "take down some details"). A short yes only follows
+    // an affirmative / single-continue edge.
     const continueOnly: number[] = [];
     for (let i = 0; i < conditions.length; i++) {
       const c = conditions[i] ?? "";
       if (!c.trim()) continue;
       if (edgeIsSkipAheadCondition(c) || edgeIsTerminalOrOptOutCondition(c)) continue;
       if (edgeIsElseCondition(c)) continue;
+      if (looksLikeCallerQuestionCondition(c)) continue;
       const lower = c.toLowerCase();
       if (/\b(no|negative|declin|reject|refus|unavailable)\b/.test(lower) && !edgeExpectsAffirmative(c)) {
         continue;
@@ -626,6 +688,7 @@ export function tryHeuristicEdgeIndex(
       continueOnly.push(i);
     }
     if (continueOnly.length === 1) return continueOnly[0]!;
+    return null;
   }
 
   for (let i = 0; i < conditions.length; i++) {
@@ -728,6 +791,19 @@ export function tryHeuristicEdgeIndex(
     }
   }
 
+  if (looksLikeEmailAnswer(userText)) {
+    const email = pickHeuristicEdge(conditions, userText, (condition) =>
+      edgeExpectsEmail(condition),
+    );
+    if (email !== null) return email;
+    if (!conditions.some((condition) => edgeExpectsEmail(condition))) {
+      const generic = pickHeuristicEdge(conditions, userText, (condition) =>
+        edgeExpectsGenericContinuation(condition),
+      );
+      if (generic !== null) return generic;
+    }
+  }
+
   // Spelled-out or digit phone numbers when an edge expects contact info.
   if (looksLikePhoneAnswer(userText)) {
     const phone = pickHeuristicEdge(conditions, userText, (condition) =>
@@ -790,5 +866,106 @@ export function tryHeuristicEdgeIndex(
     if (numeric !== null) return numeric;
   }
 
+  const phrase = pickBestPhraseEdge(conditions, userText);
+  if (phrase !== null) return phrase;
+
+  if (looksLikeCallerQuestion(userText) || looksLikeMidFlowInterrupt(userText)) {
+    const interrupt = pickHeuristicEdge(conditions, userText, edgeExpectsInterrupt);
+    if (interrupt !== null) return interrupt;
+  }
+
   return null;
+}
+
+const PHRASE_STOP = new Set([
+  "the",
+  "a",
+  "an",
+  "it",
+  "is",
+  "user",
+  "caller",
+  "says",
+  "said",
+  "that",
+  "this",
+  "they",
+  "and",
+  "or",
+  "to",
+  "for",
+  "of",
+  "if",
+  "in",
+  "on",
+  "with",
+  "was",
+  "are",
+  "will",
+  "just",
+]);
+
+function tokenizePhrase(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/\{\{[^}]+\}\}/g, " ")
+    .replace(/[^a-z0-9'\s]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 1 && !PHRASE_STOP.has(w));
+}
+
+/** "not a good time" → "it isn't a good time"; "already sold" → "it is already sold". */
+export function pickBestPhraseEdge(conditions: string[], userText: string): number | null {
+  const userTokens = tokenizePhrase(userText);
+  if (userTokens.length < 2) return null;
+  let best: number | null = null;
+  let bestScore = 0;
+  let second = 0;
+  for (let i = 0; i < conditions.length; i++) {
+    const condition = conditions[i] ?? "";
+    if (
+      !condition.trim() ||
+      edgeIsElseCondition(condition) ||
+      edgeIsAlwaysCondition(condition) ||
+      edgeIsSkipAheadCondition(condition)
+    ) {
+      continue;
+    }
+    const condTokens = tokenizePhrase(condition);
+    if (condTokens.length === 0) continue;
+    const overlap = condTokens.filter((w) => userTokens.includes(w));
+    let score = overlap.length;
+    const condPhrase = condTokens.join(" ");
+    const userPhrase = userTokens.join(" ");
+    if (userPhrase.includes(condPhrase) || condPhrase.includes(userPhrase)) score += 3;
+    if (score > bestScore) {
+      second = bestScore;
+      bestScore = score;
+      best = i;
+    } else if (score > second) {
+      second = score;
+    }
+  }
+  if (best === null || bestScore < 2) return null;
+  if (bestScore === second) return null;
+  return best;
+}
+
+export function edgeExpectsInterrupt(condition: string): boolean {
+  return /\b(interrupt|interrupts|user asks|caller asks|asks a question|off.?script|change (?:the )?subject|unrelated question)\b/i.test(
+    condition,
+  );
+}
+
+export function looksLikeCallerQuestion(userText: string): boolean {
+  const t = userText.trim();
+  if (!t) return false;
+  if (/[?]/.test(t)) return true;
+  return /^(what|why|how|when|where|who|which|can you|could you|would you|wait)\b/i.test(t);
+}
+
+export function looksLikeMidFlowInterrupt(userText: string): boolean {
+  return /\b(hold on|hang on|wait a (?:minute|sec|second)|before (?:you|we)|actually|one (?:thing|question))\b/i.test(
+    userText,
+  );
 }

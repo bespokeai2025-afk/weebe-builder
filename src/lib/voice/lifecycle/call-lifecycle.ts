@@ -158,6 +158,13 @@ export class NativeCallLifecycle {
     });
   }
 
+  mergeDynamicVariables(values: Record<string, string>): void {
+    this.identity.dynamicVariables = {
+      ...(this.identity.dynamicVariables ?? {}),
+      ...values,
+    };
+  }
+
   /**
    * Normal end of call: emit `call_ended`, then upload the recording, run the
    * analysis pass and emit `call_analyzed`.

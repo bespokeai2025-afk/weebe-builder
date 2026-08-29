@@ -22,7 +22,9 @@ import {
   getWbahLeadCurrentStatus,
   isWbahDynamicsConfigured,
   patchWbahLead,
+  postWbahLeadTimelineNote,
 } from "@/lib/wbah/post-call/wbah-dynamics.server";
+import { buildWbahAiTimelineNoteText } from "@/lib/wbah/post-call/wbah-timeline-note.shared";
 import { cleanWbahRawData, formatWbahRetellCallData } from "@/lib/wbah/post-call/wbah-format-data.shared";
 import { upsertWbahCallFromWebhook } from "@/lib/wbah/post-call/wbah-calls-upsert.server";
 import { postWbahCallOutputCreate } from "@/lib/wbah/post-call/wbah-webespoke-writer.server";
@@ -182,6 +184,34 @@ export async function wbahStepDynamicsAllens(
     callbackUtc: formatted.callbackDatetimeUtc,
   });
   if (Object.keys(patch).length) await patchWbahLead(bag.leadId, patch);
+  if (!formatted.structuredJsonOutput) {
+    await postWbahThisCallLeadNote(bag, formatted).catch((e) => {
+      console.warn("[WBAH] lead note failed", (e as Error).message);
+    });
+  }
+}
+
+async function postWbahThisCallLeadNote(
+  bag: WbahRunBag,
+  formatted: ReturnType<typeof formatWbahRetellCallData>,
+): Promise<void> {
+  if (!bag.leadId || !isWbahDynamicsConfigured()) return;
+  const callId = bag.call.call_id ?? null;
+  const noteText = buildWbahAiTimelineNoteText({
+    label: "WBAH AI call",
+    callId,
+    userSentiment: formatted.userSentiment,
+    callSummary: formatted.callSummary,
+    transcript: bag.call.transcript ?? null,
+    appointmentDate: formatted.appointmentDate,
+    appointmentTime: formatted.appointmentTimeUk ?? formatted.requestedStartUtc,
+    callbackUtc: formatted.callbackDatetimeUtc,
+  });
+  await postWbahLeadTimelineNote({
+    leadId: bag.leadId,
+    subject: `WBAH AI call summary${callId ? ` — ${callId}` : ""}`.slice(0, 200),
+    noteText,
+  });
 }
 
 export async function wbahStepDynamicsAgentic(
@@ -200,4 +230,7 @@ export async function wbahStepDynamicsAgentic(
     callSummary: formatted.callSummary,
   });
   if (Object.keys(clearPatch).length) await patchWbahLead(bag.leadId, clearPatch);
+  await postWbahThisCallLeadNote(bag, formatted).catch((e) => {
+    console.warn("[WBAH] lead note failed", (e as Error).message);
+  });
 }

@@ -158,6 +158,23 @@ export function campaignSchedulerPlugin(): Plugin {
           console.warn("[wbah-campaign-runs] dev tick failed:", e?.message ?? e);
         }
 
+        try {
+          const { runWhatsappScheduledCampaignTick } = (await server.ssrLoadModule(
+            "/src/lib/whatsapp/campaign-schedule-tick.server.ts",
+          )) as typeof import("./src/lib/whatsapp/campaign-schedule-tick.server");
+          const wa = await runWhatsappScheduledCampaignTick();
+          if (wa.launched > 0 || wa.failed.length > 0) {
+            console.log(
+              `[whatsapp-schedule] launched=${wa.launched} failed=${wa.failed.length}` +
+                (wa.failed.length
+                  ? ` — ${wa.failed.map((f) => `${f.id}: ${f.error}`).join("; ")}`
+                  : ""),
+            );
+          }
+        } catch (e: any) {
+          console.warn("[whatsapp-schedule] dev tick failed:", e?.message ?? e);
+        }
+
         // GrowthMind content publishing (mirrors the prod campaign-executor
         // endpoint). Loaded via ssrLoadModule because the module uses "@/"
         // aliases. Best-effort — failed jobs retry with backoff.

@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { Builder } from "@/components/builder/Builder";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { BookmarkPlus, Check, CircleDot, Loader2, MapPin, Rocket, Save, MessageSquare, Zap } from "lucide-react";
+import { BookmarkPlus, Check, CircleDot, Loader2, MapPin, Rocket, Save, MessageSquare } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -16,6 +16,7 @@ import { DeploymentChecklistPanel } from "@/components/systemmind/DeploymentChec
 import { toast } from "sonner";
 import { useBuilderStore } from "@/lib/builder/store";
 import { SaveAsTemplateDialog } from "@/components/builder/SaveAsTemplateDialog";
+import { BuilderVersionMenu } from "@/components/builder/BuilderVersionMenu";
 import { upsertMyAgent } from "@/lib/agents/agents.functions";
 import { cn } from "@/lib/utils";
 import { restartTour } from "@/components/onboarding/useOnboarding";
@@ -41,6 +42,7 @@ export const Route = createFileRoute("/_authenticated/builder")({
 function BuilderPage() {
   const { new: newAgent } = Route.useSearch();
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
 
   useEffect(() => {
     if (newAgent === "1") {
@@ -59,46 +61,78 @@ function BuilderPage() {
   const saveAgent = useServerFn(upsertMyAgent);
   const currentAgentRowId = useBuilderStore((s) => s.currentAgentRowId);
   const channelType = useBuilderStore((s) => s.settings.channelType);
+  const isDirty = useBuilderStore((s) => s.isDirty);
+  const editRevision = useBuilderStore((s) => s.editRevision);
 
-  async function handleSave() {
-    const s = useBuilderStore.getState();
-    setSaving(true);
-    try {
-      const { id } = await saveAgent({
-        data: {
-          id: s.currentAgentRowId ?? undefined,
-          retellAgentId: (s.settings as { agentId?: string }).agentId ?? null,
-          name: s.settings.agentName || "Untitled agent",
-          flowData: { nodes: s.nodes, edges: s.edges } as never,
-          settings: s.settings as never,
-          variables: s.variables as never,
-          costSeconds: s.testCallTotalSec,
-        },
-      });
-      if (!s.currentAgentRowId) s.setCurrentAgentRowId(id);
-      s.bumpSaveVersion();
-      setLastSavedAt(Date.now());
-      toast.success("Agent saved", { description: s.settings.agentName });
-    } catch (e) {
-      toast.error("Save failed", { description: (e as Error).message });
-    } finally {
-      setSaving(false);
-    }
-  }
+  const handleSave = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (savingRef.current) return;
+      const s = useBuilderStore.getState();
+      savingRef.current = true;
+      setSaving(true);
+      const revisionAtStart = s.editRevision;
+      try {
+        s.recordFlowVersion(opts?.silent ? "Autosave" : "Saved");
+        const snap = useBuilderStore.getState();
+        const { id } = await saveAgent({
+          data: {
+            id: snap.currentAgentRowId ?? undefined,
+            retellAgentId: (snap.settings as { agentId?: string }).agentId ?? null,
+            name: snap.settings.agentName || "Untitled agent",
+            flowData: { nodes: snap.nodes, edges: snap.edges } as never,
+            settings: snap.settings as never,
+            variables: snap.variables as never,
+            costSeconds: snap.testCallTotalSec,
+          },
+        });
+        const latest = useBuilderStore.getState();
+        if (!latest.currentAgentRowId) latest.setCurrentAgentRowId(id);
+        if (latest.editRevision === revisionAtStart) latest.bumpSaveVersion();
+        setLastSavedAt(Date.now());
+        if (!opts?.silent) {
+          toast.success("Agent saved", { description: s.settings.agentName });
+        }
+      } catch (e) {
+        toast.error("Save failed", { description: (e as Error).message });
+      } finally {
+        savingRef.current = false;
+        setSaving(false);
+      }
+    },
+    [saveAgent],
+  );
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "s" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        if (!saving) handleSave();
+        if (!savingRef.current) void handleSave();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [saving]);
+  }, [handleSave]);
 
-  const status = currentAgentRowId ? "Saved" : "Draft";
-  const statusTone = currentAgentRowId ? "text-emerald-400" : "text-amber-400";
+  useEffect(() => {
+    if (!isDirty || !currentAgentRowId) return;
+    const t = window.setTimeout(() => {
+      void handleSave({ silent: true });
+    }, 3000);
+    return () => window.clearTimeout(t);
+  }, [isDirty, editRevision, currentAgentRowId, handleSave]);
+
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!useBuilderStore.getState().isDirty) return;
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, []);
+
+  const status = isDirty ? "Unsaved" : currentAgentRowId ? "Saved" : "Draft";
+  const statusTone = isDirty ? "text-amber-400" : currentAgentRowId ? "text-emerald-400" : "text-amber-400";
 
   const leading = (
     <div className="flex items-center gap-2 pl-1">
@@ -164,6 +198,8 @@ function BuilderPage() {
         </>
       )}
       <div className="h-3.5 w-px bg-white/[0.07] mx-0.5" />
+      <BuilderVersionMenu />
+      <div className="h-3.5 w-px bg-white/[0.07] mx-0.5" />
       <div data-tour="save-btn" style={{ display: "inline-flex" }}>
         {channelType === "whatsapp" ? (
           <Button
@@ -187,7 +223,12 @@ function BuilderPage() {
             onClick={handleSave}
             disabled={saving}
             title="Save agent (⌘S)"
-            className="!h-8 gap-1 px-2.5 text-[11px] font-medium text-muted-foreground/70 hover:text-foreground hover:bg-white/[0.06]"
+            className={cn(
+              "!h-8 gap-1 px-2.5 text-[11px] font-medium hover:bg-white/[0.06]",
+              isDirty
+                ? "text-amber-300 hover:text-amber-200"
+                : "text-muted-foreground/70 hover:text-foreground",
+            )}
           >
             {saving ? (
               <Loader2 className="h-3 w-3 animate-spin" />

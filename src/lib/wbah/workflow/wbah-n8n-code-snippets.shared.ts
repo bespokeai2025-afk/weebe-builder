@@ -261,6 +261,11 @@ return items.map(({ json }) => {
     newCurrentStatus = 279640000;
     skipStatusUpdate = false;
     rule = 'negative';
+  } else if (String(json.appointmentBooked || json.hasBookingSlot) === 'true' || json.appointmentBooked === true) {
+    newCurrentStatus = 100000008;
+    skipStatusUpdate = false;
+    skipAppointmentUpdate = false;
+    rule = 'logged';
   } else if (String(bookingUrl ?? '').trim() && bookingUrl !== 'NA') {
     newCurrentStatus = 100000008;
     skipStatusUpdate = false;
@@ -295,8 +300,14 @@ return items.map(({ json }) => {
   if (!json.skipStatecodeUpdate && json.statecodeOverride != null) {
     payload.statecode = json.statecodeOverride;
   }
-  if (!json.skipAppointmentUpdate && json.calendlyBookingUrl) {
-    payload.new_calendlybookingurl = json.calendlyBookingUrl;
+  if (!json.skipAppointmentUpdate) {
+    if (json.calendlyBookingUrl) payload.new_calendlybookingurl = json.calendlyBookingUrl;
+    if (json.appointmentDate || json.appointment_date) {
+      payload.cos_appointment_date = json.appointmentDate ?? json.appointment_date;
+    }
+    if (json.requestedStartUtc || json.cos_appointment_time) {
+      payload.cos_appointment_time = json.requestedStartUtc ?? json.cos_appointment_time;
+    }
   }
   if (json.isCallbackRequest && json.callbackDatetimeUtc) {
     payload.new_callbackdatetime = json.callbackDatetimeUtc;

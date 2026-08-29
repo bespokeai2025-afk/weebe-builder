@@ -9,9 +9,9 @@
  *   server -> { event: "audio", audio: <bytes> }   repeatedly
  *   server -> { event: "finish", reason: "stop" | "error" }
  *
- * Call-bound mode: voice id + prosody are locked, and after the first successful
- * line we attach that line's audio as a Fish `references` clip so later WebSockets
- * clone the same in-call timbre (Fish resamples `reference_id` on every new TCP).
+ * Call-bound mode: voice id + prosody are locked. One live WebSocket is reused
+ * across utterances (start once, then text→flush per line; no stop/TCP teardown).
+ * If Fish still closes after flush, the next line reconnects.
  */
 import { WebSocket } from "ws";
 import { decode, encode } from "@msgpack/msgpack";
@@ -30,7 +30,19 @@ const FISH_CLONE_TOP_P = 0.5;
 /** Target Fish chunk size. 200 is Fish's default — smaller than 300 so first audio starts sooner. */
 const FISH_CLONE_CHUNK_LENGTH = 200;
 /** Don't emit a fragment shorter than a word; 80 blocked first-audio by a full clause. */
-const FISH_CLONE_MIN_CHUNK_LENGTH = 40;
+export const FISH_CLONE_MIN_CHUNK_LENGTH = 12;
+/** Bound-call TTS keeps the live socket open between agent lines (no stop/TCP teardown). */
+export const FISH_BOUND_KEEP_ALIVE = true;
+/**
+ * After a burst of audio, wait this long before ending the local drain.
+ * Fish S2 often pauses 400–900ms between clauses on a long greeting; 280ms
+ * cut Clare off after "Hi, this is Clare".
+ */
+export const FISH_LIVE_UTTERANCE_IDLE_MS = 900;
+/** When far less audio has arrived than the text requires, wait longer — still synthesizing. */
+export const FISH_LIVE_SHORT_COVERAGE_IDLE_MS = 3200;
+/** Static lines finish pumping in milliseconds — wait this long for Fish's first audio. */
+export const FISH_LIVE_FIRST_AUDIO_WAIT_MS = 2500;
 /** First live flush once we have a speakable phrase — matches VOICE_LATENCY_TTS_BATCH. */
 export const FISH_STREAM_FIRST_FLUSH_CHARS = 12;
 /** Keep enough of the greeting to lock timbre; cap payload size. */
@@ -209,27 +221,35 @@ async function waitForOpen(ws: WebSocket): Promise<void> {
 }
 
 function attachFishHandlers(session: FishLiveSession): void {
-  const { ws, queue } = session;
+  const { ws } = session;
   ws.on("message", (data: import("ws").RawData) => {
     try {
       const buf = Array.isArray(data) ? Buffer.concat(data) : Buffer.from(data as Buffer);
       const msg = decode(buf) as FishServerEvent;
 
       if (msg.event === "audio" && msg.audio) {
-        queue.push(Buffer.from(msg.audio));
+        session.queue.push(Buffer.from(msg.audio));
+        return;
+      }
+      if (msg.event === "error" || (msg.event === "finish" && msg.reason === "error")) {
+        const detail = msg.message ?? msg.reason ?? "unknown error";
+        console.error(`[fish-tts] server error event=${msg.event} ${detail}`);
+        session.queue.fail(new Error(`Fish Audio TTS synthesis failed: ${detail}`));
         return;
       }
       if (msg.event === "finish") {
-        if (msg.reason === "error") {
-          queue.fail(
-            new Error(`Fish Audio TTS synthesis failed: ${msg.message ?? "unknown error"}`),
-          );
-        } else if (session.stopSent) {
-          queue.end();
+        if (session.stopSent) {
+          session.queue.end();
         }
+        return;
+      }
+      if (msg.event && msg.event !== "start" && msg.event !== "log") {
+        console.warn(
+          `[fish-tts] unexpected event=${msg.event}${msg.message ? ` ${msg.message}` : ""}`,
+        );
       }
     } catch (err) {
-      queue.fail(err instanceof Error ? err : new Error(String(err)));
+      session.queue.fail(err instanceof Error ? err : new Error(String(err)));
     }
   });
 }
@@ -282,8 +302,8 @@ async function openFishSession(
   attachFishHandlers(session);
   await waitForOpen(ws);
 
-  ws.on("error", (err: Error) => queue.fail(err));
-  ws.on("close", () => queue.end());
+  ws.on("error", (err: Error) => session.queue.fail(err));
+  ws.on("close", () => session.queue.end());
   ws.send(encode({ event: "start", request: buildStartRequest(req, anchor) }));
 
   return session;
@@ -374,10 +394,125 @@ async function pumpFishStaticChunks(
   }
 }
 
+function isFishLiveOpen(session: FishLiveSession | null | undefined): boolean {
+  return !!session && session.ws.readyState === WebSocket.OPEN;
+}
+
+function recycleFishQueue(session: FishLiveSession): void {
+  session.queue = new ChunkQueue();
+  session.stopSent = false;
+}
+
+/** Spoken duration implied by text at ~14 chars/s (PCM16 mono). */
+export function expectedPcmBytesForText(text: string, sampleRate: number): number {
+  const chars = text.replace(/\s+/g, " ").trim().length;
+  if (chars <= 0 || sampleRate <= 0) return 0;
+  return Math.floor((chars / 14) * sampleRate * 2);
+}
+
 /**
- * Serializes agent lines; each utterance is a full Fish start→text→stop session
- * with the same locked reference_id + prosody (Fish closes TCP after finish).
+ * Keep-alive TTS cannot wait for Fish `finish` (that only arrives after `stop`).
+ * End the local queue only after audio has gone idle — and never while the
+ * amount of PCM is far short of the text still being synthesised.
  */
+export function shouldEndFishLiveUtterance(opts: {
+  gotAudio: boolean;
+  idleMs: number;
+  pcmBytes: number;
+  expectedText: string;
+  sampleRate: number;
+}): boolean {
+  if (!opts.gotAudio) return false;
+  const expected = expectedPcmBytesForText(opts.expectedText, opts.sampleRate);
+  const coverage = expected > 0 ? opts.pcmBytes / expected : 1;
+  const idleNeed =
+    coverage < 0.75 ? FISH_LIVE_SHORT_COVERAGE_IDLE_MS : FISH_LIVE_UTTERANCE_IDLE_MS;
+  return opts.idleMs >= idleNeed;
+}
+
+/**
+ * Bound-call utterances flush but do not send `stop`, so the TCP session stays
+ * up for the next line. End the local drain once audio has been idle — but
+ * never before the first chunk, or a long greeting is silenced.
+ */
+async function endQueueWhenAudioIdle(
+  session: FishLiveSession,
+  pumpDone: Promise<void>,
+  options: { expectedText: () => string; sampleRate: number },
+): Promise<void> {
+  const queue = session.queue;
+  let gotAudio = false;
+  let lastAudio = Date.now();
+  let pcmBytes = 0;
+  const origPush = queue.push.bind(queue);
+  queue.push = (chunk: Buffer) => {
+    gotAudio = true;
+    lastAudio = Date.now();
+    pcmBytes += chunk.byteLength;
+    origPush(chunk);
+  };
+  try {
+    await pumpDone;
+  } catch {
+    queue.end();
+    return;
+  }
+  if (session.stopSent) return;
+  const flushedAt = Date.now();
+  await new Promise<void>((resolve) => {
+    const finish = (reason: string) => {
+      const expected = options.expectedText();
+      const need = expectedPcmBytesForText(expected, options.sampleRate);
+      if (need > 0 && pcmBytes < need * 0.75) {
+        console.warn(
+          `[fish-tts] utterance idle-end ${reason} coverage=${(pcmBytes / need).toFixed(2)} ` +
+            `pcm=${pcmBytes} expected=${need}`,
+        );
+      }
+      queue.end();
+      resolve();
+    };
+    const tick = () => {
+      if (queue !== session.queue) {
+        resolve();
+        return;
+      }
+      if (session.ws.readyState !== WebSocket.OPEN) {
+        finish("socket-closed");
+        return;
+      }
+      if (!gotAudio) {
+        if (Date.now() - flushedAt >= FISH_LIVE_FIRST_AUDIO_WAIT_MS) {
+          if (!session.stopSent && session.ws.readyState === WebSocket.OPEN) {
+            session.stopSent = true;
+            session.ws.send(encode({ event: "stop" }));
+            setTimeout(() => finish("no-audio-stop"), 1200);
+            return;
+          }
+          finish("no-audio");
+          return;
+        }
+        setTimeout(tick, 40);
+        return;
+      }
+      if (
+        shouldEndFishLiveUtterance({
+          gotAudio: true,
+          idleMs: Date.now() - lastAudio,
+          pcmBytes,
+          expectedText: options.expectedText(),
+          sampleRate: options.sampleRate,
+        })
+      ) {
+        finish("idle");
+        return;
+      }
+      setTimeout(tick, 40);
+    };
+    setTimeout(tick, 40);
+  });
+}
+
 class BoundCallUtteranceRunner {
   private utteranceChain: Promise<void> = Promise.resolve();
   private warmSession: Promise<FishLiveSession> | null = null;
@@ -385,6 +520,9 @@ class BoundCallUtteranceRunner {
   private primed: { text: string; session: Promise<FishLiveSession> } | null = null;
   /** First in-call agent audio — later lines clone this instead of resampling the model. */
   private anchor: FishVoiceAnchor | null = null;
+  /** Live TCP session reused across agent lines when Fish leaves it open. */
+  private live: FishLiveSession | null = null;
+  private busy = false;
 
   constructor(
     private readonly apiKey: string,
@@ -393,15 +531,20 @@ class BoundCallUtteranceRunner {
   ) {}
 
   close(): void {
+    this.live?.close();
+    this.live = null;
     this.warmSession?.then((session) => session.close()).catch(() => {});
-    this.primed?.session.then((session) => session.close()).catch(() => {});
+    this.primed?.session.then((session) => {
+      if (session !== this.live) session.close();
+    }).catch(() => {});
     this.warmSession = null;
     this.primed = null;
     this.anchor = null;
   }
 
   warm(): void {
-    if (this.warmSession || this.primed) return;
+    if (this.busy || this.warmSession || this.primed) return;
+    if (isFishLiveOpen(this.live)) return;
     this.warmSession = connectFishSession(this.req, this.apiKey, this.defaultModel, this.anchor);
   }
 
@@ -413,6 +556,18 @@ class BoundCallUtteranceRunner {
       return;
     }
     if (this.primed?.text === trimmed) return;
+    if (this.busy) return;
+
+    if (isFishLiveOpen(this.live)) {
+      this.primed?.session.then((session) => {
+        if (session !== this.live) session.close();
+      }).catch(() => {});
+      recycleFishQueue(this.live!);
+      this.live!.ws.send(encode({ event: "text", text: trimmed }));
+      this.live!.ws.send(encode({ event: "flush" }));
+      this.primed = { text: trimmed, session: Promise.resolve(this.live!) };
+      return;
+    }
 
     this.primed?.session.then((session) => session.close()).catch(() => {});
     const pending = this.warmSession;
@@ -456,6 +611,7 @@ class BoundCallUtteranceRunner {
       try {
         return { session: await slot.session, primed: true };
       } catch {
+        this.live = null;
         return {
           session: await connectFishSession(this.req, this.apiKey, this.defaultModel, this.anchor),
           primed: false,
@@ -464,9 +620,18 @@ class BoundCallUtteranceRunner {
     }
 
     if (this.primed) {
-      this.primed.session.then((s) => s.close()).catch(() => {});
+      const discard = this.primed;
       this.primed = null;
+      discard.session.then((s) => {
+        if (s !== this.live) s.close();
+      }).catch(() => {});
     }
+
+    if (isFishLiveOpen(this.live)) {
+      recycleFishQueue(this.live!);
+      return { session: this.live!, primed: false };
+    }
+    this.live = null;
 
     if (this.warmSession) {
       const pending = this.warmSession;
@@ -509,19 +674,18 @@ class BoundCallUtteranceRunner {
     this.utteranceChain = prior.then(() => slot);
 
     await prior;
+    this.busy = true;
 
     const { session, primed } = await this.takeSession(expectedText);
-    if (primed) {
-      // Predicted line already flushed — stop so Fish emits finish and drain ends.
-      if (session.ws.readyState === WebSocket.OPEN) {
-        session.stopSent = true;
-        session.ws.send(encode({ event: "stop" }));
-      }
-    } else {
-      void pump(session).catch((err) => {
-        session.queue.fail(err instanceof Error ? err : new Error(String(err)));
-      });
-    }
+    const pumpDone = primed
+      ? Promise.resolve()
+      : pump(session).catch((err) => {
+          session.queue.fail(err instanceof Error ? err : new Error(String(err)));
+        });
+    void endQueueWhenAudioIdle(session, pumpDone, {
+      expectedText: spokenText,
+      sampleRate: this.req.sampleRate ?? 24000,
+    });
 
     const pcmChunks: Buffer[] = [];
     try {
@@ -530,9 +694,16 @@ class BoundCallUtteranceRunner {
         yield chunk;
       }
     } finally {
-      session.close();
       this.maybeSetAnchor(Buffer.concat(pcmChunks), spokenText());
-      this.warm();
+      const keep = FISH_BOUND_KEEP_ALIVE && pcmChunks.length > 0 && isFishLiveOpen(session);
+      if (keep) {
+        this.live = session;
+      } else {
+        session.close();
+        if (this.live === session) this.live = null;
+        this.warm();
+      }
+      this.busy = false;
       release();
     }
   }
@@ -698,7 +869,8 @@ export class FishAudioTtsProvider implements TtsProvider {
 
         if (self.callRunner) {
           yield* self.callRunner.runUtterance(
-            (session) => pumpFishStaticChunks(session, trimmed),
+            (session) =>
+              pumpFishStaticChunks(session, trimmed, { sendStop: !FISH_BOUND_KEEP_ALIVE }),
             () => trimmed,
             trimmed,
           );
@@ -750,7 +922,7 @@ export class FishAudioTtsProvider implements TtsProvider {
             }
           }
           yield* self.callRunner.runUtterance(
-            (session) => pumpFishText(session, tap()),
+            (session) => pumpFishText(session, tap(), { sendStop: !FISH_BOUND_KEEP_ALIVE }),
             () => spoken,
           );
           return;

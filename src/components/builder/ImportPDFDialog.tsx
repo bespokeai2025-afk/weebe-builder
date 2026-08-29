@@ -93,7 +93,7 @@ export function ImportPDFDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
-  const { loadFlow, setSettings, settings } = useBuilderStore();
+  const { loadFlow, settings } = useBuilderStore();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [phase, setPhase]               = useState<Phase>("idle");
@@ -207,19 +207,27 @@ export function ImportPDFDialog({
     if (!flowResult) return;
 
     const laidOutNodes = autoLayoutNodes(flowResult.nodes, flowResult.edges);
-    loadFlow({ nodes: laidOutNodes, edges: flowResult.edges });
-
-    const settingsUpdate: Record<string, string> = {};
-    if (applyGlobalPrompt && flowResult.globalPromptSuggestion)
-      settingsUpdate.globalPrompt = flowResult.globalPromptSuggestion;
-    if (applyAgentName && flowResult.suggestedAgentName)
-      settingsUpdate.agentName = flowResult.suggestedAgentName;
-    if (applyCompanyName && flowResult.suggestedCompanyName)
-      settingsUpdate.companyName = flowResult.suggestedCompanyName;
-    if (applyBeginMessage && flowResult.suggestedBeginMessage)
-      settingsUpdate.beginMessage = flowResult.suggestedBeginMessage;
-    if (Object.keys(settingsUpdate).length > 0)
-      setSettings(settingsUpdate as Parameters<typeof setSettings>[0]);
+    loadFlow({
+      nodes: laidOutNodes,
+      edges: flowResult.edges,
+      settings: {
+        ...(applyGlobalPrompt && flowResult.globalPromptSuggestion
+          ? { globalPrompt: flowResult.globalPromptSuggestion }
+          : {}),
+        ...(applyAgentName && flowResult.suggestedAgentName
+          ? { agentName: flowResult.suggestedAgentName }
+          : {}),
+        ...(applyCompanyName && flowResult.suggestedCompanyName
+          ? { companyName: flowResult.suggestedCompanyName }
+          : {}),
+        ...(applyBeginMessage && flowResult.suggestedBeginMessage
+          ? { beginMessage: flowResult.suggestedBeginMessage }
+          : {}),
+      },
+      variables: [],
+      agentRowId: null,
+      replaceSettings: true,
+    });
 
     const parts: string[] = [];
     if (selectedAgent) parts.push(selectedAgent.name);

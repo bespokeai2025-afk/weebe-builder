@@ -20,6 +20,8 @@ import {
   normalizeWhatsAppPhone,
   findLeadByPhone,
 } from "./wati-campaign.server";
+import { applyInboundCampaignStage } from "./campaign-stage.server";
+import { DEFAULT_CAMPAIGN_LEAD_STAGE } from "./campaign-leads.shared";
 
 const sb = supabaseAdmin as any;
 
@@ -84,6 +86,7 @@ export async function matchOrCreateLeadForWhatsApp(
     if (byConv?.id) {
       await updateBuzzChatFields(byConv.id, workspaceId, conversationId, replyAt, byConv.last_buzzchat_reply_at);
       await recordActivity(workspaceId, byConv.id, conversationId, externalMessageId, preview, replyAt);
+      await applyInboundCampaignStage(sb, workspaceId, byConv.id, false);
       return { leadId: byConv.id, created: false };
     }
   }
@@ -102,6 +105,7 @@ export async function matchOrCreateLeadForWhatsApp(
       null,
     );
     await recordActivity(workspaceId, existingLead.id, conversationId, externalMessageId, preview, replyAt);
+    await applyInboundCampaignStage(sb, workspaceId, existingLead.id, false);
     return { leadId: existingLead.id, created: false };
   }
 
@@ -125,6 +129,7 @@ export async function matchOrCreateLeadForWhatsApp(
       has_buzzchat_reply: true,
       last_buzzchat_reply_at: replyAt,
       buzzchat_conversation_id: conversationId ?? null,
+      pipeline_stage: DEFAULT_CAMPAIGN_LEAD_STAGE,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })

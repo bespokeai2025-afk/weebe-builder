@@ -8,8 +8,9 @@ import {
   applyOwnerOccupiedCorrection,
   shouldMirrorPropertyToContact,
 } from "./wbah-crm-enrichment.shared";
-import { sanitizeWbahUkAddressFields } from "./wbah-uk-address.shared";
+import { sanitizeWbahUkAddressFields, looksLikeUkPostcode } from "./wbah-uk-address.shared";
 import { normalizeWbahUkMobilePhone } from "./wbah-uk-phone.shared";
+import { pickWbahCrmEmail } from "./wbah-email.shared";
 
 /** Retell extraction keys that alias to a Dynamics attribute (extraction name → CRM name). */
 export const WBAH_VERIFIED_DETAILS_ALIASES: Record<string, string> = {
@@ -38,8 +39,6 @@ export const WBAH_VERIFIED_DETAILS_ALIASES: Record<string, string> = {
   decision_maker: "decisionmaker",
   contact_address: "address1_line1",
   postcode_contact: "address1_postalcode",
-  rent_achieved: "new_propinfo_rentachieved",
-  monthly_rent: "new_propinfo_rentachieved",
 };
 
 /** Property → contact address pairs when caller confirms contact = property. */
@@ -139,7 +138,6 @@ export const WBAH_VERIFIED_DETAILS_DYNAMICS_FIELDS = new Set([
   "cos_call_summary",
   "new_propinfo_typeofproperty",
   "new_propinfo_whichfloor",
-  "new_propinfo_rentachieved",
   "decisionmaker",
 ]);
 
@@ -249,13 +247,22 @@ export function mapWbahVerifiedDetailsToDynamicsFields(input: {
   if (fn) payload.firstname = fn;
   const ln = val(vd.lastname, vd.last_name);
   if (ln) payload.lastname = ln;
-  const email = val(vd.emailaddress1, vd.user_email, vd.email_address, input.fallbackEmail);
+  const email = pickWbahCrmEmail(
+    vd.emailaddress1,
+    vd.user_email,
+    vd.email_address,
+    input.fallbackEmail,
+  );
   if (email) payload.emailaddress1 = email;
   const mobile = val(vd.mobilephone, vd.user_mobile);
-  if (mobile) payload.mobilephone = normalizeWbahUkMobilePhone(String(mobile));
-  const homeTel = val(vd.new_othervendor_hometelephone, vd.user_mobile);
+  if (mobile) {
+    const normalized = normalizeWbahUkMobilePhone(String(mobile));
+    if (normalized) payload.mobilephone = normalized;
+  }
+  const homeTel = val(vd.new_othervendor_hometelephone);
   if (homeTel) {
-    payload.new_othervendor_hometelephone = normalizeWbahUkMobilePhone(String(homeTel));
+    const normalized = normalizeWbahUkMobilePhone(String(homeTel));
+    if (normalized) payload.new_othervendor_hometelephone = normalized;
   }
 
   const titleVal = intVal(vd.new_contact_title, vd.title);
@@ -276,7 +283,13 @@ export function mapWbahVerifiedDetailsToDynamicsFields(input: {
     "address1_stateorprovince",
     "address1_postalcode",
   ] as const) {
-    const v = val(vd[key]);
+    const original = input.verifiedDetails[key];
+    const now = vd[key];
+    if (looksLikeUkPostcode(original) && isEmptyValue(now)) {
+      payload[key] = null;
+      continue;
+    }
+    const v = val(now);
     if (v) payload[key] = v;
   }
 
@@ -328,11 +341,6 @@ export function mapWbahVerifiedDetailsToDynamicsFields(input: {
     const leaseYears = cleanNumber(vd.cos_numberofyearsonlease ?? vd.years_on_lease);
     if (leaseYears !== undefined) payload.cos_numberofyearsonlease = leaseYears;
   }
-
-  const rentAchieved = cleanNumber(
-    vd.new_propinfo_rentachieved ?? vd.rent_achieved ?? vd.monthly_rent,
-  );
-  if (rentAchieved !== undefined) payload.new_propinfo_rentachieved = rentAchieved;
 
   const callSummary = val(vd.cos_call_summary);
   if (callSummary) payload.cos_call_summary = callSummary;

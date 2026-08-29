@@ -30,6 +30,9 @@ export const WATI_TEMPLATE_PARAM_FIELD_OPTIONS: Array<{
   { value: "meta.Transaction Amount", label: "Transaction Amount", group: "property" },
   { value: "meta.Size", label: "Size", group: "property" },
   { value: "meta.beds", label: "Bedrooms", group: "property" },
+  { value: "meta.Requirement", label: "Requirement (Sell/Rent/Both)", group: "property" },
+  { value: "meta.Asking Price", label: "Asking Price", group: "property" },
+  { value: "meta.Rental Price", label: "Rental Price", group: "property" },
   { value: "meta.Date", label: "Transaction Date", group: "property" },
   { value: "meta.Mobile 1", label: "Mobile 1", group: "property" },
   { value: "meta.Mobile 2", label: "Mobile 2", group: "property" },
@@ -82,22 +85,24 @@ const SLOT_TO_LEAD_FIELD: Record<string, string> = {
   email: "email",
   completion: "meta.Completion Status",
   usage: "meta.Usage",
+  requirement: "meta.Requirement",
+  intent: "meta.Requirement",
+  asking_price: "meta.Asking Price",
+  askingprice: "meta.Asking Price",
+  rental_price: "meta.Rental Price",
+  rentalprice: "meta.Rental Price",
 };
 
-export function watiTemplateComponentsPayload(t: Record<string, unknown>): Record<string, unknown> | null {
+export function watiTemplateComponentsPayload(
+  t: Record<string, unknown>,
+): Record<string, unknown> | null {
   const customParams = t.customParams;
   const body = t.body;
   const bodyOriginal = t.bodyOriginal;
   const header = t.header;
   const metaComponents = t.components;
 
-  if (
-    !customParams &&
-    !body &&
-    !bodyOriginal &&
-    !header &&
-    !Array.isArray(metaComponents)
-  ) {
+  if (!customParams && !body && !bodyOriginal && !header && !Array.isArray(metaComponents)) {
     return null;
   }
 
@@ -122,9 +127,7 @@ export function extractWatiTemplateParamSlots(
     | undefined;
 
   if (Array.isArray(customParams) && customParams.length > 0) {
-    return customParams
-      .map((p) => String(p.paramName ?? "").trim())
-      .filter(Boolean);
+    return customParams.map((p) => String(p.paramName ?? "").trim()).filter(Boolean);
   }
 
   const slots = new Set<string>();
@@ -137,9 +140,7 @@ export function extractWatiTemplateParamSlots(
 
   for (const c of metaComps) {
     const text =
-      (c as { text?: string; body?: string })?.text ??
-      (c as { body?: string })?.body ??
-      "";
+      (c as { text?: string; body?: string })?.text ?? (c as { body?: string })?.body ?? "";
     for (const m of String(text).match(/\{\{(\d+)\}\}/g) ?? []) {
       slots.add(m.replace(/\{\{|\}\}/g, ""));
     }
@@ -173,7 +174,9 @@ export function isLiteralTemplateField(fieldKey: string | undefined): boolean {
 }
 
 export function literalTemplateFieldText(fieldKey: string): string {
-  return fieldKey.startsWith(LITERAL_FIELD_PREFIX) ? fieldKey.slice(LITERAL_FIELD_PREFIX.length) : "";
+  return fieldKey.startsWith(LITERAL_FIELD_PREFIX)
+    ? fieldKey.slice(LITERAL_FIELD_PREFIX.length)
+    : "";
 }
 
 export function templateFieldMappingIsComplete(fieldKey: string | undefined): boolean {
@@ -282,7 +285,8 @@ export function defaultWatiTemplateParamMapping(
     const key = normalizeSlotKey(slot);
     if (key.includes("name") || key.includes("owner")) mapping[slot] = "full_name";
     else if (key.includes("building")) mapping[slot] = "meta.Building";
-    else if (key.includes("master") && key.includes("project")) mapping[slot] = "meta.Master Project";
+    else if (key.includes("master") && key.includes("project"))
+      mapping[slot] = "meta.Master Project";
     else if (key.includes("project")) mapping[slot] = "meta.Master Project";
     else if (key.includes("location") || key.includes("area") || key.includes("community"))
       mapping[slot] = "meta.Master Location";
@@ -400,7 +404,10 @@ export function parametersFromShorthandValues(
 }
 
 function normalizeRenderedTemplateText(text: string): string {
-  return text.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  return text
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function scoreRenderedTemplateMatch(

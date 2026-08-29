@@ -8,16 +8,27 @@ export type WbahCrmPatchPayload = Record<string, string | number | boolean | nul
 
 const NUMERIC_FIELD_PATTERN = /^(100000\d+|181510\d+|279640\d+)$/;
 
+/** Explicit nulls Dynamics will accept to clear stale / garbage values. */
+const CLEARABLE_DYNAMICS_FIELDS = new Set([
+  "cos_callbackrequest",
+  "new_propinfo_city",
+  "new_propinfo_street2",
+  "address1_city",
+  "address1_line1",
+]);
+
 function isNumericOptionValue(v: unknown): v is string {
   return typeof v === "string" && NUMERIC_FIELD_PATTERN.test(v.trim());
 }
 
 /** Only include non-empty Dynamics fields (mirrors n8n getAllValidFields behaviour). */
-export function filterValidDynamicsFields(
-  fields: Record<string, unknown>,
-): WbahCrmPatchPayload {
+export function filterValidDynamicsFields(fields: Record<string, unknown>): WbahCrmPatchPayload {
   const out: WbahCrmPatchPayload = {};
   for (const [key, value] of Object.entries(fields)) {
+    if (value === null && CLEARABLE_DYNAMICS_FIELDS.has(key)) {
+      out[key] = null;
+      continue;
+    }
     if (value == null || value === "") continue;
     if (typeof value === "number" && !Number.isFinite(value)) continue;
     if (typeof value === "boolean") {
@@ -65,14 +76,11 @@ export function buildWbahAllensCrmPayload(input: {
   const { formatted, allens, calendlyBookingUrl, callbackUtc, custom, transcript } = input;
   const payload: Record<string, unknown> = {};
   const vd = formatted.verifiedDetails ?? formatted.structuredJsonOutput ?? {};
+  const slotBooked = Boolean(
+    formatted.hasBookingSlot || formatted.appointmentConfirmed || formatted.appointmentDate,
+  );
 
-  if (allens.skipStatusUpdate) {
-    if (!allens.skipAppointmentUpdate) {
-      if (formatted.requestedStartUtc) payload.cos_appointment_time = formatted.requestedStartUtc;
-      if (calendlyBookingUrl) payload.cos_calendly_booking_url = calendlyBookingUrl;
-      if (formatted.appointmentDate) payload.cos_appointment_date = formatted.appointmentDate;
-    }
-  } else {
+  if (!allens.skipStatusUpdate) {
     if (!allens.skipStatecodeUpdate && allens.statecodeOverride != null) {
       payload.statecode = allens.statecodeOverride;
     } else if (!allens.skipStatecodeUpdate) {
@@ -92,12 +100,17 @@ export function buildWbahAllensCrmPayload(input: {
       });
       if (agentPreference != null) payload.cr_agentpreference = agentPreference;
     }
+  }
 
-    if (!allens.skipAppointmentUpdate) {
-      if (formatted.requestedStartUtc) payload.cos_appointment_time = formatted.requestedStartUtc;
-      if (calendlyBookingUrl) payload.cos_calendly_booking_url = calendlyBookingUrl;
-      if (formatted.appointmentDate) payload.cos_appointment_date = formatted.appointmentDate;
-    }
+  if (slotBooked && !allens.isCallbackRequest) {
+    if (formatted.requestedStartUtc) payload.cos_appointment_time = formatted.requestedStartUtc;
+    if (formatted.appointmentDate) payload.cos_appointment_date = formatted.appointmentDate;
+    if (calendlyBookingUrl) payload.cos_calendly_booking_url = calendlyBookingUrl;
+    payload.cos_callbackrequest = null;
+  } else if (!allens.skipAppointmentUpdate) {
+    if (formatted.requestedStartUtc) payload.cos_appointment_time = formatted.requestedStartUtc;
+    if (calendlyBookingUrl) payload.cos_calendly_booking_url = calendlyBookingUrl;
+    if (formatted.appointmentDate) payload.cos_appointment_date = formatted.appointmentDate;
   }
 
   // Dynamics donotphone only when Allen's Logic detected an explicit remove/stop-contact request.
@@ -105,18 +118,18 @@ export function buildWbahAllensCrmPayload(input: {
     payload.donotphone = true;
   }
 
-  if (formatted.userSentiment) payload.cos_user_sentiment = formatted.userSentiment;
-  if (formatted.callSummary) payload.cos_call_summary = formatted.callSummary;
+  const mapped = mapWbahVerifiedDetailsToDynamicsFields({
+    verifiedDetails: vd,
+    fallbackEmail: formatted.email,
+    custom,
+    transcript,
+  });
+  Object.assign(payload, mapped);
 
-  Object.assign(
-    payload,
-    mapWbahVerifiedDetailsToDynamicsFields({
-      verifiedDetails: vd,
-      fallbackEmail: formatted.email,
-      custom,
-      transcript,
-    }),
-  );
+  if (formatted.userSentiment) payload.cos_user_sentiment = formatted.userSentiment;
+  const vdSummary = typeof mapped.cos_call_summary === "string" ? mapped.cos_call_summary : null;
+  if (vdSummary) payload.cos_call_summary = vdSummary;
+  else if (formatted.callSummary) payload.cos_call_summary = formatted.callSummary;
 
   return filterValidDynamicsFields(payload);
 }

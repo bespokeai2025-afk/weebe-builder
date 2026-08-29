@@ -2,6 +2,13 @@
  * Shared CSV helpers for WATI campaign lead imports (client + server).
  */
 
+import {
+  formatCampaignRequirement,
+  parseCsvTags,
+  qualificationFromImportMeta,
+  type CampaignQualification,
+} from "./campaign-leads.shared";
+
 export type CsvLeadRow = {
   phone: string;
   full_name?: string | null;
@@ -10,6 +17,9 @@ export type CsvLeadRow = {
   notes?: string | null;
   /** Structured CSV columns (JVC property registry, etc.) */
   import_meta?: Record<string, string> | null;
+  tags?: string[] | null;
+  qualification?: Partial<CampaignQualification> | null;
+  lead_status?: string | null;
 };
 
 export type CsvColumnMapping = {
@@ -24,6 +34,11 @@ export type CsvColumnMapping = {
   party_type?: string;
   project?: string;
   building?: string;
+  requirement?: string;
+  tags?: string;
+  asking_price?: string;
+  rental_price?: string;
+  lead_status?: string;
   /** Extra CSV columns appended to lead notes (property context). */
   context_columns?: string[];
 };
@@ -50,6 +65,12 @@ export const JVC_OWNER_REGISTRY_COLUMN_MAP: Array<{
   { csvColumn: "property_number", importField: "notes", required: false, notes: "Internal property ref" },
   { csvColumn: "Completion Status", importField: "notes", required: false, notes: "off-plan / ready" },
   { csvColumn: "Property Type", importField: "notes", required: false, notes: "Apartments, Showrooms, etc." },
+  { csvColumn: "Requirement", importField: "qualification.intent", required: false, notes: "Sell / Rent / Both" },
+  { csvColumn: "Intent", importField: "qualification.intent", required: false, notes: "Alias of Requirement" },
+  { csvColumn: "Asking Price", importField: "qualification.asking_price", required: false, notes: "Sale asking price" },
+  { csvColumn: "Rental Price", importField: "qualification.rental_price", required: false, notes: "Monthly rent" },
+  { csvColumn: "Tags", importField: "tags", required: false, notes: "Comma-separated labels" },
+  { csvColumn: "Lead Status", importField: "lead_status", required: false, notes: "Contact status if present" },
   { csvColumn: "Sub Type", importField: "notes", required: false, notes: "flat, show_rooms, etc." },
   { csvColumn: "Usage", importField: "notes", required: false, notes: "Residential / Commercial" },
   { csvColumn: "beds", importField: "notes", required: false, notes: "Bedroom count" },
@@ -119,6 +140,11 @@ const BUILDING_ALIASES = new Set([
   "building1",
   "building",
 ]);
+const REQUIREMENT_ALIASES = new Set(["requirement", "intent", "lookingto", "buyorrent"]);
+const TAGS_ALIASES = new Set(["tags", "tag", "labels", "label"]);
+const ASKING_PRICE_ALIASES = new Set(["askingprice", "saleprice", "sellingprice"]);
+const RENTAL_PRICE_ALIASES = new Set(["rentalprice", "rentprice", "monthlyrent"]);
+const LEAD_STATUS_ALIASES = new Set(["leadstatus", "status", "contactstatus"]);
 
 /** JVC owner CSV — extra columns stored in lead notes automatically. */
 const JVC_CONTEXT_NOTE_KEYS = new Set([
@@ -138,6 +164,12 @@ const JVC_CONTEXT_NOTE_KEYS = new Set([
   "landnumber",
   "municipalityno",
   "municipalitysubno",
+  "requirement",
+  "intent",
+  "tags",
+  "askingprice",
+  "rentalprice",
+  "availability",
 ]);
 
 function normKey(s: string): string {
@@ -283,6 +315,11 @@ export function autoDetectCsvColumnMapping(headers: string[]): CsvColumnMapping 
     party_type: pickColumn(headers, PARTY_TYPE_ALIASES),
     project: pickColumn(headers, PROJECT_ALIASES),
     building,
+    requirement: pickColumn(headers, REQUIREMENT_ALIASES),
+    tags: pickColumn(headers, TAGS_ALIASES),
+    asking_price: pickColumn(headers, ASKING_PRICE_ALIASES),
+    rental_price: pickColumn(headers, RENTAL_PRICE_ALIASES),
+    lead_status: pickColumn(headers, LEAD_STATUS_ALIASES),
     context_columns: context_columns.length > 0 ? context_columns : undefined,
   };
 }
@@ -342,7 +379,26 @@ export function mapCsvRowsToLeads(
       import_meta["Building"] = v;
       noteParts.push(`Building: ${v}`);
     }
+    const mappedCols = new Set(
+      [
+        mapping.phone,
+        ...(mapping.phone_columns ?? []),
+        mapping.full_name,
+        mapping.email,
+        mapping.company_name,
+        mapping.notes,
+        mapping.party_type,
+        mapping.project,
+        mapping.building,
+        mapping.requirement,
+        mapping.tags,
+        mapping.asking_price,
+        mapping.rental_price,
+        mapping.lead_status,
+      ].filter(Boolean) as string[],
+    );
     for (const col of mapping.context_columns ?? []) {
+      if (mappedCols.has(col)) continue;
       const val = cellDisplay(row[col]);
       if (val) {
         import_meta[col] = val;
@@ -355,8 +411,31 @@ export function mapCsvRowsToLeads(
     if (mapping.company_name && row[mapping.company_name]?.trim()) {
       import_meta["Company"] = row[mapping.company_name].trim();
     }
+    if (mapping.requirement && row[mapping.requirement]?.trim()) {
+      const v = row[mapping.requirement].trim();
+      import_meta["Requirement"] = v;
+      noteParts.push(`Requirement: ${v}`);
+    }
+    if (mapping.tags && row[mapping.tags]?.trim()) {
+      const v = row[mapping.tags].trim();
+      import_meta["Tags"] = v;
+      noteParts.push(`Tags: ${v}`);
+    }
+    if (mapping.asking_price && row[mapping.asking_price]?.trim()) {
+      const v = row[mapping.asking_price].trim();
+      import_meta["Asking Price"] = v;
+      noteParts.push(`Asking Price: ${v}`);
+    }
+    if (mapping.rental_price && row[mapping.rental_price]?.trim()) {
+      const v = row[mapping.rental_price].trim();
+      import_meta["Rental Price"] = v;
+      noteParts.push(`Rental Price: ${v}`);
+    }
 
     const fullName = mapping.full_name ? cellDisplay(row[mapping.full_name]) : null;
+    const tags = parseCsvTags(mapping.tags ? row[mapping.tags] : import_meta["Tags"]);
+    const qualification = qualificationFromImportMeta(import_meta);
+    const leadStatus = mapping.lead_status ? cellDisplay(row[mapping.lead_status]) : null;
 
     out.push({
       phone,
@@ -365,6 +444,12 @@ export function mapCsvRowsToLeads(
       company_name: mapping.company_name ? cellDisplay(row[mapping.company_name]) : null,
       notes: noteParts.length ? noteParts.join(" · ") : null,
       import_meta: Object.keys(import_meta).length ? import_meta : null,
+      tags: tags.length ? tags : null,
+      qualification:
+        qualification.intent || qualification.asking_price || qualification.rental_price
+          ? qualification
+          : null,
+      lead_status: leadStatus,
     });
   }
 
@@ -514,6 +599,11 @@ const CONTACT_FIELD_ORDER = [
   "BuildingName 2",
   "Building 1",
   "Property Type",
+  "Requirement",
+  "Intent",
+  "Asking Price",
+  "Rental Price",
+  "Tags",
   "Sub Type",
   "Usage",
   "UnitNumber",
@@ -573,6 +663,59 @@ export function getContactDetailFields(contact: {
   }
 
   return fields;
+}
+
+export function getContactPropertySummary(contact: {
+  notes?: string | null;
+  import_meta?: Record<string, unknown> | null;
+}): string {
+  const parts = [
+    getContactField(contact, "Master Project"),
+    getContactField(contact, "Project"),
+    getContactField(contact, "Building", "BuildingName 2", "Building 1"),
+    getContactField(contact, "UnitNumber", "property_number"),
+    getContactField(contact, "Property Type", "Sub Type"),
+  ].filter((v, i, arr): v is string => Boolean(v) && arr.indexOf(v) === i);
+  return parts.join(" · ");
+}
+
+export function getContactRequirementLabel(contact: {
+  notes?: string | null;
+  import_meta?: Record<string, unknown> | null;
+}): string {
+  const q = qualificationFromImportMeta(getContactFieldsMap(contact));
+  return formatCampaignRequirement(q) || getContactField(contact, "Requirement", "Intent") || "";
+}
+
+const OWNER_FIELD_KEYS = new Set(["Name", "Phone", "Email", "Company", ...PHONE_FIELD_ORDER]);
+const REQUIREMENT_FIELD_KEYS = new Set([
+  "Requirement",
+  "Intent",
+  "Asking Price",
+  "Rental Price",
+  "Tags",
+]);
+
+export function groupContactDetailFields(contact: {
+  name?: string | null;
+  phone?: string;
+  notes?: string | null;
+  import_meta?: Record<string, unknown> | null;
+}): Array<{ title: string; fields: Array<{ label: string; value: string }> }> {
+  const all = getContactDetailFields(contact);
+  const owner: typeof all = [];
+  const requirement: typeof all = [];
+  const property: typeof all = [];
+  for (const field of all) {
+    if (OWNER_FIELD_KEYS.has(field.label) || /mobile|phone/i.test(field.label)) owner.push(field);
+    else if (REQUIREMENT_FIELD_KEYS.has(field.label)) requirement.push(field);
+    else property.push(field);
+  }
+  return [
+    { title: "Owner", fields: owner },
+    { title: "Property", fields: property },
+    { title: "Requirement", fields: requirement },
+  ].filter((g) => g.fields.length > 0);
 }
 
 /** Slice a large CSV file to header + N data rows before parsing (avoids freezing on 50k+ row files). */

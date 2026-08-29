@@ -5,6 +5,18 @@ import {
 } from "@/lib/wbah/post-call/wbah-allens-logic.shared";
 
 describe("applyAllensLogicV5", () => {
+  it("RULE 2: booked slot (even Neutral, no Calendly URL) → Logged", () => {
+    const result = applyAllensLogicV5({
+      userSentiment: "Neutral",
+      callbackDatetime: null,
+      calendlyBookingUrl: null,
+      appointmentBooked: true,
+    });
+    expect(result.rule).toBe("logged");
+    expect(result.newCurrentStatus).toBe(WBAH_DYNAMICS_STATUS.LOGGED);
+    expect(result.skipAppointmentUpdate).toBe(false);
+  });
+
   it("RULE 2: positive + Retell appointment (no Calendly URL) → Logged", () => {
     const result = applyAllensLogicV5({
       userSentiment: "Positive",

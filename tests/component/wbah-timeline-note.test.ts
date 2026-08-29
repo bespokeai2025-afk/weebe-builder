@@ -46,4 +46,15 @@ describe("buildWbahAiTimelineNoteText", () => {
     expect(note).toContain("Transcript:");
     expect(note).toContain("Call me back");
   });
+
+  it("includes appointment fact line", () => {
+    const note = buildWbahAiTimelineNoteText({
+      label: "WBAH AI call",
+      callId: "call_booked",
+      callSummary: "Booked.",
+      appointmentDate: "2026-08-28",
+      appointmentTime: "09:25",
+    });
+    expect(note).toContain("Appointment: 2026-08-28 09:25");
+  });
 });

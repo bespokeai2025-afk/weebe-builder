@@ -24,7 +24,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { pcm16View } from "./audio";
 import { GraphSession } from "./graph-session";
 import { buildGraphRuntime, type GraphRuntime } from "./graph-agent";
-import type { ConversationVm } from "../graph/vm";
+import { transcriptCaughtUpToAudio } from "../graph/spoken-transcript.shared";
 import type { VmLatencyHooks, VariableValue } from "../graph/types";
 import { type ChatMsg, gptStream } from "../llm/gpt";
 import {
@@ -48,6 +48,7 @@ import {
   looksLikeCommitReadyPartial,
   looksLikeCompleteShortReply,
   resolveEndpointHangoverMs,
+  isIdleCallerTurn,
   shouldSkipSttFinal,
 } from "../turn-commit.shared";
 import {
@@ -101,7 +102,7 @@ export interface CascadeTransport {
   onResponseStart?(meta: AudioOutboundMeta): void;
   onResponseCancelled?(responseId: number, reason: string): void;
   onTranscript?(role: "agent" | "user", text: string): void;
-  onPartialTranscript?(text: string): void;
+  onPartialTranscript?(text: string, role?: "user" | "agent"): void;
   /** Agent finished an utterance; the caller is expected to speak next. */
   onResponseDone?(): void;
   onEnd?(reason: string): void;
@@ -110,6 +111,7 @@ export interface CascadeTransport {
   transferCall?(destination: string, transferType: string): Promise<boolean>;
   /** Graph VM entered a node — used to highlight the active step in the Builder. */
   onNodeActive?(nodeId: string): void;
+  onToolCall?(toolId: string, result: string, ok: boolean): void;
 }
 
 export interface CascadeSessionConfig {
@@ -135,6 +137,8 @@ export interface CascadeSessionConfig {
   flow?: unknown;
   settings?: Record<string, unknown> | null;
   variables?: Record<string, VariableValue>;
+  /** Builder web test: force who speaks first, ignoring inbound start_speaker. */
+  startSpeaker?: "agent" | "user";
   /** BCP-47 speech languages from builder settings — drives STT + language lock. */
   speechLanguages?: string[];
   /** Builder tuning mapped into VAD / barge-in. */
@@ -227,6 +231,8 @@ export class CascadeSession {
   private speculativeFlat: SpeculativeFlatRun | null = null;
   /** Avoid restarting graph speculative LLM on every partial tick. */
   private speculativeGraphKey = "";
+  /** Dest identity for keeping speculative work across growing partials. */
+  private speculativeGraphDestKey = "";
   private callerSpeaking = false;
   private lastSpeechRms = 0;
   /** Dedupe rapid identical caller utterances (echo / double endpoint). */
@@ -234,6 +240,13 @@ export class CascadeSession {
   private lastAcceptedUserAt = 0;
   /** Last spoken agent line — used to ignore speaker-echo STT. */
   private lastAgentText = "";
+  /** Full agent line waiting to be revealed as audio plays. */
+  private pendingAgentTranscript: string | null = null;
+  private lastShownAgentTranscript = "";
+  private agentTranscriptTimer: ReturnType<typeof setTimeout> | null = null;
+  private agentTranscriptStartedAt = 0;
+  /** PCM16 bytes sent for the current agent line — transcript follows this, not wall clock. */
+  private agentPcmBytesThisUtterance = 0;
   /** When the last TTS stream finished sending (playback may still be draining). */
   private ttsStreamEndedAt = 0;
   /** Serialises caller turns so overlapping VAD endpoints do not stack agent replies. */
@@ -328,7 +341,7 @@ export class CascadeSession {
       language: this.sttLanguage,
       keywords: this.config.boostedKeywords,
       onPartial: (text) => {
-        this.transport.onPartialTranscript?.(text);
+        this.transport.onPartialTranscript?.(text, "user");
         this.onCallerPartial(text);
       },
     });
@@ -341,6 +354,7 @@ export class CascadeSession {
       flow: this.config.flow,
       settings: this.config.settings ?? null,
       variables: this.config.variables,
+      startSpeaker: this.config.startSpeaker,
     }).catch((err: Error) => {
       console.warn(`${this.log} graph unavailable, using flat prompt: ${err.message}`);
       return null;
@@ -388,8 +402,7 @@ export class CascadeSession {
     const greeting = (this.config.beginMessage ?? "").trim();
     if (greeting) {
       this.history.push({ role: "assistant", content: greeting });
-      this.lifecycleRef?.addTurn("agent", greeting);
-      this.transport.onTranscript?.("agent", greeting);
+      this.queueAgentTranscript(greeting);
       const t = this.beginTurn(Date.now());
       const responseId = this.responses.begin(t.id);
       this.transport.onResponseStart?.({ responseId, turnId: t.id });
@@ -459,6 +472,8 @@ export class CascadeSession {
     this.endPlayback();
     this.turn?.ctrl.abort();
     this.stt?.close();
+    this.flushPendingAgentTranscript("complete");
+    this.mergeCollectedVariables(this.graphVm?.getVariables() ?? {});
   }
 
   // ── Conversation drivers ───────────────────────────────────────────────────
@@ -482,8 +497,15 @@ export class CascadeSession {
     const normalized = normalizeEnglishLockedSttText(raw.trim(), this.sttLanguage);
     if (!normalized || normalized.length < 2) return;
 
+    const target = this.graphVm?.peekSpeechWarmTarget(normalized) ?? null;
+    const destKey =
+      target?.kind === "static"
+        ? `static:${target.text}`
+        : target?.kind === "prompt"
+          ? `prompt:${target.nodeId}`
+          : "";
+
     if (this.graphVm) {
-      const target = this.graphVm.peekSpeechWarmTarget(normalized);
       if (target?.kind === "static") {
         this.warmTtsWithText(target.text);
         this.logSpeculativeStatic(target.text);
@@ -502,8 +524,13 @@ export class CascadeSession {
       this.partialNormalized = normalized;
       this.partialStableSince = Date.now();
       this.abortSpeculativeFlat("partial changed");
-      this.speculativeGraphKey = "";
-      this.graphVm?.clearSpeculativeSpeech();
+      if (destKey && destKey === this.speculativeGraphDestKey) {
+        /* same predicted dest — keep speculative LLM / TTS */
+      } else {
+        this.speculativeGraphKey = "";
+        this.speculativeGraphDestKey = destKey;
+        this.graphVm?.clearSpeculativeSpeech();
+      }
     }
 
     const shortReply = looksLikeCompleteShortReply(normalized);
@@ -514,12 +541,7 @@ export class CascadeSession {
       : commitReady
         ? COMMIT_READY_STABLE_MS
         : PARTIAL_STABLE_MS;
-    if (
-      this.callerSpeaking &&
-      !this.agentSpeaking &&
-      normalized.length >= minChars &&
-      Date.now() - this.partialStableSince >= stableMs
-    ) {
+    if (this.callerSpeaking && normalized.length >= minChars && Date.now() - this.partialStableSince >= stableMs) {
       this.turn?.trace?.mark("partial_stt_stable");
       if (this.graphVm) this.maybeStartSpeculativeGraph(normalized);
       else this.maybeStartSpeculativeFlat(normalized);
@@ -531,9 +553,15 @@ export class CascadeSession {
     if (!vm) return;
 
     const target = vm.peekSpeechWarmTarget(partial);
-    if (!target || target.kind !== "prompt") return;
+    if (!target) return;
 
-    const key = `${target.nodeId}:${partial}`;
+    if (target.kind === "static") {
+      this.speculativeGraphDestKey = `static:${target.text}`;
+      return;
+    }
+
+    const key = target.nodeId;
+    this.speculativeGraphDestKey = `prompt:${target.nodeId}`;
     if (this.speculativeGraphKey === key) return;
     this.speculativeGraphKey = key;
 
@@ -610,10 +638,19 @@ export class CascadeSession {
         // Agent lines only: user lines are recorded at transcription time, so
         // adding them again here would duplicate every caller turn.
         if (role === "agent") {
-          this.lastAgentText = text;
-          this.lifecycleRef?.addTurn("agent", text);
+          this.queueAgentTranscript(text);
+          return;
         }
         this.transport.onTranscript?.(role, text);
+      },
+      onVariables: (values) => {
+        this.mergeCollectedVariables(values);
+      },
+      onToolCall: (toolId, result, ok) => {
+        console.info(
+          `${this.log} [FUNCTION_RESULT] ${toolId} ${ok ? "ok" : "fail"} ${String(result).slice(0, 160)}`,
+        );
+        this.transport.onToolCall?.(toolId, result, ok);
       },
       onTransfer: async (destination, transferType) => {
         if (!this.transport.transferCall) return false;
@@ -670,8 +707,7 @@ export class CascadeSession {
         agentText = agentText.trim();
         if (agentText) {
           self.history.push({ role: "assistant", content: agentText });
-          self.lifecycleRef?.addTurn("agent", agentText);
-          self.transport.onTranscript?.("agent", agentText);
+          self.queueAgentTranscript(agentText);
         }
       }
 
@@ -719,8 +755,7 @@ export class CascadeSession {
       if (agentText) {
         self.lastAgentText = agentText;
         self.history.push({ role: "assistant", content: agentText });
-        self.lifecycleRef?.addTurn("agent", agentText);
-        self.transport.onTranscript?.("agent", agentText);
+        self.queueAgentTranscript(agentText);
       }
     }
 
@@ -751,6 +786,7 @@ export class CascadeSession {
     // empty/hallucinated text; a real "yes" must be allowed to interrupt.
     this.abortSpeculativeFlat("utterance_end");
     this.speculativeGraphKey = "";
+    this.speculativeGraphDestKey = "";
     // Keep graph speculative speech — prepareSpeech accepts it if the final matches.
     const partialFallback = this.partialNormalized.trim();
     this.partialNormalized = "";
@@ -818,16 +854,10 @@ export class CascadeSession {
       return;
     }
     if (agentStillPlaying && userText.trim().length >= 2) {
-      if (this.awaitingCallerInput) {
-        this.pendingDuplexUserText = userText;
-        console.log(
-          `${this.log} duplex — holding caller reply until agent playback finishes: "${userText.slice(0, 60)}"`,
-        );
-        return;
-      }
-      console.log(`${this.log} caller answered during prompt — stopping agent audio`);
+      console.log(`${this.log} caller interrupted — stopping agent audio: "${userText.slice(0, 60)}"`);
       this.callerBargeIn = true;
-      this.cancelTurn("caller answered during prompt");
+      this.pendingDuplexUserText = null;
+      this.cancelTurn("caller interrupted");
     }
     this.callerBargeIn = false;
     this.awaitingCallerInput = false;
@@ -905,29 +935,67 @@ export class CascadeSession {
         (typeof req.temperature === "number" ? ` temp=${req.temperature.toFixed(2)}` : "") +
         (typeof req.speed === "number" ? ` speed=${req.speed}` : ""),
     );
+    this.agentPcmBytesThisUtterance = 0;
+    this.agentAudioStartedAt = 0;
     const normalized =
       typeof source === "string" ? normalizeSpeechText(source) : source;
-    const audio =
+
+    const openAudio = () =>
       typeof normalized === "string"
         ? tts.synthesize(normalized, req)
         : tts.synthesizeStream(normalized, req);
 
-    for await (const chunk of audio) {
-      if (!this.responses.isActive(responseId) || t.ctrl.signal.aborted || this.closed) break;
-      if (!t.firstAudioAt) {
-        t.firstAudioAt = Date.now();
-        t.trace?.mark("tts_first_audio");
-        t.trace?.flushSummary();
-        this.reportLatency(t);
-        this.responses.markSpeaking();
+    const pumpAudio = async (audio: AsyncIterable<import("../tts/types").PcmChunk>) => {
+      for await (const chunk of audio) {
+        if (!this.responses.isActive(responseId) || t.ctrl.signal.aborted || this.closed) break;
+        if (!t.firstAudioAt) {
+          t.firstAudioAt = Date.now();
+          t.trace?.mark("tts_first_audio");
+          t.trace?.flushSummary();
+          this.reportLatency(t);
+          this.responses.markSpeaking();
+        }
+        this.lifecycleRef?.recordAgent(pcm16View(chunk), this.sampleRate);
+        this.emitAudio(chunk, responseId, t.id);
       }
-      this.lifecycleRef?.recordAgent(pcm16View(chunk), this.sampleRate);
-      this.emitAudio(chunk, responseId, t.id);
+    };
+
+    try {
+      await pumpAudio(openAudio());
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const retryable =
+        typeof normalized === "string" &&
+        !t.firstAudioAt &&
+        !t.ctrl.signal.aborted &&
+        !this.closed &&
+        /socket closed|closed during synthesis|closed before stop/i.test(message);
+      if (!retryable) throw err;
+      console.warn(`${this.log} TTS dropped, retrying once: ${message}`);
+      await pumpAudio(openAudio());
+    }
+    if (
+      !t.firstAudioAt &&
+      typeof normalized === "string" &&
+      normalized.trim() &&
+      !t.ctrl.signal.aborted &&
+      this.responses.isActive(responseId) &&
+      !this.closed
+    ) {
+      console.warn(`${this.log} TTS produced no audio, retrying once`);
+      try {
+        await pumpAudio(openAudio());
+      } catch (err) {
+        console.error(
+          `${this.log} TTS retry failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
     }
     if (!t.firstAudioAt && !t.ctrl.signal.aborted && this.responses.isActive(responseId)) {
       console.warn(
         `${this.log} turn ${t.id} response ${responseId} TTS produced no audio (check Fish reference_id)`,
       );
+      this.flushPendingAgentTranscript("complete");
     }
     if (t.firstAudioAt && this.responses.isActive(responseId)) {
       console.log(
@@ -956,6 +1024,81 @@ export class CascadeSession {
     (this.tts as FishAudioTtsProvider).warmWithText(text, this.ttsVoiceRequest());
   }
 
+  /**
+   * Reveal the agent transcript as audio plays, instead of dumping the whole
+   * node script in one block the moment the VM yields it.
+   */
+  private queueAgentTranscript(text: string): void {
+    const clean = text.replace(/\s+/g, " ").trim();
+    if (!clean) return;
+    this.lastAgentText = clean;
+    this.pendingAgentTranscript = clean;
+    this.lastShownAgentTranscript = "";
+    this.agentTranscriptStartedAt = Date.now();
+    if (!this.agentAudioStartedAt) this.agentPcmBytesThisUtterance = 0;
+    this.stopAgentTranscriptTicker();
+    const tick = () => {
+      if (this.closed || this.pendingAgentTranscript !== clean) return;
+      if (!this.agentAudioStartedAt || this.agentPcmBytesThisUtterance <= 0) {
+        this.agentTranscriptTimer = setTimeout(tick, 80);
+        return;
+      }
+      const shown = transcriptCaughtUpToAudio(
+        clean,
+        this.agentPcmBytesThisUtterance,
+        this.sampleRate,
+      );
+      if (shown && shown !== this.lastShownAgentTranscript) {
+        this.lastShownAgentTranscript = shown;
+        this.transport.onPartialTranscript?.(shown, "agent");
+      }
+      this.agentTranscriptTimer = setTimeout(tick, 160);
+    };
+    this.agentTranscriptTimer = setTimeout(tick, 80);
+  }
+
+  private stopAgentTranscriptTicker(): void {
+    if (this.agentTranscriptTimer) {
+      clearTimeout(this.agentTranscriptTimer);
+      this.agentTranscriptTimer = null;
+    }
+  }
+
+  private flushPendingAgentTranscript(mode: "complete" | "interrupted"): void {
+    this.stopAgentTranscriptTicker();
+    const full = (this.pendingAgentTranscript ?? "").trim();
+    const heard = transcriptCaughtUpToAudio(
+      full,
+      this.agentPcmBytesThisUtterance,
+      this.sampleRate,
+    ).trim();
+    const shown = this.lastShownAgentTranscript.trim();
+    const text =
+      mode === "interrupted"
+        ? shown || heard || full
+        : this.agentPcmBytesThisUtterance > 0
+          ? heard || shown || full
+          : full || heard || shown;
+    this.pendingAgentTranscript = null;
+    this.lastShownAgentTranscript = "";
+    if (!text) return;
+    this.lastAgentText = text;
+    this.lifecycleRef?.addTurn("agent", text);
+    this.transport.onTranscript?.("agent", text);
+  }
+
+  private mergeCollectedVariables(values: Record<string, VariableValue>): void {
+    const str: Record<string, string> = {};
+    for (const [key, value] of Object.entries(values)) {
+      if (value === undefined || value === null) continue;
+      const text = String(value).trim();
+      if (text) str[key] = text;
+    }
+    if (Object.keys(str).length === 0) return;
+    this.lifecycleRef?.mergeDynamicVariables(str);
+    console.log(`${this.log} collected ${Object.keys(str).join(", ")}`);
+  }
+
   private emitAudio(chunk: Buffer, responseId: number, turnId: number): void {
     if (!this.responses.isActive(responseId)) return;
     if (!this.speakingFlag && chunk.byteLength > 0) {
@@ -964,6 +1107,7 @@ export class CascadeSession {
       );
       this.agentAudioStartedAt = Date.now();
     }
+    this.agentPcmBytesThisUtterance += chunk.byteLength;
     this.transport.sendAudio(chunk, { responseId, turnId });
     if (this.playbackTracking === "reported") {
       this.speakingFlag = true;
@@ -1001,6 +1145,8 @@ export class CascadeSession {
     this.playheadAt = 0;
     this.agentAudioStartedAt = 0;
     this.ttsStreamEndedAt = 0;
+    this.flushPendingAgentTranscript("complete");
+    this.agentPcmBytesThisUtterance = 0;
     this.responses.markListening();
     this.vad?.reset();
     this.stt?.clearInputBuffer?.();
@@ -1103,11 +1249,11 @@ export class CascadeSession {
   // ── Turn bookkeeping ───────────────────────────────────────────────────────
 
   private beginTurn(startedAt: number): Turn {
-    // Only supersede a caller turn still being transcribed — never cancel in-flight
-    // agent speech (that was killing responses before firstAudioAt).
-    if (this.turn && !this.turn.sttAt) {
-      console.log(`${this.log} superseding caller turn ${this.turn.id} (STT not finished)`);
-      this.turn.ctrl.abort();
+    // Never abort in-flight TTS (greeting / collect line). VAD during generate
+    // used to supersede turn 1 and mute the call before firstAudioAt.
+    if (isIdleCallerTurn(this.turn) && !this.activeSpeak) {
+      console.log(`${this.log} superseding caller turn ${this.turn!.id} (STT not finished)`);
+      this.turn!.ctrl.abort();
     }
     this.turnSeq += 1;
     this.turn = { id: this.turnSeq, ctrl: new AbortController(), startedAt };
@@ -1138,10 +1284,12 @@ export class CascadeSession {
     if (this.activeSpeak?.turn === t) this.activeSpeak = null;
     this.abortSpeculativeFlat("cancelled");
     this.speculativeGraphKey = "";
+    this.speculativeGraphDestKey = "";
     this.graphVm?.clearSpeculativeSpeech();
     this.partialNormalized = "";
     this.partialStableSince = 0;
     this.restoreHangover();
+    this.flushPendingAgentTranscript("interrupted");
     if (responseId) this.transport.onResponseCancelled?.(responseId, reason);
     this.transport.clearAudio();
     this.lifecycleRef?.agentStoppedSpeaking();
@@ -1227,6 +1375,7 @@ export class CascadeSession {
         this.speechFrames = 0;
         this.abortSpeculativeFlat("discarded");
         this.speculativeGraphKey = "";
+        this.speculativeGraphDestKey = "";
         this.graphVm?.clearSpeculativeSpeech();
         this.partialNormalized = "";
         this.partialStableSince = 0;

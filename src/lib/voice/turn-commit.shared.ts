@@ -4,16 +4,15 @@
  */
 
 import { isLikelyEnglishSttHallucination, isMostlyNonLatinScript } from "./language-lock.shared";
-import {
-  looksLikeOwnerAnswer,
-  looksLikePhoneAnswer,
-  looksLikeTitleAnswer,
-} from "./graph/router";
+import { looksLikeOwnerAnswer, looksLikePhoneAnswer, looksLikeTitleAnswer } from "./graph/router";
 
 const UK_POSTCODE = /\b[A-Z]{1,2}\d{1,2}[A-Z]?\s*\d[A-Z]{2}\b/i;
 
 export function looksLikeCompleteShortReply(text: string): boolean {
-  const t = text.trim().toLowerCase().replace(/[.!?]+$/g, "");
+  const t = text
+    .trim()
+    .toLowerCase()
+    .replace(/[.!?]+$/g, "");
   if (!t || t.length > 28) return false;
   return /^(yes|yeah|yep|yup|no|nope|nah|ok|okay|sure|correct|right|please|continue|next|go ahead)(?:\s+(please|thanks|thank you|sure))?$/.test(
     t,
@@ -54,10 +53,7 @@ export function looksLikeCommitReadyPartial(text: string): boolean {
 }
 
 /** Silence hangover after last speech, given the current partial. */
-export function resolveEndpointHangoverMs(
-  partialText: string | undefined,
-  baseMs: number,
-): number {
+export function resolveEndpointHangoverMs(partialText: string | undefined, baseMs: number): number {
   const t = partialText?.trim() ?? "";
   if (!t) return baseMs;
   if (looksLikeCompleteShortReply(t) || looksLikeTitleAnswer(t)) {
@@ -92,4 +88,23 @@ export function shouldSkipSttFinal(partial: string, hasHeuristicWarm = false): b
   if (isMostlyNonLatinScript(t) || isLikelyEnglishSttHallucination(t)) return false;
   if (looksLikeCompleteShortReply(t) && hasHeuristicWarm) return true;
   return looksLikeCommitReadyPartial(t);
+}
+
+/**
+ * A turn that has not started STT or TTS — safe to replace.
+ * Never treat an in-flight greeting / agent line as idle (that muted the call).
+ */
+export function isIdleCallerTurn(
+  turn:
+    | {
+        sttAt?: number;
+        speakAt?: number;
+        firstAudioAt?: number;
+      }
+    | null
+    | undefined,
+): boolean {
+  if (!turn) return false;
+  if (turn.speakAt || turn.firstAudioAt) return false;
+  return !turn.sttAt;
 }

@@ -19,10 +19,11 @@ describe("call-voice-profile", () => {
     expect(req.normalize).toBe(true);
     expect(req.top_p).toBe(0.5);
     expect(req.chunk_length).toBe(200);
-    expect(req.min_chunk_length).toBe(40);
+    expect(req.min_chunk_length).toBe(12);
   });
   it("rejects Retell/ElevenLabs voice ids for Fish TTS", () => {
     expect(isFishReferenceVoiceId("11labs-Adrian")).toBe(false);
+    expect(isFishReferenceVoiceId("custom_voice_d9442ca6d54f14b69b4f220acd")).toBe(false);
     expect(isFishReferenceVoiceId("abc123fishmodel")).toBe(true);
   });
 

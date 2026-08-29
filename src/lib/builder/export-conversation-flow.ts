@@ -1,7 +1,12 @@
 import type { Edge } from "@xyflow/react";
 import type { FlowNode } from "./store";
-import type { BuilderSettings, BuilderVariable, FlowNodeData, TransitionConditionType } from "./types";
+import type { BuilderSettings, BuilderVariable, FlowNodeData, Transition, TransitionConditionType } from "./types";
 import { isEquationCondition } from "../voice/graph/transition-engine.shared";
+import {
+  parseEquationGroup,
+  serializeEquationPrompt,
+  toRetellEquationCondition,
+} from "../voice/graph/equations.shared";
 
 /**
  * Map our builder graph to a full agent JSON with a nested
@@ -31,6 +36,7 @@ export function exportAgentJson(
 
   const startNode =
     exportableNodes.find((n) => n.data.isStart) ??
+    exportableNodes.find((n) => n.data.kind === "begin") ??
     exportableNodes.find((n) => n.data.kind === "conversation") ??
     exportableNodes[0];
 
@@ -46,10 +52,7 @@ export function exportAgentJson(
         return {
           ...(t.target ? { destination_node_id: t.target } : {}),
           id: graphEdge?.id || t.id || `edge-${nodeId}-${i}`,
-          transition_condition: {
-            type: resolveTransitionType(t.conditionType, t.condition),
-            prompt: (t.condition ?? "").trim(),
-          },
+          transition_condition: buildTransitionCondition(t),
         };
       });
     const transitionIds = new Set((node?.data.transitions ?? []).map((t) => t.id));
@@ -119,6 +122,11 @@ export function exportAgentJson(
       y: startNode?.position.y ?? 0,
     },
     is_published: rawCf.is_published ?? false,
+    tools: mergeFlowTools(
+      (settings.flowTools as Array<Record<string, unknown>> | undefined) ??
+        (Array.isArray(rawCf.tools) ? (rawCf.tools as Array<Record<string, unknown>>) : []),
+      exportableNodes,
+    ),
   };
   delete conversationFlow.__key_order;
 
@@ -460,6 +468,61 @@ function validateTransferExtension(value: unknown, label: string): string | unde
   );
 }
 
+function parseKvLines(raw: string | undefined): Array<[string, string]> {
+  return String(raw ?? "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const i = line.indexOf("=");
+      if (i < 0) return [line, ""] as [string, string];
+      return [line.slice(0, i).trim(), line.slice(i + 1).trim()] as [string, string];
+    });
+}
+
+function applyHttpUrl(url: string, pathParams?: string, query?: string): string {
+  let out = url.trim();
+  for (const [key, value] of parseKvLines(pathParams)) {
+    if (!key) continue;
+    out = out.split(`:${key}`).join(encodeURIComponent(value));
+    out = out.split(`{${key}}`).join(encodeURIComponent(value));
+  }
+  const qs = parseKvLines(query)
+    .filter(([key, value]) => key && value)
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+    .join("&");
+  if (!qs) return out;
+  return out.includes("?") ? `${out}&${qs}` : `${out}?${qs}`;
+}
+
+function parseJsonObject(raw: string | undefined): Record<string, string> {
+  const text = String(raw ?? "").trim();
+  if (!text) return {};
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const out: Record<string, string> = {};
+    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (value == null) continue;
+      out[key] = String(value);
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function httpHeadersFromNode(d: FlowNodeData): Record<string, string> {
+  const headers = parseJsonObject(d.httpHeaders);
+  const auth = String(d.httpAuthValue ?? "").trim();
+  if (d.httpAuthType === "bearer" && auth) headers.Authorization = `Bearer ${auth}`;
+  if (d.httpAuthType === "header" && auth) {
+    const name = String(d.httpAuthHeaderName ?? "X-Api-Key").trim() || "X-Api-Key";
+    headers[name] = auth;
+  }
+  return headers;
+}
+
 function isExportableNode(node: FlowNode) {
   if (node.data.kind === "note") return false;
   // call_transfer nodes always export — static mode falls back to a
@@ -475,15 +538,40 @@ function labelOf(nodes: FlowNode[], id: string) {
 type FlowEdge = {
   destination_node_id?: string;
   id: string;
-  transition_condition: { type: TransitionConditionType; prompt: string };
+  transition_condition: Record<string, unknown>;
 };
 
 function resolveTransitionType(
   explicit: TransitionConditionType | undefined,
   condition: string,
+  hasEquations?: boolean,
 ): TransitionConditionType {
   if (explicit === "equation" || explicit === "prompt") return explicit;
+  if (hasEquations) return "equation";
   return isEquationCondition(condition.trim()) ? "equation" : "prompt";
+}
+
+function buildTransitionCondition(t: Transition): Record<string, unknown> {
+  const group =
+    parseEquationGroup({
+      operator: t.equationJoin,
+      equations: t.equations,
+      prompt: t.condition,
+    }) ??
+    (t.equations?.length
+      ? { join: (t.equationJoin ?? "||") as "||" | "&&", equations: t.equations }
+      : null);
+  const type = resolveTransitionType(t.conditionType, t.condition ?? "", Boolean(group));
+  if (type === "equation") {
+    const retell = toRetellEquationCondition(
+      group ?? { join: t.equationJoin ?? "||", equations: t.equations ?? [] },
+    );
+    if (retell) return retell;
+  }
+  return {
+    type,
+    prompt: (t.condition ?? "").trim() || (group ? serializeEquationPrompt(group) : ""),
+  };
 }
 
 const NODE_OVERRIDE_KEYS = new Set([
@@ -526,6 +614,7 @@ function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id
     id: n.id,
     name: d.label,
     display_position: { x: n.position.x, y: n.position.y },
+    builder_kind: d.kind,
   };
 
   // Always re-emit edges from the live graph.
@@ -571,17 +660,63 @@ function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id
     orderLikeRaw(obj, Object.keys(raw));
 
   switch (d.kind) {
+    case "begin":
+    case "wait":
+    case "subagent":
     case "conversation": {
       const rawInstr = raw.instruction as { type?: string; text?: string } | undefined;
+      const instructionType =
+        d.instructionType === "template" ||
+        d.instructionType === "static_text" ||
+        d.instructionType === "prompt"
+          ? d.instructionType
+          : rawInstr?.type === "template" || rawInstr?.type === "static_text"
+            ? rawInstr.type
+            : d.kind === "wait"
+              ? "static_text"
+              : "prompt";
       const instruction = {
-        type: d.instructionType ?? rawInstr?.type ?? "prompt",
+        type: instructionType,
         text: d.dialogue ?? rawInstr?.text ?? "",
+        ...(String(d.instructions ?? "").trim()
+          ? { notes: String(d.instructions).trim() }
+          : {}),
       };
+      const startSpeaker =
+        d.kind === "wait" ? "user" : d.kind === "begin" ? (d.startSpeaker ?? "agent") : d.startSpeaker;
       return orderNode({
         ...base,
         type: "conversation",
-        ...(d.isStart && d.startSpeaker ? { start_speaker: d.startSpeaker } : {}),
+        ...((d.isStart || d.kind === "begin") && startSpeaker ? { start_speaker: startSpeaker } : {}),
+        ...(d.kind === "wait"
+          ? {
+              start_speaker: "user",
+              silence_timeout_ms: d.waitTimeoutMs ?? 8000,
+              max_wait_ms: d.waitMaxMs,
+              retry_count: d.waitRetryCount ?? 1,
+            }
+          : {}),
+        ...(d.kind === "begin" && d.beginSilenceMs
+          ? { begin_after_user_silence_ms: d.beginSilenceMs }
+          : {}),
+        ...(d.kind === "subagent"
+          ? {
+              subagent_tools: String(d.subagentToolIds ?? "")
+                .split(/[,\s]+/)
+                .filter(Boolean),
+              knowledge_base_ids: String(d.subagentKbIds ?? "")
+                .split(/[,\s]+/)
+                .filter(Boolean),
+              ...(d.subagentModel ? { model_choice: { model: d.subagentModel } } : {}),
+            }
+          : {}),
         instruction,
+        response_mode:
+          instructionType === "static_text"
+            ? "static"
+            : instructionType === "template"
+              ? "template"
+              : "llm",
         edges,
         ...(raw.else_edge !== undefined ? { else_edge: raw.else_edge } : {}),
         ...(raw.skip_response_edge !== undefined ? { skip_response_edge: raw.skip_response_edge } : {}),
@@ -595,9 +730,21 @@ function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id
         type: "function",
         tool_id: d.toolId ?? (raw.tool_id as string) ?? `tool-${n.id}`,
         tool_type: (raw.tool_type as string) ?? "local",
+        name: d.toolName ?? d.label ?? (raw.name as string),
+        description: d.toolDescription ?? (raw.description as string) ?? "",
         speak_during_execution:
           d.speakDuringExecution ?? (raw.speak_during_execution as boolean) ?? false,
         wait_for_result: d.waitForResult ?? (raw.wait_for_result as boolean) ?? true,
+        ...(d.httpUrl || raw.url
+          ? {
+              url: d.httpUrl ?? raw.url,
+              method: d.httpMethod ?? raw.method ?? "POST",
+            }
+          : {}),
+        ...(d.httpTimeoutMs != null ? { timeout: d.httpTimeoutMs } : {}),
+        ...(d.httpHeaders
+          ? { headers: parseMaybeJson(d.httpHeaders) ?? raw.headers }
+          : {}),
         edges,
         ...(raw.else_edge !== undefined ? { else_edge: raw.else_edge } : {}),
       });
@@ -808,6 +955,8 @@ function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id
         ...base,
         type: "press_digit",
         pause_detection_ms: d.pauseDetectionMs ?? (raw.pause_detection_ms as number) ?? 1000,
+        digit_timeout_ms: d.digitTimeoutMs ?? 5000,
+        retry_count: d.digitRetryCount ?? 2,
         instruction: { type: "prompt", text: d.dialogue },
         edges,
       });
@@ -905,14 +1054,18 @@ function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id
         | Array<{ name?: string; description?: string; type?: string }>
         | undefined;
       const extractVars = d.extractVariables as
-        | Array<{ id?: string; name: string; description: string; type: string }>
+        | Array<{ id?: string; name: string; description: string; type: string; required?: boolean }>
         | undefined;
       const variables =
         extractVars && extractVars.length
           ? extractVars.map((v) => ({
               name: v.name || "var",
-              description: v.description ?? "",
-              type: v.type ?? "string",
+              description:
+                v.type === "json"
+                  ? `${v.description ?? ""} Extract as a JSON object.`.trim()
+                  : (v.description ?? ""),
+              type: v.type === "json" ? "string" : (v.type ?? "string"),
+              ...(v.required ? { required: true } : {}),
             }))
           : rawVars && rawVars.length
             ? rawVars.map((v) => ({
@@ -979,7 +1132,12 @@ function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id
         ...base,
         type: "end",
         instruction: {
-          type: d.instructionType ?? rawInstr?.type ?? "prompt",
+          type:
+            d.instructionType === "template" ||
+            d.instructionType === "static_text" ||
+            d.instructionType === "prompt"
+              ? d.instructionType
+              : (rawInstr?.type ?? "prompt"),
           text:
             d.endingPrompt ??
             rawInstr?.text ??
@@ -990,10 +1148,8 @@ function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id
     }
 
     case "http_request": {
-      // HTTP Request nodes export as function nodes with a webhook URL.
-      // At runtime, the voice engine calls the URL and maps the response
-      // into variables the agent can reference.
       const toolId = `http_${n.id}`;
+      const headers = httpHeadersFromNode(d);
       return orderNode({
         ...base,
         type: "function",
@@ -1001,7 +1157,10 @@ function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id
         tool_type: "webhook",
         name: d.httpToolName ?? d.label ?? "http_request",
         description: d.httpToolDescription ?? d.dialogue ?? "Make an HTTP request to an external API",
-        url: d.httpUrl ?? "",
+        url: applyHttpUrl(d.httpUrl ?? "", d.httpPathParams, d.httpQuery),
+        method: d.httpMethod ?? "POST",
+        ...(Object.keys(headers).length ? { headers } : {}),
+        ...(d.httpBody ? { body: d.httpBody } : {}),
         timeout: d.httpTimeoutMs ?? 10000,
         speak_during_execution: d.speakDuringExecution ?? true,
         execution_message_description: d.dialogue || "Making an external API call…",
@@ -1015,6 +1174,25 @@ function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id
           },
           required: [],
         },
+        edges,
+      });
+    }
+
+    case "mcp": {
+      const headers = parseJsonObject(d.mcpHeaders);
+      return orderNode({
+        ...base,
+        type: "function",
+        tool_id: `mcp_${n.id}`,
+        tool_type: "mcp",
+        name: d.mcpToolName || d.label || "mcp_tool",
+        description: d.dialogue || `Call MCP tool ${d.mcpToolName || ""}`.trim(),
+        url: d.mcpServerUrl ?? "",
+        timeout: d.mcpTimeoutMs ?? 10000,
+        mcp_tool: d.mcpToolName ?? "",
+        ...(Object.keys(headers).length ? { headers } : {}),
+        speak_during_execution: d.speakDuringExecution ?? false,
+        wait_for_result: d.waitForResult ?? true,
         edges,
       });
     }
@@ -1036,4 +1214,61 @@ function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id
       return orderNode(hasRaw ? { ...base, edges } : { ...base, type: d.kind, edges });
     }
   }
+}
+
+function parseMaybeJson(raw: string | undefined): Record<string, unknown> | undefined {
+  if (!raw?.trim()) return undefined;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Overlay function-node edits onto the imported tools catalog. */
+function mergeFlowTools(
+  rawTools: Array<Record<string, unknown>>,
+  nodes: FlowNode[],
+): Array<Record<string, unknown>> {
+  const byId = new Map<string, Record<string, unknown>>();
+  for (const tool of rawTools) {
+    const id = String(tool.tool_id ?? tool.id ?? "");
+    if (id) byId.set(id, { ...tool });
+  }
+  for (const n of nodes) {
+    if (n.data.kind !== "function") continue;
+    const id = String(n.data.toolId ?? "").trim();
+    if (!id) continue;
+    const prev = byId.get(id) ?? {};
+    const headers = parseMaybeJson(n.data.httpHeaders);
+    byId.set(id, {
+      ...prev,
+      tool_id: id,
+      type: prev.type ?? "custom",
+      name: n.data.toolName || prev.name || n.data.label,
+      description: n.data.toolDescription ?? prev.description ?? "",
+      ...(n.data.httpUrl ? { url: n.data.httpUrl } : {}),
+      ...(n.data.httpMethod ? { method: n.data.httpMethod } : {}),
+      ...(typeof n.data.httpTimeoutMs === "number" ? { timeout_ms: n.data.httpTimeoutMs } : {}),
+      ...(headers ? { headers } : {}),
+    });
+  }
+  const seen = new Set<string>();
+  const out: Array<Record<string, unknown>> = [];
+  for (const tool of rawTools) {
+    const id = String(tool.tool_id ?? tool.id ?? "");
+    if (id && byId.has(id)) {
+      out.push(byId.get(id)!);
+      seen.add(id);
+    } else {
+      out.push(tool);
+    }
+  }
+  for (const [id, tool] of byId) {
+    if (!seen.has(id)) out.push(tool);
+  }
+  return out;
 }

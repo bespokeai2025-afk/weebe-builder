@@ -342,6 +342,20 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
             console.warn("[analytics-schedules] sweep failed:", schedErr?.message ?? schedErr);
           }
 
+          try {
+            const { runWhatsappScheduledCampaignTick } = await import(
+              "@/lib/whatsapp/campaign-schedule-tick.server"
+            );
+            const wa = await runWhatsappScheduledCampaignTick();
+            if (wa.launched > 0 || wa.failed.length > 0) {
+              console.log(
+                `[whatsapp-schedule] launched=${wa.launched} failed=${wa.failed.length}`,
+              );
+            }
+          } catch (waErr: any) {
+            console.warn("[whatsapp-schedule] tick failed:", waErr?.message ?? waErr);
+          }
+
           console.log(
             `[campaign-executor] ran=${due.length} skipped=${skipped.length}`,
           );

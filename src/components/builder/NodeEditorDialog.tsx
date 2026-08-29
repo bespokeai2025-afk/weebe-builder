@@ -2,6 +2,7 @@ import { useBuilderStore } from "@/lib/builder/store";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { VariableInput, VariableTextarea } from "./VariableAutocompleteField";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -11,14 +12,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Trash2, Flag, X, Pencil } from "lucide-react";
+import { Plus, Trash2, Flag, X, Pencil, MessageSquare } from "lucide-react";
 import type { Transition, ExtractVariableItem, TransitionConditionType } from "@/lib/builder/types";
+import { EquationConditionEditor, patchEquationTransition } from "./EquationConditionEditor";
+import { emptyEquationClause } from "@/lib/voice/graph/equations.shared";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getWorkspaceCalendarSettings } from "@/lib/calendar/calendar.functions";
 import { listMyAgents } from "@/lib/agents/agents.functions";
 import { listWatiTemplates } from "@/lib/whatsapp/wati.functions";
+import { FunctionTestPanel } from "./FunctionTestPanel";
 
 const BOOKING_PRESETS: {
   id: string;
@@ -81,48 +85,47 @@ export function InstructionTypeTabs({
   onChange,
   compact,
 }: {
-  value: "prompt" | "static_text";
-  onChange: (value: "prompt" | "static_text") => void;
+  value: "prompt" | "static_text" | "template";
+  onChange: (value: "prompt" | "static_text" | "template") => void;
   compact?: boolean;
 }) {
+  const tabs = [
+    { id: "prompt" as const, label: "Prompt", hint: "LLM generates speech" },
+    { id: "template" as const, label: compact ? "Template" : "Template", hint: "Speak text, fill {{vars}}" },
+    { id: "static_text" as const, label: compact ? "Static" : "Static sentence", hint: "Read text verbatim" },
+  ];
   return (
-    <div className={compact ? "rounded-lg border bg-muted/40 p-1" : "rounded-lg border bg-muted/30 p-1"}>
-      <div className="grid grid-cols-2 gap-1">
-        <button
-          type="button"
-          onClick={() => onChange("prompt")}
-          className={`${compact ? "rounded-md px-3 py-1.5" : "rounded-md px-3 py-2 text-left"} transition-colors ${
-            value === "prompt"
-              ? "bg-background shadow-sm ring-1 ring-border"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <div className={compact ? "text-xs font-medium leading-tight" : "text-sm font-medium"}>
-            Prompt
-          </div>
-          {!compact && <div className="text-[11px] text-muted-foreground">LLM generates speech</div>}
-        </button>
-        <button
-          type="button"
-          onClick={() => onChange("static_text")}
-          className={`${compact ? "rounded-md px-3 py-1.5" : "rounded-md px-3 py-2 text-left"} transition-colors ${
-            value === "static_text"
-              ? "bg-background shadow-sm ring-1 ring-border"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <div className={compact ? "text-xs font-medium leading-tight" : "text-sm font-medium"}>
-            {compact ? "Static" : "Static sentence"}
-          </div>
-          {!compact && <div className="text-[11px] text-muted-foreground">Read text verbatim</div>}
-        </button>
+    <div
+      className={
+        compact ? "rounded-lg border bg-muted/40 p-1" : "rounded-lg border bg-muted/30 p-1"
+      }
+    >
+      <div className="grid grid-cols-3 gap-1">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => onChange(tab.id)}
+            className={`${compact ? "rounded-md px-2 py-1.5" : "rounded-md px-3 py-2 text-left"} transition-colors ${
+              value === tab.id
+                ? "bg-background shadow-sm ring-1 ring-border"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <div className={compact ? "text-xs font-medium leading-tight" : "text-sm font-medium"}>
+              {tab.label}
+            </div>
+            {!compact && <div className="text-[11px] text-muted-foreground">{tab.hint}</div>}
+          </button>
+        ))}
       </div>
     </div>
   );
 }
 
 export function NodeEditorDialog() {
-  const { selectedNodeId, selectNode, nodes, updateNode, setStartNode, pendingAddVariable } = useBuilderStore();
+  const { selectedNodeId, selectNode, nodes, updateNode, setStartNode, pendingAddVariable } =
+    useBuilderStore();
   const node = nodes.find((n) => n.id === selectedNodeId);
 
   const fetchCal = useServerFn(getWorkspaceCalendarSettings);
@@ -196,7 +199,9 @@ export function NodeEditorDialog() {
             {d.kind.replace(/_/g, " ")}
           </p>
           {d.isStart && (
-            <span className="text-[10px] rounded bg-violet-100 text-violet-700 px-1.5 py-0.5">Start</span>
+            <span className="text-[10px] rounded bg-violet-100 text-violet-700 px-1.5 py-0.5">
+              Start
+            </span>
           )}
         </div>
         <button
@@ -210,123 +215,185 @@ export function NodeEditorDialog() {
       </div>
 
       <div className="space-y-4 py-1 flex-1 overflow-y-auto pr-0.5">
-          <div className="flex items-end gap-2">
-            <div className="flex-1">
-              <Label>Name</Label>
-              <Input
-                value={d.label}
-                onChange={(e) => updateNode(node.id, { label: e.target.value })}
-              />
-            </div>
-            <Button
-              type="button"
-              variant={d.isStart ? "default" : "outline"}
-              size="sm"
-              onClick={() => setStartNode(node.id)}
-            >
-              <Flag className="h-3.5 w-3.5 mr-1" />
-              {d.isStart ? "Start node" : "Set as start"}
-            </Button>
-          </div>
-
-          {(d.kind === "conversation" || d.kind === "ending") && (
-            <InstructionTypeTabs
-              value={d.instructionType ?? "prompt"}
-              onChange={(v) => updateNode(node.id, { instructionType: v })}
+        <div className="flex items-end gap-2">
+          <div className="flex-1">
+            <Label>Name</Label>
+            <Input
+              value={d.label}
+              onChange={(e) => updateNode(node.id, { label: e.target.value })}
             />
-          )}
+          </div>
+          <Button
+            type="button"
+            variant={d.isStart ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStartNode(node.id)}
+          >
+            <Flag className="h-3.5 w-3.5 mr-1" />
+            {d.isStart ? "Start node" : "Set as start"}
+          </Button>
+        </div>
 
-          {d.kind === "conversation" && (
-            <>
-              {d.isStart && (
-                <div>
-                  <Label>Start speaker</Label>
-                  <Select
-                    value={d.startSpeaker ?? "agent"}
-                    onValueChange={(v) =>
-                      updateNode(node.id, { startSpeaker: v as "agent" | "user" })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="agent">Agent</SelectItem>
-                      <SelectItem value="user">User</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+        {(d.kind === "conversation" ||
+          d.kind === "ending" ||
+          d.kind === "begin" ||
+          d.kind === "subagent" ||
+          d.kind === "wait") && (
+          <InstructionTypeTabs
+            value={
+              d.instructionType ??
+              (d.kind === "wait" || d.kind === "begin" ? "static_text" : "prompt")
+            }
+            onChange={(v) => updateNode(node.id, { instructionType: v })}
+          />
+        )}
+
+        {(d.kind === "conversation" || d.kind === "begin") && (
+          <>
+            {(d.isStart || d.kind === "begin") && (
               <div>
-                <div className="flex items-center justify-between">
-                  <Label>{d.instructionType === "static_text" ? "Static text" : "Prompt"}</Label>
-                  {d.instructionType !== "static_text" && !d.dialogue && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 text-xs"
-                      onClick={() =>
-                        updateNode(node.id, {
-                          dialogue: DEFAULT_PROMPT_TEMPLATE(d.label || "this step"),
-                        })
-                      }
-                    >
-                      Insert default prompt
-                    </Button>
-                  )}
-                </div>
-                <Textarea
-                  rows={6}
-                  value={d.dialogue}
-                  onChange={(e) => updateNode(node.id, { dialogue: e.target.value })}
-                  placeholder={DEFAULT_PROMPT_TEMPLATE(d.label || "this step")}
-                />
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  Tip: if this step calls <code>book_appointment</code>, list every required field
-                  (name, email, ISO start, timezone) explicitly so the agent never calls the tool
-                  with missing arguments.
-                </p>
-              </div>
-
-              <GlobalNodeSettings nodeId={node.id} value={d.globalNodeSetting ?? {}} />
-            </>
-          )}
-
-          {d.kind === "function" && (
-            <>
-              <div>
-                <Label>Function</Label>
+                <Label>Start speaker</Label>
                 <Select
-                  value={
-                    BOOKING_PRESETS.some((p) => p.id === d.toolId)
-                      ? d.toolId
-                      : d.toolId
-                        ? "__custom__"
-                        : ""
+                  value={d.startSpeaker ?? "agent"}
+                  onValueChange={(v) =>
+                    updateNode(node.id, { startSpeaker: v as "agent" | "user" })
                   }
-                  onValueChange={(v) => {
-                    if (v === "__custom__") updateNode(node.id, { toolId: "" });
-                    else updateNode(node.id, { toolId: v });
-                  }}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a function" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {BOOKING_PRESETS.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.label}
-                      </SelectItem>
-                    ))}
-                    <SelectItem value="__custom__">Custom tool ID…</SelectItem>
+                    <SelectItem value="agent">Agent speaks first</SelectItem>
+                    <SelectItem value="user">User speaks first</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Cal.com booking tools are auto-attached on deploy when a calendar is connected.
+              </div>
+            )}
+            {d.kind === "begin" && (
+              <div>
+                <Label>Initial silence (ms)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={15000}
+                  value={d.beginSilenceMs ?? 0}
+                  onChange={(e) =>
+                    updateNode(node.id, { beginSilenceMs: parseInt(e.target.value) || 0 })
+                  }
+                />
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Optional wait before the agent speaks. 0 = start immediately.
                 </p>
               </div>
-              {!BOOKING_PRESETS.some((p) => p.id === d.toolId) && (
+            )}
+          </>
+        )}
+
+        {(d.kind === "conversation" ||
+          d.kind === "begin" ||
+          d.kind === "subagent" ||
+          d.kind === "wait") && (
+          <>
+            <div>
+              <div className="flex items-center justify-between">
+                <Label>
+                  {d.instructionType === "static_text"
+                    ? "Static text"
+                    : d.instructionType === "template"
+                      ? "Template"
+                      : "Prompt"}
+                </Label>
+                {d.instructionType === "prompt" && !d.dialogue && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() =>
+                      updateNode(node.id, {
+                        dialogue: DEFAULT_PROMPT_TEMPLATE(d.label || "this step"),
+                      })
+                    }
+                  >
+                    Insert default prompt
+                  </Button>
+                )}
+              </div>
+              <VariableTextarea
+                rows={6}
+                value={d.dialogue}
+                onValueChange={(v) => updateNode(node.id, { dialogue: v })}
+                placeholder={
+                  d.kind === "wait"
+                    ? "Optional line to say while waiting, or leave blank"
+                    : d.instructionType === "static_text"
+                      ? "Spoken exactly. Not sent to the LLM."
+                      : d.instructionType === "template"
+                        ? "Spoken after {{variables}} are filled. Not sent to the LLM."
+                        : DEFAULT_PROMPT_TEMPLATE(d.label || "this step")
+                }
+              />
+              {(d.instructionType === "static_text" || d.instructionType === "template") && (
+                <div className="mt-3">
+                  <Label>Instructions (not spoken)</Label>
+                  <p className="mb-1 text-[11px] text-muted-foreground">
+                    Builder notes only. The agent never reads this aloud.
+                  </p>
+                  <VariableTextarea
+                    rows={3}
+                    value={d.instructions ?? ""}
+                    onValueChange={(v) => updateNode(node.id, { instructions: v })}
+                    placeholder="e.g. Only ask for first name"
+                  />
+                </div>
+              )}
+            </div>
+            <GlobalNodeSettings nodeId={node.id} value={d.globalNodeSetting ?? {}} />
+          </>
+        )}
+
+        {d.kind === "function" && (
+          <>
+            <div>
+              <Label>Function</Label>
+              <Select
+                value={
+                  BOOKING_PRESETS.some((p) => p.id === d.toolId)
+                    ? d.toolId
+                    : d.toolId
+                      ? "__custom__"
+                      : ""
+                }
+                onValueChange={(v) => {
+                  if (v === "__custom__") {
+                    updateNode(node.id, {
+                      toolId: "",
+                      toolApiKey: undefined,
+                      toolEventTypeId: undefined,
+                    });
+                  } else {
+                    updateNode(node.id, { toolId: v });
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a function" />
+                </SelectTrigger>
+                <SelectContent>
+                  {BOOKING_PRESETS.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.label}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="__custom__">Custom tool ID…</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Cal.com booking tools are auto-attached on deploy when a calendar is connected.
+              </p>
+            </div>
+            {!BOOKING_PRESETS.some((p) => p.id === d.toolId) && (
+              <>
                 <div>
                   <Label>Tool ID</Label>
                   <Input
@@ -335,899 +402,1357 @@ export function NodeEditorDialog() {
                     placeholder="tool-xxxx"
                   />
                 </div>
-              )}
-              {preset && (
-                <>
-                  <div>
-                    <Label>Name</Label>
-                    <Input
-                      value={d.toolName ?? ""}
-                      onChange={(e) => updateNode(node.id, { toolName: e.target.value })}
-                      placeholder={preset.defaultName}
-                    />
-                  </div>
-                  <div>
-                    <Label>
-                      Description <span className="text-muted-foreground">(Optional)</span>
-                    </Label>
-                    <Textarea
-                      rows={3}
-                      value={d.toolDescription ?? ""}
-                      onChange={(e) => updateNode(node.id, { toolDescription: e.target.value })}
-                      placeholder={preset.defaultDescription}
-                    />
-                  </div>
-                  <div>
-                    <Label>API Key (Cal.com)</Label>
-                    <Input
-                      type="password"
-                      value={d.toolApiKey ?? ""}
-                      onChange={(e) => updateNode(node.id, { toolApiKey: e.target.value })}
-                      placeholder={
-                        calSettings?.calcom_api_key
-                          ? "Using workspace key"
-                          : "Enter Cal.com API key"
-                      }
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Auto-filled from your connected Cal.com workspace. Override only if this tool
-                      should use a different account.
-                    </p>
-                  </div>
-                  <div>
-                    <Label>Event Type ID (Cal.com)</Label>
-                    <p className="text-xs text-muted-foreground mb-1">
-                      You can find the Event Type ID in your cal.com URL.
-                    </p>
-                    <Input
-                      value={d.toolEventTypeId ?? ""}
-                      onChange={(e) => updateNode(node.id, { toolEventTypeId: e.target.value })}
-                      placeholder="Enter Event Type ID"
-                    />
-                  </div>
-                  <div>
-                    <Label>
-                      Timezone <span className="text-muted-foreground">(Optional)</span>
-                    </Label>
-                    <Input
-                      value={d.toolTimezone ?? ""}
-                      onChange={(e) => updateNode(node.id, { toolTimezone: e.target.value })}
-                      placeholder="America/Los_Angeles"
-                    />
-                  </div>
-                </>
-              )}
-              <div className="flex items-center justify-between">
-                <Label>Speak during execution</Label>
-                <Switch
-                  checked={!!d.speakDuringExecution}
-                  onCheckedChange={(v) => updateNode(node.id, { speakDuringExecution: v })}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <Label>Wait for result</Label>
-                <Switch
-                  checked={d.waitForResult ?? true}
-                  onCheckedChange={(v) => updateNode(node.id, { waitForResult: v })}
-                />
-              </div>
-            </>
-          )}
-
-          {d.kind === "call_transfer" && <CallTransferSettings nodeId={node.id} />}
-
-          {d.kind === "agent_transfer" && (
-            <>
-              <DestinationAgentPicker
-                value={d.dialogue}
-                currentRetellAgentId={
-                  (useBuilderStore.getState().settings as { agentId?: string }).agentId
-                }
-                onChange={(v) => updateNode(node.id, { dialogue: v })}
-              />
-
-              <div className="flex items-center justify-between">
-                <Label>Keep the same voice</Label>
-                <Switch
-                  checked={d.agentSwapKeepCurrentVoice ?? false}
-                  onCheckedChange={(v) => updateNode(node.id, { agentSwapKeepCurrentVoice: v })}
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <Label>Keep the current language</Label>
-                <Switch
-                  checked={d.agentSwapKeepCurrentLanguage ?? false}
-                  onCheckedChange={(v) => updateNode(node.id, { agentSwapKeepCurrentLanguage: v })}
-                />
-              </div>
-
-              <div>
-                <Label>Post-call analysis setting</Label>
-                <Select
-                  value={d.agentSwapPostCallAnalysisSetting ?? "only_destination_agent"}
-                  onValueChange={(v) =>
-                    updateNode(node.id, {
-                      agentSwapPostCallAnalysisSetting: v as "only_destination_agent" | "all",
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="only_destination_agent">Only transferred agent</SelectItem>
-                    <SelectItem value="all">Both this agent and transferred agent</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label>Webhook setting</Label>
-                <Select
-                  value={d.agentSwapWebhookSetting ?? "only_source_agent"}
-                  onValueChange={(v) =>
-                    updateNode(node.id, {
-                      agentSwapWebhookSetting: v as
-                        | "only_source_agent"
-                        | "only_destination_agent"
-                        | "all",
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="only_destination_agent">Only transferred agent</SelectItem>
-                    <SelectItem value="all">Both this agent and transferred agent</SelectItem>
-                    <SelectItem value="only_source_agent">Only this agent</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </>
-          )}
-
-          {d.kind === "press_digit" && (
-            <>
-              <div>
-                <Label>Pause detection (ms)</Label>
-                <Input
-                  type="number"
-                  value={d.pauseDetectionMs ?? 1000}
-                  onChange={(e) =>
-                    updateNode(node.id, { pauseDetectionMs: parseInt(e.target.value) || 0 })
-                  }
-                />
-              </div>
-              <div>
-                <Label>Instruction</Label>
-                <Textarea
-                  rows={3}
-                  value={d.dialogue}
-                  onChange={(e) => updateNode(node.id, { dialogue: e.target.value })}
-                />
-              </div>
-            </>
-          )}
-
-          {d.kind === "logic_split" && (
-            <div>
-              <Label>Logic prompt</Label>
-              <Textarea
-                rows={4}
-                value={d.dialogue}
-                onChange={(e) => updateNode(node.id, { dialogue: e.target.value })}
-                placeholder="Describe how to choose between branches…"
-              />
-            </div>
-          )}
-
-          {d.kind === "sms" && (
-            <div>
-              <Label>Message</Label>
-              <Textarea
-                rows={3}
-                value={d.smsMessage ?? ""}
-                onChange={(e) => updateNode(node.id, { smsMessage: e.target.value })}
-              />
-            </div>
-          )}
-
-          {d.kind === "check_documents" && (
-            <>
-              <div className="rounded-lg border border-teal-200 bg-teal-50/60 px-4 py-3 space-y-1 text-sm dark:border-teal-700/50 dark:bg-teal-900/20">
-                <p className="font-medium text-teal-800 dark:text-teal-300">Check Documents tool</p>
-                <p className="text-teal-700 dark:text-teal-400 text-xs leading-relaxed">
-                  During the call the agent will look up whether the contact has uploaded any
-                  documents. The tool response includes a ready-made <code className="font-mono bg-teal-100 dark:bg-teal-800 rounded px-1">summary</code> sentence
-                  the agent can speak directly, plus counts of client- and admin-uploaded files.
-                </p>
-              </div>
-
-              <div>
-                <Label>Agent instruction</Label>
-                <Textarea
-                  rows={4}
-                  value={d.dialogue}
-                  onChange={(e) => updateNode(node.id, { dialogue: e.target.value })}
-                  placeholder={
-                    "Call check_documents to look up whether this contact has submitted their files.\n" +
-                    "Read the returned summary aloud verbatim.\n" +
-                    "If no documents are found and an upload_url is present, offer to send them the link via SMS."
-                  }
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
                 <div>
-                  <Label>Speak during execution</Label>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Say something while the lookup runs (recommended)
-                  </p>
+                  <Label>Name</Label>
+                  <Input
+                    value={d.toolName ?? ""}
+                    onChange={(e) => updateNode(node.id, { toolName: e.target.value })}
+                    placeholder="get_available_slots"
+                  />
                 </div>
-                <Switch
-                  checked={d.speakDuringExecution ?? true}
-                  onCheckedChange={(v) => updateNode(node.id, { speakDuringExecution: v })}
-                />
-              </div>
-            </>
-          )}
-
-          {d.kind === "send_upload_link" && (
-            <>
-              <div className="rounded-lg border border-sky-200 bg-sky-50/60 px-4 py-3 space-y-1 text-sm dark:border-sky-700/50 dark:bg-sky-900/20">
-                <p className="font-medium text-sky-800 dark:text-sky-300">Send Upload Link tool</p>
-                <p className="text-sky-700 dark:text-sky-400 text-xs leading-relaxed">
-                  During the call the agent generates a unique, secure upload URL for the contact
-                  and texts it to their mobile number via SMS. The tool returns a{" "}
-                  <code className="font-mono bg-sky-100 dark:bg-sky-800 rounded px-1">summary</code>{" "}
-                  the agent reads aloud, and a{" "}
-                  <code className="font-mono bg-sky-100 dark:bg-sky-800 rounded px-1">sms_sent</code>{" "}
-                  flag. Requires a Twilio phone number configured on this workspace.
-                </p>
-              </div>
-
-              <div>
-                <Label>Agent instruction</Label>
-                <Textarea
-                  rows={4}
-                  value={d.dialogue}
-                  onChange={(e) => updateNode(node.id, { dialogue: e.target.value })}
-                  placeholder={
-                    "Call send_upload_link to generate and text a secure document upload link to the caller.\n" +
-                    "Read the returned summary aloud verbatim.\n" +
-                    "If sms_sent is true, tell them to check their messages.\n" +
-                    "If sms_sent is false, apologise and advise them to contact the office directly."
-                  }
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
                 <div>
-                  <Label>Speak during execution</Label>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Say something while the link is being generated (recommended)
-                  </p>
+                  <Label>Description</Label>
+                  <Textarea
+                    rows={3}
+                    value={d.toolDescription ?? ""}
+                    onChange={(e) => updateNode(node.id, { toolDescription: e.target.value })}
+                    placeholder="What this function does"
+                  />
                 </div>
-                <Switch
-                  checked={d.speakDuringExecution ?? true}
-                  onCheckedChange={(v) => updateNode(node.id, { speakDuringExecution: v })}
-                />
-              </div>
-            </>
-          )}
-
-          {d.kind === "extract_variable" && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>Variables</Label>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setEditingVar({ id: crypto.randomUUID(), name: "", description: "", type: "string" });
-                    setEditingVarIsNew(true);
-                  }}
-                >
-                  <Plus className="h-3 w-3 mr-1" /> Add Variable
-                </Button>
-              </div>
-
-              {(d.extractVariables ?? []).length === 0 && !editingVar && (
-                <p className="text-sm text-muted-foreground italic py-1">
-                  No variables yet — click Add Variable to begin.
-                </p>
-              )}
-
-              <div className="space-y-1">
-                {((d.extractVariables ?? []) as ExtractVariableItem[]).map((v) => (
-                  <div
-                    key={v.id}
-                    className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2"
-                  >
-                    <span className="font-mono text-xs font-bold text-indigo-500 shrink-0">{"{}"}</span>
-                    <span className="flex-1 text-sm truncate">{v.name || "(unnamed)"}</span>
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-wide shrink-0">
-                      {v.type === "string" ? "Text" : v.type === "number" ? "Num" : v.type === "boolean" ? "Bool" : v.type === "date" ? "Date" : "Enum"}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => { setEditingVar(v); setEditingVarIsNew(false); }}
-                      className="rounded p-0.5 text-muted-foreground hover:text-foreground transition-colors"
-                      aria-label="Edit variable"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        updateNode(node.id, {
-                          extractVariables: ((d.extractVariables ?? []) as ExtractVariableItem[]).filter((x) => x.id !== v.id),
-                        })
-                      }
-                      className="rounded p-0.5 text-rose-500 hover:text-rose-700 transition-colors"
-                      aria-label="Delete variable"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              {editingVar && (
-                <div className="rounded-lg border bg-background p-3 space-y-3 shadow-sm">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                    {editingVarIsNew ? "New Variable" : "Edit Variable"}
-                  </p>
+                <div>
+                  <Label>Webhook URL</Label>
+                  <VariableInput
+                    value={d.httpUrl ?? ""}
+                    onValueChange={(v) => updateNode(node.id, { httpUrl: v })}
+                    placeholder="https://…"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <Label>Variable Name</Label>
-                    <Input
-                      value={editingVar.name}
-                      onChange={(e) => setEditingVar((prev) => prev ? { ...prev, name: e.target.value } : null)}
-                      placeholder="e.g. customer_name"
-                    />
-                  </div>
-                  <div>
-                    <Label>Description</Label>
-                    <Textarea
-                      rows={3}
-                      value={editingVar.description}
-                      onChange={(e) => setEditingVar((prev) => prev ? { ...prev, description: e.target.value } : null)}
-                      placeholder="Describe what to collect from the caller…"
-                    />
-                  </div>
-                  <div>
-                    <Label>
-                      Variable Type{" "}
-                      <span className="text-muted-foreground font-normal">(Optional)</span>
-                    </Label>
+                    <Label>Method</Label>
                     <Select
-                      value={editingVar.type}
+                      value={d.httpMethod ?? "POST"}
                       onValueChange={(v) =>
-                        setEditingVar((prev) =>
-                          prev ? { ...prev, type: v as ExtractVariableItem["type"] } : null,
-                        )
+                        updateNode(node.id, {
+                          httpMethod: v as NonNullable<typeof d.httpMethod>,
+                        })
                       }
                     >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="string">Text</SelectItem>
-                        <SelectItem value="number">Number</SelectItem>
-                        <SelectItem value="boolean">Boolean</SelectItem>
-                        <SelectItem value="date">Date / Time</SelectItem>
-                        <SelectItem value="enum">Enum</SelectItem>
+                        {["GET", "POST", "PUT", "PATCH", "DELETE"].map((m) => (
+                          <SelectItem key={m} value={m}>
+                            {m}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="flex gap-2 justify-end">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => { setEditingVar(null); setEditingVarIsNew(false); }}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => {
-                        if (!editingVar) return;
-                        const current = (d.extractVariables ?? []) as ExtractVariableItem[];
-                        const updated = editingVarIsNew
-                          ? [...current, editingVar]
-                          : current.map((x) => (x.id === editingVar.id ? editingVar : x));
-                        updateNode(node.id, { extractVariables: updated });
-                        setEditingVar(null);
-                        setEditingVarIsNew(false);
-                      }}
-                    >
-                      Save
-                    </Button>
+                  <div>
+                    <Label>Timeout (ms)</Label>
+                    <Input
+                      type="number"
+                      value={d.httpTimeoutMs ?? ""}
+                      onChange={(e) =>
+                        updateNode(node.id, {
+                          httpTimeoutMs: e.target.value ? Number(e.target.value) : undefined,
+                        })
+                      }
+                      placeholder="30000"
+                    />
                   </div>
                 </div>
-              )}
-            </div>
-          )}
-
-          {d.kind === "code" && (
-            <div>
-              <Label>Code</Label>
-              <Textarea
-                rows={6}
-                className="font-mono text-xs"
-                value={d.codeSource ?? ""}
-                onChange={(e) => updateNode(node.id, { codeSource: e.target.value })}
-              />
-            </div>
-          )}
-
-          {d.kind === "ending" && (
-            <div>
-              <Label>{d.instructionType === "static_text" ? "Static text" : "Ending prompt"}</Label>
-              <Textarea
-                rows={3}
-                value={d.endingPrompt ?? ""}
-                onChange={(e) => updateNode(node.id, { endingPrompt: e.target.value })}
-                placeholder={
-                  d.instructionType === "static_text"
-                    ? "Thanks for your time. Goodbye!"
-                    : "Politely end the call and summarize next steps if any."
-                }
-              />
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                {d.instructionType === "static_text"
-                  ? "The agent reads this line verbatim before hanging up."
-                  : "The LLM generates a closing line from this instruction."}
-              </p>
-            </div>
-          )}
-
-          {d.kind === "http_request" && (
-            <div className="space-y-4">
-              <div>
-                <Label className="text-sm font-semibold">Tool Name (shown to AI)</Label>
-                <Input
-                  placeholder="fetch_availability"
-                  value={d.httpToolName ?? ""}
-                  onChange={(e) => updateNode(node.id, { httpToolName: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label className="text-sm font-semibold">Tool Description</Label>
-                <Textarea
-                  rows={2}
-                  placeholder="Describe when the AI should call this endpoint…"
-                  value={d.httpToolDescription ?? d.dialogue ?? ""}
-                  onChange={(e) => updateNode(node.id, { httpToolDescription: e.target.value, dialogue: e.target.value })}
-                />
-              </div>
-              <div className="flex gap-2">
-                <div className="w-28 shrink-0">
-                  <Label className="text-sm font-semibold">Method</Label>
-                  <Select
-                    value={d.httpMethod ?? "POST"}
-                    onValueChange={(v) => updateNode(node.id, { httpMethod: v as "GET" | "POST" | "PUT" | "PATCH" | "DELETE" })}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {["GET","POST","PUT","PATCH","DELETE"].map(m => (
-                        <SelectItem key={m} value={m}>{m}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex-1">
-                  <Label className="text-sm font-semibold">URL <span className="text-rose-500">*</span></Label>
-                  <Input
-                    placeholder="https://api.yourapp.com/endpoint"
-                    value={d.httpUrl ?? ""}
-                    onChange={(e) => updateNode(node.id, { httpUrl: e.target.value })}
+                <div>
+                  <Label>Headers (JSON)</Label>
+                  <Textarea
+                    rows={2}
+                    value={d.httpHeaders ?? ""}
+                    onChange={(e) => updateNode(node.id, { httpHeaders: e.target.value })}
+                    placeholder='{"Authorization":"Bearer {{secret}}"}'
+                    className="font-mono text-xs"
                   />
                 </div>
-              </div>
-              <div>
-                <Label className="text-sm font-semibold">Headers (JSON)</Label>
-                <Textarea
-                  rows={2}
-                  className="font-mono text-xs"
-                  placeholder={'{"Authorization": "Bearer token", "X-Api-Key": "key"}'}
-                  value={d.httpHeaders ?? ""}
-                  onChange={(e) => updateNode(node.id, { httpHeaders: e.target.value })}
-                />
-              </div>
-              {(d.httpMethod ?? "POST") !== "GET" && (
                 <div>
-                  <Label className="text-sm font-semibold">Request Body (JSON)</Label>
+                  <Label>Query params</Label>
                   <Textarea
-                    rows={3}
+                    rows={2}
+                    value={d.httpQuery ?? ""}
+                    onChange={(e) => updateNode(node.id, { httpQuery: e.target.value })}
+                    placeholder={"start_time=now\nevent_type={{event}}"}
                     className="font-mono text-xs"
-                    placeholder={'{"key": "{{variable}}"}'}
+                  />
+                </div>
+                <div>
+                  <Label>Parameters / body schema</Label>
+                  <Textarea
+                    rows={4}
                     value={d.httpBody ?? ""}
                     onChange={(e) => updateNode(node.id, { httpBody: e.target.value })}
+                    placeholder='{"type":"object","properties":{…}}'
+                    className="font-mono text-xs"
                   />
                 </div>
-              )}
-              <div>
-                <Label className="text-sm font-semibold">Response Variable Mapping</Label>
-                <Textarea
-                  rows={3}
-                  className="font-mono text-xs"
-                  placeholder={"response.status -> {{booking_status}}\nresponse.slots[0] -> {{first_slot}}"}
-                  value={d.httpResponseMapping ?? ""}
-                  onChange={(e) => updateNode(node.id, { httpResponseMapping: e.target.value })}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Map response fields to agent variables. One mapping per line.
-                </p>
-              </div>
-              <div className="flex gap-3">
-                <div className="flex-1">
-                  <Label className="text-sm font-semibold">Timeout (ms)</Label>
+                <div>
+                  <Label>Response → variables</Label>
+                  <Textarea
+                    rows={2}
+                    value={d.httpResponseMapping ?? ""}
+                    onChange={(e) => updateNode(node.id, { httpResponseMapping: e.target.value })}
+                    placeholder="message -> {{slot_message}}"
+                    className="font-mono text-xs"
+                  />
+                </div>
+              </>
+            )}
+            {preset && (
+              <>
+                <div>
+                  <Label>Name</Label>
                   <Input
-                    type="number"
-                    min={1000}
-                    max={30000}
-                    value={d.httpTimeoutMs ?? 10000}
-                    onChange={(e) => updateNode(node.id, { httpTimeoutMs: parseInt(e.target.value) || 10000 })}
+                    value={d.toolName ?? ""}
+                    onChange={(e) => updateNode(node.id, { toolName: e.target.value })}
+                    placeholder={preset.defaultName}
                   />
                 </div>
-                <div className="flex-1">
-                  <Label className="text-sm font-semibold">Retries</Label>
-                  <Select
-                    value={String(d.httpRetryCount ?? 0)}
-                    onValueChange={(v) => updateNode(node.id, { httpRetryCount: parseInt(v) })}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {[0,1,2,3].map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                <div>
+                  <Label>
+                    Description <span className="text-muted-foreground">(Optional)</span>
+                  </Label>
+                  <Textarea
+                    rows={3}
+                    value={d.toolDescription ?? ""}
+                    onChange={(e) => updateNode(node.id, { toolDescription: e.target.value })}
+                    placeholder={preset.defaultDescription}
+                  />
                 </div>
+                <div>
+                  <Label>API Key (Cal.com)</Label>
+                  <Input
+                    type="password"
+                    value={d.toolApiKey ?? ""}
+                    onChange={(e) => updateNode(node.id, { toolApiKey: e.target.value })}
+                    placeholder={
+                      calSettings?.calcom_api_key ? "Using workspace key" : "Enter Cal.com API key"
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Auto-filled from your connected Cal.com workspace. Override only if this tool
+                    should use a different account.
+                  </p>
+                </div>
+                <div>
+                  <Label>Event Type ID (Cal.com)</Label>
+                  <p className="text-xs text-muted-foreground mb-1">
+                    You can find the Event Type ID in your cal.com URL.
+                  </p>
+                  <Input
+                    value={d.toolEventTypeId ?? ""}
+                    onChange={(e) => updateNode(node.id, { toolEventTypeId: e.target.value })}
+                    placeholder="Enter Event Type ID"
+                  />
+                </div>
+                <div>
+                  <Label>
+                    Timezone <span className="text-muted-foreground">(Optional)</span>
+                  </Label>
+                  <Input
+                    value={d.toolTimezone ?? ""}
+                    onChange={(e) => updateNode(node.id, { toolTimezone: e.target.value })}
+                    placeholder="America/Los_Angeles"
+                  />
+                </div>
+              </>
+            )}
+            <div className="flex items-center justify-between">
+              <Label>Speak during execution</Label>
+              <Switch
+                checked={!!d.speakDuringExecution}
+                onCheckedChange={(v) => updateNode(node.id, { speakDuringExecution: v })}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <Label>Wait for result</Label>
+              <Switch
+                checked={d.waitForResult ?? true}
+                onCheckedChange={(v) => updateNode(node.id, { waitForResult: v })}
+              />
+            </div>
+            <FunctionTestPanel node={node} />
+          </>
+        )}
+
+        {d.kind === "call_transfer" && <CallTransferSettings nodeId={node.id} />}
+
+        {d.kind === "agent_transfer" && (
+          <>
+            <DestinationAgentPicker
+              value={d.dialogue}
+              currentRetellAgentId={
+                (useBuilderStore.getState().settings as { agentId?: string }).agentId
+              }
+              onChange={(v) => updateNode(node.id, { dialogue: v })}
+            />
+
+            <div className="flex items-center justify-between">
+              <Label>Keep the same voice</Label>
+              <Switch
+                checked={d.agentSwapKeepCurrentVoice ?? false}
+                onCheckedChange={(v) => updateNode(node.id, { agentSwapKeepCurrentVoice: v })}
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <Label>Keep the current language</Label>
+              <Switch
+                checked={d.agentSwapKeepCurrentLanguage ?? false}
+                onCheckedChange={(v) => updateNode(node.id, { agentSwapKeepCurrentLanguage: v })}
+              />
+            </div>
+
+            <div>
+              <Label>Post-call analysis setting</Label>
+              <Select
+                value={d.agentSwapPostCallAnalysisSetting ?? "only_destination_agent"}
+                onValueChange={(v) =>
+                  updateNode(node.id, {
+                    agentSwapPostCallAnalysisSetting: v as "only_destination_agent" | "all",
+                  })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="only_destination_agent">Only transferred agent</SelectItem>
+                  <SelectItem value="all">Both this agent and transferred agent</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Webhook setting</Label>
+              <Select
+                value={d.agentSwapWebhookSetting ?? "only_source_agent"}
+                onValueChange={(v) =>
+                  updateNode(node.id, {
+                    agentSwapWebhookSetting: v as
+                      | "only_source_agent"
+                      | "only_destination_agent"
+                      | "all",
+                  })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="only_destination_agent">Only transferred agent</SelectItem>
+                  <SelectItem value="all">Both this agent and transferred agent</SelectItem>
+                  <SelectItem value="only_source_agent">Only this agent</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </>
+        )}
+
+        {d.kind === "press_digit" && (
+          <>
+            <div>
+              <Label>Pause detection (ms)</Label>
+              <Input
+                type="number"
+                value={d.pauseDetectionMs ?? 1000}
+                onChange={(e) =>
+                  updateNode(node.id, { pauseDetectionMs: parseInt(e.target.value) || 0 })
+                }
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label>Digit timeout (ms)</Label>
+                <Input
+                  type="number"
+                  min={500}
+                  value={d.digitTimeoutMs ?? 5000}
+                  onChange={(e) =>
+                    updateNode(node.id, { digitTimeoutMs: parseInt(e.target.value) || 5000 })
+                  }
+                />
+              </div>
+              <div>
+                <Label>Retries</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={5}
+                  value={d.digitRetryCount ?? 2}
+                  onChange={(e) =>
+                    updateNode(node.id, { digitRetryCount: parseInt(e.target.value) || 0 })
+                  }
+                />
               </div>
             </div>
-          )}
-
-          {d.kind === "note" && (
             <div>
-              <Label>Note</Label>
+              <Label>Instruction</Label>
+              <Textarea
+                rows={3}
+                value={d.dialogue}
+                onChange={(e) => updateNode(node.id, { dialogue: e.target.value })}
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Add a transition named <code>timeout</code> or <code>invalid</code> for those paths.
+              </p>
+            </div>
+          </>
+        )}
+
+        {d.kind === "logic_split" && (
+          <div>
+            <Label>Logic prompt</Label>
+            <VariableTextarea
+              rows={4}
+              value={d.dialogue}
+              onValueChange={(v) => updateNode(node.id, { dialogue: v })}
+              placeholder="Describe how to choose between branches…"
+            />
+            <p className="mt-1 text-[11px] text-muted-foreground leading-snug">
+              Use <strong>Equation</strong> transitions below — If any / If all with =, ≠, contains,
+              does not contain, exists. Leave one branch empty or named Else as the fallback.
+            </p>
+          </div>
+        )}
+
+        {d.kind === "wait" && (
+          <div className="grid grid-cols-2 gap-2">
+            <div className="col-span-2">
+              <Label>Wait for</Label>
+              <Select
+                value={d.waitMode ?? "user"}
+                onValueChange={(v) => updateNode(node.id, { waitMode: v as "user" | "silence" })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="user">User to speak</SelectItem>
+                  <SelectItem value="silence">Silence / pause</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Timeout (ms)</Label>
+              <Input
+                type="number"
+                min={500}
+                value={d.waitTimeoutMs ?? 8000}
+                onChange={(e) =>
+                  updateNode(node.id, { waitTimeoutMs: parseInt(e.target.value) || 8000 })
+                }
+              />
+            </div>
+            <div>
+              <Label>Retries</Label>
+              <Input
+                type="number"
+                min={0}
+                max={5}
+                value={d.waitRetryCount ?? 1}
+                onChange={(e) =>
+                  updateNode(node.id, { waitRetryCount: parseInt(e.target.value) || 0 })
+                }
+              />
+            </div>
+            <p className="col-span-2 text-[11px] text-muted-foreground">
+              Connect a transition labeled <code>timeout</code> for the silence path.
+            </p>
+          </div>
+        )}
+
+        {d.kind === "subagent" && (
+          <div className="space-y-3">
+            <div>
+              <Label>Tools (comma-separated names)</Label>
+              <Input
+                value={d.subagentToolIds ?? ""}
+                onChange={(e) => updateNode(node.id, { subagentToolIds: e.target.value })}
+                placeholder="check_availability, book_appointment"
+              />
+            </div>
+            <div>
+              <Label>Knowledge bases</Label>
+              <Input
+                value={d.subagentKbIds ?? ""}
+                onChange={(e) => updateNode(node.id, { subagentKbIds: e.target.value })}
+                placeholder="kb ids or names"
+              />
+            </div>
+            <div>
+              <Label>Model override</Label>
+              <Input
+                value={d.subagentModel ?? ""}
+                onChange={(e) => updateNode(node.id, { subagentModel: e.target.value })}
+                placeholder="Leave blank to use agent model"
+              />
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Exit using the transitions below (prompt or equation). This stays one conversation
+              node at runtime so existing flows keep working.
+            </p>
+          </div>
+        )}
+
+        {d.kind === "mcp" && (
+          <div className="space-y-3">
+            <div>
+              <Label>MCP server URL</Label>
+              <VariableInput
+                value={d.mcpServerUrl ?? ""}
+                onValueChange={(v) => updateNode(node.id, { mcpServerUrl: v })}
+                placeholder="https://mcp.example.com/sse"
+              />
+            </div>
+            <div>
+              <Label>Tool name</Label>
+              <Input
+                value={d.mcpToolName ?? ""}
+                onChange={(e) => updateNode(node.id, { mcpToolName: e.target.value })}
+                placeholder="tool name from the MCP server"
+              />
+            </div>
+            <div>
+              <Label>Headers (JSON)</Label>
+              <VariableTextarea
+                rows={2}
+                className="font-mono text-xs"
+                value={d.mcpHeaders ?? ""}
+                onValueChange={(v) => updateNode(node.id, { mcpHeaders: v })}
+                placeholder='{"Authorization": "Bearer {{token}}"}'
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Use variable placeholders. Do not paste live API keys into the canvas.
+              </p>
+            </div>
+            <div>
+              <Label>Timeout (ms)</Label>
+              <Input
+                type="number"
+                min={1000}
+                value={d.mcpTimeoutMs ?? 10000}
+                onChange={(e) =>
+                  updateNode(node.id, { mcpTimeoutMs: parseInt(e.target.value) || 10000 })
+                }
+              />
+            </div>
+          </div>
+        )}
+
+        {d.kind === "sms" && (
+          <div>
+            <Label>Message</Label>
+            <VariableTextarea
+              rows={3}
+              value={d.smsMessage ?? ""}
+              onValueChange={(v) => updateNode(node.id, { smsMessage: v })}
+            />
+          </div>
+        )}
+
+        {d.kind === "check_documents" && (
+          <>
+            <div className="rounded-lg border border-teal-200 bg-teal-50/60 px-4 py-3 space-y-1 text-sm dark:border-teal-700/50 dark:bg-teal-900/20">
+              <p className="font-medium text-teal-800 dark:text-teal-300">Check Documents tool</p>
+              <p className="text-teal-700 dark:text-teal-400 text-xs leading-relaxed">
+                During the call the agent will look up whether the contact has uploaded any
+                documents. The tool response includes a ready-made{" "}
+                <code className="font-mono bg-teal-100 dark:bg-teal-800 rounded px-1">summary</code>{" "}
+                sentence the agent can speak directly, plus counts of client- and admin-uploaded
+                files.
+              </p>
+            </div>
+
+            <div>
+              <Label>Agent instruction</Label>
               <Textarea
                 rows={4}
                 value={d.dialogue}
                 onChange={(e) => updateNode(node.id, { dialogue: e.target.value })}
+                placeholder={
+                  "Call check_documents to look up whether this contact has submitted their files.\n" +
+                  "Read the returned summary aloud verbatim.\n" +
+                  "If no documents are found and an upload_url is present, offer to send them the link via SMS."
+                }
               />
             </div>
-          )}
 
-          {(d.kind === "wa_start" || d.kind === "wa_message") && (
-            <div className="space-y-3">
+            <div className="flex items-center justify-between">
               <div>
-                <Label>Message / Prompt</Label>
-                <Textarea
-                  rows={4}
-                  value={d.dialogue ?? ""}
-                  onChange={(e) => updateNode(node.id, { dialogue: e.target.value })}
-                  placeholder="What should the agent say at this step? Use {variable} placeholders."
-                />
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  This text is included in the AI's instructions for this step. The agent responds conversationally based on it.
+                <Label>Speak during execution</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Say something while the lookup runs (recommended)
                 </p>
               </div>
+              <Switch
+                checked={d.speakDuringExecution ?? true}
+                onCheckedChange={(v) => updateNode(node.id, { speakDuringExecution: v })}
+              />
             </div>
-          )}
+          </>
+        )}
 
-          {d.kind === "wa_media" && (
-            <div className="space-y-3">
+        {d.kind === "send_upload_link" && (
+          <>
+            <div className="rounded-lg border border-sky-200 bg-sky-50/60 px-4 py-3 space-y-1 text-sm dark:border-sky-700/50 dark:bg-sky-900/20">
+              <p className="font-medium text-sky-800 dark:text-sky-300">Send Upload Link tool</p>
+              <p className="text-sky-700 dark:text-sky-400 text-xs leading-relaxed">
+                During the call the agent generates a unique, secure upload URL for the contact and
+                texts it to their mobile number via SMS. The tool returns a{" "}
+                <code className="font-mono bg-sky-100 dark:bg-sky-800 rounded px-1">summary</code>{" "}
+                the agent reads aloud, and a{" "}
+                <code className="font-mono bg-sky-100 dark:bg-sky-800 rounded px-1">sms_sent</code>{" "}
+                flag. Requires a Twilio phone number configured on this workspace.
+              </p>
+            </div>
+
+            <div>
+              <Label>Agent instruction</Label>
+              <Textarea
+                rows={4}
+                value={d.dialogue}
+                onChange={(e) => updateNode(node.id, { dialogue: e.target.value })}
+                placeholder={
+                  "Call send_upload_link to generate and text a secure document upload link to the caller.\n" +
+                  "Read the returned summary aloud verbatim.\n" +
+                  "If sms_sent is true, tell them to check their messages.\n" +
+                  "If sms_sent is false, apologise and advise them to contact the office directly."
+                }
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
               <div>
-                <Label>Media URL</Label>
-                <Input
-                  value={d.mediaUrl ?? ""}
-                  onChange={(e) => updateNode(node.id, { mediaUrl: e.target.value })}
-                  placeholder="https://example.com/image.jpg"
-                />
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  Publicly accessible URL of the image, video, audio, or document to send via WhatsApp.
-                  Twilio supports JPEG, PNG, GIF, MP4, PDF, and more.
+                <Label>Speak during execution</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Say something while the link is being generated (recommended)
                 </p>
               </div>
-              <div>
-                <Label>Caption (optional)</Label>
-                <Textarea
-                  rows={2}
-                  value={d.mediaCaption ?? ""}
-                  onChange={(e) => updateNode(node.id, { mediaCaption: e.target.value })}
-                  placeholder="Caption shown below the media (optional)"
-                />
-              </div>
-              <div>
-                <Label>Follow-up prompt (optional)</Label>
-                <Textarea
-                  rows={3}
-                  value={d.dialogue ?? ""}
-                  onChange={(e) => updateNode(node.id, { dialogue: e.target.value })}
-                  placeholder="What should the agent say after sending the media?"
-                />
-              </div>
+              <Switch
+                checked={d.speakDuringExecution ?? true}
+                onCheckedChange={(v) => updateNode(node.id, { speakDuringExecution: v })}
+              />
             </div>
-          )}
+          </>
+        )}
 
-          {d.kind === "wa_booking" && (
-            <div className="space-y-3">
-              <div className="rounded-md border border-sky-200 bg-sky-50 p-3 text-[12px] text-sky-800 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300">
-                When the conversation reaches this node, the agent automatically fetches available
-                Cal.com slots (if a Cal.com API key is configured in Settings) and presents them
-                to the contact. If no API key is set, it falls back to sending the booking link below.
-              </div>
-              <div>
-                <Label>Booking link (fallback)</Label>
-                <Input
-                  value={d.bookingUrl ?? ""}
-                  onChange={(e) => updateNode(node.id, { bookingUrl: e.target.value })}
-                  placeholder="https://cal.com/your-name/30min"
-                />
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  Sent when live slot fetching is unavailable or as a confirmation link.
-                </p>
-              </div>
-              <div>
-                <Label>Cal.com Event Type ID (optional override)</Label>
-                <Input
-                  value={d.bookingEventTypeId ?? ""}
-                  onChange={(e) => updateNode(node.id, { bookingEventTypeId: e.target.value })}
-                  placeholder="e.g. 12345 — leave blank to use workspace default"
-                />
-              </div>
-              <div>
-                <Label>Days ahead to show slots</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={30}
-                  value={d.bookingLookaheadDays ?? 7}
-                  onChange={(e) => updateNode(node.id, { bookingLookaheadDays: Number(e.target.value) })}
-                />
-              </div>
-              <div>
-                <Label>Intro message</Label>
-                <Textarea
-                  rows={3}
-                  value={d.dialogue ?? ""}
-                  onChange={(e) => updateNode(node.id, { dialogue: e.target.value })}
-                  placeholder="e.g. Let me check what slots are available for you..."
-                />
-              </div>
+        {d.kind === "extract_variable" && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>Variables</Label>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setEditingVar({
+                    id: crypto.randomUUID(),
+                    name: "",
+                    description: "",
+                    type: "string",
+                  });
+                  setEditingVarIsNew(true);
+                }}
+              >
+                <Plus className="h-3 w-3 mr-1" /> Add Variable
+              </Button>
             </div>
-          )}
 
-          {d.kind === "wa_wait_reply" && (
-            <div className="space-y-3">
-              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-[12px] text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
-                When the flow reaches this node, the agent sends the message below and
-                <strong> pauses</strong>. The next message the contact sends resumes the flow
-                and evaluates the transitions below.
-              </div>
-              <div>
-                <Label>Question / prompt to send</Label>
-                <Textarea
-                  rows={3}
-                  value={d.dialogue ?? ""}
-                  onChange={(e) => updateNode(node.id, { dialogue: e.target.value })}
-                  placeholder="e.g. What's your budget range?"
-                />
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  Sent verbatim — no AI, no modifications. Use {"{"}<em>variable</em>{"}"} placeholders.
-                </p>
-              </div>
-              <div>
-                <Label>Variable to extract from reply (optional)</Label>
-                <Input
-                  value={d.extractVarName ?? ""}
-                  onChange={(e) => updateNode(node.id, { extractVarName: e.target.value })}
-                  placeholder="e.g. budget"
-                />
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  In AI-Assisted mode the runtime will attempt to extract this named variable from
-                  the contact's reply and store it for use in later {"{"}<em>variable</em>{"}"} placeholders.
-                </p>
-              </div>
-              <div>
-                <Label>Extraction instruction (optional)</Label>
-                <Input
-                  value={d.extractVarPrompt ?? ""}
-                  onChange={(e) => updateNode(node.id, { extractVarPrompt: e.target.value })}
-                  placeholder="e.g. Extract the numeric budget the user mentioned"
-                />
-              </div>
-            </div>
-          )}
+            {(d.extractVariables ?? []).length === 0 && !editingVar && (
+              <p className="text-sm text-muted-foreground italic py-1">
+                No variables yet — click Add Variable to begin.
+              </p>
+            )}
 
-          {d.kind === "wa_extract_var" && (
-            <div className="space-y-3">
-              <div className="rounded-md border border-indigo-200 bg-indigo-50 p-3 text-[12px] text-indigo-800 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300">
-                Silently extracts a named variable from the contact's last message.
-                No reply is sent. The flow advances to the next node automatically.
-              </div>
-              <div>
-                <Label>Variable name</Label>
-                <Input
-                  value={d.extractVarName ?? ""}
-                  onChange={(e) => updateNode(node.id, { extractVarName: e.target.value })}
-                  placeholder="e.g. city"
-                />
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  Stored as <code>{"{"}<em>city</em>{"}"}</code> — use this in later WA Message or WA Template nodes.
-                </p>
-              </div>
-              <div>
-                <Label>Extraction instruction</Label>
-                <Textarea
-                  rows={2}
-                  value={d.extractVarPrompt ?? ""}
-                  onChange={(e) => updateNode(node.id, { extractVarPrompt: e.target.value })}
-                  placeholder="e.g. Extract the city or location the user mentioned"
-                />
-              </div>
-            </div>
-          )}
-
-          {d.kind === "wa_tag" && (
-            <div className="space-y-3">
-              <div className="rounded-md border border-purple-200 bg-purple-50 p-3 text-[12px] text-purple-800 dark:border-purple-800 dark:bg-purple-950/40 dark:text-purple-300">
-                Applies a tag to this contact in the contacts table. No message is sent.
-                Useful for segmenting contacts (e.g. "qualified", "high-intent").
-              </div>
-              <div>
-                <Label>Tag name</Label>
-                <Input
-                  value={d.tagName ?? ""}
-                  onChange={(e) => updateNode(node.id, { tagName: e.target.value })}
-                  placeholder="e.g. qualified"
-                />
-              </div>
-            </div>
-          )}
-
-          {d.kind === "wa_template" && (
-            <div className="space-y-3">
-              <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-[12px] text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
-                Sends a fixed message with variable substitution — no AI generation.
-                Use <code>{"{"}<em>variable_name</em>{"}"}</code> placeholders for values collected earlier.
-              </div>
-
-              {watiTemplates && watiTemplates.length > 0 && (
-                <div className="space-y-2 rounded-md border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-800 dark:bg-emerald-950/30">
-                  <Label>WATI approved template (optional)</Label>
-                  <Select
-                    value={d.watiTemplateName ?? "__none__"}
-                    onValueChange={(v) =>
+            <div className="space-y-1">
+              {((d.extractVariables ?? []) as ExtractVariableItem[]).map((v) => (
+                <div
+                  key={v.id}
+                  className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2"
+                >
+                  <span className="font-mono text-xs font-bold text-indigo-500 shrink-0">
+                    {"{}"}
+                  </span>
+                  <span className="flex-1 text-sm truncate">{v.name || "(unnamed)"}</span>
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wide shrink-0">
+                    {v.type === "string"
+                      ? "Text"
+                      : v.type === "number"
+                        ? "Num"
+                        : v.type === "boolean"
+                          ? "Bool"
+                          : v.type === "date"
+                            ? "Date"
+                            : v.type === "json"
+                              ? "JSON"
+                              : "Enum"}
+                    {v.required ? " *" : ""}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingVar(v);
+                      setEditingVarIsNew(false);
+                    }}
+                    className="rounded p-0.5 text-muted-foreground hover:text-foreground transition-colors"
+                    aria-label="Edit variable"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
                       updateNode(node.id, {
-                        watiTemplateName: v === "__none__" ? undefined : v,
+                        extractVariables: (
+                          (d.extractVariables ?? []) as ExtractVariableItem[]
+                        ).filter((x) => x.id !== v.id),
                       })
+                    }
+                    className="rounded p-0.5 text-rose-500 hover:text-rose-700 transition-colors"
+                    aria-label="Delete variable"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {editingVar && (
+              <div className="rounded-lg border bg-background p-3 space-y-3 shadow-sm">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  {editingVarIsNew ? "New Variable" : "Edit Variable"}
+                </p>
+                <div>
+                  <Label>Variable Name</Label>
+                  <Input
+                    value={editingVar.name}
+                    onChange={(e) =>
+                      setEditingVar((prev) => (prev ? { ...prev, name: e.target.value } : null))
+                    }
+                    placeholder="e.g. customer_name"
+                  />
+                </div>
+                <div>
+                  <Label>Description</Label>
+                  <Textarea
+                    rows={3}
+                    value={editingVar.description}
+                    onChange={(e) =>
+                      setEditingVar((prev) =>
+                        prev ? { ...prev, description: e.target.value } : null,
+                      )
+                    }
+                    placeholder="Describe what to collect from the caller…"
+                  />
+                </div>
+                <div>
+                  <Label>
+                    Variable Type{" "}
+                    <span className="text-muted-foreground font-normal">(Optional)</span>
+                  </Label>
+                  <Select
+                    value={editingVar.type}
+                    onValueChange={(v) =>
+                      setEditingVar((prev) =>
+                        prev ? { ...prev, type: v as ExtractVariableItem["type"] } : null,
+                      )
                     }
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Free text (no template)" />
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="__none__">Free text (no template)</SelectItem>
-                      {watiTemplates.map((t: any) => (
-                        <SelectItem key={t.id ?? t.wati_template_id ?? t.name} value={t.name}>
-                          {t.name}
-                          {t.language ? ` (${t.language})` : ""}
-                          {t.status ? ` · ${t.status}` : ""}
-                        </SelectItem>
-                      ))}
+                      <SelectItem value="string">Text</SelectItem>
+                      <SelectItem value="number">Number</SelectItem>
+                      <SelectItem value="boolean">Boolean</SelectItem>
+                      <SelectItem value="date">Date / Time</SelectItem>
+                      <SelectItem value="enum">Enum</SelectItem>
+                      <SelectItem value="json">JSON / object</SelectItem>
                     </SelectContent>
                   </Select>
-                  {d.watiTemplateName && (
-                    <div>
-                      <Label>Template parameters (one per line)</Label>
-                      <Textarea
-                        rows={3}
-                        value={(d.watiTemplateParams ?? []).join("\n")}
-                        onChange={(e) =>
-                          updateNode(node.id, {
-                            watiTemplateParams: e.target.value.split("\n"),
-                          })
-                        }
-                        placeholder={"{name}\n{budget}"}
-                      />
-                      <p className="mt-1 text-[11px] text-muted-foreground">
-                        Sent via WATI's approved-template API. Each line maps in order to{" "}
-                        {"{{1}}"}, {"{{2}}"}… Supports {"{"}<em>variable</em>{"}"} placeholders.
-                        Used whenever this workspace has WATI connected; otherwise the message
-                        body below is sent instead.
-                      </p>
-                    </div>
-                  )}
                 </div>
-              )}
-
-              <div className={d.watiTemplateName ? "opacity-60" : ""}>
-                <Label>
-                  Message body{d.watiTemplateName ? " (fallback when not deployed via WATI)" : ""}
-                </Label>
-                <Textarea
-                  rows={4}
-                  value={d.templateBody ?? ""}
-                  onChange={(e) => updateNode(node.id, { templateBody: e.target.value })}
-                  placeholder={`e.g. Hi {name}, thanks for reaching out! Your budget of {budget} looks good.`}
-                />
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  Variables in {"{"}<em>curly braces</em>{"}"} are replaced with extracted values at runtime.
-                </p>
+                <div className="flex items-center justify-between rounded-md border px-3 py-2">
+                  <Label className="text-sm">Required</Label>
+                  <Switch
+                    checked={!!editingVar.required}
+                    onCheckedChange={(v) =>
+                      setEditingVar((prev) => (prev ? { ...prev, required: v } : null))
+                    }
+                  />
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setEditingVar(null);
+                      setEditingVarIsNew(false);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => {
+                      if (!editingVar) return;
+                      const current = (d.extractVariables ?? []) as ExtractVariableItem[];
+                      const updated = editingVarIsNew
+                        ? [...current, editingVar]
+                        : current.map((x) => (x.id === editingVar.id ? editingVar : x));
+                      updateNode(node.id, { extractVariables: updated });
+                      setEditingVar(null);
+                      setEditingVarIsNew(false);
+                    }}
+                  >
+                    Save
+                  </Button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
+        )}
 
-          {d.kind !== "ending" && d.kind !== "note" && (
+        {d.kind === "code" && (
+          <div>
+            <Label>Code</Label>
+            <Textarea
+              rows={6}
+              className="font-mono text-xs"
+              value={d.codeSource ?? ""}
+              onChange={(e) => updateNode(node.id, { codeSource: e.target.value })}
+            />
+          </div>
+        )}
+
+        {d.kind === "ending" && (
+          <div>
+            <Label>{d.instructionType === "static_text" ? "Static text" : "Ending prompt"}</Label>
+            <VariableTextarea
+              rows={3}
+              value={d.endingPrompt ?? ""}
+              onValueChange={(v) => updateNode(node.id, { endingPrompt: v })}
+              placeholder={
+                d.instructionType === "static_text"
+                  ? "Thanks for your time. Goodbye!"
+                  : "Politely end the call and summarize next steps if any."
+              }
+            />
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {d.instructionType === "static_text"
+                ? "The agent reads this line verbatim before hanging up."
+                : "The LLM generates a closing line from this instruction."}
+            </p>
+          </div>
+        )}
+
+        {d.kind === "http_request" && (
+          <div className="space-y-4">
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <Label>Transitions</Label>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    setTransitions([
-                      ...d.transitions,
-                      {
-                        id: `t_${Date.now()}`,
-                        condition: "",
-                        target: null,
-                        conditionType: d.kind === "logic_split" ? ("equation" as TransitionConditionType) : "prompt",
-                      },
-                    ])
+              <Label className="text-sm font-semibold">Tool Name (shown to AI)</Label>
+              <Input
+                placeholder="fetch_availability"
+                value={d.httpToolName ?? ""}
+                onChange={(e) => updateNode(node.id, { httpToolName: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label className="text-sm font-semibold">Tool Description</Label>
+              <Textarea
+                rows={2}
+                placeholder="Describe when the AI should call this endpoint…"
+                value={d.httpToolDescription ?? d.dialogue ?? ""}
+                onChange={(e) =>
+                  updateNode(node.id, {
+                    httpToolDescription: e.target.value,
+                    dialogue: e.target.value,
+                  })
+                }
+              />
+            </div>
+            <div className="flex gap-2">
+              <div className="w-28 shrink-0">
+                <Label className="text-sm font-semibold">Method</Label>
+                <Select
+                  value={d.httpMethod ?? "POST"}
+                  onValueChange={(v) =>
+                    updateNode(node.id, {
+                      httpMethod: v as "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
+                    })
                   }
                 >
-                  <Plus className="h-3.5 w-3.5 mr-1" />
-                  Add
-                </Button>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {["GET", "POST", "PUT", "PATCH", "DELETE"].map((m) => (
+                      <SelectItem key={m} value={m}>
+                        {m}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="space-y-2">
-                {d.transitions.length === 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    Label each outgoing connection. Use{" "}
-                    <strong>Prompt</strong> for natural-language conditions (LLM when ambiguous), or{" "}
-                    <strong>Equation</strong> for deterministic rules like{" "}
-                    <code>{'{{available}} == true'}</code>.
-                  </p>
-                )}
-                {d.transitions.map((t, i) => (
-                  <div key={t.id} className="flex gap-2 items-start">
-                    <Select
-                      value={t.conditionType ?? "prompt"}
-                      onValueChange={(v: TransitionConditionType) => {
-                        const next = [...d.transitions];
-                        next[i] = { ...t, conditionType: v };
-                        setTransitions(next);
-                      }}
-                    >
-                      <SelectTrigger className="w-[110px] shrink-0">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="prompt">Prompt</SelectItem>
-                        <SelectItem value="equation">Equation</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Input
-                      placeholder={
-                        (t.conditionType ?? "prompt") === "equation"
-                          ? 'e.g. {{appointment_type}} == "botox"'
-                          : "e.g. User confirms appointment"
+              <div className="flex-1">
+                <Label className="text-sm font-semibold">
+                  URL <span className="text-rose-500">*</span>
+                </Label>
+                <VariableInput
+                  placeholder="https://api.yourapp.com/endpoint/{{id}}"
+                  value={d.httpUrl ?? ""}
+                  onValueChange={(v) => updateNode(node.id, { httpUrl: v })}
+                />
+              </div>
+            </div>
+            <div>
+              <Label className="text-sm font-semibold">Path params</Label>
+              <VariableTextarea
+                rows={2}
+                className="font-mono text-xs"
+                placeholder={"id={{contact_id}}"}
+                value={d.httpPathParams ?? ""}
+                onValueChange={(v) => updateNode(node.id, { httpPathParams: v })}
+              />
+            </div>
+            <div>
+              <Label className="text-sm font-semibold">Query params</Label>
+              <VariableTextarea
+                rows={2}
+                className="font-mono text-xs"
+                placeholder={"status={{status}}"}
+                value={d.httpQuery ?? ""}
+                onValueChange={(v) => updateNode(node.id, { httpQuery: v })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-sm font-semibold">Auth</Label>
+                <Select
+                  value={d.httpAuthType ?? "none"}
+                  onValueChange={(v) =>
+                    updateNode(node.id, { httpAuthType: v as "none" | "bearer" | "header" })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="bearer">Bearer token</SelectItem>
+                    <SelectItem value="header">Custom header</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {(d.httpAuthType === "bearer" || d.httpAuthType === "header") && (
+                <div>
+                  <Label className="text-sm font-semibold">
+                    {d.httpAuthType === "header" ? "Header value" : "Token"}
+                  </Label>
+                  <VariableInput
+                    value={d.httpAuthValue ?? ""}
+                    onValueChange={(v) => updateNode(node.id, { httpAuthValue: v })}
+                    placeholder="{{api_token}}"
+                  />
+                </div>
+              )}
+            </div>
+            {d.httpAuthType === "header" && (
+              <div>
+                <Label className="text-sm font-semibold">Header name</Label>
+                <Input
+                  value={d.httpAuthHeaderName ?? "X-Api-Key"}
+                  onChange={(e) => updateNode(node.id, { httpAuthHeaderName: e.target.value })}
+                />
+              </div>
+            )}
+            <p className="text-[11px] text-muted-foreground">
+              Prefer <code>{"{{variable}}"}</code> placeholders. Secrets should not live in the
+              browser graph.
+            </p>
+            <div>
+              <Label className="text-sm font-semibold">Headers (JSON)</Label>
+              <VariableTextarea
+                rows={2}
+                className="font-mono text-xs"
+                placeholder={'{"Authorization": "Bearer {{token}}", "X-Api-Key": "{{key}}"}'}
+                value={d.httpHeaders ?? ""}
+                onValueChange={(v) => updateNode(node.id, { httpHeaders: v })}
+              />
+            </div>
+            {(d.httpMethod ?? "POST") !== "GET" && (
+              <div>
+                <Label className="text-sm font-semibold">Request Body (JSON)</Label>
+                <VariableTextarea
+                  rows={3}
+                  className="font-mono text-xs"
+                  placeholder={'{"key": "{{variable}}"}'}
+                  value={d.httpBody ?? ""}
+                  onValueChange={(v) => updateNode(node.id, { httpBody: v })}
+                />
+              </div>
+            )}
+            <div>
+              <Label className="text-sm font-semibold">Response Variable Mapping</Label>
+              <VariableTextarea
+                rows={3}
+                className="font-mono text-xs"
+                placeholder={
+                  "response.status -> {{booking_status}}\nresponse.slots[0] -> {{first_slot}}"
+                }
+                value={d.httpResponseMapping ?? ""}
+                onValueChange={(v) => updateNode(node.id, { httpResponseMapping: v })}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Map response fields to agent variables. One mapping per line.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <Label className="text-sm font-semibold">Timeout (ms)</Label>
+                <Input
+                  type="number"
+                  min={1000}
+                  max={30000}
+                  value={d.httpTimeoutMs ?? 10000}
+                  onChange={(e) =>
+                    updateNode(node.id, { httpTimeoutMs: parseInt(e.target.value) || 10000 })
+                  }
+                />
+              </div>
+              <div className="flex-1">
+                <Label className="text-sm font-semibold">Retries</Label>
+                <Select
+                  value={String(d.httpRetryCount ?? 0)}
+                  onValueChange={(v) => updateNode(node.id, { httpRetryCount: parseInt(v) })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[0, 1, 2, 3].map((n) => (
+                      <SelectItem key={n} value={String(n)}>
+                        {n}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <FunctionTestPanel node={node} />
+          </div>
+        )}
+
+        {d.kind === "note" && (
+          <div>
+            <Label>Note</Label>
+            <Textarea
+              rows={4}
+              value={d.dialogue}
+              onChange={(e) => updateNode(node.id, { dialogue: e.target.value })}
+            />
+          </div>
+        )}
+
+        {(d.kind === "wa_start" || d.kind === "wa_message") && (
+          <div className="space-y-3">
+            <div>
+              <Label>Message / Prompt</Label>
+              <Textarea
+                rows={4}
+                value={d.dialogue ?? ""}
+                onChange={(e) => updateNode(node.id, { dialogue: e.target.value })}
+                placeholder="What should the agent say at this step? Use {variable} placeholders."
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                This text is included in the AI's instructions for this step. The agent responds
+                conversationally based on it.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {d.kind === "wa_media" && (
+          <div className="space-y-3">
+            <div>
+              <Label>Media URL</Label>
+              <Input
+                value={d.mediaUrl ?? ""}
+                onChange={(e) => updateNode(node.id, { mediaUrl: e.target.value })}
+                placeholder="https://example.com/image.jpg"
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Publicly accessible URL of the image, video, audio, or document to send via
+                WhatsApp. Twilio supports JPEG, PNG, GIF, MP4, PDF, and more.
+              </p>
+            </div>
+            <div>
+              <Label>Caption (optional)</Label>
+              <Textarea
+                rows={2}
+                value={d.mediaCaption ?? ""}
+                onChange={(e) => updateNode(node.id, { mediaCaption: e.target.value })}
+                placeholder="Caption shown below the media (optional)"
+              />
+            </div>
+            <div>
+              <Label>Follow-up prompt (optional)</Label>
+              <Textarea
+                rows={3}
+                value={d.dialogue ?? ""}
+                onChange={(e) => updateNode(node.id, { dialogue: e.target.value })}
+                placeholder="What should the agent say after sending the media?"
+              />
+            </div>
+          </div>
+        )}
+
+        {d.kind === "wa_booking" && (
+          <div className="space-y-3">
+            <div className="rounded-md border border-sky-200 bg-sky-50 p-3 text-[12px] text-sky-800 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300">
+              When the conversation reaches this node, the agent automatically fetches available
+              Cal.com slots (if a Cal.com API key is configured in Settings) and presents them to
+              the contact. If no API key is set, it falls back to sending the booking link below.
+            </div>
+            <div>
+              <Label>Booking link (fallback)</Label>
+              <Input
+                value={d.bookingUrl ?? ""}
+                onChange={(e) => updateNode(node.id, { bookingUrl: e.target.value })}
+                placeholder="https://cal.com/your-name/30min"
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Sent when live slot fetching is unavailable or as a confirmation link.
+              </p>
+            </div>
+            <div>
+              <Label>Cal.com Event Type ID (optional override)</Label>
+              <Input
+                value={d.bookingEventTypeId ?? ""}
+                onChange={(e) => updateNode(node.id, { bookingEventTypeId: e.target.value })}
+                placeholder="e.g. 12345 — leave blank to use workspace default"
+              />
+            </div>
+            <div>
+              <Label>Days ahead to show slots</Label>
+              <Input
+                type="number"
+                min={1}
+                max={30}
+                value={d.bookingLookaheadDays ?? 7}
+                onChange={(e) =>
+                  updateNode(node.id, { bookingLookaheadDays: Number(e.target.value) })
+                }
+              />
+            </div>
+            <div>
+              <Label>Intro message</Label>
+              <Textarea
+                rows={3}
+                value={d.dialogue ?? ""}
+                onChange={(e) => updateNode(node.id, { dialogue: e.target.value })}
+                placeholder="e.g. Let me check what slots are available for you..."
+              />
+            </div>
+          </div>
+        )}
+
+        {d.kind === "wa_wait_reply" && (
+          <div className="space-y-3">
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-[12px] text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+              When the flow reaches this node, the agent sends the message below and
+              <strong> pauses</strong>. The next message the contact sends resumes the flow and
+              evaluates the transitions below.
+            </div>
+            <div>
+              <Label>Question / prompt to send</Label>
+              <Textarea
+                rows={3}
+                value={d.dialogue ?? ""}
+                onChange={(e) => updateNode(node.id, { dialogue: e.target.value })}
+                placeholder="e.g. What's your budget range?"
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Sent verbatim — no AI, no modifications. Use {"{"}
+                <em>variable</em>
+                {"}"} placeholders.
+              </p>
+            </div>
+            <div>
+              <Label>Variable to extract from reply (optional)</Label>
+              <Input
+                value={d.extractVarName ?? ""}
+                onChange={(e) => updateNode(node.id, { extractVarName: e.target.value })}
+                placeholder="e.g. budget"
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                In AI-Assisted mode the runtime will attempt to extract this named variable from the
+                contact's reply and store it for use in later {"{"}
+                <em>variable</em>
+                {"}"} placeholders.
+              </p>
+            </div>
+            <div>
+              <Label>Extraction instruction (optional)</Label>
+              <Input
+                value={d.extractVarPrompt ?? ""}
+                onChange={(e) => updateNode(node.id, { extractVarPrompt: e.target.value })}
+                placeholder="e.g. Extract the numeric budget the user mentioned"
+              />
+            </div>
+          </div>
+        )}
+
+        {d.kind === "wa_extract_var" && (
+          <div className="space-y-3">
+            <div className="rounded-md border border-indigo-200 bg-indigo-50 p-3 text-[12px] text-indigo-800 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300">
+              Silently extracts a named variable from the contact's last message. No reply is sent.
+              The flow advances to the next node automatically.
+            </div>
+            <div>
+              <Label>Variable name</Label>
+              <Input
+                value={d.extractVarName ?? ""}
+                onChange={(e) => updateNode(node.id, { extractVarName: e.target.value })}
+                placeholder="e.g. city"
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Stored as{" "}
+                <code>
+                  {"{"}
+                  <em>city</em>
+                  {"}"}
+                </code>{" "}
+                — use this in later WA Message or WA Template nodes.
+              </p>
+            </div>
+            <div>
+              <Label>Extraction instruction</Label>
+              <Textarea
+                rows={2}
+                value={d.extractVarPrompt ?? ""}
+                onChange={(e) => updateNode(node.id, { extractVarPrompt: e.target.value })}
+                placeholder="e.g. Extract the city or location the user mentioned"
+              />
+            </div>
+          </div>
+        )}
+
+        {d.kind === "wa_tag" && (
+          <div className="space-y-3">
+            <div className="rounded-md border border-purple-200 bg-purple-50 p-3 text-[12px] text-purple-800 dark:border-purple-800 dark:bg-purple-950/40 dark:text-purple-300">
+              Applies a tag to this contact in the contacts table. No message is sent. Useful for
+              segmenting contacts (e.g. "qualified", "high-intent").
+            </div>
+            <div>
+              <Label>Tag name</Label>
+              <Input
+                value={d.tagName ?? ""}
+                onChange={(e) => updateNode(node.id, { tagName: e.target.value })}
+                placeholder="e.g. qualified"
+              />
+            </div>
+          </div>
+        )}
+
+        {d.kind === "wa_template" && (
+          <div className="space-y-3">
+            <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-[12px] text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
+              Sends a fixed message with variable substitution — no AI generation. Use{" "}
+              <code>
+                {"{"}
+                <em>variable_name</em>
+                {"}"}
+              </code>{" "}
+              placeholders for values collected earlier.
+            </div>
+
+            {watiTemplates && watiTemplates.length > 0 && (
+              <div className="space-y-2 rounded-md border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-800 dark:bg-emerald-950/30">
+                <Label>WATI approved template (optional)</Label>
+                <Select
+                  value={d.watiTemplateName ?? "__none__"}
+                  onValueChange={(v) =>
+                    updateNode(node.id, {
+                      watiTemplateName: v === "__none__" ? undefined : v,
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Free text (no template)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Free text (no template)</SelectItem>
+                    {watiTemplates.map((t: any) => (
+                      <SelectItem key={t.id ?? t.wati_template_id ?? t.name} value={t.name}>
+                        {t.name}
+                        {t.language ? ` (${t.language})` : ""}
+                        {t.status ? ` · ${t.status}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {d.watiTemplateName && (
+                  <div>
+                    <Label>Template parameters (one per line)</Label>
+                    <Textarea
+                      rows={3}
+                      value={(d.watiTemplateParams ?? []).join("\n")}
+                      onChange={(e) =>
+                        updateNode(node.id, {
+                          watiTemplateParams: e.target.value.split("\n"),
+                        })
                       }
-                      value={t.condition}
-                      onChange={(e) => {
-                        const next = [...d.transitions];
-                        next[i] = { ...t, condition: e.target.value };
-                        setTransitions(next);
-                      }}
-                      className="flex-1"
+                      placeholder={"{name}\n{budget}"}
                     />
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Sent via WATI's approved-template API. Each line maps in order to {"{{1}}"},{" "}
+                      {"{{2}}"}… Supports {"{"}
+                      <em>variable</em>
+                      {"}"} placeholders. Used whenever this workspace has WATI connected; otherwise
+                      the message body below is sent instead.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className={d.watiTemplateName ? "opacity-60" : ""}>
+              <Label>
+                Message body{d.watiTemplateName ? " (fallback when not deployed via WATI)" : ""}
+              </Label>
+              <Textarea
+                rows={4}
+                value={d.templateBody ?? ""}
+                onChange={(e) => updateNode(node.id, { templateBody: e.target.value })}
+                placeholder={`e.g. Hi {name}, thanks for reaching out! Your budget of {budget} looks good.`}
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Variables in {"{"}
+                <em>curly braces</em>
+                {"}"} are replaced with extracted values at runtime.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {d.kind !== "ending" && d.kind !== "note" && (
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <Label>Transitions</Label>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  setTransitions([
+                    ...d.transitions,
+                    {
+                      id: `t_${Date.now()}`,
+                      condition: "",
+                      target: null,
+                      conditionType:
+                        d.kind === "logic_split"
+                          ? ("equation" as TransitionConditionType)
+                          : "prompt",
+                    },
+                  ])
+                }
+              >
+                <Plus className="h-3.5 w-3.5 mr-1" />
+                Add
+              </Button>
+            </div>
+            <div className="space-y-2">
+              {d.transitions.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Label each outgoing connection. Use the chat icon for natural-language conditions,
+                  or Σ for Retell-style rules (if any / if all, =, ≠, contains…).
+                </p>
+              )}
+              {d.transitions.map((t, i) => {
+                const type = t.conditionType ?? "prompt";
+                return (
+                  <div
+                    key={t.id}
+                    className="space-y-2 rounded-lg border border-white/[0.08] bg-white/[0.02] p-2"
+                  >
+                    <div className="flex items-start gap-2">
+                      <button
+                        type="button"
+                        title={
+                          type === "equation"
+                            ? "Equation — click for prompt"
+                            : "Prompt — click for equation"
+                        }
+                        onClick={() => {
+                          const next = [...d.transitions];
+                          next[i] =
+                            type === "equation"
+                              ? { ...t, conditionType: "prompt" }
+                              : patchEquationTransition(
+                                  { ...t, conditionType: "equation" },
+                                  {
+                                    equationJoin: t.equationJoin ?? "||",
+                                    equations: t.equations?.length
+                                      ? t.equations
+                                      : [emptyEquationClause()],
+                                  },
+                                );
+                          setTransitions(next);
+                        }}
+                        className={
+                          type === "equation"
+                            ? "flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-violet-500/15 font-serif text-sm font-semibold text-violet-300"
+                            : "flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-sky-500/15 text-sky-300"
+                        }
+                      >
+                        {type === "equation" ? "Σ" : <MessageSquare className="h-4 w-4" />}
+                      </button>
+                      <div className="min-w-0 flex-1">
+                        {type === "equation" ? (
+                          <EquationConditionEditor
+                            transition={t}
+                            onChange={(updated) => {
+                              const next = [...d.transitions];
+                              next[i] = updated;
+                              setTransitions(next);
+                            }}
+                          />
+                        ) : (
+                          <VariableTextarea
+                            placeholder="e.g. User confirms appointment"
+                            value={t.condition}
+                            onValueChange={(v) => {
+                              const next = [...d.transitions];
+                              next[i] = { ...t, condition: v };
+                              setTransitions(next);
+                            }}
+                            rows={Math.min(
+                              8,
+                              Math.max(3, Math.ceil((t.condition.length || 24) / 36)),
+                            )}
+                            className="min-h-[72px] resize-y"
+                          />
+                        )}
+                      </div>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="shrink-0"
+                        onClick={() => setTransitions(d.transitions.filter((x) => x.id !== t.id))}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                     <Select
                       value={t.target ?? "none"}
                       onValueChange={(v) => {
@@ -1236,8 +1761,8 @@ export function NodeEditorDialog() {
                         setTransitions(next);
                       }}
                     >
-                      <SelectTrigger className="w-[180px] shrink-0">
-                        <SelectValue placeholder="Target" />
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Target node" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">No target</SelectItem>
@@ -1250,19 +1775,13 @@ export function NodeEditorDialog() {
                           ))}
                       </SelectContent>
                     </Select>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => setTransitions(d.transitions.filter((x) => x.id !== t.id))}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
-          )}
-        </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1627,7 +2146,9 @@ function CallTransferSettings({ nodeId }: { nodeId: string }) {
           <>
             <Input
               value={d.transferDynamicVariable ?? ""}
-              onChange={(e) => updateNode(nodeId, { transferDynamicVariable: e.target.value })}
+              onChange={(e) =>
+                updateNode(nodeId, { transferDynamicVariable: e.target.value.replace(/[{}]/g, "") })
+              }
               placeholder="variable_name"
             />
             <p className="text-[11px] text-muted-foreground">

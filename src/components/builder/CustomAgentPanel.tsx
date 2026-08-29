@@ -55,11 +55,15 @@ import {
 // ── Node type mapping from AI draft → Builder NodeKind ────────────────────────
 function mapNodeKind(type: string): NodeKind {
   const t = (type ?? "").toLowerCase();
+  if (t.includes("mcp")) return "mcp";
   if (t.includes("function") || t.includes("tool")) return "function";
   if (t.includes("transfer") || t.includes("call_transfer")) return "call_transfer";
   if (t.includes("end") || t.includes("ending")) return "ending";
   if (t.includes("logic") || t.includes("split") || t.includes("branch")) return "logic_split";
   if (t.includes("http") || t.includes("request") || t.includes("webhook")) return "http_request";
+  if (t.includes("wait") || t.includes("silence")) return "wait";
+  if (t.includes("subagent") || t.includes("sub-agent")) return "subagent";
+  if (t.includes("begin") || t === "start") return "begin";
   if (t.includes("extract") || t.includes("variable")) return "extract_variable";
   return "conversation";
 }

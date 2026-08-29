@@ -33,7 +33,7 @@ export interface GraphSessionCallbacks {
   onAgentSwap?(agentId: string, agentVersion?: number | string): void;
   /** Caller is expected to speak next; used to open the mic gate. */
   onAwaitUser?(): void;
-  onAwaitDigit?(pauseDetectionMs: number): void;
+  onAwaitDigit?(pauseDetectionMs: number, options?: { digitTimeoutMs?: number; retryCount?: number }): void;
   onEnd?(reason: EndReason): void;
   onError?(message: string): void;
 }
@@ -129,7 +129,10 @@ export class GraphSession {
         return null;
 
       case "await_digit":
-        this.cb.onAwaitDigit?.(directive.pauseDetectionMs);
+        this.cb.onAwaitDigit?.(directive.pauseDetectionMs, {
+          digitTimeoutMs: directive.digitTimeoutMs,
+          retryCount: directive.retryCount,
+        });
         return null;
 
       case "variables":

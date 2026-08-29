@@ -804,6 +804,10 @@ export const sendWhatsappMessage = createServerFn({ method: "POST" })
 
       await markWhatsappContactsMessaged(sb, workspaceId, [contactPhone]);
       await syncWhatsappConversation(workspaceId, contactPhone);
+      const { applyOutboundCampaignStageByPhone } = await import(
+        "@/lib/whatsapp/campaign-stage.server"
+      );
+      await applyOutboundCampaignStageByPhone(sb, workspaceId, contactPhone);
 
       return { ok: true, sid: result.messageId, provider: "wati" as const };
     }
@@ -857,6 +861,20 @@ const csvLeadRowSchema = z.object({
   company_name: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
   import_meta: z.record(z.string(), z.string()).nullable().optional(),
+  tags: z.array(z.string()).nullable().optional(),
+  lead_status: z.string().nullable().optional(),
+  qualification: z
+    .object({
+      intent: z.enum(["sell", "rent", "both", ""]).optional(),
+      asking_price: z.string().optional(),
+      rental_price: z.string().optional(),
+      availability: z.string().optional(),
+      property_status: z.string().optional(),
+      viewing_availability: z.string().optional(),
+      notes: z.string().optional(),
+    })
+    .nullable()
+    .optional(),
 });
 
 export const listWAContacts = createServerFn({ method: "GET" })
@@ -1001,7 +1019,7 @@ export const importWAContactsCsv = createServerFn({ method: "POST" })
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
     const sb = supabase as any;
-    return batchImportCsvLeads(sb, workspaceId, data.rows, { syncWhatsappContacts: true });
+    return batchImportCsvLeads(sb, workspaceId, data.rows as CsvLeadRow[], { syncWhatsappContacts: true });
   });
 
 // ── Templates ─────────────────────────────────────────────────────────────────
@@ -1154,20 +1172,26 @@ export const createWACampaign = createServerFn({ method: "POST" })
     }
     if (provider === "wati") assertNotWbahWorkspace(workspaceId);
 
+    const scheduledAt = data.scheduled_at ? new Date(data.scheduled_at) : null;
+    const isScheduled = !!(scheduledAt && !Number.isNaN(scheduledAt.getTime()) && scheduledAt.getTime() > Date.now() + 15_000);
+    if (data.scheduled_at && !isScheduled) {
+      throw new Error("Pick a future date and time to schedule this campaign.");
+    }
+
     const { data: row, error } = await sb
       .from("whatsapp_campaigns")
       .insert({
         workspace_id: workspaceId,
         name: data.name,
-        type: data.type,
+        type: isScheduled ? "scheduled" : data.type,
         template_id: data.template_id ?? null,
-        scheduled_at: data.scheduled_at ?? null,
+        scheduled_at: isScheduled ? scheduledAt!.toISOString() : null,
         provider,
         wati_template_name: data.wati_template_name ?? null,
         template_params: data.template_params ?? null,
         wati_broadcast_name: data.wati_broadcast_name ?? data.name,
         audience_filter: data.audience_filter ?? null,
-        status: "draft",
+        status: isScheduled ? "scheduled" : "draft",
       })
       .select()
       .single();
@@ -1606,7 +1630,7 @@ export const registerTwilioWebhook = createServerFn({ method: "POST" })
 
 // ── Campaign launch ───────────────────────────────────────────────────────────
 
-async function launchWatiCampaignFromWebee(
+export async function launchWatiCampaignFromWebee(
   sb: any,
   workspaceId: string,
   campaign: Record<string, unknown>,
@@ -2017,7 +2041,9 @@ export const importWatiCampaignLeadsCsv = createServerFn({ method: "POST" })
     if (!workspaceId) throw new Error("No workspace");
     assertNotWbahWorkspace(workspaceId);
     const sb = supabase as any;
-    return batchImportCsvLeads(sb, workspaceId, data.rows as CsvLeadRow[]);
+    return batchImportCsvLeads(sb, workspaceId, data.rows as CsvLeadRow[], {
+      syncWhatsappContacts: true,
+    });
   });
 
 /** Turn Buzzchat contacts into campaign lead IDs (for audience without re-uploading CSV). */
@@ -2028,6 +2054,7 @@ export const prepareCampaignAudienceFromContacts = createServerFn({ method: "POS
       .object({
         limit: z.number().int().min(1).max(5000).optional(),
         offset: z.number().int().min(0).max(500000).optional(),
+        skipMessaged: z.boolean().optional(),
       })
       .parse(input),
   )
@@ -2038,32 +2065,59 @@ export const prepareCampaignAudienceFromContacts = createServerFn({ method: "POS
     const sb = supabase as any;
     const limit = data.limit ?? 20;
     const offset = data.offset ?? 0;
+    const skipMessaged = data.skipMessaged !== false;
 
     const { data: contacts, error: cErr } = await sb
       .from("whatsapp_contacts")
-      .select("phone, name, notes")
+      .select("phone, name, notes, lead_status")
       .eq("workspace_id", workspaceId)
       .not("phone", "is", null)
       .neq("phone", "")
       .or("do_not_contact.is.null,do_not_contact.eq.false")
-      .order("created_at", { ascending: true })
-      .range(offset, offset + limit - 1);
+      .order("created_at", { ascending: true });
 
     if (cErr) throw new Error(cErr.message);
     if (!contacts?.length) {
       throw new Error(
-        "No Buzzchat contacts yet — import your CSV under Contacts first, or use CSV upload below.",
+        "No Buzzchat contacts yet — import your CSV under Contacts first, or use New CSV.",
       );
     }
 
-    const rows: CsvLeadRow[] = contacts.map(
-      (c: { phone: string; name?: string | null; notes?: string | null }) => ({
-        phone: c.phone,
-        full_name: c.name ?? null,
-        notes: c.notes ?? null,
-        import_meta: parseNotesToMeta(c.notes),
-      }),
-    );
+    const { byExact, byTail } = await fetchWorkspaceMessageStatsMaps(sb, workspaceId);
+    let skippedMessaged = 0;
+    const eligible = (
+      contacts as Array<{
+        phone: string;
+        name?: string | null;
+        notes?: string | null;
+        lead_status?: string | null;
+      }>
+    ).filter((c) => {
+      if (!skipMessaged) return true;
+      const stats = lookupWaContactMessageStats(c.phone, byExact, byTail);
+      const status = String(c.lead_status ?? "").toLowerCase();
+      if (stats.messaged || status === "contacted") {
+        skippedMessaged++;
+        return false;
+      }
+      return true;
+    });
+
+    const sliced = eligible.slice(offset, offset + limit);
+    if (sliced.length === 0) {
+      throw new Error(
+        skipMessaged
+          ? "Everyone left in Contacts was already messaged. Turn off “Skip already sent” to resend, or import a new CSV."
+          : "No contacts in this range — lower Skip or import more contacts.",
+      );
+    }
+
+    const rows: CsvLeadRow[] = sliced.map((c) => ({
+      phone: c.phone,
+      full_name: c.name ?? null,
+      notes: c.notes ?? null,
+      import_meta: parseNotesToMeta(c.notes),
+    }));
 
     const result = await batchImportCsvLeads(sb, workspaceId, rows);
     if (result.leadIds.length === 0) {
@@ -2075,7 +2129,10 @@ export const prepareCampaignAudienceFromContacts = createServerFn({ method: "POS
       inserted: result.inserted,
       updated: result.updated,
       total: result.total,
-      contactCount: contacts.length,
+      contactCount: sliced.length,
+      skippedMessaged,
+      remainingUnsent: Math.max(0, eligible.length - offset - sliced.length),
+      unsentTotal: eligible.length,
     };
   });
 
@@ -2104,11 +2161,14 @@ export const sendLeadWhatsappTemplate = createServerFn({ method: "POST" })
   .validator((input) =>
     z
       .object({
-        leadId: z.string(),
+        leadId: z.string().optional(),
+        phone: z.string().optional(),
+        contactName: z.string().optional(),
         templateName: z.string().min(1),
         templateParams: z.record(z.string()).optional(),
         broadcastName: z.string().optional(),
       })
+      .refine((d) => Boolean(d.leadId || d.phone), { message: "leadId or phone is required" })
       .parse(input),
   )
   .handler(async ({ context, data }) => {
@@ -2120,16 +2180,22 @@ export const sendLeadWhatsappTemplate = createServerFn({ method: "POST" })
     const conn = await getWatiConnectionForWorkspace(sb, workspaceId);
     if (!conn) throw new Error("WATI not connected — go to Buzzchat → Settings");
 
-    const { data: lead, error: leadErr } = await sb
-      .from("leads")
-      .select("*")
-      .eq("id", data.leadId)
-      .eq("workspace_id", workspaceId)
-      .single();
-    if (leadErr || !lead) throw new Error(leadErr?.message ?? "Lead not found");
+    let lead: Record<string, unknown> | null = null;
+    if (data.leadId) {
+      const { data: row, error: leadErr } = await sb
+        .from("leads")
+        .select("*")
+        .eq("id", data.leadId)
+        .eq("workspace_id", workspaceId)
+        .single();
+      if (leadErr || !row) throw new Error(leadErr?.message ?? "Lead not found");
+      lead = row;
+    } else if (data.phone) {
+      lead = await findLeadByPhone(sb, workspaceId, normalizeWhatsAppPhone(data.phone));
+    }
 
-    const phone = normalizeWhatsAppPhone(String(lead.phone ?? ""));
-    if (!phone) throw new Error("Lead has no phone number");
+    const phone = normalizeWhatsAppPhone(String(lead?.phone ?? data.phone ?? ""));
+    if (!phone) throw new Error("No phone number to send to");
 
     const mapping = data.templateParams ?? {};
     const templateName = data.templateName.trim();
@@ -2148,8 +2214,14 @@ export const sendLeadWhatsappTemplate = createServerFn({ method: "POST" })
     const templateBodyText =
     watiTemplateBodyOriginalText(tplRow ?? null) ??
     watiTemplateBodyPreview(tplRow ?? { name: templateName });
-    const parameters = buildWatiTemplateParams(lead, mapping, paramSlots);
-    const broadcastName = data.broadcastName ?? `lead_${data.leadId.slice(0, 8)}`;
+    const leadForParams = lead ?? {
+      phone,
+      full_name: data.contactName ?? null,
+      meta: {},
+    };
+    const parameters = buildWatiTemplateParams(leadForParams, mapping, paramSlots);
+    const broadcastName =
+      data.broadcastName ?? `lead_${String(lead?.id ?? phone).replace(/\W/g, "").slice(0, 12)}`;
 
     const result = await sendWatiTemplateMessage({
       tenantId: conn.tenant_id,
@@ -2174,8 +2246,8 @@ export const sendLeadWhatsappTemplate = createServerFn({ method: "POST" })
         workspace_id: workspaceId,
         external_id: result.messageId,
         contact_phone: phone,
-        contact_name: lead.full_name ?? null,
-        lead_id: lead.id,
+        contact_name: (lead?.full_name as string | null) ?? data.contactName ?? null,
+        lead_id: (lead?.id as string | undefined) ?? null,
         direction: "outbound",
         body: bodyPreview,
         status: "sent",
@@ -2186,10 +2258,14 @@ export const sendLeadWhatsappTemplate = createServerFn({ method: "POST" })
       .single();
     if (insErr) throw new Error(insErr.message);
 
-    await sb
-      .from("leads")
-      .update({ last_contacted_at: new Date().toISOString() })
-      .eq("id", lead.id);
+    if (lead?.id) {
+      await sb
+        .from("leads")
+        .update({ last_contacted_at: new Date().toISOString() })
+        .eq("id", lead.id);
+      const { applyOutboundCampaignStage } = await import("@/lib/whatsapp/campaign-stage.server");
+      await applyOutboundCampaignStage(sb, workspaceId, String(lead.id));
+    }
 
     await markWhatsappContactsMessaged(sb, workspaceId, [phone]);
 

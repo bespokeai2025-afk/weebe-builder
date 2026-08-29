@@ -108,7 +108,7 @@ export const WorkflowNodeDataSchema = z
     dialogue: z.string().default(""),
     isStart: z.boolean().optional(),
     startSpeaker: z.enum(["agent", "user"]).optional(),
-    instructionType: z.enum(["prompt", "static_text"]).optional(),
+    instructionType: z.enum(["prompt", "static_text", "template"]).optional(),
     transitions: z.array(NodeTransitionSchema).optional(),
     isGlobalNode: z.boolean().optional(),
     toolId: z.string().optional(),

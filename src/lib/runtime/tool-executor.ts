@@ -86,16 +86,34 @@ export interface ToolCallResult {
  * Always resolves — never rejects.  Errors are returned as a result so the
  * conversation.item.create call can still be sent and the session can continue.
  */
+export function findRegisteredTool(
+  tools: Array<Record<string, unknown>>,
+  toolName: string,
+  toolId = "",
+): Record<string, unknown> | undefined {
+  const needles = [toolName, toolId]
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  if (needles.length === 0) return undefined;
+  return tools.find((t) => {
+    const keys = [t.name, t.tool_id, t.type, t.tool_type].map((s) =>
+      String(s ?? "").trim().toLowerCase(),
+    );
+    return needles.some((n) => keys.includes(n));
+  });
+}
+
 export async function executeToolCall(
   toolName: string,
   toolArgs: unknown,
   tools: RetellTool[],
+  toolId?: string,
 ): Promise<ToolCallResult> {
   const raw = tools as Array<Record<string, unknown>>;
-  const tool = raw.find((t) => t.name === toolName);
+  const tool = findRegisteredTool(raw, toolName, toolId);
 
   if (!tool) {
-    console.warn(`[runtime/tool-executor] Unknown tool: "${toolName}"`);
+    console.warn(`[runtime/tool-executor] Unknown tool: "${toolName}"${toolId ? ` id=${toolId}` : ""}`);
     return {
       output: JSON.stringify({ error: `Tool "${toolName}" is not registered in this agent.` }),
       error: "not_found",
@@ -107,7 +125,11 @@ export async function executeToolCall(
   // ── Built-in tool handlers ──────────────────────────────────────────────────
   // These match Retell's well-known tool_type values and provide deterministic
   // results without a network call.
-  const toolType = typeof tool.tool_type === "string" ? tool.tool_type : "";
+  const toolType = typeof tool.tool_type === "string" && tool.tool_type
+    ? tool.tool_type
+    : typeof tool.type === "string"
+      ? tool.type
+      : "";
 
   switch (toolType) {
     case "end_call":

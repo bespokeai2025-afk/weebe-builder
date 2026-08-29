@@ -37,6 +37,33 @@ describe("transition-engine", () => {
       expect(evaluateEquationCondition("{{phone}}", { phone: "" })).toBe(false);
       expect(evaluateEquationCondition("{{phone}}", {})).toBe(false);
     });
+
+    it("matches contains and regex", () => {
+      expect(evaluateEquationCondition('{{name}} contains "ann"', { name: "Joanne" })).toBe(true);
+      expect(evaluateEquationCondition("{{email}} matches /gmail/", { email: "a@gmail.com" })).toBe(true);
+      expect(evaluateEquationCondition("{{email}} matches /yahoo/", { email: "a@gmail.com" })).toBe(false);
+    });
+
+    it("matches not equal from a prompt string", () => {
+      expect(evaluateEquationCondition('{{on_market_answer}} != "Yes"', { on_market_answer: "No" })).toBe(
+        true,
+      );
+      expect(evaluateEquationCondition('{{on_market_answer}} != "Yes"', { on_market_answer: "Yes" })).toBe(
+        false,
+      );
+    });
+
+    it("evaluates AND / OR groups", () => {
+      expect(
+        evaluateEquationCondition('{{a}} == "1" AND {{b}} == "2"', { a: "1", b: "2" }),
+      ).toBe(true);
+      expect(
+        evaluateEquationCondition('{{a}} == "1" AND {{b}} == "2"', { a: "1", b: "9" }),
+      ).toBe(false);
+      expect(
+        evaluateEquationCondition('{{a}} == "1" OR {{b}} == "2"', { a: "x", b: "2" }),
+      ).toBe(true);
+    });
   });
 
   describe("tryEquationEdge", () => {

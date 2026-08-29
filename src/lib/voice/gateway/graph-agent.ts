@@ -45,7 +45,27 @@ export interface BuildGraphRuntimeOptions {
   flow?: unknown;
   settings?: Record<string, unknown> | null;
   variables?: Record<string, VariableValue>;
+  /** Web test calls override inbound `start_speaker: user` so the agent greets first. */
+  startSpeaker?: "agent" | "user";
   sendSms?(message: string, variables: Record<string, VariableValue>): Promise<boolean>;
+}
+
+function applyStartSpeaker(
+  flow: ConversationFlow,
+  speaker?: "agent" | "user",
+): ConversationFlow {
+  if (speaker !== "agent" && speaker !== "user") return flow;
+  const startId = String(flow.start_node_id ?? "").trim();
+  const nodes = Array.isArray(flow.nodes) ? flow.nodes : [];
+  return {
+    ...flow,
+    start_speaker: speaker,
+    nodes: nodes.map((node, index) => {
+      const id = String((node as { id?: string }).id ?? "");
+      const isStart = (startId && id === startId) || (!startId && index === 0);
+      return isStart ? { ...node, start_speaker: speaker } : node;
+    }),
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -70,6 +90,8 @@ export async function buildGraphRuntime(
   let settings: Record<string, unknown> = isRecord(options.settings) ? options.settings : {};
   let variables: Record<string, VariableValue> = { ...(options.variables ?? {}) };
   let agent: GraphRuntime["agent"] = null;
+
+  let variableNames: string[] = [];
 
   // The agent row is loaded whenever there is one, even when the caller supplied
   // its own flow: a builder test call wants to run the flow currently on screen
@@ -102,16 +124,25 @@ export async function buildGraphRuntime(
         const loaded = loadFlowFromAgent(data.flow_data, stored, variables);
         warnings.push(...loaded.warnings);
         variables = loaded.variables;
+        variableNames = loaded.variableNames;
         if (!hasNodes(loaded.flow)) {
           for (const w of loaded.warnings) console.warn(`${logPrefix} ${w}`);
           return null;
         }
         flow = loaded.flow;
+      } else {
+        const flowData = isRecord(data.flow_data) ? data.flow_data : {};
+        const fromFlow = Array.isArray(flowData.variables) ? flowData.variables : [];
+        const fromSettings = Array.isArray(stored.variables) ? stored.variables : [];
+        variableNames = [...fromFlow, ...fromSettings]
+          .map((item) => (isRecord(item) ? String(item.name ?? "").trim() : ""))
+          .filter(Boolean);
       }
     }
   }
 
   if (!flow) return null;
+  flow = applyStartSpeaker(flow, options.startSpeaker);
 
   if (!options.agentId && providedFlow) {
     const declared = Array.isArray((options.flow as { variables?: unknown[] })?.variables)
@@ -120,11 +151,30 @@ export async function buildGraphRuntime(
         ? (settings.variables as unknown[])
         : [];
     variables = { ...mergeRuntimeVariables(declared, variables), ...variables };
+    variableNames = declared
+      .map((item) =>
+        typeof item === "object" && item && "name" in item
+          ? String((item as { name?: unknown }).name ?? "").trim()
+          : "",
+      )
+      .filter(Boolean);
+  }
+
+  const rawCf = isRecord(settings.rawConversationFlow) ? settings.rawConversationFlow : {};
+  const tools: Array<Record<string, unknown>> = [
+    ...(Array.isArray(flow.tools) ? (flow.tools as Array<Record<string, unknown>>) : []),
+  ];
+  if (tools.length === 0 && Array.isArray(rawCf.tools)) {
+    tools.push(...(rawCf.tools as Array<Record<string, unknown>>));
+  }
+  if (tools.length > 0 && (!Array.isArray(flow.tools) || flow.tools.length === 0)) {
+    flow = { ...flow, tools };
   }
 
   const variableKeys = Object.keys(variables);
   console.info(
-    `${logPrefix} graph variables: ${variableKeys.length ? variableKeys.join(", ") : "(none)"}`,
+    `${logPrefix} graph variables: ${variableKeys.length ? variableKeys.join(", ") : "(none)"}` +
+      (options.startSpeaker ? ` start_speaker=${options.startSpeaker}` : ""),
   );
 
   const configuredModel = resolveWebeeSpeechModel(settings);
@@ -160,8 +210,9 @@ export async function buildGraphRuntime(
           : undefined,
       String(settings.language ?? "en-US"),
     ),
+    variableNames,
     hooks: createVmHooks({
-      tools: Array.isArray(flow.tools) ? (flow.tools as Array<Record<string, unknown>>) : [],
+      tools,
       sendSms: options.sendSms,
       log: (message, meta) => console.warn(`${logPrefix} ${message}`, meta ?? ""),
     }),

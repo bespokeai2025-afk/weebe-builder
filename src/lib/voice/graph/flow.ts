@@ -17,6 +17,7 @@ import type {
   FlowNodeType,
   VariableValue,
 } from "./types";
+import { parseEquationGroup, serializeEquationPrompt } from "./equations.shared";
 
 const KNOWN_TYPES = new Set<FlowNodeType>([
   "conversation",
@@ -42,6 +43,8 @@ export interface CompiledFlow {
   globalNodes: Array<{ node: FlowNode; condition: string; returnToPrevious: boolean }>;
   model: string | null;
   tools: Array<Record<string, unknown>>;
+  /** Names the flow can collect into {{var}} / extract nodes. */
+  variableNames: string[];
   /** Non-fatal problems found while compiling, surfaced for diagnostics. */
   warnings: string[];
 }
@@ -54,27 +57,60 @@ function str(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
+/** Builder `instruction.type` / `response_mode` — never inferred from the text. */
+function normalizeInstruction(
+  candidate: Record<string, unknown>,
+): FlowNode["instruction"] {
+  const instr = isRecord(candidate.instruction) ? candidate.instruction : null;
+  const responseMode = str(candidate.response_mode).trim().toLowerCase();
+  if (!instr && !responseMode) return undefined;
+  const rawType = str(instr?.type).trim();
+  const type: "prompt" | "static_text" | "template" =
+    rawType === "template" || rawType === "static_text" || rawType === "prompt"
+      ? rawType
+      : rawType === "static"
+        ? "static_text"
+        : responseMode === "static"
+          ? "static_text"
+          : responseMode === "template"
+            ? "template"
+            : "prompt";
+  const notes = str(instr?.notes).trim();
+  return {
+    type,
+    text: str(instr?.text),
+    ...(notes ? { notes } : {}),
+  };
+}
+
 /** Normalise one edge, or null when it carries no usable condition/target. */
 function compileEdge(raw: unknown, fallbackId: string): FlowEdge | null {
   if (!isRecord(raw)) return null;
   const cond = isRecord(raw.transition_condition) ? raw.transition_condition : {};
-  const prompt = str(cond.prompt).trim();
+  const group = parseEquationGroup(cond);
+  const prompt = str(cond.prompt).trim() || (group ? serializeEquationPrompt(group) : "");
   const destination = str(raw.destination_node_id).trim();
   const id = str(raw.id).trim() || fallbackId;
   const condType = str(cond.type).trim().toLowerCase();
+  const hasEquations = Boolean(group?.equations.length);
   // An edge with neither a destination nor a condition can never fire and is not
   // worth keeping; a destination alone is fine (unconditional continue).
-  if (!destination && !prompt) return null;
+  if (!destination && !prompt && !hasEquations) return null;
   const explicitType =
     condType === "equation" || condType === "prompt" ? condType : null;
   const isEquation =
     explicitType === "equation" ||
-    (explicitType !== "prompt" &&
-      /^\{\{\s*[a-zA-Z0-9_]+\s*\}\}(\s*(===|!==|==|!=|<=|>=|<|>|=)\s*.+)?$/i.test(prompt));
+    (explicitType !== "prompt" && hasEquations);
   return {
     id,
     ...(destination ? { destination_node_id: destination } : {}),
-    transition_condition: { type: isEquation ? "equation" : "prompt", prompt },
+    transition_condition: {
+      type: isEquation ? "equation" : "prompt",
+      prompt,
+      ...(isEquation && group
+        ? { operator: group.join, equations: group.equations }
+        : {}),
+    },
   };
 }
 
@@ -134,6 +170,7 @@ export function compileFlow(raw: unknown): CompiledFlow {
 
     const node = { ...candidate, id, type } as FlowNode;
     node.edges = compileEdges(candidate.edges, id);
+    node.instruction = normalizeInstruction(candidate);
 
     // Retell keeps else / always / skip-response off the prompt-condition list
     // so the classifier is not asked to "match" them against caller text.
@@ -252,6 +289,7 @@ export function compileFlow(raw: unknown): CompiledFlow {
     globalNodes,
     model: str(flow.model_choice?.model).trim() || null,
     tools: Array.isArray(flow.tools) ? (flow.tools as Array<Record<string, unknown>>) : [],
+    variableNames: collectVariableNames(flow, nodes),
     warnings,
   };
 }
@@ -321,6 +359,31 @@ export function interpolate(text: string, variables: Record<string, VariableValu
 }
 
 /**
+ * Fill {{vars}} for a declared static/template line. Does not drop lines by
+ * guessing they are instructions — the builder already chose the mode.
+ */
+export function interpolateDeclaredSpeech(
+  text: string,
+  variables: Record<string, VariableValue>,
+): string {
+  if (!text) return text;
+  let out = text;
+  if (out.includes("{{")) {
+    out = out.replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (match, name: string) => {
+      const value = variables[name];
+      if (value === undefined || value === null || value === "") return match;
+      const raw = String(value);
+      if (/(^|_)name$/i.test(name) || /^(first_name|last_name|First_name)$/.test(name)) {
+        return raw.replace(/\b\w/g, (c) => c.toUpperCase());
+      }
+      return raw;
+    });
+    out = out.replace(/\{\{\s*[a-zA-Z_][a-zA-Z0-9_]*\s*\}\}/g, "");
+  }
+  return out.replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/**
  * Speech-safe interpolation — never emit raw `{{variable}}` tokens to TTS.
  * Strips unresolved placeholders and drops lines that become empty fragments.
  */
@@ -329,8 +392,17 @@ export function interpolateForSpeech(
   variables: Record<string, VariableValue>,
 ): string {
   if (!text) return text;
-  let out = interpolate(text, variables);
+  let out = text;
   if (out.includes("{{")) {
+    out = out.replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (match, name: string) => {
+      const value = variables[name];
+      if (value === undefined || value === null || value === "") return match;
+      const raw = String(value);
+      if (/(^|_)name$/i.test(name) || /^(first_name|last_name|First_name)$/.test(name)) {
+        return raw.replace(/\b\w/g, (c) => c.toUpperCase());
+      }
+      return raw;
+    });
     out = out.replace(/\{\{\s*[a-zA-Z_][a-zA-Z0-9_]*\s*\}\}/g, "");
   }
   return cleanupSpeechLines(out);
@@ -373,4 +445,33 @@ function cleanupSpeechLines(text: string): string {
     })
     .join("\n")
     .trim();
+}
+
+function collectVariableNames(flow: ConversationFlow, nodes: Map<string, FlowNode>): string[] {
+  const names = new Set<string>();
+  const add = (raw: unknown) => {
+    const n = str(raw).trim();
+    if (n) names.add(n);
+  };
+  const scanText = (text: string) => {
+    const re = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g;
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(text))) add(match[1]);
+  };
+
+  const declared = (flow as { variables?: unknown[] }).variables;
+  if (Array.isArray(declared)) {
+    for (const item of declared) {
+      if (isRecord(item)) add(item.name);
+    }
+  }
+
+  for (const node of nodes.values()) {
+    scanText(String(node.instruction?.text ?? ""));
+    const extracted = (node as { variables?: Array<{ name?: string }> }).variables;
+    if (Array.isArray(extracted)) {
+      for (const field of extracted) add(field?.name);
+    }
+  }
+  return [...names];
 }

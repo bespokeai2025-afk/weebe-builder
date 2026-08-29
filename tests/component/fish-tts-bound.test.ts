@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
   buildStartRequest,
+  expectedPcmBytesForText,
+  FISH_BOUND_KEEP_ALIVE,
+  FISH_CLONE_MIN_CHUNK_LENGTH,
+  FISH_STREAM_FIRST_FLUSH_CHARS,
+  shouldEndFishLiveUtterance,
   shouldFlushFishLiveBuffer,
 } from "@/lib/voice/tts/fish.provider";
 
 /**
  * Regression guard: bound-call TTS must always emit the same locked reference_id
- * and must use Fish's start→text→stop cycle (not idle-timeout utterance end).
+ * and keep the live socket across utterances (flush, no stop).
  */
 describe("fish-tts bound call", () => {
   const lockedProfile = {
@@ -23,7 +28,9 @@ describe("fish-tts bound call", () => {
     expect(req.temperature).toBe(0.4);
     expect(req.top_p).toBe(0.5);
     expect(req.chunk_length).toBe(200);
-    expect(req.min_chunk_length).toBe(40);
+    expect(req.min_chunk_length).toBe(FISH_CLONE_MIN_CHUNK_LENGTH);
+    expect(FISH_CLONE_MIN_CHUNK_LENGTH).toBe(FISH_STREAM_FIRST_FLUSH_CHARS);
+    expect(FISH_BOUND_KEEP_ALIVE).toBe(true);
     expect(req.prosody).toEqual({ speed: 1.12, normalize_loudness: true });
     expect(req.condition_on_previous_chunks).toBe(true);
     expect(req.normalize).toBe(true);
@@ -53,6 +60,43 @@ describe("fish-tts bound call", () => {
     const refs = clone.references as Array<{ audio: Uint8Array; text: string }>;
     expect(refs[0]?.text).toBe("Hi, this is Clare calling.");
     expect(refs[0]?.audio.byteLength).toBe(wav.byteLength);
+  });
+});
+
+describe("Fish live utterance idle-end", () => {
+  it("does not end a long greeting after the first 0.4s audio burst", () => {
+    const greeting =
+      "Hi, this is Clare calling from We Buy Any House. Is selling your property still something you're thinking about?";
+    expect(
+      shouldEndFishLiveUtterance({
+        gotAudio: true,
+        idleMs: 280,
+        pcmBytes: 18806,
+        expectedText: greeting,
+        sampleRate: 24000,
+      }),
+    ).toBe(false);
+    expect(
+      shouldEndFishLiveUtterance({
+        gotAudio: true,
+        idleMs: 900,
+        pcmBytes: 18806,
+        expectedText: greeting,
+        sampleRate: 24000,
+      }),
+    ).toBe(false);
+  });
+
+  it("ends once coverage is high and audio has been idle", () => {
+    expect(
+      shouldEndFishLiveUtterance({
+        gotAudio: true,
+        idleMs: 900,
+        pcmBytes: expectedPcmBytesForText("Hello there.", 24000),
+        expectedText: "Hello there.",
+        sampleRate: 24000,
+      }),
+    ).toBe(true);
   });
 });
 

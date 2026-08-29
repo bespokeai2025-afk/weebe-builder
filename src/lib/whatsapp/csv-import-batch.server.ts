@@ -4,6 +4,11 @@
 import type { CsvLeadRow } from "@/lib/whatsapp/csv-leads.shared";
 import { parseNotesToMeta } from "@/lib/whatsapp/csv-leads.shared";
 import { normalizeWhatsAppPhone, phoneTail } from "@/lib/whatsapp/wati-campaign.server";
+import {
+  DEFAULT_CAMPAIGN_LEAD_STAGE,
+  writeCampaignQualification,
+  type CampaignQualification,
+} from "@/lib/whatsapp/campaign-leads.shared";
 
 const BATCH_UPSERT = 200;
 const UPDATE_CONCURRENCY = 24;
@@ -16,6 +21,7 @@ type ExistingLead = {
   company_name: string | null;
   notes: string | null;
   meta?: Record<string, unknown> | null;
+  pipeline_stage?: string | null;
 };
 
 type ExistingContact = {
@@ -23,12 +29,37 @@ type ExistingContact = {
   phone: string;
   name: string | null;
   notes: string | null;
+  tags?: string[] | null;
+  lead_status?: string | null;
 };
 
 type LeadLookup = {
   byExact: Map<string, ExistingLead>;
   byTail: Map<string, ExistingLead>;
 };
+
+function mergeLeadMeta(
+  existing: Record<string, unknown> | null | undefined,
+  rowMeta: Record<string, string>,
+  qualification: CampaignQualification | Partial<CampaignQualification> | null | undefined,
+): Record<string, unknown> {
+  let next: Record<string, unknown> = {
+    ...(typeof existing === "object" && existing ? existing : {}),
+    ...rowMeta,
+  };
+  if (qualification && (qualification.intent || qualification.asking_price || qualification.rental_price)) {
+    next = writeCampaignQualification(next, {
+      intent: qualification.intent ?? "",
+      asking_price: qualification.asking_price ?? "",
+      rental_price: qualification.rental_price ?? "",
+      availability: qualification.availability ?? "",
+      property_status: qualification.property_status ?? "",
+      viewing_availability: qualification.viewing_availability ?? "",
+      notes: qualification.notes ?? "",
+    });
+  }
+  return next;
+}
 
 function leadMetaFromCsvRow(row: CsvLeadRow): Record<string, string> {
   if (row.import_meta && Object.keys(row.import_meta).length > 0) return row.import_meta;
@@ -62,7 +93,7 @@ async function fetchLeadsByPhones(
     const chunk = unique.slice(i, i + 500);
     const { data, error } = await sb
       .from("leads")
-      .select("id, phone, full_name, email, company_name, notes, meta")
+      .select("id, phone, full_name, email, company_name, notes, meta, pipeline_stage")
       .eq("workspace_id", workspaceId)
       .in("phone", chunk);
     if (error) throw new Error(error.message);
@@ -83,7 +114,7 @@ async function fetchLeadsByTails(
     const or = chunk.map((t) => `phone.like.%${t}`).join(",");
     const { data, error } = await sb
       .from("leads")
-      .select("id, phone, full_name, email, company_name, notes, meta")
+      .select("id, phone, full_name, email, company_name, notes, meta, pipeline_stage")
       .eq("workspace_id", workspaceId)
       .or(or);
     if (error) throw new Error(error.message);
@@ -165,7 +196,7 @@ async function fetchContactsByPhones(
     const chunk = unique.slice(i, i + 500);
     const { data, error } = await sb
       .from("whatsapp_contacts")
-      .select("id, phone, name, notes")
+      .select("id, phone, name, notes, tags, lead_status")
       .eq("workspace_id", workspaceId)
       .in("phone", chunk);
     if (error) throw new Error(error.message);
@@ -259,22 +290,19 @@ export async function batchImportCsvLeads(
 
     const rowMeta = leadMetaFromCsvRow(row);
     const existing = resolveExistingLead(phone, lookup);
+    const mergedMeta = mergeLeadMeta(existing?.meta, rowMeta, row.qualification);
 
     if (existing?.id) {
       const patch: Record<string, unknown> = {
         updated_at: now,
         whatsapp_opt_in: true,
+        meta: mergedMeta,
       };
       if (row.full_name) patch.full_name = row.full_name;
       if (row.email) patch.email = row.email;
       if (row.company_name) patch.company_name = row.company_name;
       if (row.notes) patch.notes = row.notes;
-      if (Object.keys(rowMeta).length > 0) {
-        patch.meta = {
-          ...(typeof existing.meta === "object" && existing.meta ? existing.meta : {}),
-          ...rowMeta,
-        };
-      }
+      if (!existing.pipeline_stage) patch.pipeline_stage = DEFAULT_CAMPAIGN_LEAD_STAGE;
       toUpdate.push({ id: existing.id, patch });
       leadIds.push(existing.id);
       updated++;
@@ -290,7 +318,8 @@ export async function batchImportCsvLeads(
         lead_origin: "csv_import",
         origin_provider: "CSV",
         whatsapp_opt_in: true,
-        meta: Object.keys(rowMeta).length > 0 ? rowMeta : {},
+        pipeline_stage: DEFAULT_CAMPAIGN_LEAD_STAGE,
+        meta: mergedMeta,
       });
     }
 
@@ -298,20 +327,24 @@ export async function batchImportCsvLeads(
       const prev = existingContacts.get(phone);
       if (prev?.id) contactUpdated++;
       else contactInserted++;
-      const mergedMeta = {
+      const contactMeta = {
         ...parseNotesToMeta(prev?.notes),
         ...(row.import_meta ?? {}),
       };
+      const tags = [
+        ...new Set([...(prev?.tags ?? []), ...(row.tags ?? [])].filter(Boolean)),
+      ];
       const payload: Record<string, unknown> = {
         workspace_id: workspaceId,
         phone,
         name: row.full_name ?? prev?.name ?? null,
         source: "import",
         notes: row.notes ?? prev?.notes ?? null,
-        lead_status: "new",
+        lead_status: row.lead_status ?? prev?.lead_status ?? "new",
+        tags,
         updated_at: now,
       };
-      if (Object.keys(mergedMeta).length > 0) payload.import_meta = mergedMeta;
+      if (Object.keys(contactMeta).length > 0) payload.import_meta = contactMeta;
       contactUpserts.push(payload);
     }
   }

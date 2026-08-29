@@ -19,6 +19,10 @@ export function isFishReferenceVoiceId(voiceId: string): boolean {
   const id = voiceId.trim();
   if (!id) return false;
   if (/^11labs-/i.test(id)) return false;
+  if (/^custom_voice_/i.test(id)) return false;
+  if (/^retell-/i.test(id)) return false;
+  if (/^openai-/i.test(id)) return false;
+  if (/^(alloy|ash|ballad|coral|echo|shimmer|sage|verse|marine)$/i.test(id)) return false;
   return true;
 }
 
