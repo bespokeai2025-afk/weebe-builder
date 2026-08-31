@@ -192,6 +192,27 @@ describe("routing heuristics", () => {
       tryHeuristicEdgeIndex(["if its vacant", "if its rented out"], "It's rented out"),
     ).toBe(1);
     expect(
+      tryHeuristicEdgeIndex(
+        ["if its vacant ", "if its rented out", "im living there "],
+        "No it's not rented",
+        "So, the property is currently vacant or rented?",
+      ),
+    ).toBe(0);
+    expect(
+      tryHeuristicEdgeIndex(
+        ["if its vacant ", "if its rented out", "im living there "],
+        "no",
+        "Is the property currently rented?",
+      ),
+    ).toBe(0);
+    expect(
+      tryHeuristicEdgeIndex(
+        ["if its vacant ", "if its rented out", "im living there "],
+        "no",
+        "So, the property is currently vacant or rented?",
+      ),
+    ).toBeNull();
+    expect(
       tryHeuristicEdgeIndex(["Which floor is it on"], "Second floor"),
     ).toBe(0);
   });

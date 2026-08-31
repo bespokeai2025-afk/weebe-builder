@@ -219,6 +219,33 @@ describe("mapWbahVerifiedDetailsToDynamicsFields", () => {
     expect(patch.cos_propertyrented).toBe(181510000);
     expect(patch.cos_tenure).toBe(279640001);
   });
+
+  it("does not mark rented when the caller said no", () => {
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails: {
+        vacant_or_tenanted: "181510001",
+        cos_propertyrented: "181510001",
+        cos_propertyempty: "181510000",
+      },
+      custom: {
+        detailed_call_summary:
+          "The agent asked if the property is currently rented. The caller said no.",
+      },
+      transcript: "Is the property currently rented? User: No.",
+    });
+    expect(patch.cos_propertyrented).toBe(181510000);
+  });
+
+  it("does not infer rented from the agent asking currently rented", () => {
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails: {},
+      custom: {
+        detailed_call_summary:
+          "The agent asked whether the property is currently rented. The caller said no, it is not rented.",
+      },
+    });
+    expect(patch.cos_propertyrented).toBe(181510000);
+  });
 });
 
 describe("applyVacantOrTenantedToPayload", () => {

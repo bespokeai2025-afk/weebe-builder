@@ -3,7 +3,7 @@
  * Mirrors n8n getAllValidFields + getALLValidFields1.
  */
 
-import { enrichWbahVerifiedDetailsFromSummaries, applyOwnerOccupiedCorrection } from "./wbah-crm-enrichment.shared";
+import { enrichWbahVerifiedDetailsFromSummaries, applyOwnerOccupiedCorrection, applyNotRentedCorrection } from "./wbah-crm-enrichment.shared";
 import { sanitizeWbahUkAddressFields } from "./wbah-uk-address.shared";
 import { normalizeWbahUkMobilePhone } from "./wbah-uk-phone.shared";
 import { pickWbahCrmEmail } from "./wbah-email.shared";
@@ -73,6 +73,7 @@ export function normalizeWbahAgenticCrmFields(
   sanitizeWbahUkAddressFields(working);
   applyVacantOrTenantedToPayload(working, working.vacant_or_tenanted);
   applyOwnerOccupiedCorrection(working, custom, verified);
+  applyNotRentedCorrection(working, custom, verified, transcript);
   extractLeaseholdFromSummaries(custom, working);
   applyContactAddressSameAsProperty(working, working, custom, transcript);
 

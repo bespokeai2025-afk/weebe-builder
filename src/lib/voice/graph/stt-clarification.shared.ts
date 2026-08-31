@@ -15,6 +15,25 @@ export function looksLikeTenureAnswer(userText: string): boolean {
   );
 }
 
+/** "No it's not rented" / "isn't tenanted" — occupancy denial, not a rented confirmation. */
+export function userDeniesRented(userText: string): boolean {
+  const t = userText.trim().toLowerCase();
+  if (!t) return false;
+  if (
+    /\b(not|never|no longer)\s+(being\s+)?(currently\s+)?(rented|renting|tenanted|let(\s+out)?)\b/.test(
+      t,
+    )
+  ) {
+    return true;
+  }
+  if (/\b(isn'?t|is not|ain'?t|wasn'?t|was not)\s+(currently\s+)?(rented|tenanted|let out)\b/.test(t)) {
+    return true;
+  }
+  if (/\bno(pe)?\b.{0,32}\b(rented|renting|tenanted|tenant|let out)\b/.test(t)) return true;
+  if (/\b(no tenants?|without (a )?tenant|not let( out)?|nobody rents)\b/.test(t)) return true;
+  return false;
+}
+
 export function looksLikeFloorAnswer(userText: string): boolean {
   const t = userText.trim().toLowerCase();
   return (

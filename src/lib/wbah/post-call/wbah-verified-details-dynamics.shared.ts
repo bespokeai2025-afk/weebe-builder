@@ -6,6 +6,7 @@
 import {
   enrichWbahVerifiedDetailsFromSummaries,
   applyOwnerOccupiedCorrection,
+  applyNotRentedCorrection,
   shouldMirrorPropertyToContact,
 } from "./wbah-crm-enrichment.shared";
 import { sanitizeWbahUkAddressFields, looksLikeUkPostcode } from "./wbah-uk-address.shared";
@@ -346,6 +347,7 @@ export function mapWbahVerifiedDetailsToDynamicsFields(input: {
   if (callSummary) payload.cos_call_summary = callSummary;
 
   applyOwnerOccupiedCorrection(payload, input.custom, vd);
+  applyNotRentedCorrection(payload, input.custom, vd, input.transcript);
 
   return payload;
 }

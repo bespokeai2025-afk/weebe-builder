@@ -15,6 +15,7 @@ import {
   looksLikeFloorAnswer,
   looksLikePropertyTypeAnswer,
   looksLikeTenureAnswer,
+  userDeniesRented,
 } from "./stt-clarification.shared";
 import { summarizeCollectedFacts } from "./collected-facts.shared";
 import {
@@ -449,7 +450,40 @@ function edgeExpectsVacant(condition: string): boolean {
 }
 
 function edgeExpectsRented(condition: string): boolean {
-  return /\b(rented|tenanted)\b/.test(condition.toLowerCase());
+  const c = condition.toLowerCase();
+  if (/\bnot (rented|tenanted)\b/.test(c)) return false;
+  return /\b(rented|tenanted)\b/.test(c);
+}
+
+function lastAgentAskedRented(agentText: string): boolean {
+  return /\b(rented|tenanted|let out)\b/i.test(agentText);
+}
+
+function lastAgentAskedVacantOrRented(agentText: string): boolean {
+  const a = agentText.toLowerCase();
+  return (
+    /\bvacant or (rented|tenanted)\b/.test(a) ||
+    (/\bvacant\b/.test(a) && /\b(rented|tenanted)\b/.test(a))
+  );
+}
+
+function pickNonRentedTenureEdge(conditions: string[], userText: string): number | null {
+  if (/\b(live|living|owner.?occupied)\b/i.test(userText)) {
+    for (let i = 0; i < conditions.length; i++) {
+      if (edgeExpectsOwnerOccupied(conditions[i] ?? "")) return i;
+    }
+  }
+  for (let i = 0; i < conditions.length; i++) {
+    if (edgeExpectsVacant(conditions[i] ?? "")) return i;
+  }
+  for (let i = 0; i < conditions.length; i++) {
+    if (edgeExpectsOwnerOccupied(conditions[i] ?? "")) return i;
+  }
+  for (let i = 0; i < conditions.length; i++) {
+    const c = conditions[i] ?? "";
+    if (edgeExpectsTenure(c) && !edgeExpectsRented(c)) return i;
+  }
+  return null;
 }
 
 function edgeExpectsOwnerOccupied(condition: string): boolean {
@@ -702,6 +736,16 @@ export function tryHeuristicEdgeIndex(
     }
   }
 
+  // "No" / "not rented" after a rented question must not take the rented edge.
+  if (userDeniesRented(userText) || ((NO.test(t) || startsWithNegative(t)) && lastAgentAskedRented(lastAgentText))) {
+    if (lastAgentAskedVacantOrRented(lastAgentText) && NO.test(t) && !userDeniesRented(userText)) {
+      return null;
+    }
+    const nonRented = pickNonRentedTenureEdge(conditions, userText);
+    if (nonRented !== null) return nonRented;
+    return null;
+  }
+
   if (userSignalsCallEnd(userText) || userSignalsDecline(userText)) {
     const terminal = pickHeuristicEdge(
       conditions,
@@ -731,7 +775,12 @@ export function tryHeuristicEdgeIndex(
   }
 
   // Vacant / rented / owner-occupied.
-  if (looksLikeTenureAnswer(userText)) {
+  if (looksLikeTenureAnswer(userText) || userDeniesRented(userText)) {
+    if (userDeniesRented(userText)) {
+      const nonRented = pickNonRentedTenureEdge(conditions, userText);
+      if (nonRented !== null) return nonRented;
+      return null;
+    }
     if (/\b(rented|tenanted|tenant)\b/i.test(userText)) {
       for (let i = 0; i < conditions.length; i++) {
         if (edgeExpectsRented(conditions[i] ?? "")) return i;
@@ -845,6 +894,11 @@ export function tryHeuristicEdgeIndex(
       userText,
     )
   ) {
+    if (userDeniesRented(userText)) {
+      const nonRented = pickNonRentedTenureEdge(conditions, userText);
+      if (nonRented !== null) return nonRented;
+      return null;
+    }
     for (let i = 0; i < conditions.length; i++) {
       const c = conditions[i]?.toLowerCase() ?? "";
       if (/\b(owner|occupied|rent|tenant|vacant|live|tenure|property)\b/.test(c)) return i;

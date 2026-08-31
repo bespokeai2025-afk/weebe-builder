@@ -106,6 +106,60 @@ export function applyOwnerOccupiedCorrection(
   target.vacant_or_tenanted = "";
 }
 
+/** Caller denied that the property is rented — never keep a Yes rented flag. */
+export function summaryIndicatesNotRented(
+  custom?: Record<string, unknown>,
+  working?: Record<string, unknown>,
+  transcript?: string | null,
+): boolean {
+  const text = combinedSummaryText(custom, working ?? {}, transcript).toLowerCase();
+  if (!text.trim()) return false;
+  if (
+    /\b(not|never|no longer)\s+(being\s+)?(currently\s+)?(rented|tenanted|let out)\b/.test(text)
+  ) {
+    return true;
+  }
+  if (/\b(isn'?t|is not|was not|wasn'?t)\s+(currently\s+)?(rented|tenanted|let out)\b/.test(text)) {
+    return true;
+  }
+  if (/\bno,?\s+(it'?s |the property is )?(not )?(rented|tenanted)\b/.test(text)) return true;
+  if (
+    /\b(asked|ask(?:ed)? (?:if|whether))\b[\s\S]{0,80}\b(rented|tenanted)\b[\s\S]{0,120}\b(said|says|answered)\s+no\b/.test(
+      text,
+    )
+  ) {
+    return true;
+  }
+  if (
+    /\b(rented|tenanted)\??[\s.]*\b(the )?(caller|user|they)\s+(said|says|answered)\s+no\b/.test(text)
+  ) {
+    return true;
+  }
+  if (/\b(denied|denies)\s+(that )?(it (is |was )?)?(rented|tenanted)\b/.test(text)) return true;
+  if (
+    /\b(user|caller)\s*[:\-]\s*(no|nope|nah)\b/.test(text) &&
+    /\brented\b/.test(text) &&
+    !/\b(user|caller)\s*[:\-]\s*yes\b/.test(text)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export function applyNotRentedCorrection(
+  target: Record<string, unknown>,
+  custom?: Record<string, unknown>,
+  verifiedDetails?: Record<string, unknown>,
+  transcript?: string | null,
+): void {
+  const working = { ...verifiedDetails, ...target };
+  if (!summaryIndicatesNotRented(custom, working, transcript)) return;
+  target.cos_propertyrented = 181510000;
+  if (String(target.vacant_or_tenanted ?? "") === "181510001") {
+    target.vacant_or_tenanted = "";
+  }
+}
+
 function cleanNumber(v: unknown): number | undefined {
   if (isEmptyValue(v)) return undefined;
   const cleaned = String(v).replace(/[£$,]/g, "").trim();
@@ -196,15 +250,16 @@ export function extractTimeframeFromSummaries(
 export function extractVacantOrTenantedFromSummaries(
   custom: Record<string, unknown> | undefined,
   working: Record<string, unknown>,
+  transcript?: string | null,
 ): void {
   if (!isEmptyValue(working.vacant_or_tenanted)) return;
   if (summaryIndicatesOwnerOccupied(custom, working)) return;
+  if (summaryIndicatesNotRented(custom, working, transcript)) return;
 
-  const text = combinedSummaryText(custom, working).toLowerCase();
+  const text = combinedSummaryText(custom, working, transcript).toLowerCase();
   if (
-    /\b(tenanted|tenants? (in|living)|rented out|let out|has (a )?tenant|currently rented)\b/.test(
-      text,
-    )
+    /\b(it'?s |property is )?(tenanted|rented out|let out|has (a )?tenant|it is rented)\b/.test(text) &&
+    !/\b(asked|ask(?:ed)? (?:if|whether)).{0,80}\b(rented|tenanted)\b/.test(text)
   ) {
     working.vacant_or_tenanted = "181510001";
     return;
@@ -246,7 +301,7 @@ export function enrichWbahVerifiedDetailsFromSummaries(
 ): void {
   extractTenureFromSummaries(custom, working);
   extractTimeframeFromSummaries(custom, working);
-  extractVacantOrTenantedFromSummaries(custom, working);
+  extractVacantOrTenantedFromSummaries(custom, working, transcript);
 
   if (shouldMirrorPropertyToContact(working, custom, transcript)) {
     working.contact_same_as_property = "true";

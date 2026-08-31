@@ -820,6 +820,45 @@ describe("ConversationVm conversation flow", () => {
     expect(vm.nodeId).toBe("tenure");
   });
 
+  it("does not take the rented edge when the caller said no", async () => {
+    const vm = new ConversationVm({
+      flow: flowOf([
+        say("tenure", "So, the property is currently vacant or rented?", [
+          edge("e1", "next", "if its vacant "),
+          edge("e2", "rent", "if its rented out"),
+          edge("e3", "next", "im living there "),
+        ]),
+        say("next", "Thanks"),
+        say("rent", "What monthly rent does the property achieve?"),
+      ]),
+      llm: fakeLlm({ classify: () => 1 }),
+    });
+
+    await drain(vm.run({ type: "begin" }));
+    const denied = await drain(vm.run({ type: "user_utterance", text: "No it's not rented" }));
+    expect(speech(denied).join(" ")).not.toMatch(/monthly rent/i);
+    expect(vm.nodeId).toBe("next");
+  });
+
+  it("clarifies a bare no on vacant-or-rented instead of marking rented", async () => {
+    const vm = new ConversationVm({
+      flow: flowOf([
+        say("tenure", "So, the property is currently vacant or rented?", [
+          edge("e1", "next", "if its vacant "),
+          edge("e2", "rent", "if its rented out"),
+        ]),
+        say("next", "Thanks"),
+        say("rent", "What monthly rent does the property achieve?"),
+      ]),
+      llm: fakeLlm({ classify: () => 1 }),
+    });
+
+    await drain(vm.run({ type: "begin" }));
+    const out = await drain(vm.run({ type: "user_utterance", text: "No" }));
+    expect(speech(out).join(" ")).toMatch(/vacant/i);
+    expect(vm.nodeId).toBe("tenure");
+  });
+
   it("follows skip_response without waiting for the caller", async () => {
     const intro: FlowNode = {
       ...say("intro", "Here is a disclaimer."),
