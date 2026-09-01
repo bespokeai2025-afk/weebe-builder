@@ -12,6 +12,7 @@ export const CAMPAIGN_LEAD_STAGES = [
   "follow_up",
   "converted",
   "closed",
+  "no_activity",
 ] as const;
 
 export type CampaignLeadStage = (typeof CAMPAIGN_LEAD_STAGES)[number];
@@ -25,7 +26,207 @@ export const CAMPAIGN_LEAD_STAGE_LABELS: Record<CampaignLeadStage, string> = {
   follow_up: "Follow-up",
   converted: "Converted",
   closed: "Closed",
+  no_activity: "No activity",
 };
+
+/** Stages that only exist on the listing board — never a sales-pipeline column. */
+export const CAMPAIGN_ONLY_STAGES = new Set<string>([
+  "new_response",
+  "contacted",
+  "engaged",
+  "assigned",
+  "converted",
+  "closed",
+  "no_activity",
+]);
+
+export const LISTING_STAGE_KEY = "listing_stage";
+export const LISTING_OUTCOME_KEY = "listing_outcome";
+export const LISTING_SLA_KEY = "listing_sla";
+
+export const LISTING_OUTCOMES = [
+  "interested",
+  "qualified",
+  "follow_up",
+  "assigned",
+  "converted",
+  "lost",
+  "not_interested",
+  "already_sold_rented",
+  "wrong_number",
+  "duplicate",
+  "no_response",
+  "no_activity",
+] as const;
+
+export type ListingOutcome = (typeof LISTING_OUTCOMES)[number];
+
+export const LISTING_OUTCOME_LABELS: Record<ListingOutcome, string> = {
+  interested: "Interested",
+  qualified: "Qualified",
+  follow_up: "Follow-up",
+  assigned: "Assigned",
+  converted: "Converted (closed listing)",
+  lost: "Lost",
+  not_interested: "Not interested",
+  already_sold_rented: "Already sold / rented",
+  wrong_number: "Wrong number",
+  duplicate: "Duplicate",
+  no_response: "No response",
+  no_activity: "No activity",
+};
+
+export type ListingOutcomeRecord = {
+  status: ListingOutcome;
+  at: string;
+  by?: string | null;
+};
+
+export function isListingOutcome(value: unknown): value is ListingOutcome {
+  return typeof value === "string" && (LISTING_OUTCOMES as readonly string[]).includes(value);
+}
+
+export function listingOutcomeToCampaignStage(outcome: ListingOutcome): CampaignLeadStage {
+  switch (outcome) {
+    case "interested":
+      return "engaged";
+    case "qualified":
+      return "qualified";
+    case "follow_up":
+    case "no_response":
+      return "follow_up";
+    case "assigned":
+      return "assigned";
+    case "converted":
+      return "converted";
+    case "lost":
+    case "not_interested":
+    case "already_sold_rented":
+    case "wrong_number":
+    case "duplicate":
+      return "closed";
+    case "no_activity":
+      return "no_activity";
+  }
+}
+
+export function listingOutcomeToLeadStatus(outcome: ListingOutcome): string | null {
+  switch (outcome) {
+    case "interested":
+      return "interested";
+    case "qualified":
+      return "qualified";
+    case "converted":
+      return "completed";
+    case "not_interested":
+    case "lost":
+      return "not_interested";
+    case "wrong_number":
+    case "duplicate":
+      return "do_not_call";
+    default:
+      return null;
+  }
+}
+
+export function listingOutcomePromotesToSalesPipeline(outcome: ListingOutcome): boolean {
+  return outcome === "converted";
+}
+
+export function readListingStage(
+  meta: Record<string, unknown> | null | undefined,
+  pipelineStage?: string | null,
+): CampaignLeadStage | null {
+  const raw = meta && typeof meta === "object" ? meta[LISTING_STAGE_KEY] : null;
+  if (isCampaignLeadStage(raw)) return raw;
+  if (typeof pipelineStage === "string" && CAMPAIGN_ONLY_STAGES.has(pipelineStage)) {
+    return pipelineStage as CampaignLeadStage;
+  }
+  return null;
+}
+
+export function writeListingStage(
+  meta: Record<string, unknown> | null | undefined,
+  stage: CampaignLeadStage,
+): Record<string, unknown> {
+  return { ...(meta ?? {}), [LISTING_STAGE_KEY]: stage };
+}
+
+export function readListingOutcome(
+  meta: Record<string, unknown> | null | undefined,
+): ListingOutcomeRecord | null {
+  const raw = meta && typeof meta === "object" ? meta[LISTING_OUTCOME_KEY] : null;
+  if (!raw || typeof raw !== "object") return null;
+  const rec = raw as Record<string, unknown>;
+  if (!isListingOutcome(rec.status)) return null;
+  return {
+    status: rec.status,
+    at: String(rec.at ?? ""),
+    by: rec.by != null ? String(rec.by) : null,
+  };
+}
+
+export function writeListingOutcome(
+  meta: Record<string, unknown> | null | undefined,
+  outcome: ListingOutcomeRecord,
+): Record<string, unknown> {
+  const withOutcome = { ...(meta ?? {}), [LISTING_OUTCOME_KEY]: outcome };
+  return writeListingStage(withOutcome, listingOutcomeToCampaignStage(outcome.status));
+}
+
+/** Sales Pipeline shows closed listings only — not campaign working stages. */
+export function belongsOnSalesPipeline(lead: {
+  pipeline_stage?: string | null;
+  meta?: Record<string, unknown> | null;
+}): boolean {
+  const listing = readListingStage(lead.meta ?? null, lead.pipeline_stage ?? null);
+  if (listing === "converted") return true;
+  if (listing) return false;
+  const stage = lead.pipeline_stage ?? "";
+  return !CAMPAIGN_ONLY_STAGES.has(stage);
+}
+
+export function isSalesPipelineLocked(pipelineStage: string | null | undefined): boolean {
+  return pipelineStage === "sale_done" || pipelineStage === "documentation";
+}
+
+export const LISTING_SLA_HOURS = 24;
+
+export function isListingSlaBreached(
+  lead: {
+    assigned_to?: string | null;
+    assigned_at?: string | null;
+    last_contacted_at?: string | null;
+    pipeline_stage?: string | null;
+    meta?: Record<string, unknown> | null;
+  },
+  nowMs: number = Date.now(),
+  hours: number = LISTING_SLA_HOURS,
+): boolean {
+  if (!lead.assigned_to || !lead.assigned_at) return false;
+  const listing = readListingStage(lead.meta ?? null, lead.pipeline_stage ?? null);
+  if (listing === "converted" || listing === "closed") return false;
+  const sla = lead.meta && typeof lead.meta === "object" ? lead.meta[LISTING_SLA_KEY] : null;
+  const slaRec = sla && typeof sla === "object" ? (sla as Record<string, unknown>) : null;
+  if (slaRec && String(slaRec.assignedAt ?? "") === lead.assigned_at) return false;
+  const assignedMs = Date.parse(lead.assigned_at);
+  if (Number.isNaN(assignedMs) || nowMs - assignedMs < hours * 60 * 60 * 1000) return false;
+  const contactedMs = lead.last_contacted_at ? Date.parse(lead.last_contacted_at) : 0;
+  if (!Number.isNaN(contactedMs) && contactedMs >= assignedMs) return false;
+  return true;
+}
+
+export function nextRoundRobinAssignee(
+  memberIds: string[],
+  currentId: string | null | undefined,
+): string | null {
+  const ids = memberIds.filter(Boolean);
+  if (ids.length === 0) return null;
+  const idx = currentId ? ids.indexOf(currentId) : -1;
+  if (ids.length === 1) return idx >= 0 ? null : ids[0];
+  if (idx < 0) return ids[0];
+  return ids[(idx + 1) % ids.length] ?? null;
+}
 
 export const DEFAULT_CAMPAIGN_LEAD_STAGE: CampaignLeadStage = "new_response";
 

@@ -6,7 +6,9 @@ import { parseNotesToMeta } from "@/lib/whatsapp/csv-leads.shared";
 import { normalizeWhatsAppPhone, phoneTail } from "@/lib/whatsapp/wati-campaign.server";
 import {
   DEFAULT_CAMPAIGN_LEAD_STAGE,
+  readListingStage,
   writeCampaignQualification,
+  writeListingStage,
   type CampaignQualification,
 } from "@/lib/whatsapp/campaign-leads.shared";
 
@@ -290,7 +292,10 @@ export async function batchImportCsvLeads(
 
     const rowMeta = leadMetaFromCsvRow(row);
     const existing = resolveExistingLead(phone, lookup);
-    const mergedMeta = mergeLeadMeta(existing?.meta, rowMeta, row.qualification);
+    const mergedMetaRaw = mergeLeadMeta(existing?.meta, rowMeta, row.qualification);
+    const mergedMeta = readListingStage(mergedMetaRaw, existing?.pipeline_stage)
+      ? mergedMetaRaw
+      : writeListingStage(mergedMetaRaw, DEFAULT_CAMPAIGN_LEAD_STAGE);
 
     if (existing?.id) {
       const patch: Record<string, unknown> = {
@@ -302,7 +307,6 @@ export async function batchImportCsvLeads(
       if (row.email) patch.email = row.email;
       if (row.company_name) patch.company_name = row.company_name;
       if (row.notes) patch.notes = row.notes;
-      if (!existing.pipeline_stage) patch.pipeline_stage = DEFAULT_CAMPAIGN_LEAD_STAGE;
       toUpdate.push({ id: existing.id, patch });
       leadIds.push(existing.id);
       updated++;
@@ -318,7 +322,6 @@ export async function batchImportCsvLeads(
         lead_origin: "csv_import",
         origin_provider: "CSV",
         whatsapp_opt_in: true,
-        pipeline_stage: DEFAULT_CAMPAIGN_LEAD_STAGE,
         meta: mergedMeta,
       });
     }

@@ -144,7 +144,7 @@ export function WhatsAppAgents() {
             if (trigger) {
               trigger.click();
             } else {
-              navigate({ to: "/whatsapp", search: { tab: "settings" } as any });
+              navigate({ to: "/whatsapp", search: { tab: "settings" } });
             }
           }}
         >

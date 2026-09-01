@@ -555,7 +555,7 @@ export const listWatiTemplates = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
-    await maybeAutoSyncWatiTemplates(workspaceId);
+    void maybeAutoSyncWatiTemplates(workspaceId);
     const sb = adminClient() as any;
     const { data } = await sb
       .from("wati_templates")

@@ -6,15 +6,24 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { assertNotWbahWorkspace } from "@/lib/wbah-exclusion.shared";
 import { resolvePermissions } from "@/lib/permissions/permissions.server";
+import { areaFromPropertyMeta } from "@/lib/whatsapp/inbox-campaign-org.shared";
 import {
   CAMPAIGN_LEAD_STAGES,
   formatCampaignRequirement,
+  listingOutcomePromotesToSalesPipeline,
+  listingOutcomeToLeadStatus,
+  LISTING_OUTCOMES,
   propertyLabelFromMeta,
   readCampaignQualification,
+  readListingOutcome,
+  readListingStage,
+  writeListingStage,
   writeCampaignQualification,
+  writeListingOutcome,
   type CampaignIntent,
   type CampaignLeadStage,
   type CampaignQualification,
+  type ListingOutcome,
 } from "@/lib/whatsapp/campaign-leads.shared";
 
 const qualificationSchema = z.object({
@@ -33,9 +42,11 @@ export type CampaignLeadRow = {
   phone: string | null;
   email: string | null;
   property: string;
+  area: string;
   requirement: string;
   qualification: CampaignQualification;
   stage: CampaignLeadStage | string | null;
+  listing_outcome: ListingOutcome | null;
   assigned_to: string | null;
   assigned_name: string | null;
   last_contacted_at: string | null;
@@ -79,9 +90,11 @@ function mapRow(
     phone: (lead.phone as string | null) ?? null,
     email: (lead.email as string | null) ?? null,
     property: propertyLabelFromMeta(meta),
+    area: areaFromPropertyMeta(meta),
     requirement: formatCampaignRequirement(qualification) || String(meta.Requirement ?? ""),
     qualification,
-    stage: (lead.pipeline_stage as string | null) ?? null,
+    stage: readListingStage(meta, lead.pipeline_stage as string | null),
+    listing_outcome: readListingOutcome(meta)?.status ?? null,
     assigned_to: assignedTo,
     assigned_name: assignedTo ? names.get(assignedTo) ?? null : null,
     last_contacted_at: (lead.last_contacted_at as string | null) ?? null,
@@ -99,6 +112,7 @@ export const listCampaignLeads = createServerFn({ method: "POST" })
       .object({
         search: z.string().trim().max(120).optional(),
         stage: z.enum(CAMPAIGN_LEAD_STAGES).optional(),
+        outcome: z.enum(LISTING_OUTCOMES).optional(),
         assignedTo: z.string().uuid().optional(),
         unassigned: z.boolean().optional(),
         limit: z.number().int().min(1).max(500).optional(),
@@ -125,9 +139,14 @@ export const listCampaignLeads = createServerFn({ method: "POST" })
       .limit(limit);
 
     if (perms.assignedRecordsOnly) q = q.eq("assigned_to", userId);
-    if (data.stage) q = q.eq("pipeline_stage", data.stage);
+    if (data.stage) {
+      q = q.or(`pipeline_stage.eq.${data.stage},meta->>listing_stage.eq.${data.stage}`);
+    }
     if (data.unassigned) q = q.is("assigned_to", null);
     else if (data.assignedTo) q = q.eq("assigned_to", data.assignedTo);
+    if (data.outcome) {
+      q = q.filter("meta->listing_outcome->>status", "eq", data.outcome);
+    }
     if (data.search) {
       const term = data.search.replace(/[%,()*\\]/g, "").trim();
       if (term) {
@@ -165,15 +184,89 @@ export const updateCampaignLeadStage = createServerFn({ method: "POST" })
     const sb = supabase as any;
     const perms = await resolvePermissions(workspaceId, userId);
 
-    let q = sb
+    let sel = sb
       .from("leads")
-      .update({ pipeline_stage: data.stage, updated_at: new Date().toISOString() })
+      .select("id, meta, pipeline_stage")
       .eq("id", data.leadId)
       .eq("workspace_id", workspaceId);
+    if (perms.assignedRecordsOnly) sel = sel.eq("assigned_to", userId);
+    const { data: lead, error: loadErr } = await sel.maybeSingle();
+    if (loadErr) throw new Error(loadErr.message);
+    if (!lead) throw new Error("Lead not found");
+
+    const meta = writeListingStage(
+      (lead.meta as Record<string, unknown> | null) ?? {},
+      data.stage,
+    );
+    const patch: Record<string, unknown> = {
+      meta,
+      updated_at: new Date().toISOString(),
+    };
+    if (data.stage === "converted") patch.pipeline_stage = "sale_done";
+    else if (readListingStage(lead.meta as Record<string, unknown> | null, lead.pipeline_stage) === "converted") {
+      patch.pipeline_stage = null;
+    }
+
+    let q = sb.from("leads").update(patch).eq("id", data.leadId).eq("workspace_id", workspaceId);
     if (perms.assignedRecordsOnly) q = q.eq("assigned_to", userId);
     const { error } = await q;
     if (error) throw new Error(error.message);
     return { ok: true };
+  });
+
+export const updateListingOutcome = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) =>
+    z
+      .object({
+        leadId: z.string().min(1),
+        outcome: z.enum(LISTING_OUTCOMES),
+      })
+      .parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId, userId } = context;
+    if (!workspaceId) throw new Error("No workspace");
+    assertNotWbahWorkspace(workspaceId);
+    const sb = supabase as any;
+    const perms = await resolvePermissions(workspaceId, userId);
+
+    let sel = sb
+      .from("leads")
+      .select("id, meta, pipeline_stage")
+      .eq("id", data.leadId)
+      .eq("workspace_id", workspaceId);
+    if (perms.assignedRecordsOnly) sel = sel.eq("assigned_to", userId);
+    const { data: lead, error: loadErr } = await sel.maybeSingle();
+    if (loadErr) throw new Error(loadErr.message);
+    if (!lead) throw new Error("Lead not found");
+
+    const outcome = {
+      status: data.outcome as ListingOutcome,
+      at: new Date().toISOString(),
+      by: userId ?? null,
+    };
+    const meta = writeListingOutcome(
+      (lead.meta as Record<string, unknown> | null) ?? {},
+      outcome,
+    );
+    const patch: Record<string, unknown> = {
+      meta,
+      updated_at: new Date().toISOString(),
+    };
+    const leadStatus = listingOutcomeToLeadStatus(data.outcome);
+    if (leadStatus) patch.status = leadStatus;
+    if (listingOutcomePromotesToSalesPipeline(data.outcome)) {
+      patch.pipeline_stage = "sale_done";
+    } else if (lead.pipeline_stage === "sale_done" || lead.pipeline_stage === "new_response") {
+      patch.pipeline_stage = null;
+    }
+
+    let q = sb.from("leads").update(patch).eq("id", data.leadId).eq("workspace_id", workspaceId);
+    if (perms.assignedRecordsOnly) q = q.eq("assigned_to", userId);
+    const { error } = await q;
+    if (error) throw new Error(error.message);
+    return { ok: true, outcome: data.outcome };
   });
 
 export const updateCampaignQualification = createServerFn({ method: "POST" })

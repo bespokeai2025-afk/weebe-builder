@@ -36,6 +36,14 @@ export type WhatsappInboxThread = {
   lastInboundAt?: string | null;
   /** Where the newest outbound message came from: campaign / bot / template / wati. */
   lastMessageOrigin?: string | null;
+  /** Last WhatsApp campaign that messaged this thread. */
+  lastCampaignId?: string | null;
+  lastCampaignName?: string | null;
+  campaignArchived?: boolean;
+  campaignIds?: string[];
+  /** Listing area (Master Location / community) from the contact or lead. */
+  area?: string | null;
+  listingOutcome?: string | null;
 };
 
 /** True when the contact's message is the latest in the thread. */

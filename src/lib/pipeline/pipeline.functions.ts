@@ -12,6 +12,7 @@ import {
   resolveWbahBookingFields,
 } from "@/lib/dashboard/wbah-booking-meta";
 import { getWbahCallsAggregate } from "@/lib/integrations/webespokeEnterprise/wbah-leads.server";
+import { belongsOnSalesPipeline, readListingStage } from "@/lib/whatsapp/campaign-leads.shared";
 
 export type PipelineStage =
   | "lead"
@@ -113,8 +114,14 @@ function mapLead(
   const ps = hasPipelineStage
     ? (lead.pipeline_stage as PipelineStage | null)
     : null;
+  const listing = readListingStage(
+    (lead.meta as Record<string, unknown> | null) ?? null,
+    ps,
+  );
   const effective = (
-    ps ?? STATUS_TO_STAGE[lead.status as string] ?? "lead"
+    listing === "converted"
+      ? "sale_done"
+      : (ps ?? STATUS_TO_STAGE[lead.status as string] ?? "lead")
   ) as PipelineStage;
   const rawPhone = (lead.phone as string | null) ?? null;
   const normPhone = rawPhone ? normalizePhone(rawPhone) : null;
@@ -448,7 +455,12 @@ export const getPipelineLeads = createServerFn({ method: "GET" })
     ]);
     if (r1.error) throw new Error(r1.error.message);
     const { bookedIds, notedIds, docsPhones } = indicators;
-    const rows = (r1.data ?? []) as Array<Record<string, unknown>>;
+    const rows = ((r1.data ?? []) as Array<Record<string, unknown>>).filter((l) =>
+      belongsOnSalesPipeline({
+        pipeline_stage: (l.pipeline_stage as string | null) ?? null,
+        meta: (l.meta as Record<string, unknown> | null) ?? null,
+      }),
+    );
     const hasPipelineStage = rows.length > 0 && "pipeline_stage" in rows[0];
     return rows.map((l) =>
       mapLead(l, hasPipelineStage, bookedIds, notedIds, docsPhones),

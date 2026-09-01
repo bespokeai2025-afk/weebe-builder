@@ -86,6 +86,7 @@ import {
   watiTemplateBodyOriginalText,
 } from "@/lib/whatsapp/wati-template-params.shared";
 import { toast } from "sonner";
+import { BuzzchatEmptyState } from "@/components/whatsapp/buzzchat-ui";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof AlertCircle }> = {
   draft: { label: "Draft", color: "secondary", icon: AlertCircle },
@@ -652,15 +653,21 @@ export function WhatsAppCampaigns() {
       {isLoading ? (
         <div className="py-16 text-center text-sm text-muted-foreground">Loading…</div>
       ) : (campaigns as any[]).length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
-          <Megaphone className="h-10 w-10 opacity-30" />
-          <p className="text-sm font-medium">No campaigns yet</p>
-          <p className="text-xs text-center max-w-sm">
-            {watiConnected
-              ? "Create a campaign, pick a template, then send now or schedule."
-              : "Create a campaign to send messages to contacts."}
-          </p>
-        </div>
+        <BuzzchatEmptyState
+          icon={Megaphone}
+          title="No campaigns yet"
+          description={
+            watiConnected
+              ? "Create a campaign, pick an approved template, then send now or schedule."
+              : "Connect WATI in Settings, then create a campaign to message contacts."
+          }
+          action={
+            <Button size="sm" onClick={openCreateDialog} className="gap-1.5">
+              <Plus className="h-3.5 w-3.5" />
+              New campaign
+            </Button>
+          }
+        />
       ) : (
         <div className="overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
           <table className="w-full text-sm">

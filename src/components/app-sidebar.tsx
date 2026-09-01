@@ -181,6 +181,7 @@ const DEFAULT_NAV_ITEMS: NavItem[] = [
   { title: "Data",      url: "/data",      icon: Database,       moduleId: "lead_generation" },
   { title: "Contacts",  url: "/contacts",  icon: BookUser },
   { title: "Leads",     url: "/leads",     icon: UserCheck },
+  { title: "Listing Leads", url: "/campaign-leads", icon: ClipboardList, moduleId: "whatsapp" },
   { title: "Webforms",  url: "/leads/webforms", icon: FormInput },
   { title: "Pipeline",  url: "/pipeline",  icon: Kanban },
   { title: "Qualified", url: "/qualified", icon: Check,          moduleId: "qualification" },

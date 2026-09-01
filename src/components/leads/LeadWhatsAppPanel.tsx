@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { listLeadWhatsappMessages, sendLeadWhatsappTemplate } from "@/lib/dashboard/whatsapp.functions";
+import { LISTING_OUTCOME_LABELS, type ListingOutcome } from "@/lib/whatsapp/campaign-leads.shared";
 import { getWatiConnection, listWatiTemplates } from "@/lib/whatsapp/wati.functions";
 import { checkWebuyanyhouseWorkspace } from "@/lib/integrations/webespokeEnterprise/wbah.functions";
 import {
@@ -69,12 +70,24 @@ export function LeadWhatsAppPanel({ leadId, phone }: LeadWhatsAppPanelProps) {
     throwOnError: false,
   });
 
-  const { data: messages = [], isLoading } = useQuery({
+  const { data: history, isLoading } = useQuery({
     queryKey: ["lead-wa-messages", leadId],
     queryFn: () => listFn({ data: { leadId } }),
     enabled: !!leadId && watiConnected && !isWbahWorkspace,
     throwOnError: false,
   });
+  const messages = Array.isArray(history)
+    ? history
+    : ((history as { messages?: unknown[] } | undefined)?.messages ?? []);
+  const campaignName = Array.isArray(history)
+    ? null
+    : ((history as { campaignName?: string | null } | undefined)?.campaignName ?? null);
+  const area = Array.isArray(history)
+    ? null
+    : ((history as { area?: string | null } | undefined)?.area ?? null);
+  const listingOutcome = Array.isArray(history)
+    ? null
+    : ((history as { listingOutcome?: string | null } | undefined)?.listingOutcome ?? null);
 
   const selectedTemplate = (watiTemplates as any[]).find((t) => t.name === templateName);
   const paramSlots = watiTemplateParamSlots(selectedTemplate);
@@ -122,15 +135,30 @@ export function LeadWhatsAppPanel({ leadId, phone }: LeadWhatsAppPanelProps) {
         <Label className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
           WhatsApp
         </Label>
+        {(campaignName || area || listingOutcome) && (
+          <span className="truncate text-[10px] text-muted-foreground">
+            {[
+              listingOutcome
+                ? LISTING_OUTCOME_LABELS[listingOutcome as ListingOutcome] ?? listingOutcome
+                : null,
+              campaignName,
+              area,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </span>
+        )}
       </div>
 
-      <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] max-h-48 overflow-y-auto divide-y divide-white/[0.04]">
+      <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] max-h-72 overflow-y-auto divide-y divide-white/[0.04]">
         {isLoading ? (
           <div className="flex justify-center py-6">
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
           </div>
         ) : (messages as any[]).length === 0 ? (
-          <p className="text-[11px] text-muted-foreground/60 py-4 text-center">No messages yet.</p>
+          <p className="text-[11px] text-muted-foreground/60 py-4 text-center">
+            No WhatsApp history for this phone yet.
+          </p>
         ) : (
           (messages as any[]).map((m) => (
             <div

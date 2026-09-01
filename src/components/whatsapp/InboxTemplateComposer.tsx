@@ -40,9 +40,15 @@ export function InboxTemplateComposer({
   const [templateName, setTemplateName] = useState("");
   const [paramMapping, setParamMapping] = useState<Record<string, string>>({});
 
-  const { data: watiTemplates = [] } = useQuery({
+  const {
+    data: watiTemplates = [],
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ["wati-templates"],
     queryFn: () => watiTmplFn(),
+    staleTime: 5 * 60_000,
     throwOnError: false,
   });
 
@@ -68,7 +74,8 @@ export function InboxTemplateComposer({
       toast.success("Template sent — the 24-hour window reopens when they reply");
       onSent?.();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) =>
+      toast.error("Could not send the template", { description: e.message }),
   });
 
   const approved = (watiTemplates as any[]).filter(
@@ -76,18 +83,14 @@ export function InboxTemplateComposer({
   );
 
   return (
-    <div className="space-y-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-3">
-      <p className="text-xs font-medium text-amber-900 dark:text-amber-200">
-        24-hour session closed
+    <div className="space-y-2 rounded-lg border border-border bg-muted/20 px-3 py-2.5">
+      <p className="text-xs text-muted-foreground">
+        <span className="font-medium text-warning">24-hour window closed.</span>{" "}
+        Send an approved template to reconnect.
       </p>
-      <p className="text-[11px] leading-relaxed text-muted-foreground">
-        WhatsApp only allows free-text replies within 24 hours of the client’s last message.
-        Send an approved template to reconnect. The session reopens when they reply.
-      </p>
-      <div className="space-y-1.5">
-        <Label className="text-[10px] text-muted-foreground">Approved template</Label>
+      <div className="flex items-center gap-2">
         <Select
-          value={templateName}
+          value={templateName || undefined}
           onValueChange={(v) => {
             setTemplateName(v);
             const tpl = (watiTemplates as any[]).find((t) => t.name === v);
@@ -95,9 +98,20 @@ export function InboxTemplateComposer({
               defaultWatiTemplateParamMapping(extractWatiTemplateParamSlots(tpl), tpl),
             );
           }}
+          disabled={isLoading || approved.length === 0}
         >
-          <SelectTrigger className="h-8 text-xs">
-            <SelectValue placeholder="Choose a template…" />
+          <SelectTrigger className="h-9 flex-1 text-sm" aria-label="Approved template">
+            <SelectValue
+              placeholder={
+                isLoading
+                  ? "Loading templates…"
+                  : isError
+                    ? "Could not load templates"
+                    : approved.length === 0
+                      ? "No approved templates"
+                      : "Choose a template…"
+              }
+            />
           </SelectTrigger>
           <SelectContent>
             {approved.map((t) => (
@@ -107,6 +121,21 @@ export function InboxTemplateComposer({
             ))}
           </SelectContent>
         </Select>
+        {isLoading && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />}
+        {isError && (
+          <Button type="button" variant="ghost" size="sm" onClick={() => void refetch()}>
+            Retry
+          </Button>
+        )}
+        <Button
+          size="sm"
+          className="shrink-0 gap-1.5"
+          disabled={!templateName || send.isPending}
+          onClick={() => send.mutate()}
+        >
+          {send.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+          Send
+        </Button>
       </div>
 
       {paramSlots.map((slot) => {
@@ -116,7 +145,7 @@ export function InboxTemplateComposer({
         return (
           <div key={slot} className="space-y-1">
             <div className="flex items-center gap-2">
-              <span className="w-8 shrink-0 text-[10px] text-muted-foreground">{`{{${slot}}}`}</span>
+              <Label className="w-16 shrink-0 text-[11px] text-muted-foreground">{`{{${slot}}}`}</Label>
               <Select
                 value={selectValue || undefined}
                 onValueChange={(v) =>
@@ -126,7 +155,7 @@ export function InboxTemplateComposer({
                   })
                 }
               >
-                <SelectTrigger className="h-7 flex-1 text-xs">
+                <SelectTrigger className="h-8 flex-1 text-xs">
                   <SelectValue placeholder="Map to field…" />
                 </SelectTrigger>
                 <SelectContent>
@@ -141,7 +170,7 @@ export function InboxTemplateComposer({
             </div>
             {isFixed && (
               <Input
-                className="ml-10 h-7 text-xs"
+                className="ml-[4.5rem] h-8 text-xs"
                 placeholder="Fixed value"
                 value={literalTemplateFieldText(mapped)}
                 onChange={(e) =>
@@ -155,16 +184,6 @@ export function InboxTemplateComposer({
           </div>
         );
       })}
-
-      <Button
-        size="sm"
-        className="h-8 w-full gap-1.5 text-xs"
-        disabled={!templateName || send.isPending}
-        onClick={() => send.mutate()}
-      >
-        {send.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-        Send template to reopen
-      </Button>
     </div>
   );
 }

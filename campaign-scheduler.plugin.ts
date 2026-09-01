@@ -175,6 +175,20 @@ export function campaignSchedulerPlugin(): Plugin {
           console.warn("[whatsapp-schedule] dev tick failed:", e?.message ?? e);
         }
 
+        try {
+          const { runListingAssignmentSlaTick } = (await server.ssrLoadModule(
+            "/src/lib/whatsapp/assignment-sla-tick.server.ts",
+          )) as typeof import("./src/lib/whatsapp/assignment-sla-tick.server");
+          const sla = await runListingAssignmentSlaTick();
+          if (sla.breached > 0 || sla.errors > 0) {
+            console.log(
+              `[listing-sla] scanned=${sla.scanned} breached=${sla.breached} shuffled=${sla.shuffled} errors=${sla.errors}`,
+            );
+          }
+        } catch (e: any) {
+          console.warn("[listing-sla] dev tick failed:", e?.message ?? e);
+        }
+
         // GrowthMind content publishing (mirrors the prod campaign-executor
         // endpoint). Loaded via ssrLoadModule because the module uses "@/"
         // aliases. Best-effort — failed jobs retry with backoff.

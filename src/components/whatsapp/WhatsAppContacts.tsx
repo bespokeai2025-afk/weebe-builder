@@ -26,6 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { BuzzchatEmptyState } from "@/components/whatsapp/buzzchat-ui";
 import {
   listWAContacts,
   createWAContact,
@@ -699,32 +700,35 @@ export function WhatsAppContacts() {
 
       <div className="grid min-h-0 flex-1 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60 lg:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
         <div className={cn("flex min-h-0 flex-col", detailContact && "hidden lg:flex")}>
-          <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-white/[0.06] bg-muted/20 px-3 py-2.5">
-            {(
-              [
-                ["all", "All", summary.total],
-                ["not_messaged", "Not sent", summary.not_messaged],
-                ["messaged", "Sent", summary.messaged],
-                ["replied", "Replied", summary.replied],
-                ["dnc", "DNC", summary.dnc ?? 0],
-              ] as const
-            ).map(([id, label, count]) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setMessagedFilter(id)}
-                className={
-                  messagedFilter === id
-                    ? "rounded-full bg-primary px-3 py-1 text-xs font-medium text-primary-foreground"
-                    : "rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-accent"
-                }
-              >
-                {label}
-                <span className="ml-1.5 tabular-nums opacity-70">{count}</span>
-              </button>
-            ))}
+          <div className="flex shrink-0 flex-wrap items-center gap-1.5 overflow-x-auto border-b border-border bg-muted/20 px-3 py-2">
+            <div className="inline-flex h-8 items-center rounded-lg bg-muted p-1 text-muted-foreground">
+              {(
+                [
+                  ["all", "All", summary.total],
+                  ["not_messaged", "Not sent", summary.not_messaged],
+                  ["messaged", "Sent", summary.messaged],
+                  ["replied", "Replied", summary.replied],
+                  ["dnc", "DNC", summary.dnc ?? 0],
+                ] as const
+              ).map(([id, label, count]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setMessagedFilter(id)}
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    messagedFilter === id
+                      ? "bg-background text-foreground shadow"
+                      : "hover:text-foreground",
+                  )}
+                >
+                  {label}
+                  <span className="tabular-nums opacity-70">{count}</span>
+                </button>
+              ))}
+            </div>
             {filtered.length > 0 && (
-              <span className="ml-auto text-[11px] text-muted-foreground">
+              <span className="ml-auto text-xs text-muted-foreground">
                 {filtered.length} shown
               </span>
             )}
@@ -735,11 +739,23 @@ export function WhatsAppContacts() {
               Loading…
             </div>
           ) : filtered.length === 0 ? (
-            <div className="flex flex-1 flex-col items-center justify-center gap-3 text-muted-foreground">
-              <Users className="h-10 w-10 opacity-30" />
-              <p className="text-sm font-medium">No contacts yet</p>
-              <p className="text-xs">Add contacts manually or import a CSV file.</p>
-            </div>
+            <BuzzchatEmptyState
+              icon={Users}
+              title={search || messagedFilter !== "all" ? "Nothing matches" : "No contacts yet"}
+              description={
+                search || messagedFilter !== "all"
+                  ? "Try a different search or show All contacts."
+                  : "Import a CSV or add a contact before you send a campaign."
+              }
+              action={
+                search || messagedFilter !== "all" ? undefined : (
+                  <Button size="sm" onClick={openCreate}>
+                    <Plus className="h-3.5 w-3.5" />
+                    Add contact
+                  </Button>
+                )
+              }
+            />
           ) : (
             <div className="min-h-0 flex-1 overflow-auto">
               <table className="w-full text-sm">

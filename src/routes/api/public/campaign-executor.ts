@@ -356,6 +356,20 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
             console.warn("[whatsapp-schedule] tick failed:", waErr?.message ?? waErr);
           }
 
+          try {
+            const { runListingAssignmentSlaTick } = await import(
+              "@/lib/whatsapp/assignment-sla-tick.server"
+            );
+            const sla = await runListingAssignmentSlaTick();
+            if (sla.breached > 0 || sla.errors > 0) {
+              console.log(
+                `[listing-sla] scanned=${sla.scanned} breached=${sla.breached} shuffled=${sla.shuffled} errors=${sla.errors}`,
+              );
+            }
+          } catch (slaErr: any) {
+            console.warn("[listing-sla] tick failed:", slaErr?.message ?? slaErr);
+          }
+
           console.log(
             `[campaign-executor] ran=${due.length} skipped=${skipped.length}`,
           );

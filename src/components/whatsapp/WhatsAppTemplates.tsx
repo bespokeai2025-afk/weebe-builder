@@ -326,7 +326,7 @@ export function WhatsAppTemplates() {
               <Button
                 size="sm"
                 variant="outline"
-                className="gap-1.5 border-purple-500/30 text-purple-400 hover:text-purple-300"
+                className="gap-1.5"
                 disabled={syncWati.isPending}
                 onClick={() => syncWati.mutate()}
               >

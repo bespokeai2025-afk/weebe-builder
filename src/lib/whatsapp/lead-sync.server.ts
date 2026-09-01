@@ -129,7 +129,7 @@ export async function matchOrCreateLeadForWhatsApp(
       has_buzzchat_reply: true,
       last_buzzchat_reply_at: replyAt,
       buzzchat_conversation_id: conversationId ?? null,
-      pipeline_stage: DEFAULT_CAMPAIGN_LEAD_STAGE,
+      meta: { listing_stage: DEFAULT_CAMPAIGN_LEAD_STAGE },
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })

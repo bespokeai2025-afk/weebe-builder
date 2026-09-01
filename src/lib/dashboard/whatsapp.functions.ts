@@ -16,7 +16,7 @@ import {
   type CampaignAudienceFilter,
 } from "@/lib/whatsapp/wati-campaign.server";
 import type { CsvLeadRow } from "@/lib/whatsapp/csv-leads.shared";
-import { parseNotesToMeta } from "@/lib/whatsapp/csv-leads.shared";
+import { getContactFieldsMap, parseNotesToMeta } from "@/lib/whatsapp/csv-leads.shared";
 import { batchImportCsvLeads } from "@/lib/whatsapp/csv-import-batch.server";
 import {
   fetchWorkspaceMessageStatsMaps,
@@ -61,6 +61,17 @@ import {
 } from "@/lib/whatsapp/whatsapp-conversations.server";
 import { WATI_CHAT_STATUSES, resolveWatiChatStatus } from "@/lib/whatsapp/wati-chat-status.shared";
 import { collapseOptimisticOutboundDuplicates } from "@/lib/whatsapp/whatsapp-message-dedupe.server";
+import {
+  areaFromPropertyMeta,
+  campaignIdsFromMessages,
+  isArchivedCampaignStatus,
+  lastCampaignIdFromMessages,
+  mergeWhatsappMessageRows,
+  phoneLookupVariants,
+  threadMatchesInboxOrg,
+  type InboxCampaignScope,
+} from "@/lib/whatsapp/inbox-campaign-org.shared";
+import { readListingOutcome } from "@/lib/whatsapp/campaign-leads.shared";
 
 // ── Inbox ─────────────────────────────────────────────────────────────────────
 
@@ -168,6 +179,9 @@ const inboxFiltersSchema = z.object({
   unreadOnly: z.boolean().optional(),
   /** WATI's chat status — "expired" means the 24h reply window has closed. */
   chatStatus: z.enum(WATI_CHAT_STATUSES).optional(),
+  campaignId: z.string().uuid().optional(),
+  area: z.string().trim().max(120).optional(),
+  inboxScope: z.enum(["all", "active", "archive"]).optional(),
   limit: z.number().int().min(1).max(1000).optional(),
 });
 
@@ -275,6 +289,168 @@ export async function enrichInboxThreadsWithLeadIds(
   }
 }
 
+type InboxOrgThread = {
+  phone: string;
+  leadId?: string | null;
+  messages?: Array<Record<string, unknown>>;
+  lastCampaignId?: string | null;
+  lastCampaignName?: string | null;
+  campaignArchived?: boolean;
+  campaignIds?: string[];
+  area?: string | null;
+  listingOutcome?: string | null;
+};
+
+function uniqueContactPhones(rows: Array<{ contact_phone?: string | null }> | null | undefined): string[] {
+  return [
+    ...new Set(
+      (rows ?? []).flatMap((r) => {
+        const raw = String(r.contact_phone ?? "").trim();
+        return raw ? [raw, normalizeWhatsAppPhone(raw)].filter(Boolean) : [];
+      }),
+    ),
+  ];
+}
+
+async function phonesForInboxOrg(
+  sb: any,
+  workspaceId: string,
+  filters: { campaignId?: string; inboxScope?: InboxCampaignScope; area?: string },
+): Promise<string[] | null> {
+  let phones: string[] | null = null;
+
+  if (filters.campaignId) {
+    const { data } = await sb
+      .from("whatsapp_messages")
+      .select("contact_phone")
+      .eq("workspace_id", workspaceId)
+      .eq("campaign_id", filters.campaignId)
+      .limit(4000);
+    phones = uniqueContactPhones(data);
+    if (phones.length === 0) return [];
+  } else if (filters.inboxScope === "archive" || filters.inboxScope === "active") {
+    const { data: camps } = await sb
+      .from("whatsapp_campaigns")
+      .select("id, status")
+      .eq("workspace_id", workspaceId)
+      .limit(400);
+    const wantedIds = ((camps ?? []) as Array<{ id: string; status: string | null }>)
+      .filter((c) => {
+        const archived = isArchivedCampaignStatus(c.status);
+        return filters.inboxScope === "archive" ? archived : !archived;
+      })
+      .map((c) => c.id);
+    if (wantedIds.length === 0) return [];
+    const { data } = await sb
+      .from("whatsapp_messages")
+      .select("contact_phone")
+      .eq("workspace_id", workspaceId)
+      .in("campaign_id", wantedIds)
+      .limit(4000);
+    phones = uniqueContactPhones(data);
+    if (phones.length === 0) return [];
+  }
+
+  if (filters.area) {
+    const { data: contacts } = await sb
+      .from("whatsapp_contacts")
+      .select("phone, import_meta, notes")
+      .eq("workspace_id", workspaceId)
+      .limit(4000);
+    const areaPhones = new Set(
+      ((contacts ?? []) as Array<{
+        phone: string;
+        import_meta: Record<string, unknown> | null;
+        notes: string | null;
+      }>)
+        .filter((c) => areaFromPropertyMeta(getContactFieldsMap(c)) === filters.area)
+        .flatMap((c) => {
+          const raw = String(c.phone ?? "").trim();
+          return raw ? [raw, normalizeWhatsAppPhone(raw)] : [];
+        })
+        .filter(Boolean),
+    );
+    if (phones) phones = phones.filter((p) => areaPhones.has(p));
+    else phones = [...areaPhones];
+    if (phones.length === 0) return [];
+  }
+
+  if (phones && phones.length > 800) phones = phones.slice(0, 800);
+  return phones;
+}
+
+async function enrichThreadsWithCampaignAndArea(
+  sb: any,
+  workspaceId: string,
+  threads: InboxOrgThread[],
+): Promise<void> {
+  if (threads.length === 0) return;
+
+  const campaignIds = new Set<string>();
+  for (const thread of threads) {
+    thread.campaignIds = campaignIdsFromMessages(thread.messages ?? []);
+    const id = lastCampaignIdFromMessages(thread.messages ?? []);
+    thread.lastCampaignId = id;
+    if (id) campaignIds.add(id);
+    for (const cid of thread.campaignIds) campaignIds.add(cid);
+  }
+
+  const campaignsById = new Map<string, { name: string; status: string | null }>();
+  if (campaignIds.size > 0) {
+    const { data: camps } = await sb
+      .from("whatsapp_campaigns")
+      .select("id, name, status")
+      .eq("workspace_id", workspaceId)
+      .in("id", [...campaignIds]);
+    for (const c of (camps ?? []) as Array<{ id: string; name: string; status: string | null }>) {
+      campaignsById.set(c.id, { name: c.name, status: c.status });
+    }
+  }
+
+  const phones = [...new Set(threads.map((t) => normalizeWhatsAppPhone(t.phone)).filter(Boolean))];
+  const contactByPhone = new Map<string, Record<string, string>>();
+  if (phones.length > 0) {
+    const { data: contacts } = await sb
+      .from("whatsapp_contacts")
+      .select("phone, import_meta, notes")
+      .eq("workspace_id", workspaceId)
+      .in("phone", phones);
+    for (const c of (contacts ?? []) as Array<{
+      phone: string;
+      import_meta: Record<string, unknown> | null;
+      notes: string | null;
+    }>) {
+      contactByPhone.set(normalizeWhatsAppPhone(c.phone), getContactFieldsMap(c));
+    }
+  }
+
+  const leadIds = [...new Set(threads.map((t) => t.leadId).filter((id): id is string => Boolean(id)))];
+  const leadMetaById = new Map<string, Record<string, unknown>>();
+  if (leadIds.length > 0) {
+    const { data: leads } = await sb
+      .from("leads")
+      .select("id, meta")
+      .eq("workspace_id", workspaceId)
+      .in("id", leadIds);
+    for (const lead of (leads ?? []) as Array<{ id: string; meta: Record<string, unknown> | null }>) {
+      if (lead.meta) leadMetaById.set(lead.id, lead.meta);
+    }
+  }
+
+  for (const thread of threads) {
+    const camp = thread.lastCampaignId ? campaignsById.get(thread.lastCampaignId) : undefined;
+    thread.lastCampaignName = camp?.name ?? null;
+    thread.campaignArchived = camp ? isArchivedCampaignStatus(camp.status) : false;
+    const phone = normalizeWhatsAppPhone(thread.phone);
+    thread.area =
+      areaFromPropertyMeta(contactByPhone.get(phone) ?? null) ||
+      areaFromPropertyMeta(thread.leadId ? leadMetaById.get(thread.leadId) : null) ||
+      null;
+    thread.listingOutcome =
+      readListingOutcome(thread.leadId ? leadMetaById.get(thread.leadId) : null)?.status ?? null;
+  }
+}
+
 export const listWhatsappThreads = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .validator((input) => inboxFiltersSchema.parse(input ?? {}))
@@ -285,18 +461,34 @@ export const listWhatsappThreads = createServerFn({ method: "GET" })
 
     const limit = data.limit ?? 60;
     const search = sanitizeSearchTerm(data.search ?? "");
+    const orgFilters = {
+      scope: data.inboxScope,
+      campaignId: data.campaignId,
+      area: data.area,
+    };
+    const hasOrgFilter = Boolean(
+      data.campaignId || data.area || data.inboxScope === "archive" || data.inboxScope === "active",
+    );
     const hasStructuralFilter = Boolean(
       data.status ||
         data.assigneeId ||
         data.unassigned ||
         data.tag ||
         data.unreadOnly ||
-        data.chatStatus,
+        data.chatStatus ||
+        hasOrgFilter,
     );
+
+    const orgPhones = await phonesForInboxOrg(sb, workspaceId, {
+      campaignId: data.campaignId,
+      inboxScope: data.inboxScope,
+      area: data.area,
+    });
+    if (orgPhones && orgPhones.length === 0) return [];
 
     // Search matches a contact (name/phone) or anything they said, so collect candidate phones
     // from both sides before applying the structural filters.
-    let searchPhones: string[] | null = null;
+    let searchPhones: string[] | null = orgPhones;
     if (search) {
       const [{ data: byContact }, { data: byBody }] = await Promise.all([
         sb
@@ -321,6 +513,12 @@ export const listWhatsappThreads = createServerFn({ method: "GET" })
             .filter(Boolean),
         ),
       ];
+      if (orgPhones) {
+        const orgSet = new Set(orgPhones);
+        searchPhones = searchPhones.filter(
+          (p) => orgSet.has(p) || orgSet.has(normalizeWhatsAppPhone(p)),
+        );
+      }
       if (searchPhones.length === 0) return [];
     }
 
@@ -372,7 +570,10 @@ export const listWhatsappThreads = createServerFn({ method: "GET" })
         fallbackThreads,
         conversationIdByPhone,
       );
-      return sortWhatsappInboxThreads(fallbackThreads);
+      await enrichThreadsWithCampaignAndArea(sb, workspaceId, fallbackThreads);
+      return sortWhatsappInboxThreads(
+        fallbackThreads.filter((t) => threadMatchesInboxOrg(t, orgFilters)),
+      );
     }
 
     const phones = conversations.map((c) => c.contact_phone);
@@ -449,7 +650,10 @@ export const listWhatsappThreads = createServerFn({ method: "GET" })
         )
       : merged;
 
-    return sortWhatsappInboxThreads(filtered);
+    await enrichThreadsWithCampaignAndArea(sb, workspaceId, filtered);
+    return sortWhatsappInboxThreads(
+      filtered.filter((t) => threadMatchesInboxOrg(t, orgFilters)),
+    );
   });
 
 /** Clear the unread badge once an agent opens the thread. */
@@ -658,7 +862,7 @@ export const getWhatsappInboxMeta = createServerFn({ method: "GET" })
     if (!workspaceId) throw new Error("No active workspace");
     const sb = supabase as any;
 
-    const [{ data: members }, { data: teams }, { data: tagRows }, { count: conversationCount }] =
+    const [{ data: members }, { data: teams }, { data: tagRows }, { count: conversationCount }, { data: camps }, { data: contacts }] =
       await Promise.all([
         sb
           .from("workspace_members")
@@ -680,6 +884,17 @@ export const getWhatsappInboxMeta = createServerFn({ method: "GET" })
           .from("whatsapp_conversations")
           .select("id", { count: "exact", head: true })
           .eq("workspace_id", workspaceId),
+        sb
+          .from("whatsapp_campaigns")
+          .select("id, name, status")
+          .eq("workspace_id", workspaceId)
+          .order("created_at", { ascending: false })
+          .limit(200),
+        sb
+          .from("whatsapp_contacts")
+          .select("phone, import_meta, notes")
+          .eq("workspace_id", workspaceId)
+          .limit(3000),
       ]);
 
     const memberRows = (members ?? []) as Array<{ user_id: string; role: string | null }>;
@@ -711,6 +926,26 @@ export const getWhatsappInboxMeta = createServerFn({ method: "GET" })
       ),
     ].sort();
 
+    const campaigns = (
+      (camps ?? []) as Array<{ id: string; name: string; status: string | null }>
+    ).map((c) => ({
+      id: c.id,
+      name: c.name,
+      status: c.status,
+      archived: isArchivedCampaignStatus(c.status),
+    }));
+
+    const areas = [
+      ...new Set(
+        ((contacts ?? []) as Array<{
+          import_meta: Record<string, unknown> | null;
+          notes: string | null;
+        }>)
+          .map((c) => areaFromPropertyMeta(getContactFieldsMap(c)))
+          .filter(Boolean),
+      ),
+    ].sort((a, b) => a.localeCompare(b));
+
     return {
       members: memberRows.map((m) => ({
         userId: m.user_id,
@@ -722,6 +957,8 @@ export const getWhatsappInboxMeta = createServerFn({ method: "GET" })
         name: t.name,
       })),
       tags,
+      campaigns,
+      areas,
       /** Total threads, so the inbox can tell the user how many are still below the fold. */
       conversationCount: conversationCount ?? 0,
     };
@@ -2145,15 +2382,90 @@ export const listLeadWhatsappMessages = createServerFn({ method: "POST" })
     assertNotWbahWorkspace(workspaceId);
     const sb = supabase as any;
 
-    const { data: rows, error } = await sb
-      .from("whatsapp_messages")
-      .select("*")
+    const { data: lead, error: leadErr } = await sb
+      .from("leads")
+      .select("id, phone, meta, buzzchat_conversation_id")
+      .eq("id", data.leadId)
       .eq("workspace_id", workspaceId)
-      .eq("lead_id", data.leadId)
-      .order("sent_at", { ascending: true })
-      .limit(200);
-    if (error) throw new Error(error.message);
-    return rows ?? [];
+      .maybeSingle();
+    if (leadErr) throw new Error(leadErr.message);
+    if (!lead) return { messages: [] as any[], campaignName: null, area: null };
+
+    const phoneVariants = phoneLookupVariants(lead.phone);
+    const conversationId = String(lead.buzzchat_conversation_id ?? "").trim();
+
+    const queries: Promise<any>[] = [
+      sb
+        .from("whatsapp_messages")
+        .select("*")
+        .eq("workspace_id", workspaceId)
+        .eq("lead_id", data.leadId)
+        .order("sent_at", { ascending: true })
+        .limit(200),
+    ];
+    if (phoneVariants.length > 0) {
+      queries.push(
+        sb
+          .from("whatsapp_messages")
+          .select("*")
+          .eq("workspace_id", workspaceId)
+          .in("contact_phone", phoneVariants)
+          .order("sent_at", { ascending: true })
+          .limit(200),
+      );
+    }
+    if (conversationId) {
+      queries.push(
+        sb
+          .from("whatsapp_messages")
+          .select("*")
+          .eq("workspace_id", workspaceId)
+          .eq("conversation_id", conversationId)
+          .order("sent_at", { ascending: true })
+          .limit(200),
+      );
+    }
+
+    const results = await Promise.all(queries);
+    const firstError = results.find((r) => r.error)?.error;
+    if (firstError) throw new Error(firstError.message);
+
+    const messages = mergeWhatsappMessageRows(results.map((r) => r.data ?? []));
+
+    const lastCampId = lastCampaignIdFromMessages(messages);
+    let campaignName: string | null = null;
+    if (lastCampId) {
+      const { data: camp } = await sb
+        .from("whatsapp_campaigns")
+        .select("name")
+        .eq("id", lastCampId)
+        .maybeSingle();
+      campaignName = (camp?.name as string | undefined) ?? null;
+    }
+
+    let area = areaFromPropertyMeta(lead.meta as Record<string, unknown> | null);
+    const phone = normalizeWhatsAppPhone(lead.phone);
+    if (!area && phone) {
+      const { data: contactRows } = await sb
+        .from("whatsapp_contacts")
+        .select("import_meta, notes")
+        .eq("workspace_id", workspaceId)
+        .in("phone", phoneVariants)
+        .limit(1);
+      const contact = (contactRows ?? [])[0];
+      if (contact) area = areaFromPropertyMeta(getContactFieldsMap(contact));
+    }
+
+    if (phone) {
+      void sb
+        .from("whatsapp_messages")
+        .update({ lead_id: data.leadId })
+        .eq("workspace_id", workspaceId)
+        .in("contact_phone", phoneVariants)
+        .is("lead_id", null);
+    }
+
+    return { messages: messages as any[], campaignName, area: area || null, listingOutcome: readListingOutcome(lead.meta)?.status ?? null };
   });
 
 export const sendLeadWhatsappTemplate = createServerFn({ method: "POST" })

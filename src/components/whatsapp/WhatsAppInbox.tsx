@@ -7,14 +7,13 @@ import {
   Send,
   MessageCircle,
   Phone,
-  Clock,
-  MessageSquareReply,
   Tag as TagIcon,
   X,
   Paperclip,
   FileText,
-  Headphones,
   Copy,
+  ChevronLeft,
+  SlidersHorizontal,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -23,7 +22,10 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -37,6 +39,17 @@ import {
   syncWhatsappThread,
   updateWhatsappConversation,
 } from "@/lib/dashboard/whatsapp.functions";
+import { updateListingOutcome } from "@/lib/whatsapp/campaign-leads.functions";
+import {
+  INBOX_QUEUE_FILTERS,
+  LISTING_OUTCOME_LABELS,
+  LISTING_OUTCOMES,
+  isWhatsappFreeTextAllowed,
+  threadMatchesInboxQueue,
+  type InboxQueueFilter,
+  type ListingOutcome,
+} from "@/lib/whatsapp/campaign-leads.shared";
+import type { InboxCampaignScope } from "@/lib/whatsapp/inbox-campaign-org.shared";
 import { getWatiConnection } from "@/lib/whatsapp/wati.functions";
 import {
   type InboxSortMode,
@@ -46,13 +59,15 @@ import { resolveWatiChatStatus } from "@/lib/whatsapp/wati-chat-status.shared";
 import { supabase } from "@/integrations/supabase/client";
 import { OpenLeadLink } from "@/components/whatsapp/OpenLeadLink";
 import { InboxTemplateComposer } from "@/components/whatsapp/InboxTemplateComposer";
-import { toast } from "sonner";
 import {
-  INBOX_QUEUE_FILTERS,
-  isWhatsappFreeTextAllowed,
-  threadMatchesInboxQueue,
-  type InboxQueueFilter,
-} from "@/lib/whatsapp/campaign-leads.shared";
+  BUZZ_SEARCH,
+  BUZZ_SELECT,
+  BuzzchatEmptyState,
+  BuzzchatThreadSkeleton,
+} from "@/components/whatsapp/buzzchat-ui";
+import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { toast } from "sonner";
 
 type InboxMessage = {
   id: string;
@@ -85,55 +100,20 @@ type InboxThread = {
   watiAgentName?: string | null;
   lastInboundAt?: string | null;
   lastMessageOrigin?: string | null;
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  open: "Open",
-  pending: "Waiting",
-  solved: "Closed",
-};
-
-/** Mirrors the chips WATI shows on each chat in its own inbox. */
-const WATI_STATUS_CHIPS: Record<string, { label: string; className: string }> = {
-  expired: {
-    label: "Expired",
-    className: "bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300",
-  },
-  solved: {
-    label: "Closed",
-    className: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300",
-  },
-  pending: {
-    label: "Pending",
-    className: "bg-sky-100 text-sky-800 dark:bg-sky-500/20 dark:text-sky-300",
-  },
-  open: {
-    label: "Open",
-    className: "bg-muted text-muted-foreground",
-  },
-};
-
-/** Where the newest outbound message came from — WATI's teal "Campaign" chip and friends. */
-const MESSAGE_ORIGIN_CHIPS: Record<string, { label: string; className: string }> = {
-  campaign: {
-    label: "Campaign",
-    className: "bg-teal-100 text-teal-800 dark:bg-teal-500/20 dark:text-teal-300",
-  },
-  template: {
-    label: "Template",
-    className: "bg-indigo-100 text-indigo-800 dark:bg-indigo-500/20 dark:text-indigo-300",
-  },
-  bot: {
-    label: "Bot",
-    className: "bg-violet-100 text-violet-800 dark:bg-violet-500/20 dark:text-violet-300",
-  },
+  lastCampaignId?: string | null;
+  lastCampaignName?: string | null;
+  campaignArchived?: boolean;
+  area?: string | null;
+  listingOutcome?: string | null;
 };
 
 const ASSIGNEE_ALL = "__all__";
 const ASSIGNEE_UNASSIGNED = "__unassigned__";
 const TAG_ALL = "__all__";
 const TEAM_NONE = "__none__";
-/** Threads fetched per page. A campaign blast can create hundreds of threads in one go. */
+const CAMPAIGN_ALL = "__all__";
+const CAMPAIGN_OLDER = "__older__";
+const AREA_ALL = "__all__";
 const THREAD_PAGE_SIZE = 60;
 
 export function WhatsAppInbox() {
@@ -145,6 +125,7 @@ export function WhatsAppInbox() {
   const metaFn = useServerFn(getWhatsappInboxMeta);
   const markReadFn = useServerFn(markWhatsappThreadRead);
   const updateConversationFn = useServerFn(updateWhatsappConversation);
+  const listingOutcomeFn = useServerFn(updateListingOutcome);
 
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
@@ -152,14 +133,17 @@ export function WhatsAppInbox() {
   const [tagFilter, setTagFilter] = useState<string>(TAG_ALL);
   const [queueFilter, setQueueFilter] = useState<InboxQueueFilter>("all");
   const [sortMode, setSortMode] = useState<InboxSortMode>("replies-first");
+  const [inboxScope, setInboxScope] = useState<InboxCampaignScope>("all");
+  const [campaignFilter, setCampaignFilter] = useState<string>(CAMPAIGN_ALL);
+  const [areaFilter, setAreaFilter] = useState<string>(AREA_ALL);
   const [visibleCount, setVisibleCount] = useState(THREAD_PAGE_SIZE);
   const [activePhone, setActivePhone] = useState<string | null>(null);
+  const [mobileShowChat, setMobileShowChat] = useState(false);
   const [reply, setReply] = useState("");
   const [newTag, setNewTag] = useState("");
   const [mediaToken, setMediaToken] = useState<string | null>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
 
-  // Debounced so each keystroke doesn't hit the database.
   useEffect(() => {
     const timer = setTimeout(() => setSearch(searchInput.trim()), 300);
     return () => clearTimeout(timer);
@@ -191,15 +175,17 @@ export function WhatsAppInbox() {
           : assigneeFilter,
       tag: tagFilter === TAG_ALL ? undefined : tagFilter,
       chatStatus: queueFilter === "expired" ? ("expired" as const) : undefined,
+      campaignId: campaignFilter === CAMPAIGN_ALL ? undefined : campaignFilter,
+      area: areaFilter === AREA_ALL ? undefined : areaFilter,
+      inboxScope: inboxScope === "all" ? undefined : inboxScope,
       limit: visibleCount,
     }),
-    [search, assigneeFilter, tagFilter, queueFilter, visibleCount],
+    [search, assigneeFilter, tagFilter, queueFilter, campaignFilter, areaFilter, inboxScope, visibleCount],
   );
 
-  // Narrowing the list should start from the top again rather than keep a deep page open.
   useEffect(() => {
     setVisibleCount(THREAD_PAGE_SIZE);
-  }, [search, assigneeFilter, tagFilter, queueFilter]);
+  }, [search, assigneeFilter, tagFilter, queueFilter, campaignFilter, areaFilter, inboxScope]);
 
   const {
     data: threads = [],
@@ -208,9 +194,7 @@ export function WhatsAppInbox() {
   } = useQuery({
     queryKey: ["wa-threads", filters],
     queryFn: () => listFn({ data: filters }),
-    // Realtime drives updates; this is just a safety net if the socket drops.
     refetchInterval: 60_000,
-    // Growing the page changes the query key, so hold the current list instead of flashing empty.
     placeholderData: keepPreviousData,
     throwOnError: false,
   });
@@ -219,8 +203,6 @@ export function WhatsAppInbox() {
     qc.invalidateQueries({ queryKey: ["wa-threads"] });
   }, [qc]);
 
-  // Push new messages straight into the inbox instead of waiting for the next poll. RLS scopes
-  // the stream to workspaces this user belongs to.
   useEffect(() => {
     const channel = supabase
       .channel("buzzchat-inbox")
@@ -251,7 +233,6 @@ export function WhatsAppInbox() {
     throwOnError: false,
   });
 
-  // Media is proxied through our server, and <img> can't send an Authorization header.
   useEffect(() => {
     let active = true;
     supabase.auth.getSession().then(({ data }) => {
@@ -294,7 +275,6 @@ export function WhatsAppInbox() {
     el.scrollTop = el.scrollHeight;
   }, [active?.phone, msgs.length]);
 
-  // Opening a thread clears its unread badge for the whole team.
   const openPhone = active?.phone;
   const openUnread = active?.unread ?? 0;
   useEffect(() => {
@@ -306,15 +286,17 @@ export function WhatsAppInbox() {
       });
   }, [openPhone, openUnread, markReadFn, invalidateThreads]);
 
-  // WATI webhooks hit production only — poll getMessages for the open thread (local + prod).
   useEffect(() => {
     if (!active?.phone) return;
+    if (!isWhatsappFreeTextAllowed(active.lastInboundAt)) return;
 
     let cancelled = false;
     const pullFromWati = async () => {
       try {
-        await syncThreadFn({ data: { phone: active.phone } });
-        if (!cancelled) invalidateThreads();
+        const result = await syncThreadFn({ data: { phone: active.phone } });
+        if (!cancelled && result && "synced" in result && result.synced > 0) {
+          invalidateThreads();
+        }
       } catch {
         /* background poll — listWhatsappThreads still refreshes on interval */
       }
@@ -326,7 +308,7 @@ export function WhatsAppInbox() {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [active?.phone, syncThreadFn, invalidateThreads]);
+  }, [active?.phone, active?.lastInboundAt, syncThreadFn, invalidateThreads]);
 
   const send = useMutation({
     mutationFn: () =>
@@ -359,6 +341,18 @@ export function WhatsAppInbox() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const updateListingRemark = useMutation({
+    mutationFn: (outcome: ListingOutcome) =>
+      listingOutcomeFn({ data: { leadId: active!.leadId!, outcome } }),
+    onSuccess: () => {
+      invalidateThreads();
+      qc.invalidateQueries({ queryKey: ["campaign-leads"] });
+      qc.invalidateQueries({ queryKey: ["pipeline-leads"] });
+      toast.success("Remark saved");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const mediaSrc = (message: InboxMessage): string | null => {
     if (!message.media_url || !mediaToken) return null;
     return `/api/whatsapp/media?messageId=${encodeURIComponent(message.id)}&token=${encodeURIComponent(mediaToken)}`;
@@ -373,320 +367,170 @@ export function WhatsAppInbox() {
     Boolean(search) ||
     assigneeFilter !== ASSIGNEE_ALL ||
     tagFilter !== TAG_ALL ||
-    queueFilter !== "all";
+    queueFilter !== "all" ||
+    campaignFilter !== CAMPAIGN_ALL ||
+    areaFilter !== AREA_ALL ||
+    inboxScope !== "all";
 
+  const campaigns = meta?.campaigns ?? [];
+  const activeCampaigns = campaigns.filter((c) => !c.archived);
+  const olderCampaigns = campaigns.filter((c) => c.archived);
+  const areas = meta?.areas ?? [];
   const totalThreads = meta?.conversationCount ?? sorted.length;
-  // A full page back means the server likely has more; filters are counted client-side after the
-  // session-expiry pass, so fall back to comparing against the total.
   const canLoadMore = hasFilters
     ? sorted.length >= visibleCount
     : sorted.length < totalThreads && sorted.length >= visibleCount;
 
-  if (isLoading) {
-    return (
-      <div className="flex h-full min-h-0 items-center justify-center rounded-xl border border-white/[0.06] bg-card/60 text-sm text-muted-foreground">
-        Loading conversations…
-      </div>
-    );
-  }
+  const campaignSelectValue =
+    campaignFilter !== CAMPAIGN_ALL
+      ? campaignFilter
+      : inboxScope === "archive"
+        ? CAMPAIGN_OLDER
+        : CAMPAIGN_ALL;
 
-  if (sorted.length === 0 && !hasFilters) {
-    return (
-      <div className="flex h-full min-h-0 flex-col items-center justify-center gap-3 rounded-xl border border-white/[0.06] bg-card/60 text-muted-foreground">
-        <MessageCircle className="h-10 w-10 opacity-30" />
-        <p className="text-sm font-medium">No conversations yet</p>
-        <p className="text-xs">Inbound WhatsApp messages will appear here automatically.</p>
-      </div>
-    );
-  }
+  const onCampaignChange = (value: string) => {
+    if (value === CAMPAIGN_ALL) {
+      setInboxScope("all");
+      setCampaignFilter(CAMPAIGN_ALL);
+      return;
+    }
+    if (value === CAMPAIGN_OLDER) {
+      setInboxScope("archive");
+      setCampaignFilter(CAMPAIGN_ALL);
+      return;
+    }
+    setCampaignFilter(value);
+    const picked = campaigns.find((c) => c.id === value);
+    setInboxScope(picked?.archived ? "archive" : "active");
+  };
+
+  const clearFilters = () => {
+    setSearchInput("");
+    setSearch("");
+    setAssigneeFilter(ASSIGNEE_ALL);
+    setTagFilter(TAG_ALL);
+    setQueueFilter("all");
+    setCampaignFilter(CAMPAIGN_ALL);
+    setAreaFilter(AREA_ALL);
+    setInboxScope("all");
+    setSortMode("replies-first");
+  };
+
+  const moreFilterCount = [
+    assigneeFilter !== ASSIGNEE_ALL,
+    tagFilter !== TAG_ALL,
+    sortMode !== "replies-first",
+  ].filter(Boolean).length;
+
+  const showChat = Boolean(active) && mobileShowChat;
+  const emptyInbox = !isLoading && sorted.length === 0 && !hasFilters;
 
   return (
-    <div className="grid h-full min-h-0 grid-cols-[minmax(280px,22rem)_1fr] overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
-      {/* Sidebar */}
-      <div className="flex min-h-0 flex-col overflow-hidden border-r border-white/[0.06] bg-muted/20">
-        <div className="shrink-0 space-y-2 border-b border-border p-3">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search name, number, or message…"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              className="h-8 pl-8 text-xs"
-            />
-          </div>
-
-          <div className="flex flex-wrap gap-1">
-            {INBOX_QUEUE_FILTERS.map((f) => (
-              <button
-                key={f.id}
-                type="button"
-                title={f.hint}
-                onClick={() => setQueueFilter(f.id)}
-                className={cn(
-                  "rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors",
-                  queueFilter === f.id
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground hover:bg-accent",
-                )}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex gap-1.5">
-            <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
-              <SelectTrigger className="h-8 flex-1 text-xs">
-                <SelectValue placeholder="Assignee" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ASSIGNEE_ALL}>Anyone</SelectItem>
-                <SelectItem value={ASSIGNEE_UNASSIGNED}>Unassigned</SelectItem>
-                {(meta?.members ?? []).map((m) => (
-                  <SelectItem key={m.userId} value={m.userId}>
-                    {m.name ?? m.userId.slice(0, 8)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select
-              value={sortMode}
-              onValueChange={(v) => setSortMode(v as InboxSortMode)}
-            >
-              <SelectTrigger className="h-8 w-[128px] text-xs">
-                <SelectValue placeholder="Sort" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="replies-first">Replies first</SelectItem>
-                <SelectItem value="recent">Newest first</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {(meta?.tags?.length ?? 0) > 0 && (
-            <Select value={tagFilter} onValueChange={setTagFilter}>
-              <SelectTrigger className="h-8 w-full text-xs">
-                <SelectValue placeholder="Tag" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={TAG_ALL}>All tags</SelectItem>
-                {(meta?.tags ?? []).map((tag) => (
-                  <SelectItem key={tag} value={tag}>
-                    {tag}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-
-          {watiConnected && replyWaitingCount > 0 && (
-            <p className="flex items-center gap-1.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
-              <MessageSquareReply className="h-3 w-3 shrink-0" />
-              {replyWaitingCount} need{replyWaitingCount === 1 ? "s" : ""} a reply
-              {sortMode === "replies-first" ? " — shown at top" : ""}
-            </p>
-          )}
-
-          <p className="text-[10px] text-muted-foreground">
-            {hasFilters
-              ? `${queued.length} matching`
-              : `Showing ${queued.length} of ${totalThreads} conversations`}
-          </p>
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border px-3 py-2.5">
+        <div className="relative min-w-48 flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search name or number…"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            aria-label="Search conversations"
+            className={BUZZ_SEARCH}
+          />
         </div>
 
-        <ul className="min-h-0 flex-1 divide-y divide-border/60 overflow-y-auto">
-          {queued.length === 0 && (
-            <li className="p-4 text-center text-xs text-muted-foreground">
-              No conversations match these filters.
-            </li>
-          )}
-          {queued.map((t) => {
-            const waiting = Boolean(t.needsReply);
-            const watiStatus = resolveWatiChatStatus({
-              watiChatStatus: t.watiChatStatus,
-              lastInboundAt: t.lastInboundAt,
-            });
-            const statusChip = watiStatus ? WATI_STATUS_CHIPS[watiStatus] : null;
-            const originChip = t.lastMessageOrigin
-              ? MESSAGE_ORIGIN_CHIPS[t.lastMessageOrigin]
-              : null;
-            return (
-              <li key={t.phone}>
-                <button
-                  type="button"
-                  onClick={() => setActivePhone(t.phone)}
-                  className={cn(
-                    "w-full px-3 py-3 text-left transition-colors hover:bg-accent/50",
-                    active?.phone === t.phone && "border-r-2 border-primary bg-primary/8",
-                    waiting &&
-                      active?.phone !== t.phone &&
-                      "border-l-2 border-emerald-500 bg-emerald-500/10",
-                    waiting &&
-                      active?.phone === t.phone &&
-                      "border-l-2 border-emerald-500 bg-emerald-500/15",
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        {waiting && (
-                          <span
-                            className="h-2 w-2 shrink-0 rounded-full bg-emerald-500"
-                            aria-hidden
-                          />
-                        )}
-                        <p
-                          className={cn(
-                            "truncate text-sm font-semibold",
-                            waiting && "text-emerald-900 dark:text-emerald-100",
-                          )}
-                        >
-                          {t.name ?? t.phone}
-                        </p>
-                      </div>
-                      {t.name && (
-                        <p className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                          <Phone className="h-2.5 w-2.5" />
-                          {t.phone}
-                        </p>
-                      )}
-                      <p className="mt-0.5 line-clamp-2 whitespace-pre-wrap break-words text-[10px] text-muted-foreground">
-                        {t.lastMessage ?? "—"}
-                      </p>
-                      {(statusChip || originChip || (t.tags?.length ?? 0) > 0) && (
-                        <div className="mt-1 flex flex-wrap items-center gap-1">
-                          {statusChip && (
-                            <span
-                              className={cn(
-                                "rounded px-1 py-0.5 text-[9px] font-medium",
-                                statusChip.className,
-                              )}
-                            >
-                              {statusChip.label}
-                            </span>
-                          )}
-                          {originChip && (
-                            <span
-                              className={cn(
-                                "rounded px-1 py-0.5 text-[9px] font-medium",
-                                originChip.className,
-                              )}
-                            >
-                              {originChip.label}
-                            </span>
-                          )}
-                          {(t.tags ?? []).slice(0, 3).map((tag) => (
-                            <span
-                              key={tag}
-                              className="rounded bg-muted px-1 py-0.5 text-[9px] text-muted-foreground"
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex shrink-0 flex-col items-end gap-1">
-                      {t.watiAgentName && (
-                        <span className="flex items-center gap-0.5 text-[9px] font-medium text-muted-foreground">
-                          <Headphones className="h-2.5 w-2.5" />
-                          {t.watiAgentName}
-                        </span>
-                      )}
-                      <span className="flex items-center gap-0.5 text-[9px] text-muted-foreground">
-                        <Clock className="h-2 w-2" />
-                        <RelativeTime date={t.lastAt} short />
-                      </span>
-                      {t.unread > 0 && (
-                        <Badge variant="default" className="h-4 min-w-4 px-1 text-[9px]">
-                          {t.unread}
-                        </Badge>
-                      )}
-                      {t.status && t.status !== "open" && (
-                        <span className="text-[9px] uppercase tracking-wide text-muted-foreground">
-                          {STATUS_LABELS[t.status] ?? t.status}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </button>
-              </li>
-            );
-          })}
+        {campaigns.length > 0 && (
+          <Select value={campaignSelectValue} onValueChange={onCampaignChange}>
+            <SelectTrigger className={cn(BUZZ_SELECT, "w-44")} aria-label="Campaign">
+              <SelectValue placeholder="Campaign" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={CAMPAIGN_ALL}>All campaigns</SelectItem>
+              <SelectItem value={CAMPAIGN_OLDER}>Older campaigns</SelectItem>
+              {activeCampaigns.length > 0 && (
+                <SelectGroup>
+                  <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                    Active
+                  </SelectLabel>
+                  {activeCampaigns.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              )}
+              {olderCampaigns.length > 0 && (
+                <>
+                  <SelectSeparator />
+                  <SelectGroup>
+                    <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                      Older
+                    </SelectLabel>
+                    {olderCampaigns.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </>
+              )}
+            </SelectContent>
+          </Select>
+        )}
 
-          {canLoadMore && (
-            <li className="p-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 w-full text-[10px]"
-                disabled={isFetching}
-                onClick={() => setVisibleCount((n) => n + THREAD_PAGE_SIZE)}
-              >
-                {isFetching ? "Loading…" : "Load more conversations"}
-              </Button>
-            </li>
-          )}
-        </ul>
-      </div>
+        {areas.length > 0 && (
+          <Select value={areaFilter} onValueChange={setAreaFilter}>
+            <SelectTrigger className={cn(BUZZ_SELECT, "w-40")} aria-label="Area">
+              <SelectValue placeholder="Area" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={AREA_ALL}>All areas</SelectItem>
+              {areas.map((item) => (
+                <SelectItem key={item} value={item}>
+                  {item}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
 
-      {/* Chat pane */}
-      {active ? (
-        <div className="flex min-h-0 flex-col overflow-hidden bg-card">
-          <div className="shrink-0 border-b border-border bg-card px-4 py-3">
-            <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15">
-                <span className="text-xs font-bold text-primary">
-                  {(active.name ?? active.phone).charAt(0).toUpperCase()}
+        <Select
+          value={queueFilter}
+          onValueChange={(v) => setQueueFilter(v as InboxQueueFilter)}
+        >
+          <SelectTrigger className={cn(BUZZ_SELECT, "w-40")} aria-label="Show conversations">
+            <SelectValue placeholder="Show" />
+          </SelectTrigger>
+          <SelectContent>
+            {INBOX_QUEUE_FILTERS.map((f) => (
+              <SelectItem key={f.id} value={f.id}>
+                {f.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button type="button" variant="outline" size="sm" className="relative gap-1.5">
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              More
+              {moreFilterCount > 0 && (
+                <span className="rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
+                  {moreFilterCount}
                 </span>
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-base font-semibold leading-tight">{active.name ?? active.phone}</p>
-                <button
-                  type="button"
-                  className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                  onClick={() => {
-                    void navigator.clipboard.writeText(active.phone);
-                    toast.success("Number copied");
-                  }}
-                >
-                  <Phone className="h-3 w-3" />
-                  {active.phone}
-                  <Copy className="h-3 w-3 opacity-60" />
-                </button>
-                <OpenLeadLink leadId={active.leadId} />
-              </div>
-
-              <Select
-                value={active.status ?? "open"}
-                onValueChange={(value) =>
-                  updateConversation.mutate({ status: value as "open" | "pending" | "solved" })
-                }
-              >
-                <SelectTrigger className="h-7 w-[110px] text-[10px]">
-                  <SelectValue />
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-72 space-y-3 p-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Agent</Label>
+              <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
+                <SelectTrigger className={cn(BUZZ_SELECT, "w-full")}>
+                  <SelectValue placeholder="Agent" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="open">Open</SelectItem>
-                  <SelectItem value="pending">Waiting</SelectItem>
-                  <SelectItem value="solved">Closed</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select
-                value={active.assigneeId ?? ASSIGNEE_UNASSIGNED}
-                onValueChange={(value) =>
-                  updateConversation.mutate({
-                    assigneeId: value === ASSIGNEE_UNASSIGNED ? null : value,
-                  })
-                }
-              >
-                <SelectTrigger className="h-7 w-[140px] text-[10px]">
-                  <SelectValue placeholder={assigneeName(active.assigneeId)} />
-                </SelectTrigger>
-                <SelectContent>
+                  <SelectItem value={ASSIGNEE_ALL}>Anyone</SelectItem>
                   <SelectItem value={ASSIGNEE_UNASSIGNED}>Unassigned</SelectItem>
                   {(meta?.members ?? []).map((m) => (
                     <SelectItem key={m.userId} value={m.userId}>
@@ -695,158 +539,433 @@ export function WhatsAppInbox() {
                   ))}
                 </SelectContent>
               </Select>
-
-              {(meta?.teams?.length ?? 0) > 0 && (
-                <Select
-                  value={active.assignedTeamId ?? TEAM_NONE}
-                  onValueChange={(value) =>
-                    updateConversation.mutate({
-                      assignedTeamId: value === TEAM_NONE ? null : value,
-                    })
-                  }
-                >
-                  <SelectTrigger className="h-7 w-[130px] text-[10px]">
-                    <SelectValue placeholder="No team" />
+            </div>
+            {(meta?.tags?.length ?? 0) > 0 && (
+              <div className="space-y-1">
+                <Label className="text-xs">Tag</Label>
+                <Select value={tagFilter} onValueChange={setTagFilter}>
+                  <SelectTrigger className={cn(BUZZ_SELECT, "w-full")}>
+                    <SelectValue placeholder="Tag" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={TEAM_NONE}>No team</SelectItem>
-                    {(meta?.teams ?? []).map((team) => (
-                      <SelectItem key={team.id} value={team.id}>
-                        {team.name}
+                    <SelectItem value={TAG_ALL}>All tags</SelectItem>
+                    {(meta?.tags ?? []).map((tag) => (
+                      <SelectItem key={tag} value={tag}>
+                        {tag}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-              )}
+              </div>
+            )}
+            <div className="space-y-1">
+              <Label className="text-xs">Sort</Label>
+              <Select value={sortMode} onValueChange={(v) => setSortMode(v as InboxSortMode)}>
+                <SelectTrigger className={cn(BUZZ_SELECT, "w-full")}>
+                  <SelectValue placeholder="Sort" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="replies-first">Replies first</SelectItem>
+                  <SelectItem value="recent">Newest first</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+          </PopoverContent>
+        </Popover>
 
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              <TagIcon className="h-3 w-3 text-muted-foreground" />
-              {(active.tags ?? []).map((tag) => (
-                <span
-                  key={tag}
-                  className="flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px]"
-                >
-                  {tag}
+        {hasFilters && (
+          <Button type="button" variant="ghost" size="sm" onClick={clearFilters}>
+            Clear
+          </Button>
+        )}
+      </div>
+
+      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden md:grid-cols-[20rem_minmax(0,1fr)] lg:grid-cols-[22rem_minmax(0,1fr)]">
+        <div
+          className={cn(
+            "min-h-0 min-w-0 flex-col overflow-hidden border-border bg-muted/20 md:border-r",
+            showChat ? "hidden md:flex" : "flex",
+          )}
+        >
+          <p className="shrink-0 px-3 py-2 text-xs text-muted-foreground">
+            {isLoading
+              ? "Loading conversations…"
+              : `${replyWaitingCount > 0 ? `${replyWaitingCount} need a reply · ` : ""}${
+                  hasFilters ? `${queued.length} matching` : `${queued.length} of ${totalThreads}`
+                }`}
+          </p>
+          {isLoading ? (
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <BuzzchatThreadSkeleton />
+            </div>
+          ) : emptyInbox ? (
+            <BuzzchatEmptyState
+              icon={MessageCircle}
+              title="No conversations yet"
+              description="When someone replies to a campaign, the chat appears here. Send a campaign or wait for an inbound message."
+              action={
+                <Button asChild size="sm">
+                  <a href="/whatsapp?tab=campaigns">Create a campaign</a>
+                </Button>
+              }
+            />
+          ) : (
+          <ul className="min-h-0 flex-1 divide-y divide-border/60 overflow-y-auto">
+            {queued.length === 0 && (
+              <li>
+                <BuzzchatEmptyState
+                  icon={MessageCircle}
+                  title="Nothing matches"
+                  description="Clear search or change Campaign, Area, or Show to see other chats."
+                  action={
+                    <Button type="button" variant="outline" size="sm" onClick={clearFilters}>
+                      Clear filters
+                    </Button>
+                  }
+                />
+              </li>
+            )}
+            {queued.map((t) => {
+              const waiting = Boolean(t.needsReply);
+              const selected = active?.phone === t.phone;
+              const expired =
+                resolveWatiChatStatus({
+                  watiChatStatus: t.watiChatStatus,
+                  lastInboundAt: t.lastInboundAt,
+                }) === "expired";
+              return (
+                <li key={t.phone}>
                   <button
                     type="button"
-                    aria-label={`Remove tag ${tag}`}
-                    onClick={() =>
+                    onClick={() => {
+                      setActivePhone(t.phone);
+                      setMobileShowChat(true);
+                    }}
+                    className={cn(
+                      "w-full px-3 py-3 text-left transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                      selected && "border-l-2 border-l-primary bg-primary/10",
+                    )}
+                  >
+                    <div className="flex min-w-0 items-baseline justify-between gap-2">
+                      <p className="min-w-0 truncate text-sm font-medium">
+                        {waiting && (
+                          <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-success align-middle" title="Needs reply" />
+                        )}
+                        {t.name ?? t.phone}
+                      </p>
+                      <span className="shrink-0 text-[10px] text-muted-foreground">
+                        <RelativeTime date={t.lastAt} short />
+                      </span>
+                    </div>
+                    <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                      {t.lastMessage ?? "—"}
+                    </p>
+                    <div className="mt-1 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                      <span className="min-w-0 truncate">
+                        {[t.lastCampaignName, t.area].filter(Boolean).join(" · ") || t.phone}
+                      </span>
+                      {expired && <span className="shrink-0">Expired</span>}
+                      {t.unread > 0 && (
+                        <Badge variant="default" className="ml-auto h-4 min-w-4 px-1 text-[9px]">
+                          {t.unread}
+                        </Badge>
+                      )}
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
+            {canLoadMore && (
+              <li className="p-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 w-full text-[10px]"
+                  disabled={isFetching}
+                  onClick={() => setVisibleCount((n) => n + THREAD_PAGE_SIZE)}
+                >
+                  {isFetching ? "Loading…" : "Load more"}
+                </Button>
+              </li>
+            )}
+          </ul>
+          )}
+        </div>
+
+        {active ? (
+          <div
+            className={cn(
+              "min-h-0 min-w-0 flex-col overflow-hidden bg-card",
+              mobileShowChat ? "flex" : "hidden md:flex",
+            )}
+          >
+            <div className="shrink-0 space-y-2 border-b border-border px-3 py-2.5 sm:px-4">
+              <div className="flex items-start gap-3">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="mt-0.5 md:hidden"
+                  aria-label="Back to conversations"
+                  onClick={() => setMobileShowChat(false)}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold leading-tight">
+                    {active.name ?? active.phone}
+                  </p>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      onClick={() => {
+                        void navigator.clipboard.writeText(active.phone);
+                        toast.success("Number copied");
+                      }}
+                    >
+                      <Phone className="h-3 w-3" />
+                      {active.phone}
+                      <Copy className="h-3 w-3 opacity-60" />
+                    </button>
+                    {(active.lastCampaignName || active.area) && (
+                      <span className="truncate">
+                        {[active.lastCampaignName, active.area].filter(Boolean).join(" · ")}
+                      </span>
+                    )}
+                    <OpenLeadLink leadId={active.leadId} />
+                  </div>
+                </div>
+                <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+                  {active.leadId && (
+                    <Select
+                      value={active.listingOutcome ?? "__unset__"}
+                      onValueChange={(value) => {
+                        if (value === "__unset__") return;
+                        updateListingRemark.mutate(value as ListingOutcome);
+                      }}
+                    >
+                      <SelectTrigger className="h-8 w-40 text-xs" aria-label="Admin remark">
+                        <SelectValue placeholder="Remark" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__unset__">Needs remark</SelectItem>
+                        {LISTING_OUTCOMES.map((id) => (
+                          <SelectItem key={id} value={id}>
+                            {LISTING_OUTCOME_LABELS[id]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  <Select
+                    value={active.status ?? "open"}
+                    onValueChange={(value) =>
+                      updateConversation.mutate({ status: value as "open" | "pending" | "solved" })
+                    }
+                  >
+                    <SelectTrigger className="h-8 w-28 text-xs" aria-label="Conversation status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="open">Open</SelectItem>
+                      <SelectItem value="pending">Waiting</SelectItem>
+                      <SelectItem value="solved">Closed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={active.assigneeId ?? ASSIGNEE_UNASSIGNED}
+                    onValueChange={(value) =>
                       updateConversation.mutate({
-                        tags: (active.tags ?? []).filter((t) => t !== tag),
+                        assigneeId: value === ASSIGNEE_UNASSIGNED ? null : value,
                       })
                     }
                   >
-                    <X className="h-2.5 w-2.5 text-muted-foreground hover:text-foreground" />
-                  </button>
-                </span>
-              ))}
-              <Input
-                placeholder="Add tag…"
-                value={newTag}
-                onChange={(e) => setNewTag(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key !== "Enter") return;
-                  e.preventDefault();
-                  const tag = newTag.trim();
-                  if (!tag) return;
-                  updateConversation.mutate({
-                    tags: [...new Set([...(active.tags ?? []), tag])],
-                  });
-                  setNewTag("");
-                }}
-                className="h-6 w-24 text-[10px]"
-              />
-            </div>
-          </div>
-
-          <div
-            ref={messagesRef}
-            className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-muted/10 px-4 py-4"
-          >
-            <div className="flex flex-col gap-2">
-              {msgs.map((m) => {
-                const src = mediaSrc(m);
-                const isImage = (m.media_mime_type ?? "").startsWith("image/");
-                return (
-                  <div
-                    key={m.id}
-                    className={cn(
-                      "max-w-[min(85%,42rem)] shrink-0 rounded-2xl px-3.5 py-2 text-sm leading-relaxed shadow-sm",
-                      m.direction === "outbound"
-                        ? "ml-auto bg-primary text-primary-foreground"
-                        : "border border-border bg-background text-foreground",
-                    )}
+                    <SelectTrigger className="h-8 w-32 text-xs" aria-label="Assigned agent">
+                      <SelectValue placeholder={assigneeName(active.assigneeId)} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={ASSIGNEE_UNASSIGNED}>Unassigned</SelectItem>
+                      {(meta?.members ?? []).map((m) => (
+                        <SelectItem key={m.userId} value={m.userId}>
+                          {m.name ?? m.userId.slice(0, 8)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {(meta?.teams?.length ?? 0) > 0 && (
+                    <Select
+                      value={active.assignedTeamId ?? TEAM_NONE}
+                      onValueChange={(value) =>
+                        updateConversation.mutate({
+                          assignedTeamId: value === TEAM_NONE ? null : value,
+                        })
+                      }
+                    >
+                      <SelectTrigger className="h-8 w-32 text-xs" aria-label="Assigned team">
+                        <SelectValue placeholder="Team" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={TEAM_NONE}>No team</SelectItem>
+                        {(meta?.teams ?? []).map((team) => (
+                          <SelectItem key={team.id} value={team.id}>
+                            {team.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <TagIcon className="h-3 w-3 text-muted-foreground" />
+                {(active.tags ?? []).map((tag) => (
+                  <span
+                    key={tag}
+                    className="flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px]"
                   >
-                    {m.direction === "outbound" && m.sender_channel && (
+                    {tag}
+                    <button
+                      type="button"
+                      aria-label={`Remove tag ${tag}`}
+                      onClick={() =>
+                        updateConversation.mutate({
+                          tags: (active.tags ?? []).filter((item) => item !== tag),
+                        })
+                      }
+                    >
+                      <X className="h-2.5 w-2.5 text-muted-foreground hover:text-foreground" />
+                    </button>
+                  </span>
+                ))}
+                <Input
+                  placeholder="Add tag…"
+                  value={newTag}
+                  onChange={(e) => setNewTag(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter") return;
+                    e.preventDefault();
+                    const tag = newTag.trim();
+                    if (!tag) return;
+                    updateConversation.mutate({
+                      tags: [...new Set([...(active.tags ?? []), tag])],
+                    });
+                    setNewTag("");
+                  }}
+                  className="h-6 w-24 text-[10px]"
+                />
+              </div>
+            </div>
+
+            <div
+              ref={messagesRef}
+              className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-muted/10 px-4 py-4"
+            >
+              <div className="flex flex-col gap-2">
+                {msgs.map((m) => {
+                  const src = mediaSrc(m);
+                  const isImage = (m.media_mime_type ?? "").startsWith("image/");
+                  return (
+                    <div
+                      key={m.id}
+                      className={cn(
+                        "max-w-[min(28rem,90%)] shrink-0 rounded-2xl px-3 py-2 text-sm leading-relaxed shadow-sm",
+                        m.direction === "outbound"
+                          ? "ml-auto bg-primary text-primary-foreground"
+                          : "border border-border bg-background text-foreground",
+                      )}
+                    >
+                      {m.direction === "outbound" && m.sender_channel && (
+                        <p className="mb-1 text-[9px] font-medium uppercase tracking-wide text-primary-foreground/75">
+                          {m.sender_channel === "bot"
+                            ? "Bot"
+                            : m.sender_channel === "campaign" || m.sender_channel === "template"
+                              ? "Campaign"
+                              : "WATI"}
+                        </p>
+                      )}
+                      {src && isImage && (
+                        <a href={src} target="_blank" rel="noreferrer">
+                          <img
+                            src={src}
+                            alt={m.media_filename ?? "Attachment"}
+                            className="mb-1 max-h-64 rounded-lg object-cover"
+                            loading="lazy"
+                          />
+                        </a>
+                      )}
+                      {src && !isImage && (
+                        <a
+                          href={src}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mb-1 flex items-center gap-1.5 underline underline-offset-2"
+                        >
+                          <FileText className="h-3 w-3 shrink-0" />
+                          {m.media_filename ?? "Download attachment"}
+                        </a>
+                      )}
+                      {!src && m.media_url && (
+                        <p className="mb-1 flex items-center gap-1.5 opacity-70">
+                          <Paperclip className="h-3 w-3 shrink-0" />
+                          Attachment
+                        </p>
+                      )}
+                      <p className="whitespace-pre-wrap break-words">{m.body ?? "(media)"}</p>
                       <p
                         className={cn(
-                          "mb-1 text-[9px] font-medium uppercase tracking-wide",
+                          "mt-1 text-[9px]",
                           m.direction === "outbound"
-                            ? "text-primary-foreground/75"
+                            ? "text-primary-foreground/70"
                             : "text-muted-foreground",
                         )}
                       >
-                        {m.sender_channel === "bot"
-                          ? "Bot"
-                          : m.sender_channel === "campaign" || m.sender_channel === "template"
-                            ? "Campaign"
-                            : "WATI"}
+                        {new Date(m.sent_at).toLocaleString()} · {m.status ?? ""}
                       </p>
-                    )}
-
-                    {src && isImage && (
-                      <a href={src} target="_blank" rel="noreferrer">
-                        <img
-                          src={src}
-                          alt={m.media_filename ?? "Attachment"}
-                          className="mb-1 max-h-64 rounded-lg object-cover"
-                          loading="lazy"
-                        />
-                      </a>
-                    )}
-                    {src && !isImage && (
-                      <a
-                        href={src}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mb-1 flex items-center gap-1.5 underline underline-offset-2"
-                      >
-                        <FileText className="h-3 w-3 shrink-0" />
-                        {m.media_filename ?? "Download attachment"}
-                      </a>
-                    )}
-                    {!src && m.media_url && (
-                      <p className="mb-1 flex items-center gap-1.5 opacity-70">
-                        <Paperclip className="h-3 w-3 shrink-0" />
-                        Attachment
-                      </p>
-                    )}
-
-                    <p className="whitespace-pre-wrap break-words">{m.body ?? "(media)"}</p>
-                    <p
-                      className={cn(
-                        "mt-1 text-[9px]",
-                        m.direction === "outbound"
-                          ? "text-primary-foreground/70"
-                          : "text-muted-foreground",
-                      )}
-                    >
-                      {new Date(m.sent_at).toLocaleString()} · {m.status ?? ""}
-                    </p>
-                  </div>
-                );
-              })}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
 
-          <div className="shrink-0 space-y-2 border-t border-border bg-card px-4 py-3">
-            {watiConnected && isWhatsappFreeTextAllowed(active.lastInboundAt) ? (
-              <>
-                <p className="text-[10px] text-muted-foreground">
-                  Free-text is open for 24 hours after their last message. After that, send a
-                  template to reconnect.
-                </p>
+            <div className="shrink-0 border-t border-border bg-card px-3 py-2.5 sm:px-4">
+              {watiConnected && isWhatsappFreeTextAllowed(active.lastInboundAt) ? (
+                <>
+                  <p className="text-[10px] text-muted-foreground">
+                    Free-text is open for 24 hours after their last message.
+                  </p>
+                  <div className="flex items-end gap-2">
+                    <Textarea
+                      placeholder="Type a message…"
+                      value={reply}
+                      onChange={(e) => setReply(e.target.value)}
+                      className="max-h-32 min-h-[60px] flex-1 resize-none text-sm"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          if (reply.trim()) send.mutate();
+                        }
+                      }}
+                    />
+                    <Button
+                      size="icon"
+                      disabled={!reply.trim() || send.isPending}
+                      onClick={() => send.mutate()}
+                      aria-label={send.isPending ? "Sending" : "Send message"}
+                    >
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </>
+              ) : watiConnected ? (
+                <InboxTemplateComposer
+                  leadId={active.leadId}
+                  phone={active.phone}
+                  contactName={active.name}
+                  onSent={() => invalidateThreads()}
+                />
+              ) : (
                 <div className="flex items-end gap-2">
                   <Textarea
                     placeholder="Type a message…"
@@ -868,44 +987,19 @@ export function WhatsAppInbox() {
                     <Send className="h-4 w-4" />
                   </Button>
                 </div>
-              </>
-            ) : watiConnected ? (
-              <InboxTemplateComposer
-                leadId={active.leadId}
-                phone={active.phone}
-                contactName={active.name}
-                onSent={() => invalidateThreads()}
-              />
-            ) : (
-              <div className="flex items-end gap-2">
-                <Textarea
-                  placeholder="Type a message…"
-                  value={reply}
-                  onChange={(e) => setReply(e.target.value)}
-                  className="max-h-32 min-h-[60px] flex-1 resize-none text-sm"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      if (reply.trim()) send.mutate();
-                    }
-                  }}
-                />
-                <Button
-                  size="icon"
-                  disabled={!reply.trim() || send.isPending}
-                  onClick={() => send.mutate()}
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
-      ) : (
-        <div className="flex items-center justify-center bg-card/40 text-sm text-muted-foreground">
-          Select a conversation
-        </div>
-      )}
+        ) : (
+          <div className="hidden bg-muted/10 md:flex">
+            <BuzzchatEmptyState
+              icon={MessageCircle}
+              title="Select a conversation"
+              description="Choose a chat on the left to read the thread, set a remark, and reply."
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
