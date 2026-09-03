@@ -2,6 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import { createVmHooks } from "@/lib/voice/graph/tools";
 import type { ToolInvocation } from "@/lib/voice/graph/types";
 
+vi.mock("@/lib/calendar/calcom.server", () => ({
+  getAvailableSlots: vi.fn(async () => [{ time: "2026-09-12T15:30:00" }]),
+  createBooking: vi.fn(async () => ({ uid: "b1", startTime: "2026-09-12T15:30:00", meetingUrl: null })),
+}));
+
 function invocation(partial: Partial<ToolInvocation> = {}): ToolInvocation {
   return {
     toolId: "get_available_slots",
@@ -62,6 +67,31 @@ describe("custom function dispatch", () => {
     const urls = fetchMock.mock.calls.map((c) => String(c[0]));
     expect(urls.every((u) => !/cal\.com/i.test(u))).toBe(true);
     expect(out.output).not.toMatch(/Available times:/);
+    vi.unstubAllGlobals();
+  });
+
+  it("falls back to Cal.com when a custom webhook cannot be reached", async () => {
+    const fetchMock = vi.fn(async () => {
+      throw new TypeError("fetch failed");
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const hooks = createVmHooks({
+      tools: [
+        {
+          name: "get_available_slots",
+          tool_id: "get_available_slots",
+          type: "custom",
+          url: "https://retell.example/slots",
+          cal_api_key: "cal_xxx",
+          event_type_id: 12,
+        },
+      ],
+    });
+    const out = await hooks.executeTool!(invocation());
+    expect(fetchMock).toHaveBeenCalled();
+    expect(out.ok).toBe(true);
+    expect(out.output).toContain("2026-09-12T15:30:00");
     vi.unstubAllGlobals();
   });
 });

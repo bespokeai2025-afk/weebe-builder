@@ -24,11 +24,10 @@ import { randomUUID } from "node:crypto";
 import { WebSocket } from "ws";
 import { CascadeSession, type CascadeTransport } from "./cascade-session";
 import { makeSupabaseAdmin, readAnalysisSchema } from "./telephony-core";
-import { CASCADE_SAMPLE_RATE } from "../stt";
+import { CASCADE_SAMPLE_RATE, parseSttProviderName } from "../stt";
 import { resolveWebeeLlmProvider, resolveWebeeSpeechModel } from "../webee-native.shared";
 import { resolveVoiceLlmApiKey } from "../llm/gpt";
 import type { TtsProviderName } from "../tts";
-import type { SttProviderName } from "../stt";
 import { NativeCallLifecycle } from "../lifecycle/call-lifecycle";
 import { loadNativeCostCentsPerMinute } from "../lifecycle/cost";
 import { CallRecorder } from "../lifecycle/recording";
@@ -100,7 +99,7 @@ function handleConnection(ws: WebSocket, _ctx: VoiceGatewayContext): void {
       logPrefix: LOG,
       playback: "reported",
       ttsProvider: msg.ttsProvider ? (String(msg.ttsProvider) as TtsProviderName) : null,
-      sttProvider: msg.sttProvider ? (String(msg.sttProvider) as SttProviderName) : null,
+      sttProvider: parseSttProviderName(msg.sttProvider),
       agentId,
       supabase: agentId ? makeSupabaseAdmin() : null,
       flow: msg.flow,

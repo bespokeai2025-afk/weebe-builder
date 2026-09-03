@@ -12,10 +12,10 @@
  * TTS renders straight back out to mu-law.
  *
  * Playback tracking differs per transport, which is why `playback` exists:
- *   - "reported": the peer tells us when it finished playing (browser).
- *   - "estimated": nobody reports anything, so the end of playback is inferred
- *     from how much audio has been handed to the carrier (telephony). Without
- *     this the agent is never considered to be speaking and barge-in is dead.
+ *   - "reported": the peer tells us when it finished playing (browser, Twilio
+ *     `mark` events). Estimated duration is only a timeout fallback.
+ *   - "estimated": nobody reports anything (FreJun), so the end of playback is
+ *     inferred from how much audio has been handed to the carrier.
  *
  * Relative imports only — this module is reachable from vite.config.ts.
  */
@@ -27,11 +27,17 @@ import { buildGraphRuntime, type GraphRuntime } from "./graph-agent";
 import { transcriptCaughtUpToAudio } from "../graph/spoken-transcript.shared";
 import type { VmLatencyHooks, VariableValue } from "../graph/types";
 import { type ChatMsg, gptStream } from "../llm/gpt";
+import { applyKeywordBoost } from "../stt/keyword-boost.shared";
 import {
   CASCADE_SAMPLE_RATE,
   createSttProvider,
+  lookupWorkspaceVoiceApiKey,
+  parseSttProviderName,
+  resolveWebeeSttPreference,
+  type SttProviderKeys,
+  type SttProviderName,
+  type SttSession,
 } from "../stt";
-import type { SttProviderName, SttSession } from "../stt";
 import { createTtsProvider } from "../tts";
 import { normalizeSpeechText, type TtsVoiceRequest } from "../tts/types";
 import { FishAudioTtsProvider, resolveFishTtsModel } from "../tts/fish.provider";
@@ -132,6 +138,8 @@ export interface CascadeSessionConfig {
   playback?: PlaybackTracking;
   /** Load the graph from storage. */
   agentId?: string | null;
+  /** Workspace that owns the agent — used to resolve Voice Engine API keys. */
+  workspaceId?: string | null;
   supabase?: SupabaseClient | null;
   /** Pre-exported flow, for builder test calls on unsaved agents. */
   flow?: unknown;
@@ -145,7 +153,7 @@ export interface CascadeSessionConfig {
   silenceDurationMs?: number;
   responsiveness?: number;
   interruptionSensitivity?: number;
-  /** Deepgram keyword boost from builder boostedKeywords. */
+  /** Vocabulary bias from builder boostedKeywords (Fish prompt / Deepgram keywords). */
   boostedKeywords?: string[];
   /**
    * Attach call reporting once it is known whether a graph (and therefore a
@@ -209,9 +217,11 @@ export class CascadeSession {
   private playheadAt = 0;
   private playbackTimer: ReturnType<typeof setTimeout> | null = null;
   private closed = false;
+  private silenceTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly runtime: VoiceRuntimeConfig;
   private readonly languageLock: string;
   private readonly sttLanguage?: string;
+  private sttName = "fish";
   private readonly fishTtsModel: string;
   private readonly vadTuning: import("../vad/types").EndpointingOptions;
   private readonly responses = new ResponseLifecycle();
@@ -289,6 +299,30 @@ export class CascadeSession {
     return this.graph !== null;
   }
 
+  private async resolveCallWorkspaceId(): Promise<string | null> {
+    if (this.config.workspaceId) return this.config.workspaceId;
+    if (!this.config.supabase || !this.config.agentId) return null;
+    const { data } = await this.config.supabase
+      .from("agents")
+      .select("workspace_id")
+      .eq("id", this.config.agentId)
+      .maybeSingle();
+    return (data?.workspace_id as string | null) ?? null;
+  }
+
+  private async resolveSttKeys(): Promise<SttProviderKeys> {
+    const workspaceId = await this.resolveCallWorkspaceId();
+    const deepgramWorkspace = await lookupWorkspaceVoiceApiKey(
+      this.config.supabase,
+      workspaceId,
+      "deepgram",
+    );
+    return {
+      fishApiKey: process.env.FISH_API_KEY,
+      deepgramApiKey: deepgramWorkspace || process.env.DEEPGRAM_API_KEY,
+    };
+  }
+
   /**
    * Bring up STT/TTS/VAD and load the graph, without speaking yet.
    * Browser relay sends `relay.connected` after this so the mic can open
@@ -335,7 +369,14 @@ export class CascadeSession {
       });
     }
 
-    const sttProvider = createSttProvider("fish", { fishApiKey: process.env.FISH_API_KEY });
+    const sttKeys = await this.resolveSttKeys();
+    const sttName =
+      this.config.sttProvider ??
+      resolveWebeeSttPreference(this.config.settings, sttKeys) ??
+      parseSttProviderName(this.config.settings?.webeeSttProvider) ??
+      "fish";
+    const sttProvider = createSttProvider(sttName, sttKeys);
+    this.sttName = sttProvider.name;
     this.stt = await sttProvider.open({
       sampleRate: this.sampleRate,
       language: this.sttLanguage,
@@ -346,19 +387,7 @@ export class CascadeSession {
       },
     });
 
-    const runtime = await buildGraphRuntime({
-      apiKey: this.config.apiKey,
-      logPrefix: this.log,
-      agentId: this.config.agentId ?? null,
-      supabase: this.config.supabase ?? null,
-      flow: this.config.flow,
-      settings: this.config.settings ?? null,
-      variables: this.config.variables,
-      startSpeaker: this.config.startSpeaker,
-    }).catch((err: Error) => {
-      console.warn(`${this.log} graph unavailable, using flat prompt: ${err.message}`);
-      return null;
-    });
+    const runtime = await this.loadGraphRuntime();
 
     this.lifecycleRef = this.config.resolveLifecycle?.(runtime) ?? null;
 
@@ -389,6 +418,36 @@ export class CascadeSession {
     );
     this.warmTts();
     return banner;
+  }
+
+  /**
+   * Native calls must run the conversation graph. Swallowing a load error and
+   * flattening the flow into one prompt is how agents skipped steps. Prompt-only
+   * sessions (no agent, no flow) still use the flat path.
+   */
+  private async loadGraphRuntime(): Promise<GraphRuntime | null> {
+    const expectsGraph = Boolean(this.config.agentId || this.config.flow);
+    try {
+      const runtime = await buildGraphRuntime({
+        apiKey: this.config.apiKey,
+        logPrefix: this.log,
+        agentId: this.config.agentId ?? null,
+        supabase: this.config.supabase ?? null,
+        flow: this.config.flow,
+        settings: this.config.settings ?? null,
+        variables: this.config.variables,
+        startSpeaker: this.config.startSpeaker,
+      });
+      if (runtime) return runtime;
+      if (!expectsGraph) return null;
+      throw new Error(
+        "WEBEE Native requires a runnable conversation graph — this call will not fall back to a flat prompt.",
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`${this.log} graph load failed: ${message}`);
+      throw err instanceof Error ? err : new Error(message);
+    }
   }
 
   /** Speak the greeting / flow start node after the transport is connected. */
@@ -461,6 +520,27 @@ export class CascadeSession {
     this.endPlayback();
   }
 
+  private clearSilenceTimer(): void {
+    if (this.silenceTimer) {
+      clearTimeout(this.silenceTimer);
+      this.silenceTimer = null;
+    }
+  }
+
+  private armSilenceTimer(ms?: number): void {
+    this.clearSilenceTimer();
+    if (!ms || ms <= 0) return;
+    this.silenceTimer = setTimeout(() => {
+      this.silenceTimer = null;
+      if (this.closed || !this.awaitingCallerInput || !this.graph) return;
+      console.log(`${this.log} silence timeout ${ms}ms — routing wait/timeout edge`);
+      this.awaitingCallerInput = false;
+      this.graph.submitSilenceTimeout().catch((err: Error) => {
+        this.transport.onError?.(err.message);
+      });
+    }, ms);
+  }
+
   /** Tear down. Idempotent; safe to call from a socket close handler. */
   close(): void {
     if (this.closed) return;
@@ -469,6 +549,7 @@ export class CascadeSession {
       (this.tts as FishAudioTtsProvider).releaseCall();
     }
     this.clearUtteranceCoalesce();
+    this.clearSilenceTimer();
     this.endPlayback();
     this.turn?.ctrl.abort();
     this.stt?.close();
@@ -658,7 +739,7 @@ export class CascadeSession {
         if (ok) this.lifecycleRef?.transferred(destination);
         return ok;
       },
-      onAwaitUser: () => {
+      onAwaitUser: (options) => {
         this.awaitingCallerInput = true;
         const nodeId = this.graphVm?.nodeId;
         if (nodeId) this.transport.onNodeActive?.(nodeId);
@@ -666,6 +747,7 @@ export class CascadeSession {
         this.responses.markListening();
         this.vad?.reset();
         this.stt?.clearInputBuffer?.();
+        this.armSilenceTimer(options?.silenceTimeoutMs);
       },
       onNodeActive: (nodeId) => this.transport.onNodeActive?.(nodeId),
       onAwaitDigit: () => {
@@ -793,10 +875,12 @@ export class CascadeSession {
     this.partialStableSince = 0;
     this.callerSpeaking = false;
 
-    const skipSttFinal = shouldSkipSttFinal(
-      partialFallback,
-      !!this.graphVm?.peekSpeechWarmTarget(partialFallback),
-    );
+    const skipSttFinal =
+      this.sttName !== "deepgram" &&
+      shouldSkipSttFinal(
+        partialFallback,
+        !!this.graphVm?.peekSpeechWarmTarget(partialFallback),
+      );
 
     let userText: string;
     try {
@@ -826,11 +910,15 @@ export class CascadeSession {
         this.callerBargeIn = false;
         return;
       } else {
-        console.warn(`${this.log} empty STT after caller utterance — graph not advanced`);
+        console.warn(
+          `${this.log} empty STT after caller utterance — graph not advanced stt=${this.sttName} frames=${frames.length}`,
+        );
         this.endPlayback();
         return;
       }
     }
+
+    userText = applyKeywordBoost(userText, this.config.boostedKeywords);
 
     const agentStillPlaying = this.agentSpeaking || this.activeSpeak !== null;
     const recentlyPlayed =
@@ -861,6 +949,7 @@ export class CascadeSession {
     }
     this.callerBargeIn = false;
     this.awaitingCallerInput = false;
+    this.clearSilenceTimer();
 
     const t = this.beginTurn(endpointAt);
     t.sttAt = Date.now();
@@ -1073,12 +1162,7 @@ export class CascadeSession {
       this.sampleRate,
     ).trim();
     const shown = this.lastShownAgentTranscript.trim();
-    const text =
-      mode === "interrupted"
-        ? shown || heard || full
-        : this.agentPcmBytesThisUtterance > 0
-          ? heard || shown || full
-          : full || heard || shown;
+    const text = mode === "interrupted" ? shown || heard || full : full || heard || shown;
     this.pendingAgentTranscript = null;
     this.lastShownAgentTranscript = "";
     if (!text) return;
@@ -1109,13 +1193,13 @@ export class CascadeSession {
     }
     this.agentPcmBytesThisUtterance += chunk.byteLength;
     this.transport.sendAudio(chunk, { responseId, turnId });
+    const durationMs = (chunk.byteLength / 2 / this.sampleRate) * 1000;
+    this.playheadAt = Math.max(this.playheadAt, Date.now()) + durationMs;
     if (this.playbackTracking === "reported") {
       this.speakingFlag = true;
       this.responses.markSpeaking();
       return;
     }
-    const durationMs = (chunk.byteLength / 2 / this.sampleRate) * 1000;
-    this.playheadAt = Math.max(this.playheadAt, Date.now()) + durationMs;
     this.responses.markSpeaking();
   }
 
@@ -1130,10 +1214,14 @@ export class CascadeSession {
     this.transport.onResponseDone?.();
     if (this.playbackTracking !== "reported") return;
     if (this.playbackTimer) clearTimeout(this.playbackTimer);
-    this.playbackTimer = setTimeout(
-      () => this.endPlayback(),
+    const remainingMs = Math.max(0, this.playheadAt - Date.now());
+    // Twilio buffers, so wait a bit longer than the PCM duration. Marks call
+    // playbackDone() earlier when the carrier actually reached that audio.
+    const timeout = Math.min(
       this.runtime.playback.playbackTimeoutMs,
+      Math.max(remainingMs + 500, 800),
     );
+    this.playbackTimer = setTimeout(() => this.endPlayback(), timeout);
   }
 
   private endPlayback(): void {
@@ -1165,6 +1253,7 @@ export class CascadeSession {
   /** Process a caller reply held during duplex playback (no STT pass). */
   private async submitBufferedUserText(userText: string): Promise<void> {
     if (this.closed || !userText.trim()) return;
+    this.clearSilenceTimer();
     console.log(`${this.log} processing buffered duplex reply: "${userText.slice(0, 80)}"`);
 
     const t = this.beginTurn(Date.now());

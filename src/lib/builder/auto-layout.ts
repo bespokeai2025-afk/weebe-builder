@@ -1,8 +1,8 @@
 import type { Edge } from "@xyflow/react";
 import type { FlowNode } from "./store";
 
-const COL_GAP = 440; // horizontal distance between depth columns
-const ROW_GAP = 240; // vertical distance between rows
+const COL_GAP = 520; // horizontal distance between depth columns
+const ROW_GAP = 280; // vertical distance between rows
 const ORIGIN_X = 160;
 const ORIGIN_Y = 160;
 

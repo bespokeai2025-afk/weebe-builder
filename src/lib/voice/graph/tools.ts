@@ -56,7 +56,21 @@ export function createVmHooks(options: VmHooksOptions = {}): VmHooks {
       // Custom / webhook tools keep their URL. Never reroute them to Cal.com
       // just because the name says "available slots".
       if (registeredUrl) {
-        return callHttp({ ...invocation, url: registeredUrl });
+        const http = await callHttp({ ...invocation, url: registeredUrl });
+        if (http.ok) return http;
+        const networkFail = /fetch failed|timed out|ECONNREFUSED|ENOTFOUND|getaddrinfo/i.test(
+          http.output,
+        );
+        if (networkFail) {
+          const cal = await tryNativeCalcom(registered, invocation.args, true);
+          if (cal) {
+            options.log?.(
+              `webhook ${registeredUrl} failed; falling back to Cal.com for "${invocation.toolName}"`,
+            );
+            return cal;
+          }
+        }
+        return http;
       }
       const cal = registered ? await tryNativeCalcom(registered, invocation.args) : null;
       if (cal) return cal;
@@ -234,14 +248,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 async function tryNativeCalcom(
   tool: Record<string, unknown>,
   args: unknown,
+  allowNameMatch = false,
 ): Promise<ToolOutcome | null> {
   const type = String(tool.type ?? tool.tool_type ?? "").trim();
   const apiKey = String(tool.cal_api_key ?? "").trim();
   const eventTypeId = Number(tool.event_type_id ?? 0);
   if (!apiKey || !eventTypeId) return null;
 
-  const isAvailability = type === "check_availability_cal";
-  const isBook = type === "book_appointment_cal";
+  const name = `${tool.name ?? ""} ${tool.tool_id ?? ""}`.toLowerCase();
+  const isAvailability =
+    type === "check_availability_cal" ||
+    (allowNameMatch && /available.?slot|check_availability/.test(name));
+  const isBook =
+    type === "book_appointment_cal" ||
+    (allowNameMatch && /book_appointment|create_booking/.test(name));
   if (!isAvailability && !isBook) return null;
 
   const record = isRecord(args) ? args : {};

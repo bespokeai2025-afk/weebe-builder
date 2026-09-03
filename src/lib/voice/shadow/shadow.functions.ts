@@ -297,13 +297,21 @@ async function computeCutoverReadiness(
       : "No voice picked — calls will use the default WEBEE Native voice",
   });
 
+  const webeeStt = String(settings.webeeSttProvider ?? "fish").trim().toLowerCase();
+  const deepgram = Boolean(process.env.DEEPGRAM_API_KEY);
+  const sttOk = webeeStt === "deepgram" ? deepgram : fish;
   checks.push({
     id: "stt",
     label: "Speech recognition",
-    status: fish ? "pass" : "fail",
-    detail: fish
-      ? "Fish Audio ASR configured (same key as TTS)"
-      : "Set FISH_API_KEY for Fish Audio STT + TTS",
+    status: sttOk ? "pass" : "fail",
+    detail:
+      webeeStt === "deepgram"
+        ? deepgram
+          ? "Deepgram ASR configured (Fish Audio still speaks)"
+          : "Set DEEPGRAM_API_KEY, or switch STT back to Fish Audio"
+        : fish
+          ? "Fish Audio ASR configured (same key as TTS)"
+          : "Set FISH_API_KEY for Fish Audio STT + TTS",
   });
 
   // The flow is the actual Retell replacement, so an agent whose graph does not

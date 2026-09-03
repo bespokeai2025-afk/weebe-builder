@@ -26,6 +26,7 @@ export interface FlowVariableRef {
 
 export const SYSTEM_FLOW_VARS: readonly FlowVariableRef[] = [
   { name: "user_number", source: "system", description: "Caller phone number" },
+  { name: "caller_number", source: "system", description: "Caller phone number" },
   { name: "agent_number", source: "system", description: "Agent / destination number" },
   { name: "current_time", source: "system", description: "Current local time" },
   { name: "current_date", source: "system", description: "Current local date" },
@@ -178,6 +179,7 @@ export function nodeTemplateTexts(node: FlowNode): string[] {
   const d = node.data;
   return [
     d.dialogue,
+    d.speechPrefix,
     d.endingPrompt,
     d.smsMessage,
     d.httpUrl,
@@ -234,7 +236,7 @@ export function incompleteVariableToken(
   if (idx < 0) return null;
   const afterOpen = before.slice(idx + 2);
   if (afterOpen.includes("}}") || afterOpen.includes("\n")) return null;
-  if (!/^[a-zA-Z0-9_]*$/.test(afterOpen)) return null;
+  if (!/^[a-zA-Z0-9_.]*$/.test(afterOpen)) return null;
   return { start: idx, query: afterOpen };
 }
 

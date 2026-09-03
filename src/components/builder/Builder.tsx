@@ -68,6 +68,7 @@ import {
   LayoutGrid,
   Undo2,
   Redo2,
+  RotateCcw,
   PauseCircle,
   Tag,
   FileText,
@@ -971,10 +972,11 @@ export function Builder({
                 autoLayout();
                 requestAnimationFrame(() => rf?.fitView({ padding: 0.2, duration: 200 }));
               }}
-              title="Auto-arrange nodes"
-              className="!w-8 !p-0 text-muted-foreground/60 hover:text-foreground"
+              title="Auto layout — arrange nodes left to right like Retell"
+              className="h-7 gap-1 px-1.5 text-[10px] font-medium text-muted-foreground/80 hover:text-foreground"
             >
-              <LayoutGrid />
+              <LayoutGrid className="h-3 w-3" />
+              Layout
             </Button>
             <Button
               size="sm"
@@ -984,10 +986,10 @@ export function Builder({
                 requestAnimationFrame(() => rf?.fitView({ padding: 0.2, duration: 200 }));
               }}
               disabled={!preAutoLayoutPositions}
-              title="Revert auto-arrange"
-              className="!w-8 !p-0 text-muted-foreground/60 hover:text-foreground"
+              title="Revert auto layout"
+              className="!w-8 !p-0 text-muted-foreground/60 hover:text-foreground disabled:opacity-30"
             >
-              <Undo2 className="opacity-70" />
+              <RotateCcw className="h-3 w-3 opacity-70" />
             </Button>
             <Button
               size="sm"
@@ -1370,6 +1372,14 @@ export function Builder({
           <BuilderCommandPalette
             onAddNode={placeNode}
             onFitView={() => rf?.fitView({ padding: 0.2 })}
+            onGoToNode={(id) => {
+              const n = useBuilderStore.getState().nodes.find((node) => node.id === id);
+              if (!rf || !n) return;
+              rf.setCenter(n.position.x + 140, n.position.y + 80, {
+                zoom: Math.max(rf.getZoom(), 0.7),
+                duration: 350,
+              });
+            }}
           />
           {smBuild.dock}
         </div>
@@ -1887,6 +1897,28 @@ export function Builder({
                 )}
                 {isWebeeNative && (
                   <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] text-muted-foreground">Speech-to-text</Label>
+                      <Select
+                        value={settings.webeeSttProvider ?? "fish"}
+                        onValueChange={(v) =>
+                          setSettings({ webeeSttProvider: v as "fish" | "deepgram" })
+                        }
+                      >
+                        <SelectTrigger className="h-8 text-[11px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="fish">Fish Audio ASR</SelectItem>
+                          <SelectItem value="deepgram">Deepgram Nova-2</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[10px] text-muted-foreground leading-snug">
+                        {settings.webeeSttProvider === "deepgram"
+                          ? "Uses DEEPGRAM_API_KEY. Voice synthesis stays Fish Audio."
+                          : "Uses the same FISH_API_KEY as voice synthesis."}
+                      </p>
+                    </div>
                     <div className="space-y-1.5">
                       <Label className="text-[10px] text-muted-foreground">LLM</Label>
                       <Select

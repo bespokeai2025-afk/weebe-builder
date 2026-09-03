@@ -81,13 +81,17 @@ export interface FlowNodeData {
   isStart?: boolean;
   /** For conversation start nodes — who speaks first */
   startSpeaker?: "agent" | "user";
-  /** For conversation nodes — LLM prompt, interpolated template, or verbatim static */
-  instructionType?: "prompt" | "static_text" | "template";
-  /** Extra notes that must never be spoken (static/template nodes). */
+  /** Exact (static_text), AI Generated (prompt), or Hybrid. Legacy `template` = Exact. */
+  instructionType?: "prompt" | "static_text" | "template" | "hybrid";
+  /** Hybrid only: spoken exactly before the LLM line. */
+  speechPrefix?: string;
+  /** Extra notes that must never be spoken (Exact / Hybrid nodes). */
   instructions?: string;
   /** For function nodes */
   toolId?: string;
   speakDuringExecution?: boolean;
+  /** Spoken filler while the tool runs (Retell `execution_message_description`). */
+  executionMessage?: string;
   waitForResult?: boolean;
   /** Display name for the tool (Retell-style) */
   toolName?: string;
@@ -446,9 +450,11 @@ export interface BuilderSettings {
   /** True when the selected Fish voice is a workspace clone (not a library voice). */
   webeeVoiceOwned?: boolean;
   /**
-   * STT for WEBEE_NATIVE — always Fish Audio (same key as TTS).
+   * STT for WEBEE_NATIVE. TTS stays Fish Audio either way.
+   * "fish"     — Fish realtime ASR (default)
+   * "deepgram" — Deepgram Nova-2
    */
-  webeeSttProvider?: "fish";
+  webeeSttProvider?: "fish" | "deepgram";
   /**
    * Graph / speech LLM provider for WEBEE_NATIVE. OpenAI is the default so a
    * Cerebras quota miss cannot freeze the call.

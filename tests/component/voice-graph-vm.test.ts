@@ -447,6 +447,60 @@ describe("ConversationVm conversation flow", () => {
     expect(tmpl.calls.generate).toHaveLength(0);
   });
 
+  it("speaks a hybrid prefix without the LLM, then generates the rest", async () => {
+    const llm = fakeLlm({ generate: () => "Thursday at 2 PM is free." });
+    const vm = new ConversationVm({
+      flow: flowOf([
+        {
+          id: "opts",
+          type: "conversation",
+          instruction: {
+            type: "hybrid",
+            prefix: "Thanks, {{customer_name}}.",
+            text: "Explain the available appointment options. Keep it under two sentences.",
+          },
+        },
+      ]),
+      llm,
+      variables: { customer_name: "sarah" },
+    });
+    const out = await drainWithSpeech(vm.run({ type: "begin" }));
+    expect(out.speeches[0]).toBe("Thanks, Sarah.");
+    expect(out.speeches[1]).toBe("Thursday at 2 PM is free.");
+    expect(llm.calls.generate.length).toBeGreaterThan(0);
+    const sys = llm.calls.generate[0]?.find((m) => m.role === "system")?.content ?? "";
+    expect(sys).not.toContain("{{customer_name}}");
+    expect(sys).toContain("Already spoken this turn");
+  });
+
+  it("resolves prompt variables before the LLM runs", async () => {
+    const llm = fakeLlm({
+      generate: (messages) => {
+        const sys = messages.find((m) => m.role === "system")?.content ?? "";
+        expect(sys).toContain("12 September");
+        expect(sys).toContain("3:30 PM");
+        expect(sys).not.toContain("{{appointment_date}}");
+        return "We have the 12th at 3:30.";
+      },
+    });
+    const vm = new ConversationVm({
+      flow: flowOf([
+        {
+          id: "offer",
+          type: "conversation",
+          instruction: {
+            type: "prompt",
+            text: "Tell the caller their appointment is available on {{appointment_date}} at {{appointment_time}}.",
+          },
+        },
+      ]),
+      llm,
+      variables: { appointment_date: "12 September", appointment_time: "3:30 PM" },
+    });
+    const out = await drainWithSpeech(vm.run({ type: "begin" }));
+    expect(out.speeches).toEqual(["We have the 12th at 3:30."]);
+  });
+
   it("always calls the LLM for prompt nodes even when the text looks spoken", async () => {
     const llm = fakeLlm({ generate: () => "What's your postcode?" });
     const vm = new ConversationVm({
@@ -1240,6 +1294,81 @@ describe("ConversationVm function nodes", () => {
     expect(speech(out)).toEqual(["Booked"]);
   });
 
+  it("does not read a Call-tool instruction aloud as the filler line", async () => {
+    const vm = new ConversationVm({
+      flow: flowOf([
+        bookingNode({
+          speak_during_execution: true,
+          instruction: {
+            type: "prompt",
+            text: "Call get_available_slots with requested_day and requested_time set to exactly what the lead said.",
+          },
+        }),
+        say("done", "Booked"),
+      ]),
+      llm: fakeLlm(),
+      hooks: { executeTool: async () => ({ ok: true, output: "{}" }) },
+    });
+    expect(speech(await drain(vm.run({ type: "begin" })))).toEqual(["Booked"]);
+  });
+
+  it("does not generate LLM speech from a function node after a routing miss", async () => {
+    const llm = fakeLlm({ generate: () => "I am working on booking your appointment now." });
+    const vm = new ConversationVm({
+      flow: flowOf([
+        {
+          id: "book",
+          type: "function",
+          name: "book_appointment",
+          tool_id: "book_appointment",
+          tool_type: "local",
+          edges: [],
+          instruction: { type: "prompt", text: "Call book_appointment with name and email." },
+        } as FlowNode,
+      ]),
+      llm,
+      hooks: { executeTool: async () => ({ ok: false, output: '{"error":"fetch failed"}' }) },
+    });
+    await drain(vm.run({ type: "begin" }));
+    const after = await drain(vm.run({ type: "user_utterance", text: "Okay." }));
+    expect(speech(after)).toEqual([]);
+    expect(after.some((d) => d.type === "speak")).toBe(false);
+
+    const goodbye = await drain(vm.run({ type: "user_utterance", text: "No, goodbye." }));
+    expect(goodbye.some((d) => d.type === "end_call")).toBe(true);
+  });
+
+  it("fills tool arguments from collected variables when extract is empty", async () => {
+    let seen: Record<string, unknown> = {};
+    const vm = new ConversationVm({
+      flow: flowOf([
+        bookingNode({
+          parameters: {
+            type: "object",
+            properties: {
+              email: { type: "string" },
+              name: { type: "string" },
+            },
+          },
+        }),
+        say("done", "Booked"),
+      ]),
+      llm: fakeLlm({ extract: () => ({}) }),
+      hooks: {
+        executeTool: async (inv) => {
+          seen = inv.args;
+          return { ok: true, output: "{}" };
+        },
+      },
+      variables: { first_name: "Michelle", last_name: "Sarah", email: "Michelle.Sarah@example.com" },
+    });
+    await drain(vm.run({ type: "begin" }));
+    expect(seen).toMatchObject({
+      email: "Michelle.Sarah@example.com",
+      name: "Michelle Sarah",
+    });
+  });
+
   it("speaks a filler line while the tool runs", async () => {
     const vm = new ConversationVm({
       flow: flowOf([
@@ -1760,5 +1889,105 @@ describe("ConversationVm safety rails", () => {
 
     await drain(vm.run({ type: "begin" }));
     expect(calls).toEqual(["check_availability"]);
+  });
+});
+
+describe("wait / begin silence and flex routing", () => {
+  it("compiles flex_mode false onto the flow", () => {
+    expect(compileFlow({ nodes: [say("a", "hi")], flex_mode: false }).flexMode).toBe(false);
+    expect(compileFlow({ nodes: [say("a", "hi")] }).flexMode).toBe(true);
+  });
+
+  it("takes a timeout edge when the transport reports silence", async () => {
+    const vm = new ConversationVm({
+      flow: flowOf([
+        {
+          id: "wait",
+          type: "conversation",
+          start_speaker: "user",
+          silence_timeout_ms: 8000,
+          retry_count: 0,
+          instruction: { type: "static_text", text: "" },
+          edges: [edge("e1", "next", "timeout")],
+        },
+        say("next", "Still there?"),
+      ]),
+      llm: fakeLlm(),
+    });
+    const begin = await drain(vm.run({ type: "begin" }));
+    expect(kinds(begin)).toEqual(["await_user"]);
+    expect(begin[0]).toMatchObject({ type: "await_user", silenceTimeoutMs: 8000 });
+
+    const after = await drain(vm.run({ type: "silence_timeout" }));
+    expect(speech(after)).toEqual(["Still there?"]);
+  });
+
+  it("retries a wait node before taking the timeout edge", async () => {
+    const vm = new ConversationVm({
+      flow: flowOf([
+        {
+          id: "wait",
+          type: "conversation",
+          start_speaker: "user",
+          silence_timeout_ms: 4000,
+          retry_count: 1,
+          instruction: { type: "static_text", text: "" },
+          edges: [edge("e1", "next", "timeout")],
+        },
+        say("next", "Moving on"),
+      ]),
+      llm: fakeLlm(),
+    });
+    await drain(vm.run({ type: "begin" }));
+    const first = await drain(vm.run({ type: "silence_timeout" }));
+    expect(kinds(first)).toEqual(["await_user"]);
+    expect(speech(first)).toEqual([]);
+    const second = await drain(vm.run({ type: "silence_timeout" }));
+    expect(speech(second)).toEqual(["Moving on"]);
+  });
+
+  it("holds the greeting until begin-after-silence fires", async () => {
+    const vm = new ConversationVm({
+      flow: flowOf(
+        [say("greet", "Hello there")],
+        { begin_after_user_silence_ms: 250 },
+      ),
+      llm: fakeLlm(),
+    });
+    const begin = await drain(vm.run({ type: "begin" }));
+    expect(kinds(begin)).toEqual(["await_user"]);
+    expect(begin[0]).toMatchObject({ silenceTimeoutMs: 250 });
+    expect(speech(begin)).toEqual([]);
+    const after = await drain(vm.run({ type: "silence_timeout" }));
+    expect(speech(after)).toEqual(["Hello there"]);
+  });
+
+  it("does not take a generic-only edge in strict flex mode", async () => {
+    const decision = await selectEdge(
+      [edge("e1", "next", "user answers")],
+      {
+        history: [{ role: "user", content: "something long enough to look like an answer" }],
+        variables: {},
+        globalPrompt: "",
+        flex: false,
+      },
+      fakeLlm({ classify: () => -1 }),
+    );
+    expect(decision.edge).toBeNull();
+  });
+
+  it("fires timeout even when history already has a prior user line", async () => {
+    const decision = await selectEdge(
+      [edge("e1", "next", "timeout"), edge("e2", "other", "user said yes")],
+      {
+        history: [{ role: "user", content: "hello" }],
+        variables: {},
+        globalPrompt: "",
+        silenceTimeout: true,
+      },
+      fakeLlm({ classify: () => 1 }),
+    );
+    expect(decision.edge?.destination_node_id).toBe("next");
+    expect(decision.method).toBe("unconditional");
   });
 });

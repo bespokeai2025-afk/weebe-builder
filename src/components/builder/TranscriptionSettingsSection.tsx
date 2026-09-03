@@ -261,17 +261,42 @@ function WebeeNativeTranscriptionSettings() {
       <div>
         <SectionLabel
           label="Speech-to-Text"
-          description="Fish Audio Realtime ASR — uses the same FISH_API_KEY as voice synthesis."
+          description="WEBEE Native voice stays Fish Audio. Pick who transcribes the caller."
         />
-        <p className="mt-1.5 rounded-md border border-white/[0.06] bg-white/[0.02] px-2.5 py-2 text-[11px] text-muted-foreground">
-          Fish Audio STT + TTS (WEBEE Native)
-        </p>
+        <Select
+          value={settings.webeeSttProvider ?? "fish"}
+          onValueChange={(v) => setSettings({ webeeSttProvider: v as "fish" | "deepgram" })}
+        >
+          <SelectTrigger className="h-8 text-[11px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="fish">
+              <div className="flex flex-col">
+                <span>Fish Audio ASR</span>
+                <span className="text-[10px] text-muted-foreground">Same key as TTS — default</span>
+              </div>
+            </SelectItem>
+            <SelectItem value="deepgram">
+              <div className="flex flex-col">
+                <span>Deepgram Nova-2</span>
+                <span className="text-[10px] text-muted-foreground">
+                  Needs Deepgram key — Fish still speaks
+                </span>
+              </div>
+            </SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div>
         <SectionLabel
           label="Boosted Keywords"
-          description="Domain words to help recognition (reserved for future STT bias)."
+          description={
+            settings.webeeSttProvider === "deepgram"
+              ? "Sent to Deepgram as keywords and corrected after transcription."
+              : "Sent to Fish ASR as a prompt and corrected after transcription."
+          }
         />
         <input
           type="text"

@@ -23,7 +23,7 @@ export function transcriptCaughtUpToAudio(
   const spoken = full.replace(/\s+/g, " ").trim();
   if (!spoken || pcmBytes <= 0 || sampleRate <= 0) return "";
   const seconds = pcmBytes / (sampleRate * 2);
-  const chars = Math.floor(seconds * 14);
+  const chars = Math.floor(seconds * 18);
   if (chars >= spoken.length) return spoken;
   const cut = spoken.slice(0, Math.max(chars, 1));
   const sentence = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("? "), cut.lastIndexOf("! "));

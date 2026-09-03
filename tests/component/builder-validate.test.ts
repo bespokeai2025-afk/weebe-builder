@@ -32,6 +32,20 @@ describe("builder validateFlow", () => {
     );
   });
 
+  it("treats transition targets as reachable even without a canvas edge", () => {
+    const nodes = [
+      node("conversation", "start", {
+        isStart: true,
+        dialogue: "Hi",
+        transitions: [{ id: "t1", condition: "next", target: "end" }],
+      }),
+      node("ending", "end", { endingPrompt: "Bye" }),
+    ];
+    const issues = validateFlow(nodes, []);
+    expect(issues.some((i) => i.nodeId === "end" && i.message.includes("not connected"))).toBe(false);
+    expect(issues.filter((i) => i.level === "error")).toEqual([]);
+  });
+
   it("warns about nodes unreachable from start", () => {
     const nodes = [
       node("conversation", "start", { isStart: true, dialogue: "Hi" }),

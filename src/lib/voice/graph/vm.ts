@@ -38,9 +38,11 @@ import {
   leadFieldsForTurn,
   spokenFallback,
   splitPromptParts,
+  spokenExecutionFiller,
 } from "./speech-prompt.shared";
 import { constrainGeneratedSpeech, personaFromGlobalPrompt } from "./speech-isolate.shared";
 import { responseModeFromInstruction } from "./speech-mode.shared";
+import { parseToolOutputVariables, lookupRuntimeValue } from "./variables.shared";
 import type { CallTurnTrace } from "./latency-trace";
 import {
   selectDigitEdge,
@@ -61,6 +63,8 @@ import {
 } from "../speculative-speech.shared";
 import { findRegisteredTool } from "../../runtime/tool-executor";
 import type {
+  AwaitUserDirective,
+  ConversationNode,
   EndReason,
   FlowEdge,
   FlowNode,
@@ -161,7 +165,7 @@ function isFillerUtterance(text: string): boolean {
 /** Caller is stalling without giving the requested information. */
 function isHedgingUtterance(text: string): boolean {
   const t = text.trim().toLowerCase();
-  return /\b(maybe later|not sure|don't know|do not know|still thinking|thinking about|hold on|hang on|wait a|one sec|just a sec|give me a sec|not now|call me back|call back later|i'll think|let me think)\b/.test(
+  return /\b(maybe later|not sure|don't know|do not know|still thinking|thinking about|hold on|hang on|wait a|one sec|just a sec|give me a sec|not now|call me back|call back later|call me after|afterwards|i'll think|let me think)\b/.test(
     t,
   );
 }
@@ -207,7 +211,9 @@ export class ConversationVm {
   private previousNodeId: string | null = null;
   /** Nodes to come back to after a `return_to_previous` global node finishes. */
   private returnStack: string[] = [];
-  private awaiting: "user" | "digit" | "transfer" | null = null;
+  private awaiting: "user" | "digit" | "transfer" | "begin_silence" | null = null;
+  private silenceAttempts = 0;
+  private silenceNodeId: string | null = null;
   private ended = false;
   private started = false;
   private turnTrace: CallTurnTrace | null = null;
@@ -355,6 +361,13 @@ export class ConversationVm {
     if (!dest?.instruction) return null;
     const mode = responseModeFromInstruction(dest.instruction.type);
     if (mode === "llm") return null;
+    if (mode === "hybrid") {
+      const prefix = interpolateDeclaredSpeech(
+        String(dest.instruction.prefix ?? ""),
+        this.variables,
+      );
+      return prefix || null;
+    }
     const raw = String(dest.instruction.text ?? "").trim();
     if (!raw || /^NO_RESPONSE_NEEDED$/i.test(raw)) return null;
     return interpolateDeclaredSpeech(raw, this.variables) || null;
@@ -371,13 +384,20 @@ export class ConversationVm {
     if (!dest?.instruction) return null;
 
     const raw = String(dest.instruction.text ?? "").trim();
-    if (!raw || /^NO_RESPONSE_NEEDED$/i.test(raw)) return null;
-
     const mode = responseModeFromInstruction(dest.instruction.type);
-    if (mode === "static" || mode === "template") {
+    if (mode === "static") {
+      if (!raw || /^NO_RESPONSE_NEEDED$/i.test(raw)) return null;
       const spoken = interpolateDeclaredSpeech(raw, this.variables);
       return spoken ? { kind: "static", text: spoken } : null;
     }
+    if (mode === "hybrid") {
+      const prefix = interpolateDeclaredSpeech(
+        String(dest.instruction.prefix ?? ""),
+        this.variables,
+      );
+      if (prefix) return { kind: "static", text: prefix };
+    }
+    if (!raw || /^NO_RESPONSE_NEEDED$/i.test(raw)) return null;
 
     const messages = this.buildSpeechMessages(dest, raw);
     const model = nodeModel(dest, this.compiled, this.fallbackModel) ?? this.fallbackModel ?? "";
@@ -406,7 +426,7 @@ export class ConversationVm {
         target = this.speechWarmForNode(elseDest);
       }
     }
-    if (!target && node.instruction?.type === "prompt") {
+    if (!target && (node.type === "conversation" || node.type === "end") && node.instruction?.type === "prompt") {
       target = this.speechWarmForNode(node.id);
     }
     if (!target) return;
@@ -472,14 +492,38 @@ export class ConversationVm {
         // which is how inbound flows avoid talking over a caller's greeting.
         if (this.compiled.startSpeaker === "user") {
           this.awaiting = "user";
-          yield { type: "await_user", nodeId: this.currentNodeId };
+          yield this.awaitUserDirective(this.currentNodeId);
+          return;
+        }
+        const beginSilence = this.beginSilenceMs();
+        if (beginSilence > 0) {
+          this.awaiting = "begin_silence";
+          yield {
+            type: "await_user",
+            nodeId: this.currentNodeId,
+            silenceTimeoutMs: beginSilence,
+          };
           return;
         }
         yield* this.advance(this.currentNodeId);
         return;
       }
 
+      case "silence_timeout": {
+        if (this.awaiting === "begin_silence") {
+          this.awaiting = null;
+          yield* this.advance(this.currentNodeId!);
+          return;
+        }
+        yield* this.afterSilenceTimeout();
+        return;
+      }
+
       case "user_utterance": {
+        if (this.awaiting === "begin_silence") {
+          this.awaiting = "user";
+        }
+        this.resetSilenceAttempts();
         const text = input.text.trim();
         if (!text) return;
         this.history.push({ role: "user", content: text });
@@ -590,11 +634,11 @@ export class ConversationVm {
     // get a spoken reply from this node — "hello" is not filler, and a heuristic
     // match onto an empty branch is how test calls went mute.
     const agentHasSpoken = this.history.some((m) => m.role === "assistant");
-    if (!agentHasSpoken) {
+    if (!agentHasSpoken && (node.type === "conversation" || node.type === "end")) {
       this.log(`first caller turn with no agent line yet — speaking "${node.id}"`);
       yield* this.yieldSpeech(node);
       this.awaiting = "user";
-      yield { type: "await_user", nodeId: node.id };
+      yield this.awaitUserDirective(node.id);
       return;
     }
 
@@ -603,7 +647,7 @@ export class ConversationVm {
       this.history.push({ role: "assistant", content: clarify });
       yield { type: "speak", nodeId: node.id, text: clarify, interruptible: true };
       this.awaiting = "user";
-      yield { type: "await_user", nodeId: node.id };
+      yield this.awaitUserDirective(node.id);
       return;
     }
 
@@ -618,7 +662,7 @@ export class ConversationVm {
         yield* this.yieldSpeech(node);
       }
       this.awaiting = "user";
-      yield { type: "await_user", nodeId: node.id };
+      yield this.awaitUserDirective(node.id);
       return;
     }
 
@@ -718,7 +762,23 @@ export class ConversationVm {
     if (isFillerUtterance(latestUser) || isHedgingUtterance(latestUser)) {
       this.log(`staying silent on "${node.id}" — filler/hedge "${latestUser.slice(0, 40)}"`);
       this.awaiting = "user";
-      yield { type: "await_user", nodeId: node.id };
+      yield this.awaitUserDirective(node.id);
+      return;
+    }
+    if (node.type !== "conversation" && node.type !== "end") {
+      if (userSignalsCallEnd(latestUser) || userSignalsDecline(latestUser)) {
+        const endId = this.findEndNodeId();
+        if (endId && endId !== node.id) {
+          yield* this.advance(endId);
+          return;
+        }
+        this.ended = true;
+        yield { type: "end_call", nodeId: node.id, reason: "user_hangup" };
+        return;
+      }
+      this.log(`routing miss on "${node.id}" — staying on ${node.type}, not generating speech`);
+      this.awaiting = "user";
+      yield this.awaitUserDirective(node.id);
       return;
     }
     if (responseModeFromInstruction(node.instruction?.type) !== "llm") {
@@ -731,7 +791,7 @@ export class ConversationVm {
     this.keepSpeculativeFor(node.id);
     yield* this.yieldSpeech(node);
     this.awaiting = "user";
-    yield { type: "await_user", nodeId: node.id };
+    yield this.awaitUserDirective(node.id);
   }
 
   /** Execute nodes until the flow blocks or ends. */
@@ -761,6 +821,7 @@ export class ConversationVm {
 
       if (this.currentNodeId && this.currentNodeId !== nodeId) {
         this.previousNodeId = this.currentNodeId;
+        this.resetSilenceAttempts();
       }
       this.currentNodeId = nodeId;
       this.turnTrace?.mark("graph_node_loaded");
@@ -777,7 +838,7 @@ export class ConversationVm {
       if (result.kind === "await") {
         this.awaiting = result.what;
         this.traceLog("NODE_AWAIT", node.id, result.what);
-        if (result.what === "user") yield { type: "await_user", nodeId: node.id };
+        if (result.what === "user") yield this.awaitUserDirective(node.id);
         this.turnTrace?.mark("graph_advance_end");
         return;
       }
@@ -911,9 +972,11 @@ export class ConversationVm {
 
   private async *execFunction(node: FunctionNode): AsyncGenerator<VmDirective, StepResult> {
     if (node.speak_during_execution) {
-      const filler = interpolate(
-        String(node.execution_message_description ?? node.instruction?.text ?? "").trim(),
-        this.variables,
+      const filler = spokenExecutionFiller(
+        interpolate(
+          String(node.execution_message_description ?? "").trim(),
+          this.variables,
+        ),
       );
       if (filler) yield { type: "speak", nodeId: node.id, text: filler, interruptible: true };
     }
@@ -990,9 +1053,11 @@ export class ConversationVm {
       node.id,
       `${outcome.ok ? "ok" : "fail"} ${truncate(outcome.output, 160)}`,
     );
-    if (outcome.variables && Object.keys(outcome.variables).length > 0) {
-      this.rememberVariables(outcome.variables);
-      yield { type: "variables", nodeId: node.id, values: outcome.variables };
+    const fromOutput = parseToolOutputVariables(invocation.toolName, outcome.output);
+    const mergedVars = { ...fromOutput, ...(outcome.variables ?? {}) };
+    if (Object.keys(mergedVars).length > 0) {
+      this.rememberVariables(mergedVars);
+      yield { type: "variables", nodeId: node.id, values: mergedVars };
     }
     yield { type: "tool_call", nodeId: node.id, toolId, result: outcome.output, ok: outcome.ok };
     // Routing conditions like "the booking succeeded" can only be judged if the
@@ -1163,6 +1228,19 @@ export class ConversationVm {
       return;
     }
 
+    const prefix = speech.prefix?.trim() ?? "";
+    const stream = speech.stream;
+    const fallback = speech.fallback;
+    if (prefix) {
+      this.traceLog("TTS_START", node.id, prefix.slice(0, 120));
+      yield {
+        type: "speak",
+        nodeId: node.id,
+        text: prefix,
+        interruptible: options.interruptible,
+      };
+    }
+
     let resolveText!: (text: string) => void;
     const textDone = new Promise<string>((resolve) => {
       resolveText = resolve;
@@ -1171,19 +1249,19 @@ export class ConversationVm {
     async function* collectTokens(): AsyncGenerator<string> {
       let full = "";
       try {
-        for await (const delta of speech.stream) {
+        for await (const delta of stream) {
           full += delta;
           yield delta;
         }
-        const clean = full.trim() || speech.fallback;
+        const clean = full.trim() || fallback;
         resolveText(clean);
         // gpt-oss can spend the token budget on reasoning and emit no content.
-        if (!full.trim() && speech.fallback) yield speech.fallback;
+        if (!full.trim() && fallback) yield fallback;
       } catch (err) {
-        const clean = full.trim() || speech.fallback;
+        const clean = full.trim() || fallback;
         resolveText(clean);
-        if (!full.trim() && speech.fallback) yield speech.fallback;
-        if (!speech.fallback) throw err;
+        if (!full.trim() && fallback) yield fallback;
+        if (!fallback) throw err;
       }
     }
 
@@ -1196,10 +1274,11 @@ export class ConversationVm {
     };
 
     const text = await textDone;
-    if (text) {
-      this.traceLog("LLM_RESPONSE", node.id, text.slice(0, 120));
-      this.traceLog("TTS_START", node.id, text.slice(0, 120));
-      this.history.push({ role: "assistant", content: text });
+    const spoken = [prefix, text].filter(Boolean).join(" ").trim();
+    if (spoken) {
+      this.traceLog("LLM_RESPONSE", node.id, spoken.slice(0, 120));
+      this.traceLog("TTS_START", node.id, spoken.slice(0, 120));
+      this.history.push({ role: "assistant", content: spoken });
     }
   }
 
@@ -1207,21 +1286,30 @@ export class ConversationVm {
     node: FlowNode,
   ): Promise<
     | { kind: "static"; text: string }
-    | { kind: "generated"; stream: AsyncIterable<string>; fallback: string }
+    | { kind: "generated"; stream: AsyncIterable<string>; fallback: string; prefix?: string }
     | null
   > {
     const instruction = node.instruction;
     const raw = String(instruction?.text ?? "").trim();
-    if (/^NO_RESPONSE_NEEDED$/i.test(raw)) return null;
-    if (!raw) return null;
+    const prefixRaw = String(instruction?.prefix ?? "").trim();
+    if (/^NO_RESPONSE_NEEDED$/i.test(raw) && !prefixRaw) return null;
 
     const mode = responseModeFromInstruction(instruction?.type);
     this.traceLog("NODE_MODE", node.id, mode.toUpperCase());
-    if (mode === "static" || mode === "template") {
+
+    if (mode === "static") {
+      if (!raw) return null;
       const spoken = interpolateDeclaredSpeech(raw, this.variables);
       if (!spoken) return null;
       return { kind: "static", text: spoken };
     }
+
+    const prefix =
+      mode === "hybrid" ? interpolateDeclaredSpeech(prefixRaw, this.variables) : "";
+    if (mode === "hybrid" && !raw) {
+      return prefix ? { kind: "static", text: prefix } : null;
+    }
+    if (!raw) return null;
 
     const interpolated = interpolateForSpeech(raw, this.variables);
 
@@ -1244,6 +1332,7 @@ export class ConversationVm {
             node.type === "end",
           ),
           fallback,
+          ...(prefix ? { prefix } : {}),
         };
       }
       spec.ctrl.abort();
@@ -1260,9 +1349,10 @@ export class ConversationVm {
             node.type === "end",
           ),
           fallback,
+          ...(prefix ? { prefix } : {}),
         };
       } catch (err) {
-        this.log(`stream setup failed on node "${node.id}": ${errMessage(err)}`);
+        this.log(`stream setup failed on "${node.id}": ${errMessage(err)}`);
       }
     }
 
@@ -1278,10 +1368,13 @@ export class ConversationVm {
       if (constrained.offTopic) {
         this.traceLog("SPEECH_OFF_TOPIC", node.id, constrained.text.slice(0, 120));
       }
-      return constrained.text ? { kind: "static", text: constrained.text } : null;
+      const spoken = [prefix, constrained.text].filter(Boolean).join(" ").trim();
+      return spoken ? { kind: "static", text: spoken } : null;
     } catch (err) {
-      this.log(`generation failed on node "${node.id}": ${errMessage(err)}`);
-      return fallback ? { kind: "static", text: fallback } : null;
+      this.log(`generation failed on "${node.id}": ${errMessage(err)}`);
+      if (!fallback && !prefix) throw err;
+      const joined = [prefix, fallback].filter(Boolean).join(" ").trim();
+      return joined ? { kind: "static", text: joined } : null;
     }
   }
 
@@ -1296,9 +1389,33 @@ export class ConversationVm {
     if (notes) {
       system.push(`Notes (do not read aloud):\n${notes}`);
     }
+    const spokenPrefix = interpolateDeclaredSpeech(
+      String(node.instruction?.prefix ?? ""),
+      this.variables,
+    );
+    if (spokenPrefix) {
+      system.push(`Already spoken this turn (do not repeat):\n${spokenPrefix}`);
+    }
     const persona = personaFromGlobalPrompt(this.compiled.globalPrompt);
     if (persona) {
       system.push(`Identity (not a script — do not ask questions from this block):\n${persona}`);
+    }
+    const extra = node as unknown as { subagent_tools?: unknown; knowledge_base_ids?: unknown };
+    const subTools = Array.isArray(extra.subagent_tools)
+      ? extra.subagent_tools.map((t) => String(t).trim()).filter(Boolean)
+      : [];
+    const kbIds = Array.isArray(extra.knowledge_base_ids)
+      ? extra.knowledge_base_ids.map((t) => String(t).trim()).filter(Boolean)
+      : [];
+    if (subTools.length) {
+      system.push(
+        `Subagent tool scope (do not invent others): ${subTools.join(", ")}.`,
+      );
+    }
+    if (kbIds.length) {
+      system.push(
+        `Knowledge bases in scope: ${kbIds.join(", ")}. Do not invent facts outside these.`,
+      );
     }
     if (this.languageLock) system.push(this.languageLock);
     const known = [...this.capturedNames]
@@ -1375,14 +1492,61 @@ export class ConversationVm {
       choices: spec?.enum,
     }));
 
+    const fromVars = this.toolArgsFromVariables(fields.map((f) => f.name));
     try {
-      return await this.llm.extract(this.history, fields, {
+      const instruction = String(node.instruction?.text ?? "").trim();
+      const messages = instruction
+        ? [...this.history, { role: "system" as const, content: interpolateForSpeech(instruction, this.variables) }]
+        : this.history;
+      const extracted = await this.llm.extract(messages, fields, {
         model: nodeModel(node, this.compiled, this.fallbackModel),
       });
+      return { ...fromVars, ...extracted };
     } catch (err) {
       this.log(`tool argument extraction failed on node "${node.id}": ${errMessage(err)}`);
-      return {};
+      return fromVars;
     }
+  }
+
+  private toolArgsFromVariables(names: string[]): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const name of names) {
+      const value = this.lookupToolArg(name);
+      if (value !== undefined) out[name] = value;
+    }
+    return out;
+  }
+
+  private lookupToolArg(name: string): string | undefined {
+    const direct = lookupRuntimeValue(this.variables, name);
+    if (direct) return direct;
+    const aliases: Record<string, string[]> = {
+      requested_day: ["appointment_date", "available_date", "selected_date", "date"],
+      requested_time: ["appointment_time", "available_time", "selected_time", "time"],
+      start: ["matched_slot", "calendar.matched_slot", "start_time"],
+      start_date: ["appointment_date", "available_date", "requested_day"],
+      email: ["customer_email", "email_address"],
+      name: ["customer_name", "full_name"],
+      phone: ["mobile", "customer_phone", "user_number", "caller_number"],
+    };
+    for (const alias of aliases[name] ?? []) {
+      const value = lookupRuntimeValue(this.variables, alias);
+      if (value) return value;
+    }
+    if (name === "name") {
+      const first = lookupRuntimeValue(this.variables, "first_name");
+      const last = lookupRuntimeValue(this.variables, "last_name");
+      if (first && last) return `${first} ${last}`;
+      return first ?? last;
+    }
+    return undefined;
+  }
+
+  private findEndNodeId(): string | null {
+    for (const node of this.compiled.nodes.values()) {
+      if (node.type === "end") return node.id;
+    }
+    return null;
   }
 
   /**
@@ -1442,6 +1606,7 @@ export class ConversationVm {
       globalPrompt: this.compiled.globalPrompt,
       currentNodeHint: node ? this.nodeHint(node) : undefined,
       classifierModel: classifier || undefined,
+      flex: this.compiled.flexMode,
     };
   }
 
@@ -1454,6 +1619,89 @@ export class ConversationVm {
 
   private currentNode(): FlowNode | null {
     return this.currentNodeId ? (this.compiled.nodes.get(this.currentNodeId) ?? null) : null;
+  }
+
+  private awaitUserDirective(nodeId: string | null): AwaitUserDirective {
+    const node = (nodeId ? this.compiled.nodes.get(nodeId) : null) ?? this.currentNode();
+    const ms = this.silenceMsFor(node);
+    return {
+      type: "await_user",
+      nodeId: node?.id ?? nodeId ?? "",
+      ...(ms > 0 ? { silenceTimeoutMs: ms } : {}),
+    };
+  }
+
+  private silenceMsFor(node: FlowNode | null): number {
+    if (!node || node.type !== "conversation") return 0;
+    const ms = (node as ConversationNode).silence_timeout_ms;
+    return typeof ms === "number" && Number.isFinite(ms) && ms > 0 ? ms : 0;
+  }
+
+  private beginSilenceMs(): number {
+    const start = this.currentNode();
+    const fromNode =
+      start && start.type === "conversation"
+        ? (start as ConversationNode).begin_after_user_silence_ms
+        : undefined;
+    const fromFlow = this.compiled.flow.begin_after_user_silence_ms;
+    const ms = typeof fromNode === "number" && fromNode > 0 ? fromNode : fromFlow;
+    return typeof ms === "number" && Number.isFinite(ms) && ms > 0 ? ms : 0;
+  }
+
+  private resetSilenceAttempts(): void {
+    this.silenceAttempts = 0;
+    this.silenceNodeId = null;
+  }
+
+  private async *afterSilenceTimeout(): AsyncGenerator<VmDirective> {
+    const node = this.currentNode();
+    if (!node) {
+      this.ended = true;
+      yield { type: "end_call", nodeId: "", reason: "dead_end" };
+      return;
+    }
+    if (this.silenceNodeId !== node.id) {
+      this.silenceAttempts = 0;
+      this.silenceNodeId = node.id;
+    }
+    this.silenceAttempts += 1;
+    const retries =
+      typeof (node as ConversationNode).retry_count === "number"
+        ? Math.max(0, (node as ConversationNode).retry_count ?? 0)
+        : 0;
+    this.log(`silence timeout on "${node.id}" attempt=${this.silenceAttempts} retries=${retries}`);
+
+    if (this.silenceAttempts <= retries) {
+      if (node.type === "conversation" && String(node.instruction?.text ?? "").trim()) {
+        yield* this.yieldSpeech(node);
+      }
+      this.awaiting = "user";
+      yield this.awaitUserDirective(node.id);
+      return;
+    }
+
+    const edgeRoute = await selectEdge(node.edges ?? [], {
+      ...this.routeContext(node),
+      silenceTimeout: true,
+    }, this.llm);
+    if (edgeRoute.edge?.destination_node_id) {
+      this.resetSilenceAttempts();
+      this.traceLog(
+        "TRANSITION",
+        `${node.id} → ${edgeRoute.edge.destination_node_id}`,
+        `timeout: ${String(edgeRoute.edge.transition_condition?.prompt ?? "").slice(0, 80)}`,
+      );
+      yield* this.advance(edgeRoute.edge.destination_node_id);
+      return;
+    }
+    const elseEdge = (node as { else_edge?: FlowEdge }).else_edge;
+    if (elseEdge?.destination_node_id) {
+      this.resetSilenceAttempts();
+      yield* this.advance(elseEdge.destination_node_id);
+      return;
+    }
+    this.awaiting = "user";
+    yield this.awaitUserDirective(node.id);
   }
 
   private fail(nodeId: string, message: string): VmDirective {

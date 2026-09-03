@@ -18,6 +18,7 @@ import {
   normalizeEnglishLockedSttText,
   romanizeForEnglishStt,
 } from "../language-lock.shared";
+import { applyKeywordBoost, keywordBoostPrompt } from "./keyword-boost.shared";
 import { buildWav } from "./whisper";
 import type { SttOpenOptions, SttProvider, SttSession } from "./types";
 
@@ -46,12 +47,15 @@ export async function fishTranscribe(
   wav: Buffer,
   apiKey: string,
   language?: string,
+  keywords?: string[],
 ): Promise<string> {
   const form = new FormData();
   const bytes = new Uint8Array(wav.byteLength);
   bytes.set(wav);
   form.append("audio", new Blob([bytes], { type: "audio/wav" }), "speech.wav");
   if (language) form.append("language", language.slice(0, 2).toLowerCase());
+  const prompt = keywordBoostPrompt(keywords);
+  if (prompt) form.append("prompt", prompt);
   form.append("ignore_timestamps", "true");
 
   const res = await fetch(FISH_ASR_URL, {
@@ -79,10 +83,14 @@ class FishBatchSttSession implements SttSession {
 
   async finalizeUtterance(frames: Buffer[]): Promise<string> {
     if (frames.length === 0) return "";
-    const text = await fishTranscribe(
-      buildWav(frames, this.options.sampleRate),
-      this.apiKey,
-      this.options.language,
+    const text = applyKeywordBoost(
+      await fishTranscribe(
+        buildWav(frames, this.options.sampleRate),
+        this.apiKey,
+        this.options.language,
+        this.options.keywords,
+      ),
+      this.options.keywords,
     );
     if (text) this.options.onFinal?.(text);
     return text;
@@ -118,6 +126,7 @@ class FishStreamingSttSession implements SttSession {
       switch (msg.type) {
         case "transcription_session.created": {
           const lang = this.options.language?.slice(0, 2).toLowerCase();
+          const prompt = keywordBoostPrompt(this.options.keywords);
           this.send({
             type: "transcription_session.update",
             session: {
@@ -127,6 +136,7 @@ class FishStreamingSttSession implements SttSession {
               input_audio_transcription: {
                 model: TRANSCRIBE_MODEL,
                 ...(lang ? { language: lang } : {}),
+                ...(prompt ? { prompt } : {}),
               },
             },
           });
@@ -140,17 +150,20 @@ class FishStreamingSttSession implements SttSession {
         case "conversation.item.input_audio_transcription.delta":
           if (msg.delta) {
             this.latestPartial += msg.delta;
-            const partial = this.latestPartial.trim();
+            const partial = applyKeywordBoost(this.latestPartial.trim(), this.options.keywords);
             const lang = this.options.language?.slice(0, 2).toLowerCase();
             const normalized =
               lang === "en" ? normalizeEnglishLockedSttText(partial, lang) : partial;
             if (normalized.length >= 2) this.lastGoodLatinPartial = normalized;
-            this.options.onPartial?.(this.latestPartial);
+            this.options.onPartial?.(partial);
           }
           return;
 
         case "conversation.item.input_audio_transcription.completed": {
-          const text = String(msg.transcript ?? this.latestPartial).trim();
+          const text = applyKeywordBoost(
+            String(msg.transcript ?? this.latestPartial).trim(),
+            this.options.keywords,
+          );
           this.latestPartial = "";
           if (text) this.options.onFinal?.(text);
           this.resolveCommit(text);
@@ -245,7 +258,7 @@ class FishStreamingSttSession implements SttSession {
     if (!this.pendingCommit) return;
     const resolve = this.pendingCommit;
     this.pendingCommit = null;
-    resolve(text);
+    resolve(applyKeywordBoost(text, this.options.keywords));
   }
 
   push(frame: Buffer): void {
@@ -341,10 +354,14 @@ class FishStreamingSttSession implements SttSession {
   private async batchFallback(frames: Buffer[]): Promise<string> {
     if (frames.length === 0) return "";
     try {
-      return await fishTranscribe(
-        buildWav(frames, this.options.sampleRate),
-        this.apiKey,
-        this.options.language,
+      return applyKeywordBoost(
+        await fishTranscribe(
+          buildWav(frames, this.options.sampleRate),
+          this.apiKey,
+          this.options.language,
+          this.options.keywords,
+        ),
+        this.options.keywords,
       );
     } catch (err) {
       console.error("[fish-stt] batch fallback failed:", (err as Error).message);

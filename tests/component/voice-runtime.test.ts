@@ -27,6 +27,8 @@ describe("resolveVoiceRuntimeConfig", () => {
   it("maps interruption sensitivity into barge-in frames", () => {
     const sensitive = resolveVoiceRuntimeConfig({ interruptionSensitivity: 1 });
     const conservative = resolveVoiceRuntimeConfig({ interruptionSensitivity: 0 });
+    expect(sensitive.interruption.bargeInSpeechFrames).toBe(3);
+    expect(conservative.interruption.bargeInSpeechFrames).toBe(10);
     expect(sensitive.interruption.bargeInSpeechFrames).toBeLessThan(
       conservative.interruption.bargeInSpeechFrames,
     );

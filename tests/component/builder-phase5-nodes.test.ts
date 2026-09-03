@@ -226,4 +226,62 @@ describe("phase 5 node kinds", () => {
     expect(imported.nodes.find((n) => n.id === "h")?.data.kind).toBe("http_request");
     expect(imported.nodes.find((n) => n.id === "h")?.data.httpUrl).toBe("https://api.example.com/x");
   });
+
+  it("aligns imported sourceHandle with the transition id when Retell omits edge id", () => {
+    const imported = importAgentJson(
+      JSON.stringify({
+        conversationFlow: {
+          start_node_id: "a",
+          nodes: [
+            {
+              id: "a",
+              type: "conversation",
+              name: "A",
+              instruction: { type: "static_text", text: "Hi" },
+              edges: [{ destination_node_id: "b", transition_condition: { type: "prompt", prompt: "next" } }],
+            },
+            {
+              id: "b",
+              type: "end",
+              name: "Bye",
+              instruction: { type: "prompt", text: "Bye" },
+            },
+          ],
+        },
+      }),
+    );
+    const transition = imported.nodes.find((n) => n.id === "a")?.data.transitions[0];
+    expect(transition?.id).toBe("t-a-0");
+    expect(imported.edges[0]?.sourceHandle).toBe(transition?.id);
+  });
+
+  it("infers wait and begin from Retell fields when builder_kind is absent", () => {
+    const imported = importAgentJson(
+      JSON.stringify({
+        conversationFlow: {
+          start_node_id: "b",
+          nodes: [
+            {
+              id: "b",
+              type: "conversation",
+              name: "Begin",
+              instruction: { type: "static_text", text: "…" },
+              begin_after_user_silence_ms: 400,
+              edges: [{ id: "e1", destination_node_id: "w", transition_condition: { type: "prompt", prompt: "" } }],
+            },
+            {
+              id: "w",
+              type: "conversation",
+              name: "Wait",
+              start_speaker: "user",
+              silence_timeout_ms: 5000,
+              edges: [],
+            },
+          ],
+        },
+      }),
+    );
+    expect(imported.nodes.find((n) => n.id === "b")?.data.kind).toBe("begin");
+    expect(imported.nodes.find((n) => n.id === "w")?.data.kind).toBe("wait");
+  });
 });

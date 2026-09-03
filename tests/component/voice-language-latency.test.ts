@@ -364,8 +364,10 @@ describe("cascade tuning", () => {
   });
 
   it("lowers barge-in threshold when interruption sensitivity is high", () => {
-    const sensitive = resolveCascadeTuning({ interruptionSensitivity: 0.9 });
-    const guarded = resolveCascadeTuning({ interruptionSensitivity: 0.2 });
+    const sensitive = resolveCascadeTuning({ interruptionSensitivity: 1 });
+    const guarded = resolveCascadeTuning({ interruptionSensitivity: 0 });
+    expect(sensitive.bargeInSpeechFrames).toBe(3);
+    expect(guarded.bargeInSpeechFrames).toBe(10);
     expect(sensitive.bargeInSpeechFrames).toBeLessThan(guarded.bargeInSpeechFrames);
   });
 

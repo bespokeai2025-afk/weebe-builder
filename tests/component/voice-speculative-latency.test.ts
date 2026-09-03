@@ -99,7 +99,7 @@ describe("ConversationVm.peekSpeechWarmTarget", () => {
     });
   });
 
-  it("treats a spoken prompt script as static TTS warm text", () => {
+  it("warms prompt nodes through the LLM, even when the instruction looks spoken", () => {
     const vm = new ConversationVm({
       flow: {
         start_node_id: "start",
@@ -130,10 +130,12 @@ describe("ConversationVm.peekSpeechWarmTarget", () => {
       llm: noopLlm,
     });
     vm.run({ type: "begin" });
-    expect(vm.peekSpeechWarmTarget("yes")).toEqual({
-      kind: "static",
-      text: "Can I take your name?",
-    });
+    const warm = vm.peekSpeechWarmTarget("yes");
+    expect(warm?.kind).toBe("prompt");
+    if (warm?.kind === "prompt") {
+      expect(warm.nodeId).toBe("next");
+      expect(warm.messages[0]?.content).toContain("Can I take your name?");
+    }
   });
 });
 

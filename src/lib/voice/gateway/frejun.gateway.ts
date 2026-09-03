@@ -14,6 +14,7 @@ import { WebSocket, type RawData } from "ws";
 import { base64ToPcm16, pcm16ToBase64, pcm16ToBuffer, resample } from "./audio";
 import { resolveWebeeLlmProvider, resolveWebeeSpeechModel } from "../webee-native.shared";
 import { resolveVoiceLlmApiKey } from "../llm/gpt";
+import { CascadeSession, type CascadeTransport } from "./cascade-session";
 import {
   connectRealtimeForCall,
   createCallLifecycle,
@@ -21,6 +22,7 @@ import {
   loadCallAgentConfig,
   makeSupabaseAdmin,
   markCallAnswered,
+  nativeCascadeOptionsFromSettings,
   persistTranscript,
   type CallAgentConfig,
   type TranscriptEntry,
@@ -82,10 +84,9 @@ function decodeInboundAudio(raw: RawData): Int16Array | null {
  * The pipeline runs at FreJun's own 16 kHz, which is also a rate every provider
  * in the cascade accepts, so no resampling is needed in either direction.
  *
- * FreJun has no "discard buffered audio" control, so an interrupted reply stops
- * being generated but whatever already reached the carrier still plays. Barge-in
- * is therefore softer here than on Twilio; the alternative is not detecting
- * interruptions at all.
+ * FreJun has no documented "discard buffered audio" control. We still send a
+ * JSON `clear` frame (same shape as Twilio) so a carrier that understands it
+ * can drop the queue; on barge-in we also stop generating immediately.
  */
 async function runCascadeBridge(
   ws: WebSocket,
@@ -103,7 +104,14 @@ async function runCascadeBridge(
     sendAudio: (pcm, _meta) => {
       if (ws.readyState === WebSocket.OPEN) ws.send(pcm);
     },
-    clearAudio: () => {},
+    clearAudio: () => {
+      if (ws.readyState !== WebSocket.OPEN) return;
+      try {
+        ws.send(JSON.stringify({ event: "clear" }));
+      } catch {
+        /* carrier may ignore unknown control frames */
+      }
+    },
     onTranscript: (role, text) => {
       transcript.push({ role, text, ts: Date.now() });
       void persistTranscript(sb, callId, transcript).catch(() => {});
@@ -127,6 +135,8 @@ async function runCascadeBridge(
     agentId: config.agentId,
     supabase: sb,
     settings: config.settings,
+    workspaceId: config.workspaceId,
+    ...nativeCascadeOptionsFromSettings(config.settings),
     resolveLifecycle: () => lifecycle,
   });
 

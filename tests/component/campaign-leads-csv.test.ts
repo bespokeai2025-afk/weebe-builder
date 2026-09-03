@@ -6,9 +6,11 @@ import {
 import {
   formatCampaignRequirement,
   isWhatsappFreeTextAllowed,
+  belongsOnListingBoard,
   parseCampaignIntent,
   qualificationFromImportMeta,
   threadMatchesInboxQueue,
+  whatsappPersonalLink,
 } from "@/lib/whatsapp/campaign-leads.shared";
 
 describe("campaign CSV mapping", () => {
@@ -165,5 +167,61 @@ describe("inbox queue + 24h session", () => {
     expect(
       threadMatchesInboxQueue({ status: "solved", expired: true }, "expired"),
     ).toBe(false);
+  });
+
+  it("Inbox stays empty until a reply, then drops the chat after a remark", () => {
+    const replied = {
+      lastInboundAt: "2026-08-28T09:00:00.000Z",
+      lastDirection: "inbound",
+      status: "open",
+    };
+    const unrepliedSend = {
+      lastInboundAt: null,
+      lastDirection: "outbound",
+      status: "open",
+    };
+    const remarked = { ...replied, listingOutcome: "interested" };
+    const expired = { ...replied, expired: true };
+    const closed = { ...replied, status: "solved" };
+
+    expect(threadMatchesInboxQueue(unrepliedSend, "working")).toBe(false);
+    expect(threadMatchesInboxQueue(replied, "working")).toBe(true);
+    expect(threadMatchesInboxQueue(remarked, "working")).toBe(false);
+    expect(threadMatchesInboxQueue(expired, "working")).toBe(false);
+    expect(threadMatchesInboxQueue(closed, "working")).toBe(false);
+    expect(threadMatchesInboxQueue(unrepliedSend, "all")).toBe(true);
+    expect(threadMatchesInboxQueue(remarked, "all")).toBe(true);
+    expect(threadMatchesInboxQueue(expired, "all")).toBe(true);
+    expect(threadMatchesInboxQueue(closed, "all")).toBe(true);
+  });
+
+  it("Listing hides expired, closed, and unmarked chats without remark chips", () => {
+    const now = Date.parse("2026-08-28T10:00:00.000Z");
+    expect(
+      belongsOnListingBoard(
+        { listing_outcome: "interested", last_reply_at: "2026-08-28T09:00:00.000Z" },
+        now,
+      ),
+    ).toBe(true);
+    expect(
+      belongsOnListingBoard(
+        { listing_outcome: "interested", last_reply_at: "2026-08-26T09:00:00.000Z" },
+        now,
+      ),
+    ).toBe(false);
+    expect(
+      belongsOnListingBoard(
+        { listing_outcome: "lost", last_reply_at: "2026-08-28T09:00:00.000Z" },
+        now,
+      ),
+    ).toBe(false);
+    expect(belongsOnListingBoard({ listing_outcome: null, last_reply_at: "2026-08-28T09:00:00.000Z" }, now)).toBe(
+      false,
+    );
+  });
+
+  it("builds a personal WhatsApp link from a stored phone", () => {
+    expect(whatsappPersonalLink("+971 50 123 4567")).toBe("https://wa.me/971501234567");
+    expect(whatsappPersonalLink("")).toBeNull();
   });
 });

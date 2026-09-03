@@ -53,4 +53,4 @@ There is no default evaluator for a `code` node's JavaScript. Running flow-autho
 `await_user` is what releases the mic gate — not the end of `speak`. A gateway that unmutes on speak completion will barge over its own audio.
 
 ## Where it runs
-`src/lib/voice/gateway/cascade.gateway.ts` picks graph mode whenever `session.init` carries an `agentId` or an exported `flow`, and falls back to the flat single-prompt path when the agent has no executable flow. Telephony still runs the flattened prompt through OpenAI Realtime until the telephony-lifecycle phase moves it onto the VM.
+`src/lib/voice/gateway/cascade.gateway.ts` picks graph mode whenever `session.init` carries an `agentId` or an exported `flow`. If that graph cannot load, the session fails the call rather than flattening the flow into a single prompt. Telephony (`telephony.gateway.ts`, `frejun.gateway.ts`) drives the same `CascadeSession` at the carrier's sample rate.

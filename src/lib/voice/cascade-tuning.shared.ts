@@ -38,8 +38,8 @@ export function resolveCascadeTuning(input: CascadeTuningInput = {}): CascadeTun
   silenceMs = clamp(silenceMs, 300, 1200);
 
   const silenceFramesTrigger = Math.max(4, Math.round(silenceMs / BROWSER_VAD_FRAME_MS));
-  // High interruption sensitivity → fewer frames to barge in (min 3 ≈ 150 ms).
-  const bargeInSpeechFrames = Math.max(8, Math.round(14 - interruption * 4));
+  // High interruption sensitivity → fewer frames to barge in (3 ≈ 150 ms, 10 ≈ 500 ms).
+  const bargeInSpeechFrames = Math.max(3, Math.round(3 + (1 - interruption) * 7));
 
   return {
     silenceDurationMs: silenceMs,

@@ -33,6 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { InstructionTypeTabs } from "./NodeEditorDialog";
+import { normalizeBuilderSpeechMode } from "@/lib/voice/graph/speech-mode.shared";
 import { useNodeIssue } from "./flow-validation-context";
 import { Switch } from "@/components/ui/switch";
 import { VariableBareTextarea, VariableTextarea } from "./VariableAutocompleteField";
@@ -285,7 +286,7 @@ function ConditionTypeIcon({ type }: { type: TransitionConditionType }) {
 }
 
 function TransitionRows({
-  nodeId,
+  nodeId: _nodeId,
   transitions,
   connectedSourceHandles,
   isSelected,
@@ -301,15 +302,10 @@ function TransitionRows({
   defaultEquation?: boolean;
   onChange: (next: Transition[]) => void;
 }) {
-  const deleteEdge = useBuilderStore((s) => s.deleteEdge);
-  const edges = useBuilderStore((s) => s.edges);
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const remove = (t: Transition) => {
     onChange(transitions.filter((x) => x.id !== t.id));
-    for (const edge of edges) {
-      if (edge.source === nodeId && edge.sourceHandle === t.id) deleteEdge(edge.id);
-    }
   };
 
   return (
@@ -485,7 +481,9 @@ function ConversationStyleNode({ id, data, selected }: NodeProps<FlowNode>) {
   );
   const isPromptNode =
     kind === "conversation" || kind === "begin" || kind === "wait" || kind === "subagent";
-  const instructionType = nodeData.instructionType ?? "prompt";
+  const instructionType = normalizeBuilderSpeechMode(
+    nodeData.instructionType ?? (kind === "wait" || kind === "begin" ? "static_text" : "prompt"),
+  );
 
   const addTransition = () =>
     updateNode(id, {
@@ -579,6 +577,17 @@ function ConversationStyleNode({ id, data, selected }: NodeProps<FlowNode>) {
               />
             </div>
           )}
+          {isPromptNode && instructionType === "hybrid" && (
+            <VariableTextarea
+              rows={2}
+              value={nodeData.speechPrefix ?? ""}
+              onValueChange={(v) => updateNode(id, { speechPrefix: v })}
+              placeholder="Exact prefix, e.g. Thanks, {{customer_name}}."
+              className="nodrag nopan nowheel text-sm leading-relaxed resize-none min-h-[56px]"
+              onClick={(e) => e.stopPropagation()}
+              onFocus={() => selectNode(id)}
+            />
+          )}
           <VariableTextarea
             rows={isPromptNode ? 6 : 4}
             value={
@@ -596,9 +605,9 @@ function ConversationStyleNode({ id, data, selected }: NodeProps<FlowNode>) {
                 ? "Optional line while waiting…"
                 : isPromptNode
                   ? instructionType === "static_text"
-                    ? "What the agent says, word for word…"
-                    : instructionType === "template"
-                      ? "Spoken line with {{variables}} — not an LLM instruction…"
+                    ? "What the agent says, word for word. {{variables}} are filled first."
+                    : instructionType === "hybrid"
+                      ? "AI instruction — not read aloud…"
                       : "Instructions for this turn — not read aloud…"
                   : kind === "mcp"
                     ? "When should this MCP tool run?"
@@ -971,7 +980,7 @@ function SimpleNode({ id, data, selected }: NodeProps<FlowNode>) {
   const visualState = flowVisualState({ isConnected, isSelected, isActive });
   const isTargetConnected = edges.some((edge) => edge.target === id);
   const isEnding = kind === "ending";
-  const instructionType = nodeData.instructionType ?? "prompt";
+  const instructionType = normalizeBuilderSpeechMode(nodeData.instructionType ?? "prompt");
 
   return (
     <div className="relative group">
@@ -1028,6 +1037,17 @@ function SimpleNode({ id, data, selected }: NodeProps<FlowNode>) {
               />
             </div>
           )}
+          {isEnding && instructionType === "hybrid" && (
+            <VariableTextarea
+              rows={2}
+              value={nodeData.speechPrefix ?? ""}
+              onValueChange={(v) => updateNode(id, { speechPrefix: v })}
+              placeholder="Exact prefix before the AI closing line…"
+              className="nodrag nopan nowheel text-sm leading-relaxed resize-none min-h-[56px]"
+              onClick={(e) => e.stopPropagation()}
+              onFocus={() => selectNode(id)}
+            />
+          )}
           <Textarea
             rows={4}
             value={isEnding ? (nodeData.endingPrompt ?? nodeData.dialogue ?? "") : (nodeData.dialogue ?? "")}
@@ -1038,7 +1058,9 @@ function SimpleNode({ id, data, selected }: NodeProps<FlowNode>) {
               isEnding
                 ? instructionType === "static_text"
                   ? "Goodbye text, spoken exactly…"
-                  : "How to end the call…"
+                  : instructionType === "hybrid"
+                    ? "AI instruction for the closing line…"
+                    : "How to end the call…"
                 : "Note…"
             }
             className="nodrag nopan nowheel text-sm leading-relaxed resize-none min-h-[96px]"

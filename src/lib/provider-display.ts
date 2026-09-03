@@ -46,6 +46,12 @@ const PROVIDER_MAP: Record<string, ProviderDisplay> = {
     category:    "voice",
     icon:        "mic",
   },
+  deepgram: {
+    displayName: "Deepgram STT",
+    adminName:   "Deepgram",
+    category:    "voice",
+    icon:        "mic",
+  },
   // Telephony
   twilio: {
     displayName: "WEBEE Telephony",

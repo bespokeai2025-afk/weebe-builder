@@ -17,9 +17,11 @@ import type { NodeKind } from "@/lib/builder/types";
 export function BuilderCommandPalette({
   onAddNode,
   onFitView,
+  onGoToNode,
 }: {
   onAddNode: (kind: NodeKind) => void;
   onFitView: () => void;
+  onGoToNode?: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const channelType = useBuilderStore((s) => s.settings.channelType ?? "voice");
@@ -80,6 +82,7 @@ export function BuilderCommandPalette({
                 value={`goto ${n.data.label} ${n.data.kind} ${n.id}`}
                 onSelect={() => {
                   selectNode(n.id);
+                  onGoToNode?.(n.id);
                   setOpen(false);
                 }}
               >
@@ -118,7 +121,7 @@ export function BuilderCommandPalette({
               setOpen(false);
             }}
           >
-            Auto-arrange
+            Auto layout
           </CommandItem>
           <CommandItem
             onSelect={() => {

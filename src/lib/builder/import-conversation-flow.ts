@@ -8,6 +8,7 @@ import {
   type EquationClause,
 } from "../voice/graph/equations.shared";
 import { allNodeKinds } from "./node-registry";
+import { normalizeBuilderSpeechMode } from "../voice/graph/speech-mode.shared";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type AnyObj = Record<string, any>;
@@ -205,13 +206,21 @@ export function importAgentJson(raw: string): {
 
   // Build nodes
   const nodes: FlowNode[] = rawNodes.map((rn, idx) => {
-    const kind: NodeKind = KNOWN_KINDS.has(String(rn.builder_kind ?? ""))
+    const mapped: NodeKind = KNOWN_KINDS.has(String(rn.builder_kind ?? ""))
       ? (rn.builder_kind as NodeKind)
       : rn.tool_type === "mcp"
         ? "mcp"
         : rn.tool_type === "webhook"
           ? "http_request"
           : (TYPE_MAP[rn.type] ?? "conversation");
+    const kind: NodeKind =
+      mapped !== "conversation"
+        ? mapped
+        : rn.silence_timeout_ms != null && rn.start_speaker === "user"
+          ? "wait"
+          : rn.id === cf.start_node_id && rn.begin_after_user_silence_ms != null
+            ? "begin"
+            : mapped;
     const pos =
       rn.display_position && typeof rn.display_position.x === "number"
         ? rn.display_position
@@ -234,7 +243,10 @@ export function importAgentJson(raw: string): {
       transitions,
       isStart: rn.id === cf.start_node_id,
       startSpeaker: rn.start_speaker,
-      instructionType: rn.instruction?.type,
+      instructionType: rn.instruction?.type
+        ? normalizeBuilderSpeechMode(rn.instruction.type)
+        : undefined,
+      speechPrefix: (rn.instruction as { prefix?: string } | undefined)?.prefix,
       instructions: (rn.instruction as { notes?: string } | undefined)?.notes,
       smsMessage: rn.message,
       pauseDetectionMs: rn.pause_detection_ms,
@@ -277,6 +289,10 @@ export function importAgentJson(raw: string): {
           : undefined,
       transferTimeoutAction: rn.transfer_option?.agentic_transfer_config?.action_on_timeout,
       speakDuringExecution: rn.speak_during_execution,
+      executionMessage:
+        typeof rn.execution_message_description === "string"
+          ? rn.execution_message_description
+          : undefined,
       waitForResult: rn.wait_for_result,
       toolId: rn.tool_id
         ? String(rn.tool_id).replace(/_cal$/, "")
@@ -374,11 +390,13 @@ export function importAgentJson(raw: string): {
         edgeId = `${edgeId}-${suffix}`;
       }
       seenEdgeIds.add(edgeId);
+      const transitionId = String(e.id ?? `t-${rn.id}-${i}`);
       edges.push({
         id: edgeId,
         source: String(rn.id),
         target: String(e.destination_node_id),
-        sourceHandle: edgeId,
+        sourceHandle: transitionId,
+        type: "flow",
       });
     });
   });

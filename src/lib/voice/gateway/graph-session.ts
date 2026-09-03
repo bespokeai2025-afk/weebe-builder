@@ -32,7 +32,7 @@ export interface GraphSessionCallbacks {
   onTransfer?(destination: string, transferType: string): Promise<boolean>;
   onAgentSwap?(agentId: string, agentVersion?: number | string): void;
   /** Caller is expected to speak next; used to open the mic gate. */
-  onAwaitUser?(): void;
+  onAwaitUser?(options?: { silenceTimeoutMs?: number }): void;
   onAwaitDigit?(pauseDetectionMs: number, options?: { digitTimeoutMs?: number; retryCount?: number }): void;
   onEnd?(reason: EndReason): void;
   onError?(message: string): void;
@@ -63,6 +63,10 @@ export class GraphSession {
 
   submitDigit(digit: string): Promise<void> {
     return this.enqueue({ type: "digit", digit });
+  }
+
+  submitSilenceTimeout(): Promise<void> {
+    return this.enqueue({ type: "silence_timeout" });
   }
 
   private enqueue(input: VmInput): Promise<void> {
@@ -125,7 +129,11 @@ export class GraphSession {
       }
 
       case "await_user":
-        this.cb.onAwaitUser?.();
+        this.cb.onAwaitUser?.(
+          directive.silenceTimeoutMs && directive.silenceTimeoutMs > 0
+            ? { silenceTimeoutMs: directive.silenceTimeoutMs }
+            : undefined,
+        );
         return null;
 
       case "await_digit":

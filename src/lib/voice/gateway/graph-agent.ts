@@ -3,8 +3,9 @@
  *
  * Bridges storage (an `agents` row) and the VM, and is the one place that decides
  * whether a call can be driven by the graph at all. When an agent has no
- * executable flow this returns null so the caller can fall back to the flattened
- * single-prompt path rather than dropping the call.
+ * executable flow this returns null. WEBEE Native then fails the call rather than
+ * flattening the graph into a single prompt — that fallback is what made agents
+ * skip steps.
  *
  * Relative imports only — this module is reachable from vite.config.ts.
  */

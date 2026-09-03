@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, MessageCircle, Send } from "lucide-react";
+import { ExternalLink, Loader2, MessageCircle, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { RelativeTime } from "@/components/ui/relative-time";
 import {
   Select,
@@ -13,8 +14,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { listLeadWhatsappMessages, sendLeadWhatsappTemplate } from "@/lib/dashboard/whatsapp.functions";
-import { LISTING_OUTCOME_LABELS, type ListingOutcome } from "@/lib/whatsapp/campaign-leads.shared";
+import {
+  listLeadWhatsappMessages,
+  sendLeadWhatsappTemplate,
+  sendWhatsappMessage,
+} from "@/lib/dashboard/whatsapp.functions";
+import {
+  LISTING_OUTCOME_LABELS,
+  isWhatsappFreeTextAllowed,
+  whatsappPersonalLink,
+  type ListingOutcome,
+} from "@/lib/whatsapp/campaign-leads.shared";
 import { getWatiConnection, listWatiTemplates } from "@/lib/whatsapp/wati.functions";
 import { checkWebuyanyhouseWorkspace } from "@/lib/integrations/webespokeEnterprise/wbah.functions";
 import {
@@ -42,12 +52,14 @@ export function LeadWhatsAppPanel({ leadId, phone }: LeadWhatsAppPanelProps) {
   const qc = useQueryClient();
   const listFn = useServerFn(listLeadWhatsappMessages);
   const sendFn = useServerFn(sendLeadWhatsappTemplate);
+  const sendSessionFn = useServerFn(sendWhatsappMessage);
   const watiConnFn = useServerFn(getWatiConnection);
   const watiTmplFn = useServerFn(listWatiTemplates);
   const wbahCheckFn = useServerFn(checkWebuyanyhouseWorkspace);
 
   const [templateName, setTemplateName] = useState("");
   const [paramMapping, setParamMapping] = useState<Record<string, string>>({});
+  const [reply, setReply] = useState("");
 
   const { data: wbahCheck } = useQuery({
     queryKey: ["active-workspace-wbah"],
@@ -91,6 +103,14 @@ export function LeadWhatsAppPanel({ leadId, phone }: LeadWhatsAppPanelProps) {
 
   const selectedTemplate = (watiTemplates as any[]).find((t) => t.name === templateName);
   const paramSlots = watiTemplateParamSlots(selectedTemplate);
+  const personalLink = whatsappPersonalLink(phone);
+  const lastInboundAt = (messages as Array<{ direction?: string; sent_at?: string }>)
+    .filter((m) => m.direction === "inbound" && m.sent_at)
+    .reduce<string | null>((latest, m) => {
+      if (!latest) return m.sent_at ?? null;
+      return Date.parse(m.sent_at ?? "") > Date.parse(latest) ? (m.sent_at ?? latest) : latest;
+    }, null);
+  const sessionOpen = isWhatsappFreeTextAllowed(lastInboundAt);
 
   const send = useMutation({
     mutationFn: () =>
@@ -103,7 +123,27 @@ export function LeadWhatsAppPanel({ leadId, phone }: LeadWhatsAppPanelProps) {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["lead-wa-messages", leadId] });
+      qc.invalidateQueries({ queryKey: ["wa-threads"] });
       toast.success("WhatsApp template sent");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const sendSession = useMutation({
+    mutationFn: () =>
+      sendSessionFn({
+        data: {
+          to: phone!.trim(),
+          body: reply.trim(),
+          contactName: undefined,
+        },
+      }),
+    onSuccess: () => {
+      setReply("");
+      qc.invalidateQueries({ queryKey: ["lead-wa-messages", leadId] });
+      qc.invalidateQueries({ queryKey: ["wa-threads"] });
+      qc.invalidateQueries({ queryKey: ["campaign-leads"] });
+      toast.success("Message sent");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -148,6 +188,17 @@ export function LeadWhatsAppPanel({ leadId, phone }: LeadWhatsAppPanelProps) {
               .join(" · ")}
           </span>
         )}
+        {personalLink && (
+          <a
+            href={personalLink}
+            target="_blank"
+            rel="noreferrer"
+            className="ml-auto inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+          >
+            <ExternalLink className="h-3 w-3" />
+            My WhatsApp
+          </a>
+        )}
       </div>
 
       <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] max-h-72 overflow-y-auto divide-y divide-white/[0.04]">
@@ -176,6 +227,36 @@ export function LeadWhatsAppPanel({ leadId, phone }: LeadWhatsAppPanelProps) {
           ))
         )}
       </div>
+
+      {sessionOpen ? (
+        <div className="space-y-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+          <Label className="text-[10px] text-muted-foreground">Reply in session</Label>
+          <Textarea
+            value={reply}
+            onChange={(e) => setReply(e.target.value)}
+            placeholder="Type a message…"
+            rows={3}
+            className="min-h-[72px] text-xs"
+          />
+          <Button
+            size="sm"
+            className="h-7 w-full gap-1 text-xs"
+            disabled={!reply.trim() || sendSession.isPending}
+            onClick={() => sendSession.mutate()}
+          >
+            {sendSession.isPending ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Send className="h-3 w-3" />
+            )}
+            Send
+          </Button>
+        </div>
+      ) : (
+        <p className="text-[11px] text-muted-foreground">
+          The 24h window is closed — send a template below, or continue from your personal number.
+        </p>
+      )}
 
       <div className="space-y-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
         <Label className="text-[10px] text-muted-foreground">Send template</Label>

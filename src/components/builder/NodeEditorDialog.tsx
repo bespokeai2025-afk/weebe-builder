@@ -13,9 +13,18 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Plus, Trash2, Flag, X, Pencil, MessageSquare } from "lucide-react";
-import type { Transition, ExtractVariableItem, TransitionConditionType } from "@/lib/builder/types";
+import type {
+  Transition,
+  ExtractVariableItem,
+  TransitionConditionType,
+  FlowNodeData,
+} from "@/lib/builder/types";
 import { EquationConditionEditor, patchEquationTransition } from "./EquationConditionEditor";
 import { emptyEquationClause } from "@/lib/voice/graph/equations.shared";
+import {
+  normalizeBuilderSpeechMode,
+  type BuilderSpeechMode,
+} from "@/lib/voice/graph/speech-mode.shared";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -85,14 +94,27 @@ export function InstructionTypeTabs({
   onChange,
   compact,
 }: {
-  value: "prompt" | "static_text" | "template";
-  onChange: (value: "prompt" | "static_text" | "template") => void;
+  value: string;
+  onChange: (value: BuilderSpeechMode) => void;
   compact?: boolean;
 }) {
+  const current = normalizeBuilderSpeechMode(value);
   const tabs = [
-    { id: "prompt" as const, label: "Prompt", hint: "LLM generates speech" },
-    { id: "template" as const, label: compact ? "Template" : "Template", hint: "Speak text, fill {{vars}}" },
-    { id: "static_text" as const, label: compact ? "Static" : "Static sentence", hint: "Read text verbatim" },
+    {
+      id: "static_text" as const,
+      label: compact ? "Exact" : "Exact",
+      hint: "Spoken word-for-word. No LLM.",
+    },
+    {
+      id: "prompt" as const,
+      label: compact ? "AI" : "AI Generated",
+      hint: "LLM writes the line from your instruction.",
+    },
+    {
+      id: "hybrid" as const,
+      label: compact ? "Hybrid" : "Hybrid",
+      hint: "Exact prefix, then AI.",
+    },
   ];
   return (
     <div
@@ -107,7 +129,7 @@ export function InstructionTypeTabs({
             type="button"
             onClick={() => onChange(tab.id)}
             className={`${compact ? "rounded-md px-2 py-1.5" : "rounded-md px-3 py-2 text-left"} transition-colors ${
-              value === tab.id
+              current === tab.id
                 ? "bg-background shadow-sm ring-1 ring-border"
                 : "text-muted-foreground hover:text-foreground"
             }`}
@@ -121,6 +143,34 @@ export function InstructionTypeTabs({
       </div>
     </div>
   );
+}
+
+function patchSpeechMode(
+  d: {
+    kind: string;
+    instructionType?: string;
+    dialogue?: string;
+    speechPrefix?: string;
+    endingPrompt?: string;
+  },
+  next: BuilderSpeechMode,
+): Partial<FlowNodeData> {
+  const prev = normalizeBuilderSpeechMode(
+    d.instructionType ?? (d.kind === "wait" || d.kind === "begin" ? "static_text" : "prompt"),
+  );
+  const patch: Partial<FlowNodeData> = { instructionType: next };
+  const spoken = d.kind === "ending" ? d.endingPrompt : d.dialogue;
+  if (next === "hybrid" && prev === "static_text" && !d.speechPrefix && spoken) {
+    patch.speechPrefix = spoken;
+    if (d.kind === "ending") patch.endingPrompt = "";
+    else patch.dialogue = "";
+  }
+  if (next === "static_text" && prev === "hybrid" && d.speechPrefix && !spoken) {
+    if (d.kind === "ending") patch.endingPrompt = d.speechPrefix;
+    else patch.dialogue = d.speechPrefix;
+    patch.speechPrefix = "";
+  }
+  return patch;
 }
 
 export function NodeEditorDialog() {
@@ -190,6 +240,9 @@ export function NodeEditorDialog() {
 
   const d = node.data;
   const setTransitions = (t: Transition[]) => updateNode(node.id, { transitions: t });
+  const speechMode = normalizeBuilderSpeechMode(
+    d.instructionType ?? (d.kind === "wait" || d.kind === "begin" ? "static_text" : "prompt"),
+  );
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -240,11 +293,8 @@ export function NodeEditorDialog() {
           d.kind === "subagent" ||
           d.kind === "wait") && (
           <InstructionTypeTabs
-            value={
-              d.instructionType ??
-              (d.kind === "wait" || d.kind === "begin" ? "static_text" : "prompt")
-            }
-            onChange={(v) => updateNode(node.id, { instructionType: v })}
+            value={speechMode}
+            onChange={(v) => updateNode(node.id, patchSpeechMode(d, v))}
           />
         )}
 
@@ -295,15 +345,30 @@ export function NodeEditorDialog() {
           d.kind === "wait") && (
           <>
             <div>
+              {speechMode === "hybrid" && (
+                <div className="mb-3">
+                  <Label>Exact prefix</Label>
+                  <p className="mb-1 text-[11px] text-muted-foreground">
+                    Spoken first, word-for-word. Variables like {"{{customer_name}}"} are filled
+                    before TTS. Not sent to the LLM.
+                  </p>
+                  <VariableTextarea
+                    rows={2}
+                    value={d.speechPrefix ?? ""}
+                    onValueChange={(v) => updateNode(node.id, { speechPrefix: v })}
+                    placeholder="Thanks, {{customer_name}}."
+                  />
+                </div>
+              )}
               <div className="flex items-center justify-between">
                 <Label>
-                  {d.instructionType === "static_text"
-                    ? "Static text"
-                    : d.instructionType === "template"
-                      ? "Template"
+                  {speechMode === "static_text"
+                    ? "Exact text"
+                    : speechMode === "hybrid"
+                      ? "AI instruction"
                       : "Prompt"}
                 </Label>
-                {d.instructionType === "prompt" && !d.dialogue && (
+                {speechMode !== "static_text" && !d.dialogue && (
                   <Button
                     type="button"
                     variant="ghost"
@@ -320,20 +385,20 @@ export function NodeEditorDialog() {
                 )}
               </div>
               <VariableTextarea
-                rows={6}
+                rows={speechMode === "hybrid" ? 4 : 6}
                 value={d.dialogue}
                 onValueChange={(v) => updateNode(node.id, { dialogue: v })}
                 placeholder={
                   d.kind === "wait"
                     ? "Optional line to say while waiting, or leave blank"
-                    : d.instructionType === "static_text"
-                      ? "Spoken exactly. Not sent to the LLM."
-                      : d.instructionType === "template"
-                        ? "Spoken after {{variables}} are filled. Not sent to the LLM."
+                    : speechMode === "static_text"
+                      ? "Spoken exactly after {{variables}} are filled. Not sent to the LLM."
+                      : speechMode === "hybrid"
+                        ? "Tell the LLM what to say next. Keep it short."
                         : DEFAULT_PROMPT_TEMPLATE(d.label || "this step")
                 }
               />
-              {(d.instructionType === "static_text" || d.instructionType === "template") && (
+              {speechMode === "static_text" && (
                 <div className="mt-3">
                   <Label>Instructions (not spoken)</Label>
                   <p className="mb-1 text-[11px] text-muted-foreground">
@@ -572,6 +637,16 @@ export function NodeEditorDialog() {
                 onCheckedChange={(v) => updateNode(node.id, { speakDuringExecution: v })}
               />
             </div>
+            {d.speakDuringExecution ? (
+              <div>
+                <Label>Line while the tool runs</Label>
+                <Input
+                  value={d.executionMessage ?? ""}
+                  onChange={(e) => updateNode(node.id, { executionMessage: e.target.value })}
+                  placeholder="One moment — looking that up."
+                />
+              </div>
+            ) : null}
             <div className="flex items-center justify-between">
               <Label>Wait for result</Label>
               <Switch
@@ -1136,23 +1211,47 @@ export function NodeEditorDialog() {
         )}
 
         {d.kind === "ending" && (
-          <div>
-            <Label>{d.instructionType === "static_text" ? "Static text" : "Ending prompt"}</Label>
-            <VariableTextarea
-              rows={3}
-              value={d.endingPrompt ?? ""}
-              onValueChange={(v) => updateNode(node.id, { endingPrompt: v })}
-              placeholder={
-                d.instructionType === "static_text"
-                  ? "Thanks for your time. Goodbye!"
-                  : "Politely end the call and summarize next steps if any."
-              }
-            />
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              {d.instructionType === "static_text"
-                ? "The agent reads this line verbatim before hanging up."
-                : "The LLM generates a closing line from this instruction."}
-            </p>
+          <div className="space-y-3">
+            {speechMode === "hybrid" && (
+              <div>
+                <Label>Exact prefix</Label>
+                <p className="mb-1 text-[11px] text-muted-foreground">
+                  Spoken first, word-for-word. Not sent to the LLM.
+                </p>
+                <VariableTextarea
+                  rows={2}
+                  value={d.speechPrefix ?? ""}
+                  onValueChange={(v) => updateNode(node.id, { speechPrefix: v })}
+                  placeholder="Thanks for calling."
+                />
+              </div>
+            )}
+            <div>
+              <Label>
+                {speechMode === "static_text"
+                  ? "Exact text"
+                  : speechMode === "hybrid"
+                    ? "AI instruction"
+                    : "Ending prompt"}
+              </Label>
+              <VariableTextarea
+                rows={3}
+                value={d.endingPrompt ?? ""}
+                onValueChange={(v) => updateNode(node.id, { endingPrompt: v })}
+                placeholder={
+                  speechMode === "static_text"
+                    ? "Thanks for your time. Goodbye!"
+                    : "Politely end the call and summarize next steps if any."
+                }
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                {speechMode === "static_text"
+                  ? "The agent reads this line verbatim before hanging up. Variables are filled first."
+                  : speechMode === "hybrid"
+                    ? "Prefix is spoken exactly, then the LLM generates the closing line."
+                    : "The LLM generates a closing line from this instruction."}
+              </p>
+            </div>
           </div>
         )}
 

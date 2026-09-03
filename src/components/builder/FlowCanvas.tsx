@@ -12,8 +12,11 @@ import {
   ReactFlow,
   Background,
   Controls,
+  ConnectionLineType,
+  Position,
   ReactFlowProvider,
   useReactFlow,
+  type ConnectionLineComponentProps,
   type EdgeMouseHandler,
   type Node,
   type Viewport,
@@ -23,7 +26,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { useBuilderStore } from "@/lib/builder/store";
 import { NodeRenderers } from "./FlowNodes";
-import { FlowDeletableEdge } from "./FlowDeletableEdge";
+import { FlowDeletableEdge, retellEdgePath } from "./FlowDeletableEdge";
 import type { FlowNodeData } from "@/lib/builder/types";
 import { validateFlow } from "@/lib/builder/validate";
 import { isEditableHotkeyTarget } from "@/lib/builder/graph-ops";
@@ -81,6 +84,25 @@ function nodeDimensions(node: Node) {
     width: typeof measured.width === "number" ? measured.width : fallback.width,
     height: typeof measured.height === "number" ? measured.height : fallback.height,
   };
+}
+
+function FlowConnectionLine({
+  fromX,
+  fromY,
+  toX,
+  toY,
+  fromPosition,
+  toPosition,
+}: ConnectionLineComponentProps) {
+  const [path] = retellEdgePath(
+    fromX,
+    fromY,
+    toX,
+    toY,
+    fromPosition ?? Position.Right,
+    toPosition ?? Position.Left,
+  );
+  return <path d={path} fill="none" stroke="var(--flow-edge)" strokeWidth={1.5} />;
 }
 
 function FlowMiniMap({
@@ -271,6 +293,7 @@ function CanvasInner({
     setStartNode,
     saveSelectionAsComponent,
     addNode,
+    autoLayout,
   } = useBuilderStore();
   const [menu, setMenu] = useState<{ x: number; y: number; nodeId?: string } | null>(null);
   useEffect(() => {
@@ -283,12 +306,12 @@ function CanvasInner({
     () =>
       edges.map((edge) => ({
         ...edge,
-        type: "smoothstep",
+        type: "flow",
         reconnectable: true,
       })),
     [edges],
   );
-  const edgeTypes = useMemo(() => ({ smoothstep: FlowDeletableEdge }), []);
+  const edgeTypes = useMemo(() => ({ flow: FlowDeletableEdge }), []);
   const issueMap = useMemo(
     () => issueMapFromList(validateFlow(nodes, edges, variables)),
     [nodes, edges, variables],
@@ -382,6 +405,8 @@ function CanvasInner({
       onMove={(_, nextViewport) => setViewport(nextViewport)}
       nodeTypes={memoTypes}
       edgeTypes={edgeTypes}
+      connectionLineType={ConnectionLineType.SmoothStep}
+      connectionLineComponent={FlowConnectionLine}
       fitView
       fitViewOptions={{ padding: 0.4, maxZoom: 0.7 }}
       minZoom={0.2}
@@ -393,7 +418,7 @@ function CanvasInner({
       deleteKeyCode={["Backspace", "Delete"]}
       proOptions={{ hideAttribution: true }}
       defaultEdgeOptions={{
-        type: "smoothstep",
+        type: "flow",
         animated: false,
         style: {
           stroke: "var(--flow-edge)",
@@ -465,6 +490,15 @@ function CanvasInner({
             </button>
             <button className="block w-full rounded px-2 py-1 text-left hover:bg-white/[0.06]" onClick={() => pasteClipboard()}>
               Paste
+            </button>
+            <button
+              className="block w-full rounded px-2 py-1 text-left hover:bg-white/[0.06]"
+              onClick={() => {
+                autoLayout();
+                requestAnimationFrame(() => rf.fitView({ padding: 0.2, duration: 200 }));
+              }}
+            >
+              Auto layout
             </button>
           </>
         )}

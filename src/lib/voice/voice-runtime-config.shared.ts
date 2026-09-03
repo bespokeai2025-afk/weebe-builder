@@ -62,7 +62,7 @@ const DEFAULTS: VoiceRuntimeConfig = {
   interruption: {
     /** When false, audio.clear only fires together with turn cancel (avoids silent stuck state). */
     immediateClearOnSpeechStart: false,
-    bargeInSpeechFrames: 8,
+    bargeInSpeechFrames: 5,
     bargeInMinRms: 2200,
     bargeInLoudRms: 2800,
       openingGraceMs: 1800,

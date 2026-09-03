@@ -2361,7 +2361,7 @@ export function RetellDeployDialog({
           interruptionSensitivity: settings.interruptionSensitivity,
           boostedKeywords: settings.boostedKeywords,
           ttsProvider: isWebeeNative ? "fish" : undefined,
-          sttProvider: isWebeeNative ? "fish" : undefined,
+          sttProvider: isWebeeNative ? (settings.webeeSttProvider ?? "fish") : undefined,
           variables: testCallPrepRef.current.variables,
           startSpeaker: testCallPrepRef.current.startSpeaker,
         }));
@@ -2404,7 +2404,8 @@ export function RetellDeployDialog({
           console.log("[elv-relay] mic capture live");
           if (isWebeeNative) {
             const lockedVoice = typeof msg.voiceId === "string" ? msg.voiceId : "";
-            const sttLabel = stt === "fish" ? "Fish ASR" : stt;
+          const sttLabel =
+            stt === "fish" ? "Fish ASR" : stt === "deepgram" ? "Deepgram" : stt;
             toast.message("WEBEE Native call live", {
               description: `${tts === "fish" ? "Fish Audio" : tts} TTS · ${sttLabel} STT · ${vad} VAD${lockedVoice ? ` · voice ${lockedVoice.slice(0, 8)}…` : ""}`,
               duration: 4000,

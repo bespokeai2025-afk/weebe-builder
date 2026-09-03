@@ -118,8 +118,9 @@ const STATIC_PROVIDERS: RegistryEntry[] = [
   { category: "voice", name: "openai",      label: "HyperStream (OpenAI)",     description: "OpenAI Realtime — GPT-4o voice",          status: "connected", priority: 2 },
   { category: "voice", name: "elevenlabs",  label: "VoxStream (ElevenLabs)",   description: "ElevenLabs ConvAI — ultra-realistic TTS", status: "connected", priority: 3 },
   { category: "voice", name: "fish",        label: "WEBEE Native",             description: "In-house cascade engine — streaming TTS + voice cloning", status: "disconnected", priority: 4 },
-  { category: "voice", name: "claude",      label: "Claude Native",            description: "Anthropic Claude Realtime (coming soon)",  status: "coming_soon", priority: 4 },
-  { category: "voice", name: "gemini",      label: "Gemini Native",            description: "Google Gemini Realtime (coming soon)",    status: "coming_soon", priority: 5 },
+  { category: "voice", name: "deepgram",    label: "Deepgram STT",             description: "Optional speech-to-text for WEBEE Native (Fish still speaks)", status: "disconnected", priority: 5 },
+  { category: "voice", name: "claude",      label: "Claude Native",            description: "Anthropic Claude Realtime (coming soon)",  status: "coming_soon", priority: 6 },
+  { category: "voice", name: "gemini",      label: "Gemini Native",            description: "Google Gemini Realtime (coming soon)",    status: "coming_soon", priority: 7 },
 
   // Telephony
   { category: "telephony", name: "twilio",  label: "Twilio",   description: "Programmable voice & SMS — global PSTN",    status: "disconnected", isDefault: true, priority: 1 },

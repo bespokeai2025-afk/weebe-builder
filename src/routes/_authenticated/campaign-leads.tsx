@@ -21,7 +21,7 @@ function CampaignLeadsPage() {
       <div className="mb-4 shrink-0">
         <h1 className="text-2xl font-semibold tracking-tight">Listing leads</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Set a remark, assign an agent, and qualify replies. Converted listings move to Sales Pipeline.
+          Replies stay in Inbox until you set a remark. Then they appear here so you can keep chatting. Expired and closed chats stay off this list.
         </p>
       </div>
       <CampaignLeadsBoard />

@@ -1,5 +1,5 @@
 /**
- * WEBEE Native voice engine defaults (Fish STT/TTS + selectable graph LLM).
+ * WEBEE Native voice engine defaults (Fish TTS + selectable STT + graph LLM).
  */
 
 import type { VoiceLlmProvider } from "./llm/gpt";

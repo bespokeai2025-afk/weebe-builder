@@ -133,6 +133,27 @@ export function listingOutcomePromotesToSalesPipeline(outcome: ListingOutcome): 
   return outcome === "converted";
 }
 
+/** Remarks that appear on the listing board. Closed / dead outcomes stay off it. */
+export const ACTIVE_LISTING_OUTCOMES = [
+  "interested",
+  "qualified",
+  "follow_up",
+  "assigned",
+] as const satisfies readonly ListingOutcome[];
+
+export function isActiveListingOutcome(value: string | null | undefined): boolean {
+  return (ACTIVE_LISTING_OUTCOMES as readonly string[]).includes(value ?? "");
+}
+
+/** Live remarked replies on the listing board — no per-remark chips, expired/closed stay out. */
+export function belongsOnListingBoard(
+  lead: { listing_outcome?: string | null; last_reply_at?: string | null },
+  now: number = Date.now(),
+): boolean {
+  if (!isActiveListingOutcome(lead.listing_outcome)) return false;
+  return isWhatsappFreeTextAllowed(lead.last_reply_at, now);
+}
+
 export function readListingStage(
   meta: Record<string, unknown> | null | undefined,
   pipelineStage?: string | null,
@@ -309,6 +330,7 @@ export function nextStageOnInboundReply(current: string | null | undefined): Cam
 }
 
 export type InboxQueueFilter =
+  | "working"
   | "all"
   | "needs_reply"
   | "waiting"
@@ -316,8 +338,11 @@ export type InboxQueueFilter =
   | "expired"
   | "closed";
 
+export const DEFAULT_INBOX_QUEUE_FILTER: InboxQueueFilter = "working";
+
 export const INBOX_QUEUE_FILTERS: Array<{ id: InboxQueueFilter; label: string; hint: string }> = [
-  { id: "all", label: "All", hint: "Every conversation" },
+  { id: "working", label: "Inbox", hint: "Open replies that still need a remark — expired and closed stay out" },
+  { id: "all", label: "All", hint: "Every conversation, including unreplied sends" },
   { id: "needs_reply", label: "Needs reply", hint: "Client wrote last — reply now" },
   { id: "waiting", label: "Waiting", hint: "You wrote last, window still open" },
   { id: "active", label: "Active", hint: "Open 24h session" },
@@ -325,9 +350,24 @@ export const INBOX_QUEUE_FILTERS: Array<{ id: InboxQueueFilter; label: string; h
   { id: "closed", label: "Closed", hint: "Marked done" },
 ];
 
+/** Default chips: waiting-for-remark replies, or the full mailbox. */
+export const INBOX_PRIMARY_QUEUE_FILTERS = INBOX_QUEUE_FILTERS.filter(
+  (f) => f.id === "working" || f.id === "all",
+);
+
+export function threadHasInboundReply(thread: {
+  lastInboundAt?: string | null;
+  lastDirection?: string | null;
+  needsReply?: boolean;
+}): boolean {
+  return Boolean(thread.lastInboundAt) || thread.lastDirection === "inbound" || thread.needsReply === true;
+}
+
 export function threadMatchesInboxQueue(
   thread: {
     lastDirection?: string | null;
+    lastInboundAt?: string | null;
+    listingOutcome?: string | null;
     needsReply?: boolean;
     status?: string | null;
     expired?: boolean;
@@ -337,12 +377,22 @@ export function threadMatchesInboxQueue(
   if (filter === "all") return true;
   const solved = thread.status === "solved";
   const needsReply = thread.needsReply === true || thread.lastDirection === "inbound";
+  if (filter === "working") {
+    return threadHasInboundReply(thread) && !thread.listingOutcome && !solved && !thread.expired;
+  }
   if (filter === "needs_reply") return needsReply && !solved;
   if (filter === "waiting") return !needsReply && !solved && !thread.expired;
   if (filter === "active") return !solved && !thread.expired;
   if (filter === "expired") return Boolean(thread.expired) && !solved;
   if (filter === "closed") return solved;
   return true;
+}
+
+/** Opens WhatsApp on the agent's personal phone for this number. */
+export function whatsappPersonalLink(phone: string | null | undefined): string | null {
+  const digits = String(phone ?? "").replace(/\D/g, "");
+  if (digits.length < 8) return null;
+  return `https://wa.me/${digits}`;
 }
 
 export function propertyLabelFromMeta(meta: Record<string, unknown> | null | undefined): string {

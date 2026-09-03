@@ -33,6 +33,7 @@ import {
   loadCallAgentConfig,
   makeSupabaseAdmin,
   markCallAnswered,
+  nativeCascadeOptionsFromSettings,
   persistTranscript,
   type CallAgentConfig,
   type TranscriptEntry,
@@ -52,6 +53,51 @@ const REALTIME_RATE = 24000;
 function readStreamSid(msg: Record<string, unknown>): string {
   const start = msg.start as Record<string, unknown> | undefined;
   return String(start?.streamSid ?? msg.streamSid ?? "");
+}
+
+/**
+ * Twilio echoes a `mark` when queued audio up to that mark has been played.
+ * That is the only honest "agent still speaking" signal on PSTN — estimated
+ * playhead thinks audio starts as we send it, but Twilio buffers.
+ */
+function createTwilioPlaybackMarks(
+  ws: WebSocket,
+  getStreamSid: () => string,
+  onDrained: () => void,
+) {
+  let pending = 0;
+  let seq = 0;
+  let waitingForDrain = false;
+
+  const sendMark = () => {
+    const streamSid = getStreamSid();
+    if (ws.readyState !== WebSocket.OPEN || !streamSid) return;
+    pending += 1;
+    seq += 1;
+    ws.send(
+      JSON.stringify({
+        event: "mark",
+        streamSid,
+        mark: { name: `webee-${seq}` },
+      }),
+    );
+  };
+
+  return {
+    afterAudio: sendMark,
+    clear() {
+      pending = 0;
+      waitingForDrain = false;
+    },
+    onResponseDone() {
+      waitingForDrain = true;
+      if (pending === 0) onDrained();
+    },
+    onMark() {
+      pending = Math.max(0, pending - 1);
+      if (waitingForDrain && pending === 0) onDrained();
+    },
+  };
 }
 
 /**
@@ -129,6 +175,7 @@ async function runCascadeBridge(
   }
 
   const persist = () => void persistTranscript(sb, callId, transcript).catch(() => {});
+  const marks = createTwilioPlaybackMarks(ws, () => streamSid, () => session?.playbackDone());
 
   const transport: CascadeTransport = {
     sendAudio: (pcm, _meta) => {
@@ -140,14 +187,17 @@ async function runCascadeBridge(
           media: { payload: pcm16ToMulawBase64(pcm16View(pcm)) },
         }),
       );
+      marks.afterAudio();
     },
     // Twilio buffers everything we send, so silencing the agent means telling it
     // to drop that buffer; stopping the stream at our end does nothing.
     clearAudio: () => {
+      marks.clear();
       if (ws.readyState === WebSocket.OPEN && streamSid) {
         ws.send(JSON.stringify({ event: "clear", streamSid }));
       }
     },
+    onResponseDone: () => marks.onResponseDone(),
     onTranscript: (role, text) => {
       transcript.push({ role, text, ts: Date.now() });
       persist();
@@ -187,17 +237,16 @@ async function runCascadeBridge(
         apiKey: resolveVoiceLlmApiKey(undefined, resolveWebeeLlmProvider(config.settings)),
         voiceId: config.voiceId,
         model: resolveWebeeSpeechModel(config.settings),
-        // Only reached when the agent has no runnable graph; the compiled prompt
-        // is a better fallback than dropping the call.
         systemPrompt: config.systemPrompt,
         sampleRate: TWILIO_RATE,
         logPrefix: LOG,
-        // Twilio never reports playback progress, so it has to be inferred from
-        // how much audio has been handed over.
-        playback: "estimated",
+        // Twilio echoes `mark` when queued audio has actually played.
+        playback: "reported",
         agentId: config.agentId,
         supabase: sb,
         settings: config.settings,
+        workspaceId: config.workspaceId,
+        ...nativeCascadeOptionsFromSettings(config.settings),
         resolveLifecycle: () => lifecycle,
       });
 
@@ -220,6 +269,11 @@ async function runCascadeBridge(
     if (msg.event === "dtmf") {
       const digit = (msg.dtmf as Record<string, unknown> | undefined)?.digit;
       if (typeof digit === "string") session?.submitDigit(digit);
+      return;
+    }
+
+    if (msg.event === "mark") {
+      marks.onMark();
       return;
     }
 

@@ -1,6 +1,7 @@
 import type { Edge } from "@xyflow/react";
 import type { FlowNode } from "./store";
 import type { BuilderSettings, BuilderVariable } from "./types";
+import { normalizeBuilderSpeechMode } from "../voice/graph/speech-mode.shared";
 
 /**
  * Flatten the builder conversation-flow graph into a single system prompt for
@@ -155,11 +156,21 @@ export function compileRealtimePrompt(
       case "conversation": {
         const rawDialogue = d.dialogue?.trim() ?? "";
         const isSilent = SILENT_SENTINELS.test(rawDialogue);
-        // Strip any instruction-style directives before using as spoken text.
         const spokenDialogue = stripInstructionPhrases(rawDialogue);
-        const body = isSilent || !spokenDialogue
-          ? "Do NOT say anything here. Stay silent and wait for the caller's next input, then follow the transition below.\n[WAIT FOR CALLER]"
-          : `${spokenDialogue}\n[WAIT FOR CALLER — you MUST be completely silent after saying the above until the caller speaks next]`;
+        const mode = normalizeBuilderSpeechMode(d.instructionType);
+        const prefix = String(d.speechPrefix ?? "").trim();
+        let body: string;
+        if (isSilent || (mode === "static_text" && !spokenDialogue) || (mode !== "static_text" && !spokenDialogue && !prefix)) {
+          body =
+            "Do NOT say anything here. Stay silent and wait for the caller's next input, then follow the transition below.\n[WAIT FOR CALLER]";
+        } else if (mode === "static_text") {
+          body = `SAY EXACTLY (do not rephrase): "${spokenDialogue}"\n[WAIT FOR CALLER — you MUST be completely silent after saying the above until the caller speaks next]`;
+        } else if (mode === "hybrid") {
+          const exact = prefix ? `SAY EXACTLY (do not rephrase): "${prefix}"\nThen generate a short spoken reply from this instruction:\n${spokenDialogue}` : spokenDialogue;
+          body = `${exact}\n[WAIT FOR CALLER — you MUST be completely silent after saying the above until the caller speaks next]`;
+        } else {
+          body = `${spokenDialogue}\n[WAIT FOR CALLER — you MUST be completely silent after saying the above until the caller speaks next]`;
+        }
         return `${headerPrefix} ${d.label || "Conversation"}\n${body}${transitionText}`;
       }
       case "function":

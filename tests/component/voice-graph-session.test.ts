@@ -47,7 +47,8 @@ function recorder(overrides: { speakDelayMs?: number } = {}) {
     },
     onTranscript: (role: string, text: string) => events.push(`transcript:${role}:${text}`),
     onNodeActive: (nodeId: string) => events.push(`node:${nodeId}`),
-    onAwaitUser: () => events.push("await_user"),
+    onAwaitUser: (opts) =>
+      events.push(opts?.silenceTimeoutMs ? `await_user:${opts.silenceTimeoutMs}` : "await_user"),
     onAwaitDigit: (ms: number) => events.push(`await_digit:${ms}`),
     onVariables: (v: Record<string, unknown>) => events.push(`vars:${Object.keys(v).join(",")}`),
     onToolCall: (id: string, _r: string, ok: boolean) => events.push(`tool:${id}:${ok}`),
@@ -238,5 +239,29 @@ describe("GraphSession", () => {
     expect(session.isEnded).toBe(false);
     await session.begin();
     expect(session.isEnded).toBe(true);
+  });
+
+  it("forwards a silence timeout to the wait edge", async () => {
+    const { events, callbacks } = recorder();
+    const vm = new ConversationVm({
+      flow: flowOf([
+        {
+          id: "wait",
+          type: "conversation",
+          start_speaker: "user",
+          silence_timeout_ms: 5000,
+          retry_count: 0,
+          instruction: { type: "static_text", text: "" },
+          edges: [edge("e1", "next", "timeout")],
+        },
+        say("next", "Are you there?"),
+      ]),
+      llm: llm(),
+    });
+    const session = new GraphSession(vm, callbacks);
+    await session.begin();
+    expect(events).toContain("await_user:5000");
+    await session.submitSilenceTimeout();
+    expect(events).toContain("speak:Are you there?");
   });
 });

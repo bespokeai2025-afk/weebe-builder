@@ -18,6 +18,8 @@ import type {
   VariableValue,
 } from "./types";
 import { parseEquationGroup, serializeEquationPrompt } from "./equations.shared";
+import { referencedVariableNames, resolveVariables, fillBracketPlaceholders } from "./variables.shared";
+import { normalizeBuilderSpeechMode } from "./speech-mode.shared";
 
 const KNOWN_TYPES = new Set<FlowNodeType>([
   "conversation",
@@ -47,6 +49,8 @@ export interface CompiledFlow {
   variableNames: string[];
   /** Non-fatal problems found while compiling, surfaced for diagnostics. */
   warnings: string[];
+  /** Retell flex_mode. Default true — loose heuristics allowed. */
+  flexMode: boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -65,21 +69,25 @@ function normalizeInstruction(
   const responseMode = str(candidate.response_mode).trim().toLowerCase();
   if (!instr && !responseMode) return undefined;
   const rawType = str(instr?.type).trim();
-  const type: "prompt" | "static_text" | "template" =
-    rawType === "template" || rawType === "static_text" || rawType === "prompt"
-      ? rawType
-      : rawType === "static"
+  const normalized = normalizeBuilderSpeechMode(
+    rawType ||
+      (responseMode === "static"
         ? "static_text"
-        : responseMode === "static"
-          ? "static_text"
+        : responseMode === "hybrid"
+          ? "hybrid"
           : responseMode === "template"
-            ? "template"
-            : "prompt";
+            ? "static_text"
+            : "prompt"),
+  );
+  const type: "prompt" | "static_text" | "hybrid" =
+    normalized === "static_text" ? "static_text" : normalized === "hybrid" ? "hybrid" : "prompt";
   const notes = str(instr?.notes).trim();
+  const prefix = str(instr?.prefix).trim();
   return {
     type,
     text: str(instr?.text),
     ...(notes ? { notes } : {}),
+    ...(prefix ? { prefix } : {}),
   };
 }
 
@@ -291,6 +299,7 @@ export function compileFlow(raw: unknown): CompiledFlow {
     tools: Array.isArray(flow.tools) ? (flow.tools as Array<Record<string, unknown>>) : [],
     variableNames: collectVariableNames(flow, nodes),
     warnings,
+    flexMode: flow.flex_mode !== false,
   };
 }
 
@@ -350,16 +359,11 @@ function needsStrongClassifier(node: FlowNode, edges: FlowEdge[]): boolean {
  * reads fine but has lost its meaning.
  */
 export function interpolate(text: string, variables: Record<string, VariableValue>): string {
-  if (!text || !text.includes("{{")) return text;
-  return text.replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (match, name: string) => {
-    const value = variables[name];
-    if (value === undefined || value === null || value === "") return match;
-    return String(value);
-  });
+  return resolveVariables(text, variables);
 }
 
 /**
- * Fill {{vars}} for a declared static/template line. Does not drop lines by
+ * Fill {{vars}} for a declared exact line. Does not drop lines by
  * guessing they are instructions — the builder already chose the mode.
  */
 export function interpolateDeclaredSpeech(
@@ -367,24 +371,15 @@ export function interpolateDeclaredSpeech(
   variables: Record<string, VariableValue>,
 ): string {
   if (!text) return text;
-  let out = text;
-  if (out.includes("{{")) {
-    out = out.replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (match, name: string) => {
-      const value = variables[name];
-      if (value === undefined || value === null || value === "") return match;
-      const raw = String(value);
-      if (/(^|_)name$/i.test(name) || /^(first_name|last_name|First_name)$/.test(name)) {
-        return raw.replace(/\b\w/g, (c) => c.toUpperCase());
-      }
-      return raw;
-    });
-    out = out.replace(/\{\{\s*[a-zA-Z_][a-zA-Z0-9_]*\s*\}\}/g, "");
-  }
+  const out = fillBracketPlaceholders(
+    resolveVariables(text, variables, { stripUnresolved: true, titleCaseNames: true }),
+    variables,
+  );
   return out.replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim();
 }
 
 /**
- * Speech-safe interpolation — never emit raw `{{variable}}` tokens to TTS.
+ * Speech-safe interpolation — never emit raw `{{variable}}` tokens to TTS or the LLM.
  * Strips unresolved placeholders and drops lines that become empty fragments.
  */
 export function interpolateForSpeech(
@@ -392,20 +387,12 @@ export function interpolateForSpeech(
   variables: Record<string, VariableValue>,
 ): string {
   if (!text) return text;
-  let out = text;
-  if (out.includes("{{")) {
-    out = out.replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (match, name: string) => {
-      const value = variables[name];
-      if (value === undefined || value === null || value === "") return match;
-      const raw = String(value);
-      if (/(^|_)name$/i.test(name) || /^(first_name|last_name|First_name)$/.test(name)) {
-        return raw.replace(/\b\w/g, (c) => c.toUpperCase());
-      }
-      return raw;
-    });
-    out = out.replace(/\{\{\s*[a-zA-Z_][a-zA-Z0-9_]*\s*\}\}/g, "");
-  }
-  return cleanupSpeechLines(out);
+  return cleanupSpeechLines(
+    fillBracketPlaceholders(
+      resolveVariables(text, variables, { stripUnresolved: true, titleCaseNames: true }),
+      variables,
+    ),
+  );
 }
 
 /** Builder notes mixed into a node prompt — never speak these to the caller. */
@@ -454,9 +441,7 @@ function collectVariableNames(flow: ConversationFlow, nodes: Map<string, FlowNod
     if (n) names.add(n);
   };
   const scanText = (text: string) => {
-    const re = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g;
-    let match: RegExpExecArray | null;
-    while ((match = re.exec(text))) add(match[1]);
+    for (const name of referencedVariableNames(text)) add(name);
   };
 
   const declared = (flow as { variables?: unknown[] }).variables;
@@ -468,6 +453,7 @@ function collectVariableNames(flow: ConversationFlow, nodes: Map<string, FlowNod
 
   for (const node of nodes.values()) {
     scanText(String(node.instruction?.text ?? ""));
+    scanText(String(node.instruction?.prefix ?? ""));
     const extracted = (node as { variables?: Array<{ name?: string }> }).variables;
     if (Array.isArray(extracted)) {
       for (const field of extracted) add(field?.name);

@@ -17,14 +17,26 @@ function startNodes(nodes: FlowNode[]): FlowNode[] {
   return nodes.filter((n) => n.data.kind === "wa_start");
 }
 
-function reachableIds(startId: string, edges: Edge[]): Set<string> {
+function addOutgoing(outgoing: Map<string, string[]>, from: string, to: string) {
+  if (!from || !to) return;
+  const list = outgoing.get(from) ?? [];
+  if (!list.includes(to)) list.push(to);
+  outgoing.set(from, list);
+}
+
+function graphAdjacency(nodes: FlowNode[], edges: Edge[]): Map<string, string[]> {
   const outgoing = new Map<string, string[]>();
-  for (const e of edges) {
-    if (!e.source || !e.target) continue;
-    const list = outgoing.get(e.source) ?? [];
-    list.push(e.target);
-    outgoing.set(e.source, list);
+  for (const e of edges) addOutgoing(outgoing, e.source, e.target);
+  for (const n of nodes) {
+    for (const t of n.data.transitions ?? []) {
+      if (t.target) addOutgoing(outgoing, n.id, t.target);
+    }
   }
+  return outgoing;
+}
+
+function reachableIds(startId: string, nodes: FlowNode[], edges: Edge[]): Set<string> {
+  const outgoing = graphAdjacency(nodes, edges);
   const seen = new Set<string>([startId]);
   const queue = [startId];
   while (queue.length) {
@@ -43,14 +55,8 @@ function hasOutgoing(nodeId: string, edges: Edge[], node: FlowNode): boolean {
   return (node.data.transitions ?? []).some((t) => Boolean(t.target));
 }
 
-function cyclePaths(startId: string, edges: Edge[]): string[][] {
-  const outgoing = new Map<string, string[]>();
-  for (const e of edges) {
-    if (!e.source || !e.target) continue;
-    const list = outgoing.get(e.source) ?? [];
-    list.push(e.target);
-    outgoing.set(e.source, list);
-  }
+function cyclePaths(startId: string, nodes: FlowNode[], edges: Edge[]): string[][] {
+  const outgoing = graphAdjacency(nodes, edges);
   const cycles: string[][] = [];
   const stack: string[] = [];
   const onStack = new Set<string>();
@@ -138,9 +144,8 @@ export function validateFlow(
     });
   }
 
-  const reachable = starts.length
-    ? reachableIds(starts[0]!.id, edges.filter((e) => ids.has(e.source) && ids.has(e.target)))
-    : new Set<string>();
+  const liveEdges = edges.filter((e) => ids.has(e.source) && ids.has(e.target));
+  const reachable = starts.length ? reachableIds(starts[0]!.id, nodes, liveEdges) : new Set<string>();
 
   for (const n of nodes) {
     if (n.data.kind === "conversation" && !n.data.dialogue.trim())
@@ -326,7 +331,10 @@ export function validateFlow(
       }
     }
     if (n.data.kind === "note") continue;
-    const connected = edges.some((e) => e.source === n.id) || edges.some((e) => e.target === n.id);
+    const connected =
+      edges.some((e) => e.source === n.id || e.target === n.id) ||
+      (n.data.transitions ?? []).some((t) => Boolean(t.target)) ||
+      nodes.some((other) => (other.data.transitions ?? []).some((t) => t.target === n.id));
     if (!connected && nodes.length > 1)
       issues.push({
         level: "warn",
@@ -375,7 +383,7 @@ export function validateFlow(
     unknownByNode.set(hit.nodeId, cur);
   }
   if (starts.length) {
-    const cycles = cyclePaths(starts[0]!.id, edges.filter((e) => ids.has(e.source) && ids.has(e.target)));
+    const cycles = cyclePaths(starts[0]!.id, nodes, liveEdges);
     const seenCycle = new Set<string>();
     for (const path of cycles) {
       const key = path.slice().sort().join(">");

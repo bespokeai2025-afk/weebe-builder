@@ -13,7 +13,14 @@ import type {
 } from "./types";
 import { autoLayoutNodes } from "./auto-layout";
 import { defaultNodeData } from "./node-registry";
-import { cloneGraphSlice, selectedGraphSlice, type GraphSlice } from "./graph-ops";
+import {
+  FLOW_EDGE_TYPE,
+  clearTransitionTargetForEdge,
+  cloneGraphSlice,
+  selectedGraphSlice,
+  syncNodeEdges,
+  type GraphSlice,
+} from "./graph-ops";
 import { flowComponentSlice } from "./flow-components";
 import { appendFlowVersion, makePublishedSnapshot, nextVersionNumber } from "./flow-history";
 import { validateComponentSlice } from "./validate";
@@ -305,8 +312,17 @@ export const useBuilderStore = create<State>()(
       onEdgesChange: (changes) => {
         const selectOnly = changes.every((c) => c.type === "select");
         if (!selectOnly) pushHistory(get().nodes, get().edges);
+        const removed = new Set(changes.filter((c) => c.type === "remove").map((c) => c.id));
+        const prevEdges = get().edges;
+        let nodes = get().nodes;
+        if (removed.size) {
+          for (const e of prevEdges) {
+            if (removed.has(e.id)) nodes = clearTransitionTargetForEdge(nodes, e);
+          }
+        }
         set({
-          edges: applyEdgeChanges(changes, get().edges),
+          edges: applyEdgeChanges(changes, prevEdges),
+          nodes,
           ...(selectOnly ? {} : dirtyFields(get().editRevision)),
         });
       },
@@ -314,10 +330,15 @@ export const useBuilderStore = create<State>()(
         pushHistory(get().nodes, get().edges);
         const edgeId = `edge-${Date.now().toString(36)}`;
         const label = edgeLabelForConnection(get().nodes, c);
+        const withoutOld = c.sourceHandle
+          ? get().edges.filter(
+              (e) => !(e.source === c.source && e.sourceHandle === c.sourceHandle),
+            )
+          : get().edges;
         set({
           edges: addEdge(
-            { ...c, type: "step", animated: false, id: edgeId, label },
-            get().edges,
+            { ...c, type: FLOW_EDGE_TYPE, animated: false, id: edgeId, label },
+            withoutOld,
           ),
           ...dirtyFields(get().editRevision),
         });
@@ -329,7 +350,7 @@ export const useBuilderStore = create<State>()(
                     ...n,
                     data: {
                       ...n.data,
-                      transitions: n.data.transitions.map((t) =>
+                      transitions: (n.data.transitions ?? []).map((t) =>
                         t.id === c.sourceHandle ? { ...t, target: c.target! } : t,
                       ),
                     },
@@ -344,7 +365,7 @@ export const useBuilderStore = create<State>()(
         const label = edgeLabelForConnection(get().nodes, c) ?? oldEdge.label;
         set({
           edges: reconnectEdge(oldEdge, c, get().edges).map((e) =>
-            e.id === oldEdge.id ? { ...e, label } : e,
+            e.id === oldEdge.id ? { ...e, type: FLOW_EDGE_TYPE, label } : e,
           ),
           ...dirtyFields(get().editRevision),
         });
@@ -356,7 +377,7 @@ export const useBuilderStore = create<State>()(
                 ...n,
                 data: {
                   ...n.data,
-                  transitions: n.data.transitions.map((t) => {
+                  transitions: (n.data.transitions ?? []).map((t) => {
                     if (n.id === oldEdge.source && t.id === oldEdge.sourceHandle) {
                       return { ...t, target: t.target === oldEdge.target ? null : t.target };
                     }
@@ -608,15 +629,8 @@ export const useBuilderStore = create<State>()(
         const nodes = get().nodes.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...data } } : n));
         let edges = get().edges;
         if (data.transitions) {
-          edges = edges.map((e) => {
-            if (e.source !== id || !e.sourceHandle) return e;
-            const t = data.transitions!.find((tr) => tr.id === e.sourceHandle);
-            if (!t) return e;
-            const label =
-              t.condition?.trim() ||
-              (nodes.find((n) => n.id === id)?.data.kind === "logic_split" ? "else" : undefined);
-            return { ...e, label };
-          });
+          const kind = nodes.find((n) => n.id === id)?.data.kind;
+          edges = syncNodeEdges(id, data.transitions, edges, kind);
         }
         set({ nodes, edges, ...dirtyFields(get().editRevision) });
       },
@@ -631,9 +645,11 @@ export const useBuilderStore = create<State>()(
         });
       },
       deleteEdge: (id) => {
+        const edge = get().edges.find((e) => e.id === id);
         pushHistory(get().nodes, get().edges);
         set({
           edges: get().edges.filter((e) => e.id !== id),
+          nodes: edge ? clearTransitionTargetForEdge(get().nodes, edge) : get().nodes,
           ...dirtyFields(get().editRevision),
         });
       },
@@ -646,8 +662,11 @@ export const useBuilderStore = create<State>()(
         pushHistory(get().nodes, get().edges);
         const remaining = get().nodes.filter((n) => !ids.has(n.id));
         const live = new Set(remaining.map((n) => n.id));
+        const dropped = get().edges.filter((e) => e.selected && !ids.has(e.source) && !ids.has(e.target));
+        let nodes = pruneTransitionTargets(remaining, live);
+        for (const e of dropped) nodes = clearTransitionTargetForEdge(nodes, e);
         set({
-          nodes: pruneTransitionTargets(remaining, live),
+          nodes,
           edges: get().edges.filter((e) => !e.selected && live.has(e.source) && live.has(e.target)),
           selectedNodeId:
             get().selectedNodeId && ids.has(get().selectedNodeId) ? null : get().selectedNodeId,

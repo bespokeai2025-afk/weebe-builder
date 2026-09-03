@@ -39,7 +39,7 @@ describe("spoken transcript catch-up", () => {
   it("reveals whole sentences as audio duration grows", () => {
     const full = "Hello there. Does that sound ok?";
     expect(transcriptCaughtUpToAudio(full, 0, 24000)).toBe("");
-    const first = transcriptCaughtUpToAudio(full, 24000 * 2 * 2, 24000);
+    const first = transcriptCaughtUpToAudio(full, 24000 * 2 * 1, 24000);
     expect(first).toBe("Hello there.");
     expect(transcriptCaughtUpToAudio(full, 24000 * 2 * 20, 24000)).toBe(full);
   });

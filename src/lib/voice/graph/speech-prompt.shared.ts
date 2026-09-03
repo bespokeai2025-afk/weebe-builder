@@ -6,12 +6,10 @@
  * than a script. Those must never be read aloud.
  */
 
+import { referencedVariableNames } from "./variables.shared";
+
 export function referencedTemplateVars(text: string): string[] {
-  const names = new Set<string>();
-  const re = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g;
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(text))) names.add(match[1]!);
-  return [...names];
+  return referencedVariableNames(text);
 }
 
 const TASK_PREFIX =
@@ -34,6 +32,18 @@ export function looksLikeInstructionLine(line: string): boolean {
       t,
     )
   );
+}
+
+/** Tool filler must be words for the caller — never a "Call X with args" instruction. */
+export function spokenExecutionFiller(raw: string): string | null {
+  const stripped = raw
+    .trim()
+    .replace(/^say:\s*/i, "")
+    .replace(/^["']|["']$/g, "")
+    .trim();
+  if (!stripped || /^NO_RESPONSE_NEEDED$/i.test(stripped)) return null;
+  if (looksLikeInstructionLine(stripped) || looksLikeAgentTask(stripped)) return null;
+  return stripped;
 }
 
 /** Script lines are already the words to speak — no LLM needed. */
@@ -209,7 +219,7 @@ export function spokenScriptOnly(text: string): string {
     .trim();
 }
 
-export type SpeechMode = "static" | "template" | "llm";
+export type SpeechMode = "static" | "llm";
 
 export interface SpeechPlan {
   mode: SpeechMode;
@@ -244,12 +254,11 @@ export function polishSpokenLine(text: string): string {
 }
 
 /**
- * Retell-style speech plan: static / template skip the LLM; prompt does not.
- * A spoken sentence plus an "only ask…" note is a template, not a prompt.
+ * Retell-style speech plan: exact skip the LLM; prompt does not.
  */
 export function resolveSpeechPlan(
   raw: string,
-  declaredType?: "prompt" | "static_text" | "template",
+  declaredType?: "prompt" | "static_text" | "template" | "hybrid",
 ): SpeechPlan {
   const t = raw.trim();
   if (!t || /^NO_RESPONSE_NEEDED$/i.test(t) || wantsSpokenFlavor(t)) {
@@ -257,13 +266,15 @@ export function resolveSpeechPlan(
   }
   const parts = splitPromptParts(t, looksLikeInstructionLine);
   const script = polishSpokenLine(spokenScriptOnly(parts.script || ""));
-  const hasVars = /\{\{[^{}]+\}\}/.test(t) || /\{\{[^{}]+\}\}/.test(parts.script);
   if (declaredType === "static_text" || declaredType === "template") {
-    if (script) return { mode: hasVars || declaredType === "template" ? "template" : "static", script };
+    if (script) return { mode: "static", script };
     return { mode: "llm", script: "" };
   }
+  if (declaredType === "hybrid") {
+    return { mode: "llm", script };
+  }
   if (script && isVerbatimSpeakable(parts.script) && !looksLikeBuilderPrompt(t)) {
-    return { mode: hasVars ? "template" : "static", script };
+    return { mode: "static", script };
   }
   return { mode: "llm", script };
 }
@@ -280,7 +291,7 @@ export function instantSpeechText(
   if (!t || /^NO_RESPONSE_NEEDED$/i.test(t)) return null;
   if (wantsSpokenFlavor(t)) return null;
   const planned = resolveSpeechPlan(t);
-  if ((planned.mode === "static" || planned.mode === "template") && planned.script) {
+  if ((planned.mode === "static") && planned.script) {
     return planned.script;
   }
   const parts = splitPromptParts(t, isDirection);

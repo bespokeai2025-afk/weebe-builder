@@ -7,6 +7,10 @@ import {
   serializeEquationPrompt,
   toRetellEquationCondition,
 } from "../voice/graph/equations.shared";
+import {
+  compileSpeechInstruction,
+  responseModeFromInstruction,
+} from "../voice/graph/speech-mode.shared";
 
 /**
  * Map our builder graph to a full agent JSON with a nested
@@ -130,13 +134,10 @@ export function exportAgentJson(
   };
   delete conversationFlow.__key_order;
 
-  // Only emit flex_mode if user set it or raw had it.
-  if (rawCf.flex_mode !== undefined) {
-    conversationFlow.flex_mode =
-      settings.transitionFlexibility != null
-        ? settings.transitionFlexibility === "flex"
-        : rawCf.flex_mode;
-  }
+  conversationFlow.flex_mode =
+    settings.transitionFlexibility != null
+      ? settings.transitionFlexibility === "flex"
+      : rawCf.flex_mode !== false;
 
   if ((settings.beginAfterUserSilenceMs ?? 0) > 0) {
     conversationFlow.begin_after_user_silence_ms = settings.beginAfterUserSilenceMs;
@@ -664,24 +665,16 @@ function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id
     case "wait":
     case "subagent":
     case "conversation": {
-      const rawInstr = raw.instruction as { type?: string; text?: string } | undefined;
-      const instructionType =
-        d.instructionType === "template" ||
-        d.instructionType === "static_text" ||
-        d.instructionType === "prompt"
-          ? d.instructionType
-          : rawInstr?.type === "template" || rawInstr?.type === "static_text"
-            ? rawInstr.type
-            : d.kind === "wait"
-              ? "static_text"
-              : "prompt";
-      const instruction = {
-        type: instructionType,
+      const rawInstr = raw.instruction as
+        | { type?: string; text?: string; prefix?: string; notes?: string }
+        | undefined;
+      const instruction = compileSpeechInstruction({
+        type: d.instructionType ?? rawInstr?.type,
         text: d.dialogue ?? rawInstr?.text ?? "",
-        ...(String(d.instructions ?? "").trim()
-          ? { notes: String(d.instructions).trim() }
-          : {}),
-      };
+        prefix: d.speechPrefix ?? rawInstr?.prefix,
+        notes: d.instructions ?? rawInstr?.notes,
+        fallback: d.kind === "wait" ? "static_text" : "prompt",
+      });
       const startSpeaker =
         d.kind === "wait" ? "user" : d.kind === "begin" ? (d.startSpeaker ?? "agent") : d.startSpeaker;
       return orderNode({
@@ -711,12 +704,7 @@ function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id
             }
           : {}),
         instruction,
-        response_mode:
-          instructionType === "static_text"
-            ? "static"
-            : instructionType === "template"
-              ? "template"
-              : "llm",
+        response_mode: responseModeFromInstruction(instruction.type),
         edges,
         ...(raw.else_edge !== undefined ? { else_edge: raw.else_edge } : {}),
         ...(raw.skip_response_edge !== undefined ? { skip_response_edge: raw.skip_response_edge } : {}),
@@ -734,6 +722,15 @@ function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id
         description: d.toolDescription ?? (raw.description as string) ?? "",
         speak_during_execution:
           d.speakDuringExecution ?? (raw.speak_during_execution as boolean) ?? false,
+        ...(d.speakDuringExecution || raw.speak_during_execution
+          ? {
+              execution_message_description:
+                d.executionMessage ||
+                (raw.execution_message_description as string) ||
+                d.dialogue ||
+                "One moment.",
+            }
+          : {}),
         wait_for_result: d.waitForResult ?? (raw.wait_for_result as boolean) ?? true,
         ...(d.httpUrl || raw.url
           ? {
@@ -1127,23 +1124,21 @@ function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id
         edges,
       });
     case "ending": {
-      const rawInstr = raw.instruction as { type?: string; text?: string } | undefined;
+      const rawInstr = raw.instruction as
+        | { type?: string; text?: string; prefix?: string; notes?: string }
+        | undefined;
+      const instruction = compileSpeechInstruction({
+        type: d.instructionType ?? rawInstr?.type,
+        text: d.endingPrompt ?? rawInstr?.text ?? d.dialogue ?? "End the call",
+        prefix: d.speechPrefix ?? rawInstr?.prefix,
+        notes: d.instructions ?? rawInstr?.notes,
+        fallback: "prompt",
+      });
       return orderNode({
         ...base,
         type: "end",
-        instruction: {
-          type:
-            d.instructionType === "template" ||
-            d.instructionType === "static_text" ||
-            d.instructionType === "prompt"
-              ? d.instructionType
-              : (rawInstr?.type ?? "prompt"),
-          text:
-            d.endingPrompt ??
-            rawInstr?.text ??
-            d.dialogue ??
-            "End the call",
-        },
+        instruction,
+        response_mode: responseModeFromInstruction(instruction.type),
       });
     }
 
@@ -1163,7 +1158,8 @@ function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id
         ...(d.httpBody ? { body: d.httpBody } : {}),
         timeout: d.httpTimeoutMs ?? 10000,
         speak_during_execution: d.speakDuringExecution ?? true,
-        execution_message_description: d.dialogue || "Making an external API call…",
+        execution_message_description:
+          d.executionMessage || d.dialogue || "Making an external API call…",
         parameters: {
           type: "object",
           properties: {
@@ -1204,10 +1200,12 @@ function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id
           ...base,
           type: "conversation",
           start_speaker: (d as { startSpeaker?: string }).startSpeaker ?? "agent",
-          instruction: {
-            type: (d as { instructionType?: string }).instructionType ?? "prompt",
+          instruction: compileSpeechInstruction({
+            type: (d as { instructionType?: string }).instructionType,
             text: d.dialogue ?? "",
-          },
+            prefix: (d as { speechPrefix?: string }).speechPrefix,
+            fallback: "prompt",
+          }),
           edges,
         });
       }

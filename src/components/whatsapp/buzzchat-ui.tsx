@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -5,6 +6,44 @@ import { cn } from "@/lib/utils";
 /** Shared BuzzChat chrome — matches Webee theme tokens, not a new palette. */
 export const BUZZ_SELECT = "h-9 text-sm";
 export const BUZZ_SEARCH = "h-9 pl-9 text-sm";
+
+export function BuzzchatFilterChip({
+  active,
+  onClick,
+  children,
+  count,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+  count?: number;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
+        active
+          ? "border-primary bg-primary text-primary-foreground"
+          : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
+      )}
+    >
+      {children}
+      {count != null && (
+        <span
+          className={cn(
+            "rounded-full px-1.5 py-px text-[10px] tabular-nums",
+            active ? "bg-primary-foreground/20" : "bg-muted text-muted-foreground",
+          )}
+        >
+          {count}
+        </span>
+      )}
+    </button>
+  );
+}
 
 export function BuzzchatEmptyState({
   icon: Icon,
@@ -15,7 +54,7 @@ export function BuzzchatEmptyState({
   icon: LucideIcon;
   title: string;
   description: string;
-  action?: React.ReactNode;
+  action?: ReactNode;
 }) {
   return (
     <div className="flex h-full min-h-48 flex-col items-center justify-center gap-3 px-6 py-16 text-center">
@@ -69,7 +108,7 @@ export function BuzzchatTableSkeleton({
   );
 }
 
-export function BuzzchatFieldLabel({ children }: { children: React.ReactNode }) {
+export function BuzzchatFieldLabel({ children }: { children: ReactNode }) {
   return (
     <span className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
       {children}

@@ -36,9 +36,11 @@ export interface FlowEdge {
 
 export interface FlowInstruction {
   /** Declared by the builder. The VM does not infer this from the text. */
-  type: "prompt" | "static_text" | "template";
-  /** Spoken text (static/template) or LLM instructions (prompt). */
+  type: "prompt" | "static_text" | "hybrid";
+  /** Spoken text (exact) or LLM instructions (AI / hybrid). */
   text: string;
+  /** Hybrid only: spoken exactly, before the LLM line. */
+  prefix?: string;
   /** Never spoken. Optional extra LLM/builder notes. */
   notes?: string;
 }
@@ -167,6 +169,8 @@ export interface ConversationFlow {
   model_temperature?: number;
   tools?: Array<Record<string, unknown>>;
   begin_after_user_silence_ms?: number;
+  /** When false, routing only follows a matched condition (Retell strict). */
+  flex_mode?: boolean;
   [key: string]: unknown;
 }
 
@@ -193,6 +197,8 @@ export interface SpeakDirective {
 export interface AwaitUserDirective {
   type: "await_user";
   nodeId: string;
+  /** When set, the transport must submit `silence_timeout` if the caller stays quiet. */
+  silenceTimeoutMs?: number;
 }
 
 export interface AwaitDigitDirective {
@@ -279,6 +285,8 @@ export type VmInput =
   | { type: "begin" }
   | { type: "user_utterance"; text: string }
   | { type: "digit"; digit: string }
+  /** Transport fired the current node's silence / wait timer with no caller speech. */
+  | { type: "silence_timeout" }
   /** Host-reported outcome of a transfer, so the VM can take the failed edge. */
   | { type: "transfer_result"; ok: boolean };
 

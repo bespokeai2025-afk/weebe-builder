@@ -1,5 +1,81 @@
 import type { Edge } from "@xyflow/react";
-import type { FlowNode } from "./types";
+import type { FlowNode, Transition } from "./types";
+
+export const FLOW_EDGE_TYPE = "flow";
+
+export function edgeLabelForTransition(
+  condition: string | undefined,
+  kind?: string,
+): string | undefined {
+  const text = condition?.trim();
+  if (text) return text;
+  if (kind === "logic_split") return "else";
+  return undefined;
+}
+
+export function clearTransitionTargetForEdge(
+  nodes: FlowNode[],
+  edge: { source?: string; sourceHandle?: string | null },
+): FlowNode[] {
+  if (!edge.source || !edge.sourceHandle) return nodes;
+  return nodes.map((n) => {
+    if (n.id !== edge.source) return n;
+    const transitions = (n.data.transitions ?? []).map((t) =>
+      t.id === edge.sourceHandle ? { ...t, target: null } : t,
+    );
+    return { ...n, data: { ...n.data, transitions } };
+  });
+}
+
+/**
+ * Keep React Flow edges in lockstep with one node's transitions.
+ * A transition with a target upserts that handle's edge; a cleared or removed
+ * transition drops it. Other nodes' edges are left alone.
+ */
+export function syncNodeEdges(
+  nodeId: string,
+  transitions: Transition[] | undefined,
+  edges: Edge[],
+  nodeKind?: string,
+): Edge[] {
+  const list = transitions ?? [];
+  const handleIds = new Set(list.map((t) => t.id));
+  const next: Edge[] = [];
+  const seen = new Set<string>();
+
+  for (const e of edges) {
+    if (e.source !== nodeId) {
+      next.push(e);
+      continue;
+    }
+    if (!e.sourceHandle || !handleIds.has(e.sourceHandle)) continue;
+    const t = list.find((tr) => tr.id === e.sourceHandle);
+    if (!t?.target) continue;
+    next.push({
+      ...e,
+      target: t.target,
+      type: e.type === FLOW_EDGE_TYPE || !e.type ? FLOW_EDGE_TYPE : e.type,
+      animated: false,
+      label: edgeLabelForTransition(t.condition, nodeKind) ?? e.label,
+    });
+    seen.add(e.sourceHandle);
+  }
+
+  for (const t of list) {
+    if (!t.target || seen.has(t.id)) continue;
+    next.push({
+      id: `edge-${nodeId}-${t.id}`,
+      source: nodeId,
+      target: t.target,
+      sourceHandle: t.id,
+      type: FLOW_EDGE_TYPE,
+      animated: false,
+      label: edgeLabelForTransition(t.condition, nodeKind),
+    });
+  }
+
+  return next;
+}
 
 export interface GraphSlice {
   nodes: FlowNode[];

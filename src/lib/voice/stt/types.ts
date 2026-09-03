@@ -4,12 +4,12 @@
  * Two very different shapes hide behind this interface, which is why it looks the
  * way it does:
  *
- *   - Streaming providers (Deepgram) transcribe continuously, so by the time the
- *     caller stops speaking the text is already available. Their cost is one
- *     network round-trip, not a whole transcription.
- *   - Batch providers (Whisper) need a finished utterance in a container, so the
- *     entire transcription happens after end-of-speech and lands directly on the
- *     turn's latency budget.
+ *   - Streaming providers (Fish realtime ASR, Deepgram Nova-2) transcribe continuously, so by the
+ *     time the caller stops speaking the text is already available. Their cost is
+ *     one flush round-trip, not a whole transcription.
+ *   - Batch providers (Fish `/v1/asr` fallback) need a finished utterance in a
+ *     container, so the entire transcription happens after end-of-speech and lands
+ *     directly on the turn's latency budget.
  *
  * Callers therefore always do both: `push` every frame as it arrives, and call
  * `finalizeUtterance` with the endpointed audio. A streaming provider ignores the

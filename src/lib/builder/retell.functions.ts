@@ -21,6 +21,7 @@ import {
   listRetellPhoneNumbersService,
   assignNumberToAgentService,
 } from "@/lib/builder/retell-telephony.server";
+import { retellHybridPrompt } from "@/lib/voice/graph/speech-mode.shared";
 
 /**
  * Look up whether the signed-in user has Cal.com configured at the workspace
@@ -49,11 +50,28 @@ function sanitizeRetellConversationFlow(cf: Record<string, unknown>): Record<str
       if (!instruction || typeof instruction !== "object") return rec;
       const instr = instruction as Record<string, unknown>;
       const type = String(instr.type ?? "");
-      if (type !== "template") return rec;
-      return {
-        ...rec,
-        instruction: { ...instr, type: "static_text" },
-      };
+      const prefix = String(instr.prefix ?? "").trim();
+      const text = String(instr.text ?? "");
+      if (type === "hybrid") {
+        const { prefix: _drop, ...rest } = instr;
+        return {
+          ...rec,
+          instruction: {
+            ...rest,
+            type: "prompt",
+            text: retellHybridPrompt(prefix, text),
+          },
+          response_mode: "llm",
+        };
+      }
+      if (type === "template") {
+        return {
+          ...rec,
+          instruction: { ...instr, type: "static_text" },
+          response_mode: rec.response_mode === "template" ? "static" : rec.response_mode,
+        };
+      }
+      return rec;
     }),
   };
 }

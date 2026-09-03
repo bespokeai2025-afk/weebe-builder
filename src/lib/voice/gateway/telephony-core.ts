@@ -396,3 +396,32 @@ export async function finalizeCall(
     }),
   ]);
 }
+
+/**
+ * Builder speech settings that the native cascade honours on a phone call.
+ * Test calls already pass these on `session.init`; telephony must read them
+ * from the saved agent or barge-in / keyword boost silently reset to defaults.
+ */
+export function nativeCascadeOptionsFromSettings(settings: Record<string, unknown> | null | undefined): {
+  boostedKeywords?: string[];
+  speechLanguages?: string[];
+  silenceDurationMs?: number;
+  responsiveness?: number;
+  interruptionSensitivity?: number;
+} {
+  const src = settings ?? {};
+  const list = (value: unknown): string[] | undefined => {
+    if (!Array.isArray(value)) return undefined;
+    const out = value.map((item) => String(item ?? "").trim()).filter(Boolean);
+    return out.length ? out : undefined;
+  };
+  const num = (value: unknown): number | undefined =>
+    typeof value === "number" && Number.isFinite(value) ? value : undefined;
+  return {
+    boostedKeywords: list(src.boostedKeywords),
+    speechLanguages: list(src.speechLanguages),
+    silenceDurationMs: num(src.hyperstreamSilenceDurationMs),
+    responsiveness: num(src.responsiveness),
+    interruptionSensitivity: num(src.interruptionSensitivity),
+  };
+}

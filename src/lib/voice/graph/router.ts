@@ -39,6 +39,13 @@ export interface RouteContext {
   currentNodeHint?: string;
   /** Per-node classifier override (fast vs strong). */
   classifierModel?: string;
+  /**
+   * When false, skip loose heuristics (generic-single / scored fallback) so a
+   * transition only fires on a real match — Retell `flex_mode: false`.
+   */
+  flex?: boolean;
+  /** True when the transport reported silence, even if history still has a prior user line. */
+  silenceTimeout?: boolean;
 }
 
 export interface EdgeRouteDecision {
@@ -67,7 +74,7 @@ export async function selectEdge(
   if (usable.length === 0) return { edge: null, method: "none" };
 
   let conditions = usable.map((e) => interpolate(e.transition_condition.prompt.trim(), ctx.variables));
-  const userText = lastUserText(ctx.history);
+  const userText = ctx.silenceTimeout ? "" : lastUserText(ctx.history);
   const lastAgentText = lastAssistantText(ctx.history);
 
   // Repair turns ("what?", "pardon?") stay on the current node — Retell does not
@@ -78,7 +85,7 @@ export async function selectEdge(
     /^(timeout|silence|no.?input|no.?response)$/i.test(c.trim());
 
   // Silence / wait-timeout edges fire only when the caller said nothing.
-  if (!userText.trim()) {
+  if (ctx.silenceTimeout || !userText.trim()) {
     const timeoutIdx = conditions.findIndex(isTimeoutCondition);
     if (timeoutIdx >= 0) return { edge: usable[timeoutIdx]!, method: "unconditional" };
   } else {
@@ -103,7 +110,12 @@ export async function selectEdge(
   if (equationHit) return { edge: equationHit, method: "equation" };
 
   // 4. Single edge with generic/any-answer/placeholder prompt + substantive caller reply.
-  if (usable.length === 1 && userText.trim() && !looksLikeRepairRequest(userText)) {
+  if (
+    ctx.flex !== false &&
+    usable.length === 1 &&
+    userText.trim() &&
+    !looksLikeRepairRequest(userText)
+  ) {
     const only = conditions[0]?.toLowerCase() ?? "";
     if (
       edgeExpectsGenericContinuation(only) ||
@@ -143,6 +155,7 @@ export async function selectEdge(
   }
 
   if (!Number.isInteger(index) || index < 0 || index >= usable.length) {
+    if (ctx.flex === false) return { edge: null, method: "none" };
     const scored = pickBestScoredEdge(conditions, userText, lastAgentText, 2);
     return {
       edge: scored !== null ? usable[scored]! : null,
@@ -382,7 +395,7 @@ export function userSignalsDecline(userText: string): boolean {
   const t = userText.trim().toLowerCase();
   return (
     /^(no|nope|nah|not really|negative|pass)$/i.test(t) ||
-    /\b(not interested|don't want|do not want|no thanks|not now|not today)\b/.test(t)
+    /\b(not interested|don't want|do not want|no thanks|not now|not today|call me later|call me after|call me afterwards)\b/.test(t)
   );
 }
 

@@ -13,6 +13,7 @@ import {
   FileText,
   Copy,
   ChevronLeft,
+  ExternalLink,
   SlidersHorizontal,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -41,11 +42,14 @@ import {
 } from "@/lib/dashboard/whatsapp.functions";
 import { updateListingOutcome } from "@/lib/whatsapp/campaign-leads.functions";
 import {
+  DEFAULT_INBOX_QUEUE_FILTER,
+  INBOX_PRIMARY_QUEUE_FILTERS,
   INBOX_QUEUE_FILTERS,
   LISTING_OUTCOME_LABELS,
   LISTING_OUTCOMES,
   isWhatsappFreeTextAllowed,
   threadMatchesInboxQueue,
+  whatsappPersonalLink,
   type InboxQueueFilter,
   type ListingOutcome,
 } from "@/lib/whatsapp/campaign-leads.shared";
@@ -63,6 +67,7 @@ import {
   BUZZ_SEARCH,
   BUZZ_SELECT,
   BuzzchatEmptyState,
+  BuzzchatFilterChip,
   BuzzchatThreadSkeleton,
 } from "@/components/whatsapp/buzzchat-ui";
 import { Label } from "@/components/ui/label";
@@ -131,7 +136,7 @@ export function WhatsAppInbox() {
   const [search, setSearch] = useState("");
   const [assigneeFilter, setAssigneeFilter] = useState<string>(ASSIGNEE_ALL);
   const [tagFilter, setTagFilter] = useState<string>(TAG_ALL);
-  const [queueFilter, setQueueFilter] = useState<InboxQueueFilter>("all");
+  const [queueFilter, setQueueFilter] = useState<InboxQueueFilter>(DEFAULT_INBOX_QUEUE_FILTER);
   const [sortMode, setSortMode] = useState<InboxSortMode>("replies-first");
   const [inboxScope, setInboxScope] = useState<InboxCampaignScope>("all");
   const [campaignFilter, setCampaignFilter] = useState<string>(CAMPAIGN_ALL);
@@ -253,6 +258,8 @@ export function WhatsAppInbox() {
     return threadMatchesInboxQueue(
       {
         lastDirection: t.lastDirection,
+        lastInboundAt: t.lastInboundAt,
+        listingOutcome: t.listingOutcome,
         needsReply: t.needsReply,
         status: t.status,
         expired,
@@ -348,7 +355,7 @@ export function WhatsAppInbox() {
       invalidateThreads();
       qc.invalidateQueries({ queryKey: ["campaign-leads"] });
       qc.invalidateQueries({ queryKey: ["pipeline-leads"] });
-      toast.success("Remark saved");
+      toast.success("Remark saved — chat moved to Listing leads");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -363,14 +370,16 @@ export function WhatsAppInbox() {
     return meta?.members.find((m) => m.userId === userId)?.name ?? "Assigned";
   };
 
-  const hasFilters =
+  const extraFilters =
     Boolean(search) ||
     assigneeFilter !== ASSIGNEE_ALL ||
     tagFilter !== TAG_ALL ||
-    queueFilter !== "all" ||
     campaignFilter !== CAMPAIGN_ALL ||
     areaFilter !== AREA_ALL ||
     inboxScope !== "all";
+  const hasFilters = extraFilters || queueFilter !== DEFAULT_INBOX_QUEUE_FILTER;
+  const blankInbox =
+    !isLoading && queued.length === 0 && queueFilter === DEFAULT_INBOX_QUEUE_FILTER && !extraFilters;
 
   const campaigns = meta?.campaigns ?? [];
   const activeCampaigns = campaigns.filter((c) => !c.archived);
@@ -409,7 +418,7 @@ export function WhatsAppInbox() {
     setSearch("");
     setAssigneeFilter(ASSIGNEE_ALL);
     setTagFilter(TAG_ALL);
-    setQueueFilter("all");
+    setQueueFilter(DEFAULT_INBOX_QUEUE_FILTER);
     setCampaignFilter(CAMPAIGN_ALL);
     setAreaFilter(AREA_ALL);
     setInboxScope("all");
@@ -420,10 +429,10 @@ export function WhatsAppInbox() {
     assigneeFilter !== ASSIGNEE_ALL,
     tagFilter !== TAG_ALL,
     sortMode !== "replies-first",
+    queueFilter !== "working" && queueFilter !== "all",
   ].filter(Boolean).length;
 
   const showChat = Boolean(active) && mobileShowChat;
-  const emptyInbox = !isLoading && sorted.length === 0 && !hasFilters;
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card">
@@ -494,22 +503,6 @@ export function WhatsAppInbox() {
           </Select>
         )}
 
-        <Select
-          value={queueFilter}
-          onValueChange={(v) => setQueueFilter(v as InboxQueueFilter)}
-        >
-          <SelectTrigger className={cn(BUZZ_SELECT, "w-40")} aria-label="Show conversations">
-            <SelectValue placeholder="Show" />
-          </SelectTrigger>
-          <SelectContent>
-            {INBOX_QUEUE_FILTERS.map((f) => (
-              <SelectItem key={f.id} value={f.id}>
-                {f.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
         <Popover>
           <PopoverTrigger asChild>
             <Button type="button" variant="outline" size="sm" className="relative gap-1.5">
@@ -559,6 +552,29 @@ export function WhatsAppInbox() {
               </div>
             )}
             <div className="space-y-1">
+              <Label className="text-xs">Status</Label>
+              <Select
+                value={
+                  queueFilter === "working" || queueFilter === "all" ? "__default__" : queueFilter
+                }
+                onValueChange={(v) =>
+                  setQueueFilter(v === "__default__" ? DEFAULT_INBOX_QUEUE_FILTER : (v as InboxQueueFilter))
+                }
+              >
+                <SelectTrigger className={cn(BUZZ_SELECT, "w-full")}>
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__default__">Use Inbox / All above</SelectItem>
+                  {INBOX_QUEUE_FILTERS.filter((f) => f.id !== "working" && f.id !== "all").map((f) => (
+                    <SelectItem key={f.id} value={f.id}>
+                      {f.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
               <Label className="text-xs">Sort</Label>
               <Select value={sortMode} onValueChange={(v) => setSortMode(v as InboxSortMode)}>
                 <SelectTrigger className={cn(BUZZ_SELECT, "w-full")}>
@@ -580,6 +596,23 @@ export function WhatsAppInbox() {
         )}
       </div>
 
+      <div className="flex shrink-0 flex-col gap-1.5 border-b border-border px-3 py-2">
+        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          Show
+        </p>
+        <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Inbox queue">
+          {INBOX_PRIMARY_QUEUE_FILTERS.map((f) => (
+            <BuzzchatFilterChip
+              key={f.id}
+              active={queueFilter === f.id}
+              onClick={() => setQueueFilter(f.id)}
+            >
+              {f.label}
+            </BuzzchatFilterChip>
+          ))}
+        </div>
+      </div>
+
       <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden md:grid-cols-[20rem_minmax(0,1fr)] lg:grid-cols-[22rem_minmax(0,1fr)]">
         <div
           className={cn(
@@ -590,41 +623,35 @@ export function WhatsAppInbox() {
           <p className="shrink-0 px-3 py-2 text-xs text-muted-foreground">
             {isLoading
               ? "Loading conversations…"
-              : `${replyWaitingCount > 0 ? `${replyWaitingCount} need a reply · ` : ""}${
-                  hasFilters ? `${queued.length} matching` : `${queued.length} of ${totalThreads}`
-                }`}
+              : blankInbox
+                ? "Waiting for replies"
+                : `${replyWaitingCount > 0 ? `${replyWaitingCount} need a reply · ` : ""}${
+                    hasFilters ? `${queued.length} matching` : `${queued.length} of ${totalThreads}`
+                  }`}
           </p>
           {isLoading ? (
             <div className="min-h-0 flex-1 overflow-y-auto">
               <BuzzchatThreadSkeleton />
             </div>
-          ) : emptyInbox ? (
+          ) : blankInbox || queued.length === 0 ? (
             <BuzzchatEmptyState
               icon={MessageCircle}
-              title="No conversations yet"
-              description="When someone replies to a campaign, the chat appears here. Send a campaign or wait for an inbound message."
+              title={blankInbox ? "Inbox is empty" : "Nothing matches"}
+              description={
+                blankInbox
+                  ? "When an owner replies, the chat appears here. After you set a remark, it moves to Listing leads."
+                  : "Clear search or change Campaign, Area, or Show to see other chats."
+              }
               action={
-                <Button asChild size="sm">
-                  <a href="/whatsapp?tab=campaigns">Create a campaign</a>
-                </Button>
+                blankInbox ? undefined : (
+                  <Button type="button" variant="outline" size="sm" onClick={clearFilters}>
+                    Clear filters
+                  </Button>
+                )
               }
             />
           ) : (
           <ul className="min-h-0 flex-1 divide-y divide-border/60 overflow-y-auto">
-            {queued.length === 0 && (
-              <li>
-                <BuzzchatEmptyState
-                  icon={MessageCircle}
-                  title="Nothing matches"
-                  description="Clear search or change Campaign, Area, or Show to see other chats."
-                  action={
-                    <Button type="button" variant="outline" size="sm" onClick={clearFilters}>
-                      Clear filters
-                    </Button>
-                  }
-                />
-              </li>
-            )}
             {queued.map((t) => {
               const waiting = Boolean(t.needsReply);
               const selected = active?.phone === t.phone;
@@ -735,6 +762,25 @@ export function WhatsAppInbox() {
                       </span>
                     )}
                     <OpenLeadLink leadId={active.leadId} />
+                    {whatsappPersonalLink(active.phone) && (
+                      <a
+                        href={whatsappPersonalLink(active.phone)!}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        My WhatsApp
+                      </a>
+                    )}
+                    {active.listingOutcome && (
+                      <a
+                        href="/campaign-leads"
+                        className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                      >
+                        Listing leads
+                      </a>
+                    )}
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">

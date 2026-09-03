@@ -38,11 +38,15 @@ Two traps that both produced real bugs:
 - **`maxUtteranceFrames`** force-closes a runaway utterance. Without it an open mic buffers without bound.
 
 ## 6 — Streaming STT is where the latency budget is won
-With batch Whisper the whole transcription happens *after* end-of-speech and lands on the critical path, which alone can blow the sub-800 ms target. Deepgram transcribes as audio arrives, so at endpoint only a flush round-trip remains.
+WEBEE Native TTS is always Fish Audio. STT defaults to Fish Audio realtime ASR (`webeeSttProvider: "fish"`). Agents can switch to Deepgram Nova-2 (`webeeSttProvider: "deepgram"`) without changing TTS.
 
-Both sit behind `SttProvider` in `src/lib/voice/stt/`. Callers always do both — `push` every frame and `finalizeUtterance(frames)` — because a streaming provider ignores the frames it is handed and a batch provider ignores the pushes. Deepgram's `finalizeUtterance` must not re-send the audio; it was already streamed.
+Fish: audio is transcribed as it arrives, so at endpoint only a flush round-trip remains. If that websocket cannot open, Fish falls back to batch `POST /v1/asr`, which sits on the critical path and can blow the 800 ms budget — treat that as a degradation, not the happy path.
 
-Deepgram's flush needs a timeout with an interim-text fallback: a slightly rough transcript beats dropping the caller's turn.
+Deepgram: streaming `listen` websocket with `keywords=` for builder `boostedKeywords`. Same VAD / finalize contract as Fish (`push` every frame, `finalizeUtterance` at endpoint). Native gates STT during long agent TTS to avoid speaker echo; Deepgram drops the live socket after ~10s with no audio, so the session must KeepAlive (5s) and reconnect. Without that, later caller turns transcribe empty and the agent looks muted. Do not skip STT finalize on Deepgram — a "Yes." partial must not discard the rest of the utterance.
+
+On both engines, `boostedKeywords` also get post-correction of near-miss tokens.
+
+Callers always do both — `push` every frame and `finalizeUtterance(frames)` — because a streaming session ignores the frames it is handed at finalize and the batch fallback ignores the pushes.
 
 ## 7 — Silero is optional on purpose
 `onnxruntime-node` unpacks to ~270 MB of native binaries. Forcing that into every deploy for one classifier is a bad trade, so `createVad()` prefers Silero when both the runtime and `SILERO_VAD_MODEL_PATH` are present and uses the energy detector otherwise. Because endpointing is shared, switching backends does not change turn timing.
