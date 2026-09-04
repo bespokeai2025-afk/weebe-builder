@@ -3,9 +3,10 @@
  */
 import { verifyRetellSignatureMultiKey } from "@/lib/calendar/retell-signature";
 import { resolveRetellCandidateKeysByAgent } from "@/lib/calendar/retell-key-lookup";
-import { DNR_RETELL_AGENT_ID, getDnrRetellApiKey } from "@/lib/dnr/dnr-voice.config";
+import { getDnrRetellApiKey } from "@/lib/dnr/dnr-voice.config";
 import {
   getPabauClientConfigForWorkspace,
+  parseDnrRetellAgentId,
   resolveWorkspaceIdForRetellAgent,
 } from "@/lib/dnr/dnr-pabau-credentials.server";
 import { logReceptionistToolEvent } from "@/lib/dnr/dnr-receptionist-audit.server";
@@ -36,22 +37,6 @@ function parseRetellCallId(rawBody: string): string | undefined {
   }
 }
 
-function parseAgentId(rawBody: string): string | undefined {
-  try {
-    const quick = JSON.parse(rawBody) as Record<string, unknown>;
-    const args = (quick.args ?? {}) as Record<string, unknown>;
-    const call = (quick.call ?? {}) as Record<string, unknown>;
-    return (
-      (args.agent_id as string) ??
-      (call.agent_id as string) ??
-      (quick.agent_id as string) ??
-      undefined
-    );
-  } catch {
-    return undefined;
-  }
-}
-
 export type DnrPabauToolContext = {
   agentId: string;
   workspaceId: string;
@@ -70,7 +55,7 @@ export async function authorizeDnrPabauTool(
   rawBody: string,
   request: Request,
 ): Promise<{ ok: true; ctx: DnrPabauToolContext } | { ok: false; response: Response }> {
-  const agentId = parseAgentId(rawBody) ?? DNR_RETELL_AGENT_ID;
+  const agentId = parseDnrRetellAgentId(rawBody);
   const keys = await resolveRetellCandidateKeysByAgent(agentId);
   const dnrKey = getDnrRetellApiKey();
   const sig = request.headers.get("x-retell-signature");
@@ -119,7 +104,8 @@ export async function authorizeDnrPabauTool(
       ok: false,
       response: dnrPabauJson({
         error: "Pabau not connected for this workspace",
-        hint: "SystemMind → CRM Connections → Pabau",
+        hint: "Pabau is saved in SystemMind but this host could not read the API key. Re-test the CRM connection, or set PABAU_API_KEY on the server.",
+        workspace_id: workspaceId,
       }, 503),
     };
   }

@@ -5,6 +5,9 @@
 
 export const DNR_RETELL_AGENT_ID = "agent_b2afcd65c127f79126ea57deb2";
 
+/** Dr Nyla Medispa workspace — Pabau CRM connection and Retell agent live here. */
+export const DNR_WORKSPACE_ID = "c6a4f0ed-c2d9-404a-92e0-f119c1eb8110";
+
 /** Retell API key for the DNR account (separate from platform RETELL_API_KEY). */
 export function getDnrRetellApiKey(): string | undefined {
   const dnr = process.env.RETELL_API_KEY_DNR?.trim();
