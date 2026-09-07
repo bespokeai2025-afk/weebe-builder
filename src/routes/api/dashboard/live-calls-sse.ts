@@ -23,6 +23,8 @@ import {
   cleanupStaleLiveCallSessions,
   type ActiveLiveSession,
 } from "@/lib/retell/live-call-sessions.server";
+import { isWbahWorkspaceId } from "@/lib/wbah-exclusion.shared";
+import { getWbahAdditionalRetellApiKeys } from "@/lib/wbah/post-call/wbah-retell-agents.shared";
 
 const SSE_INTERVAL_MS = 1500;
 const SSE_KEEPALIVE_MS = 15_000;
@@ -90,6 +92,7 @@ async function getWorkspaceRetellKey(
   cookieWorkspaceId?: string | null,
 ): Promise<{
   apiKey: string | null;
+  apiKeys: string[];
   workspaceId: string | null;
   /**
    * When the workspace has NO dedicated Retell key and falls back to the shared
@@ -103,7 +106,7 @@ async function getWorkspaceRetellKey(
   try {
     const { data, error } = await supabaseAdmin.auth.getUser(token);
     if (error || !data?.user?.id)
-      return { apiKey: null, workspaceId: null, deployedAgentIds: null };
+      return { apiKey: null, apiKeys: [], workspaceId: null, deployedAgentIds: null };
     const userId = data.user.id;
 
     let workspaceId: string | null = null;
@@ -134,7 +137,7 @@ async function getWorkspaceRetellKey(
     }
 
     if (!workspaceId)
-      return { apiKey: null, workspaceId: null, deployedAgentIds: null };
+      return { apiKey: null, apiKeys: [], workspaceId: null, deployedAgentIds: null };
 
     const { data: ws } = await supabaseAdmin
       .from("workspace_settings")
@@ -144,6 +147,8 @@ async function getWorkspaceRetellKey(
 
     const workspaceKey = (ws?.retell_workspace_id as string | undefined)?.trim() || undefined;
     const apiKey = workspaceKey || process.env.RETELL_API_KEY || null;
+    const extraKeys = isWbahWorkspaceId(workspaceId) ? getWbahAdditionalRetellApiKeys() : [];
+    const apiKeys = [...new Set([apiKey, ...extraKeys].filter((k): k is string => Boolean(k)))];
 
     // FAIL CLOSED: when this workspace has no dedicated key and falls back to the
     // shared platform key, Retell's /v2/list-calls returns EVERY tenant's ongoing
@@ -170,9 +175,9 @@ async function getWorkspaceRetellKey(
       }
     }
 
-    return { apiKey, workspaceId, deployedAgentIds };
+    return { apiKey: apiKeys[0] ?? apiKey, apiKeys, workspaceId, deployedAgentIds };
   } catch {
-    return { apiKey: null, workspaceId: null, deployedAgentIds: null };
+    return { apiKey: null, apiKeys: [], workspaceId: null, deployedAgentIds: null };
   }
 }
 
@@ -331,6 +336,26 @@ async function fetchLiveCalls(apiKey: string): Promise<any[]> {
   return detailed;
 }
 
+async function fetchLiveCallsForKeys(apiKeys: string[]): Promise<any[]> {
+  const byId = new Map<string, any>();
+  for (const key of apiKeys) {
+    const rows = await fetchLiveCalls(key);
+    for (const row of rows) {
+      const id = String(row?.call_id ?? "").trim();
+      if (id && !byId.has(id)) byId.set(id, row);
+    }
+  }
+  return [...byId.values()];
+}
+
+async function resolveAgentNamesForKeys(apiKeys: string[]): Promise<Record<string, string>> {
+  const names: Record<string, string> = {};
+  for (const key of apiKeys) {
+    Object.assign(names, await resolveAgentNames(key));
+  }
+  return names;
+}
+
 async function resolveAgentNames(apiKey: string): Promise<Record<string, string>> {
   const names: Record<string, string> = {};
   try {
@@ -351,7 +376,7 @@ export const Route = createFileRoute("/api/dashboard/live-calls-sse")({
         const token = url.searchParams.get("token") ?? "";
         const cookieWorkspaceId = readCookie(request, "wb_workspace_id");
 
-        const { apiKey, workspaceId, deployedAgentIds } = await getWorkspaceRetellKey(
+        const { apiKey, apiKeys, workspaceId, deployedAgentIds } = await getWorkspaceRetellKey(
           token,
           cookieWorkspaceId,
         );
@@ -359,6 +384,7 @@ export const Route = createFileRoute("/api/dashboard/live-calls-sse")({
         if (!apiKey || !workspaceId) {
           return new Response("Unauthorized", { status: 401 });
         }
+        const retellKeys = apiKeys.length ? apiKeys : [apiKey];
 
         let closed = false;
         let agentNames: Record<string, string> = {};
@@ -401,7 +427,7 @@ export const Route = createFileRoute("/api/dashboard/live-calls-sse")({
                 const now = Date.now();
 
                 if (now - agentNamesLastFetched > 60_000) {
-                  agentNames = await resolveAgentNames(apiKey);
+                  agentNames = await resolveAgentNamesForKeys(retellKeys);
                   agentNamesLastFetched = now;
                 }
 
@@ -425,7 +451,7 @@ export const Route = createFileRoute("/api/dashboard/live-calls-sse")({
                 // used to DETECT ongoing calls + metadata (managed-agent REST has
                 // no in-progress transcript). Reuse cached result between polls.
                 if (now - retellLastFetched > RETELL_POLL_MS) {
-                  cachedDetailedRaw = await fetchLiveCalls(apiKey);
+                  cachedDetailedRaw = await fetchLiveCallsForKeys(retellKeys);
                   retellLastFetched = now;
                 }
                 const detailedRaw = cachedDetailedRaw;

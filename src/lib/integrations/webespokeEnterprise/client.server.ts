@@ -9,15 +9,13 @@
  */
 
 import type { CallHistoryRow } from "@/lib/dashboard/wbah-call-history.types";
+import { getWebespokeApiBaseUrlFromEnv } from "./webespoke-env.server";
 
 export type { CallHistoryRow };
 
-const DEFAULT_API_BASE = "https://uat-api.webespokeai.com";
-
-/** UAT base URL — from process.env only (Vite envPrefix exposes WEBESPOKE_API_BASE_URL to SSR). */
+/** UAT base URL — .env file first (Vite often omits this from process.env). */
 export function getWebespokeApiBaseUrl(): string {
-  const raw = process.env.WEBESPOKE_API_BASE_URL?.trim();
-  return (raw || DEFAULT_API_BASE).replace(/\/+$/, "");
+  return getWebespokeApiBaseUrlFromEnv();
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
