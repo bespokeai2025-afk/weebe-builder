@@ -44,7 +44,11 @@ export function formatCallbackDatetimeForBackend(raw: string | null | undefined)
     if (london) return london;
   }
 
-  return cb;
+  // Retell sometimes emits unparseable free text ("next Tuesday afternoon") instead
+  // of a structured datetime. WeeBespoke rejects anything that isn't a real date, and
+  // retrying never fixes bad source data — drop it so the caller treats it as absent
+  // rather than looping 5 failed retries per call.
+  return "";
 }
 
 function utcIsoToLondonBareString(iso: string): string | null {

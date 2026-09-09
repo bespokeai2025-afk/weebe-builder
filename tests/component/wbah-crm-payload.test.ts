@@ -24,6 +24,20 @@ describe("filterValidDynamicsFields", () => {
     });
   });
 
+  it("truncates cos_call_summary to Dynamics' 500-char limit instead of rejecting the PATCH", () => {
+    const longSummary = "A".repeat(600);
+    const out = filterValidDynamicsFields({ cos_call_summary: longSummary });
+    expect(String(out.cos_call_summary).length).toBe(500);
+    expect(String(out.cos_call_summary).endsWith("…")).toBe(true);
+  });
+
+  it("leaves cos_call_summary untouched when already within the limit", () => {
+    const shortSummary = "Caller confirmed booking for Friday.";
+    expect(filterValidDynamicsFields({ cos_call_summary: shortSummary })).toEqual({
+      cos_call_summary: shortSummary,
+    });
+  });
+
   it("coerces numeric option strings to numbers", () => {
     expect(filterValidDynamicsFields({ new_currentstatus: "181510002" })).toEqual({
       new_currentstatus: 181510002,

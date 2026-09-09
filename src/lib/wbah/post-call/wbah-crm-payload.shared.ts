@@ -21,6 +21,18 @@ function isNumericOptionValue(v: unknown): v is string {
   return typeof v === "string" && NUMERIC_FIELD_PATTERN.test(v.trim());
 }
 
+/** Dynamics `cos_call_summary` is a 500-char field; longer text is rejected outright. */
+const DYNAMICS_TEXT_FIELD_LIMITS: Record<string, number> = {
+  cos_call_summary: 500,
+};
+
+function truncateForDynamics(key: string, value: string): string {
+  const limit = DYNAMICS_TEXT_FIELD_LIMITS[key];
+  if (!limit || value.length <= limit) return value;
+  // Leave room for an ellipsis so it's visibly truncated, not silently cut mid-word garbage.
+  return `${value.slice(0, limit - 1)}…`;
+}
+
 /** Only include non-empty Dynamics fields (mirrors n8n getAllValidFields behaviour). */
 export function filterValidDynamicsFields(fields: Record<string, unknown>): WbahCrmPatchPayload {
   const out: WbahCrmPatchPayload = {};
@@ -42,7 +54,7 @@ export function filterValidDynamicsFields(fields: Record<string, unknown>): Wbah
     if (typeof value === "string") {
       const trimmed = value.trim();
       if (!trimmed) continue;
-      out[key] = isNumericOptionValue(trimmed) ? Number(trimmed) : trimmed;
+      out[key] = isNumericOptionValue(trimmed) ? Number(trimmed) : truncateForDynamics(key, trimmed);
       continue;
     }
   }

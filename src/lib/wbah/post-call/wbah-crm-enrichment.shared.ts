@@ -312,6 +312,7 @@ export function enrichWbahVerifiedDetailsFromSummaries(
   extractTenureFromSummaries(custom, working);
   extractTimeframeFromSummaries(custom, working);
   extractVacantOrTenantedFromSummaries(custom, working, transcript);
+  extractRentAchievedFromSummaries(custom, working);
 
   if (shouldMirrorPropertyToContact(working, custom, transcript)) {
     working.contact_same_as_property = "true";

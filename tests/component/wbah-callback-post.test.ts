@@ -52,6 +52,11 @@ describe("formatCallbackDatetimeForBackend", () => {
       "2026-08-20 09:30:00",
     );
   });
+
+  it("drops unparseable free text instead of forwarding it to WeeBespoke", () => {
+    expect(formatCallbackDatetimeForBackend("next Tuesday afternoon")).toBe("");
+    expect(formatCallbackDatetimeForBackend("tomorrow morning")).toBe("");
+  });
 });
 
 describe("buildWbahCallbackRequestBody", () => {

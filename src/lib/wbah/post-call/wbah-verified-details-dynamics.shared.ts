@@ -44,6 +44,8 @@ export const WBAH_VERIFIED_DETAILS_ALIASES: Record<string, string> = {
   decision_maker: "decisionmaker",
   contact_address: "address1_line1",
   postcode_contact: "address1_postalcode",
+  rent_achieved: "new_propinfo_rentachieved",
+  monthly_rent: "new_propinfo_rentachieved",
 };
 
 /** Property → contact address pairs when caller confirms contact = property. */
@@ -147,6 +149,7 @@ export const WBAH_VERIFIED_DETAILS_DYNAMICS_FIELDS = new Set([
   "new_propinfo_typeofproperty",
   "new_propinfo_whichfloor",
   "decisionmaker",
+  "new_propinfo_rentachieved",
 ]);
 
 const LEASEHOLD_TENURE = 279640001;
@@ -363,6 +366,9 @@ export function mapWbahVerifiedDetailsToDynamicsFields(input: {
     const leaseYears = cleanNumber(vd.cos_numberofyearsonlease ?? vd.years_on_lease);
     if (leaseYears !== undefined) payload.cos_numberofyearsonlease = leaseYears;
   }
+
+  const rentAchieved = cleanNumber(vd.new_propinfo_rentachieved ?? vd.rent_achieved ?? vd.monthly_rent);
+  if (rentAchieved !== undefined) payload.new_propinfo_rentachieved = rentAchieved;
 
   const callSummary = val(vd.cos_call_summary);
   if (callSummary) payload.cos_call_summary = callSummary;

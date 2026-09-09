@@ -199,7 +199,7 @@ describe("mapWbahVerifiedDetailsToDynamicsFields", () => {
     expect(patch.address1_postalcode).toBe("LS1 4AB");
   });
 
-  it("extracts tenure and timeframe from summary when structured fields empty (Sarah pattern)", () => {
+  it("extracts tenure, timeframe, and rent achieved from summary when structured fields empty (Sarah pattern)", () => {
     const patch = mapWbahVerifiedDetailsToDynamicsFields({
       verifiedDetails: {
         firstname: "Sarah",
@@ -211,7 +211,17 @@ describe("mapWbahVerifiedDetailsToDynamicsFields", () => {
     });
     expect(patch.cos_tenure).toBe(279640001);
     expect(patch.new_propinfo_howquickly).toBe(100000002);
-    expect(patch.new_propinfo_rentachieved).toBeUndefined();
+    expect(patch.new_propinfo_rentachieved).toBe(950);
+  });
+
+  it("maps rent_achieved / monthly_rent extraction keys to new_propinfo_rentachieved", () => {
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails: {
+        firstname: "Alec",
+        rent_achieved: "£875",
+      },
+    });
+    expect(patch.new_propinfo_rentachieved).toBe(875);
   });
 
   it("corrects owner-occupied when summary says caller lives there (Andrew pattern)", () => {
