@@ -42,11 +42,21 @@ export function summaryRequestsHumanCallback(
 
 export function transcriptIndicatesContactSameAsProperty(transcript?: string | null): boolean {
   if (isEmptyValue(transcript)) return false;
-  const text = String(transcript).toLowerCase();
+  const text = String(transcript).toLowerCase().replace(/\s+/g, " ");
+
+  // Caller said no after the same-as-property question (Jim / Copy / Amarjit).
+  if (
+    /\bsame as (your )?(the )?(property|prop).{0,200}\b(no|it's not|it is not|they're not|they are not)\b/.test(
+      text,
+    )
+  ) {
+    return false;
+  }
+
   return (
-    /\bcontact address details (the )?same (as )?(your )?(property )?address\b/.test(text) ||
-    /\bcontact address (is )?(the )?same\b/.test(text) ||
-    (/\bcontact address\b/.test(text) && /\bsame as (your )?(property )?address\b/.test(text))
+    /\byes[,.]?\s+(they are |it is )?(the )?same\b/.test(text) ||
+    /\b(yes|yeah|yep)[,.]?\s+they are the same\b/.test(text) ||
+    /\bsame as (your )?(the )?(property|prop).{0,160}\b(yes|yeah|yep|correct)\b/.test(text)
   );
 }
 

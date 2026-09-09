@@ -40,6 +40,31 @@ describe("applyAllensLogicV5", () => {
     expect(result.newCurrentStatus).toBe(WBAH_DYNAMICS_STATUS.TRIED_TO_CONTACT);
   });
 
+  it("does not drop Logged to Tried To Contact on a later unbooked call", () => {
+    const result = applyAllensLogicV5({
+      userSentiment: "Positive",
+      callbackDatetime: null,
+      calendlyBookingUrl: null,
+      appointmentBooked: false,
+      existingCurrentStatus: WBAH_DYNAMICS_STATUS.LOGGED,
+    });
+    expect(result.rule).toBe("none");
+    expect(result.skipStatusUpdate).toBe(true);
+    expect(result.skipNarrativeUpdate).toBe(true);
+  });
+
+  it("keeps Logged summary on a later Neutral unbooked call", () => {
+    const result = applyAllensLogicV5({
+      userSentiment: "Neutral",
+      callbackDatetime: null,
+      calendlyBookingUrl: null,
+      appointmentBooked: false,
+      existingCurrentStatus: WBAH_DYNAMICS_STATUS.LOGGED,
+    });
+    expect(result.rule).toBe("none");
+    expect(result.skipNarrativeUpdate).toBe(true);
+  });
+
   it("RULE 4: neutral/no sentiment → no update", () => {
     const result = applyAllensLogicV5({
       userSentiment: "Neutral",

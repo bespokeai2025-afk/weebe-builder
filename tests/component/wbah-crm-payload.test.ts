@@ -112,3 +112,34 @@ describe("buildWbahAllensCrmPayload — booked slot without Calendly URL", () =>
     expect(String(patch.cos_call_summary)).toContain("Three-bedroom");
   });
 });
+
+describe("buildWbahAllensCrmPayload — already Logged", () => {
+  it("does not replace summary or status from a later unbooked call", () => {
+    const formatted = formatWbahRetellCallData({
+      dynVars: {},
+      custom: {
+        call_summary: "Caller Alec; no property details provided; call ended early.",
+        structured_json_output: JSON.stringify({
+          verified_details: { cos_call_summary: "Caller Alec; ended early." },
+        }),
+      },
+      callAnalysis: { user_sentiment: "Neutral" },
+    });
+    const allens = applyAllensLogicV5({
+      userSentiment: formatted.userSentiment,
+      callbackDatetime: null,
+      calendlyBookingUrl: null,
+      appointmentBooked: false,
+      existingCurrentStatus: WBAH_DYNAMICS_STATUS.LOGGED,
+    });
+    const patch = buildWbahAllensCrmPayload({
+      formatted,
+      allens,
+      calendlyBookingUrl: null,
+      callbackUtc: null,
+    });
+    expect(patch.new_currentstatus).toBeUndefined();
+    expect(patch.cos_call_summary).toBeUndefined();
+    expect(patch.cos_user_sentiment).toBeUndefined();
+  });
+});

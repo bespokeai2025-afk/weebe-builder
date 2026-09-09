@@ -32,6 +32,8 @@ export type AllensLogicResult = {
   skipStatusUpdate: boolean;
   skipStatecodeUpdate: boolean;
   skipAppointmentUpdate: boolean;
+  /** When true, do not replace cos_call_summary / sentiment (later short call after Logged). */
+  skipNarrativeUpdate: boolean;
   isCallbackRequest: boolean;
   callbackDatetimeUtc: string | null;
   callbackType: string | null;
@@ -74,6 +76,7 @@ export function applyAllensLogicV5(input: AllensLogicInput): AllensLogicResult {
     skipStatusUpdate: true,
     skipStatecodeUpdate: true,
     skipAppointmentUpdate: true,
+    skipNarrativeUpdate: false,
     isCallbackRequest: false,
     callbackDatetimeUtc: callbackUtc,
     callbackType,
@@ -141,6 +144,15 @@ export function applyAllensLogicV5(input: AllensLogicInput): AllensLogicResult {
   }
 
   if (sentiment.includes("positive")) {
+    if (existingCurrentStatus === WBAH_DYNAMICS_STATUS.LOGGED) {
+      return {
+        ...base,
+        skipNarrativeUpdate: true,
+        rule: "none",
+        allenLogicResult:
+          "RULE 3 skipped — already Logged; later unbooked call must not drop status or replace summary",
+      };
+    }
     return {
       ...base,
       newCurrentStatus: WBAH_DYNAMICS_STATUS.TRIED_TO_CONTACT,
@@ -155,8 +167,13 @@ export function applyAllensLogicV5(input: AllensLogicInput): AllensLogicResult {
 
   return {
     ...base,
+    skipNarrativeUpdate: existingCurrentStatus === WBAH_DYNAMICS_STATUS.LOGGED,
     rule: "none",
-    allenLogicResult: `RULE 4: OTHER (${sentiment || "empty"}) → NO UPDATE`,
+    allenLogicResult: `RULE 4: OTHER (${sentiment || "empty"}) → NO UPDATE${
+      existingCurrentStatus === WBAH_DYNAMICS_STATUS.LOGGED
+        ? " — keep existing Logged summary"
+        : ""
+    }`,
   };
 }
 

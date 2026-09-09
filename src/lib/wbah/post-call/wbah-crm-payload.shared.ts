@@ -126,10 +126,15 @@ export function buildWbahAllensCrmPayload(input: {
   });
   Object.assign(payload, mapped);
 
-  if (formatted.userSentiment) payload.cos_user_sentiment = formatted.userSentiment;
-  const vdSummary = typeof mapped.cos_call_summary === "string" ? mapped.cos_call_summary : null;
-  if (vdSummary) payload.cos_call_summary = vdSummary;
-  else if (formatted.callSummary) payload.cos_call_summary = formatted.callSummary;
+  if (allens.skipNarrativeUpdate) {
+    delete payload.cos_call_summary;
+    delete payload.cos_user_sentiment;
+  } else {
+    if (formatted.userSentiment) payload.cos_user_sentiment = formatted.userSentiment;
+    const vdSummary = typeof mapped.cos_call_summary === "string" ? mapped.cos_call_summary : null;
+    if (vdSummary) payload.cos_call_summary = vdSummary;
+    else if (formatted.callSummary) payload.cos_call_summary = formatted.callSummary;
+  }
 
   return filterValidDynamicsFields(payload);
 }

@@ -63,6 +63,16 @@ export const WBAH_RETELL_AGENT_MAP: Record<string, WbahRetellAgentMapping> = {
     agentName: "Rebooking agent: WBAH client qualification agent",
     role: "rebooking",
   },
+  agent_14e6b8d2940774ca5206d3a20f: {
+    workspaceId: WBAH_WORKSPACE_ID,
+    agentName: "WBAH New Leads Agent",
+    role: "new_leads_dialer",
+  },
+  agent_3528ffd3497cdfaf538e819aed: {
+    workspaceId: WBAH_WORKSPACE_ID,
+    agentName: "WBAH Rebooking Agent",
+    role: "rebooking",
+  },
 };
 
 /**

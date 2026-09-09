@@ -9,7 +9,11 @@ import {
   applyNotRentedCorrection,
   shouldMirrorPropertyToContact,
 } from "./wbah-crm-enrichment.shared";
-import { sanitizeWbahUkAddressFields, looksLikeUkPostcode } from "./wbah-uk-address.shared";
+import {
+  sanitizeWbahUkAddressFields,
+  looksLikeUkPostcode,
+  formatUkPostcode,
+} from "./wbah-uk-address.shared";
 import { normalizeWbahUkMobilePhone } from "./wbah-uk-phone.shared";
 import { pickWbahCrmEmail } from "./wbah-email.shared";
 
@@ -67,6 +71,9 @@ function confirmsContactSameAsProperty(
       source.same_as_property_address,
   );
   if (explicitFlag === true) return true;
+
+  // Anthony King: Retell wrote only contact postcode, same as property, street blank.
+  if (contactPostcodeOnlyMatchesProperty(source)) return true;
 
   return indicatesSameAsPropertyAddress(
     source.address1_line1,
@@ -182,6 +189,13 @@ function cleanNumber(v: unknown): number | undefined {
  * vacant_or_tenanted: 181510000 Vacant, 181510001 Rented
  * cos_propertyempty / cos_propertyrented: 181510001 Yes, 181510000 No
  */
+function contactPostcodeOnlyMatchesProperty(source: Record<string, unknown>): boolean {
+  if (!isEmptyValue(source.address1_line1) || !isEmptyValue(source.contact_address)) return false;
+  const contactPc = formatUkPostcode(String(source.address1_postalcode ?? source.postcode_contact ?? ""));
+  const propertyPc = formatUkPostcode(String(source.new_propinfo_postalcode ?? ""));
+  return Boolean(contactPc && propertyPc && contactPc === propertyPc);
+}
+
 function indicatesSameAsPropertyAddress(...values: unknown[]): boolean {
   for (const value of values) {
     if (isEmptyValue(value)) continue;
@@ -291,7 +305,14 @@ export function mapWbahVerifiedDetailsToDynamicsFields(input: {
       continue;
     }
     const v = val(now);
-    if (v) payload[key] = v;
+    if (!v) continue;
+    if (
+      (key === "address1_postalcode" || key === "new_propinfo_postalcode") &&
+      !looksLikeUkPostcode(v)
+    ) {
+      continue;
+    }
+    payload[key] = v;
   }
 
   const contactLine1 = val(vd.contact_address);

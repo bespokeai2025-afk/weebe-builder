@@ -55,6 +55,56 @@ describe("mapWbahVerifiedDetailsToDynamicsFields", () => {
     expect(patch.address1_city).toBeUndefined();
   });
 
+  it("copies property to contact when caller answers yes after the same-as question", () => {
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails: {
+        new_propinfo_street2: "49 Mid Summer Avenue",
+        new_propinfo_city: "Hounslow",
+        new_propinfo_postalcode: "TW45AY",
+        address1_line1: "",
+        address1_city: "",
+        address1_postalcode: "",
+      },
+      transcript:
+        "Is your contact address the same as your property address at forty nine Mid Summer Avenue? Yes.",
+    });
+    expect(patch.address1_line1).toBe("49 Mid Summer Avenue");
+    expect(patch.address1_city).toBe("Hounslow");
+    expect(patch.address1_postalcode).toBe("TW4 5AY");
+  });
+
+  it("does not copy property to contact when caller says no after the same-as question", () => {
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails: {
+        new_propinfo_street2: "25 Marches Drive",
+        new_propinfo_city: "Armadale",
+        new_propinfo_postalcode: "EH482PH",
+        address1_line1: "183 West Main Street",
+        address1_city: "Armadale",
+        address1_postalcode: "EH48382HY3",
+      },
+      transcript: "Are your contact address details the same as your property address? No.",
+    });
+    expect(patch.address1_line1).toBe("183 West Main Street");
+    expect(patch.address1_postalcode).toBeUndefined();
+  });
+
+  it("copies remaining contact fields when only the matching postcode was captured", () => {
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails: {
+        new_propinfo_street2: "50 Stamford Avenue",
+        new_propinfo_city: "Blackpool",
+        new_propinfo_postalcode: "FY4 2BJ",
+        address1_line1: "",
+        address1_city: "",
+        address1_postalcode: "FY4 2BJ",
+      },
+    });
+    expect(patch.address1_line1).toBe("50 Stamford Avenue");
+    expect(patch.address1_city).toBe("Blackpool");
+    expect(patch.address1_postalcode).toBe("FY4 2BJ");
+  });
+
   it("does not copy property to contact when contact blank without same-as confirmation", () => {
     const patch = mapWbahVerifiedDetailsToDynamicsFields({
       verifiedDetails: {
