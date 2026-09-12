@@ -21,10 +21,12 @@ import {
 } from "@/lib/dashboard/whatsapp.functions";
 import {
   LISTING_OUTCOME_LABELS,
+  defaultWhatsappReengagementMessage,
   isWhatsappFreeTextAllowed,
   whatsappPersonalLink,
   type ListingOutcome,
 } from "@/lib/whatsapp/campaign-leads.shared";
+import { WhatsAppWindowCountdown } from "@/components/whatsapp/WhatsAppWindowCountdown";
 import { getWatiConnection, listWatiTemplates } from "@/lib/whatsapp/wati.functions";
 import { checkWebuyanyhouseWorkspace } from "@/lib/integrations/webespokeEnterprise/wbah.functions";
 import {
@@ -46,9 +48,10 @@ function watiTemplateParamSlots(template: Record<string, unknown> | null | undef
 export interface LeadWhatsAppPanelProps {
   leadId: string;
   phone?: string | null;
+  contactName?: string | null;
 }
 
-export function LeadWhatsAppPanel({ leadId, phone }: LeadWhatsAppPanelProps) {
+export function LeadWhatsAppPanel({ leadId, phone, contactName }: LeadWhatsAppPanelProps) {
   const qc = useQueryClient();
   const listFn = useServerFn(listLeadWhatsappMessages);
   const sendFn = useServerFn(sendLeadWhatsappTemplate);
@@ -103,7 +106,6 @@ export function LeadWhatsAppPanel({ leadId, phone }: LeadWhatsAppPanelProps) {
 
   const selectedTemplate = (watiTemplates as any[]).find((t) => t.name === templateName);
   const paramSlots = watiTemplateParamSlots(selectedTemplate);
-  const personalLink = whatsappPersonalLink(phone);
   const lastInboundAt = (messages as Array<{ direction?: string; sent_at?: string }>)
     .filter((m) => m.direction === "inbound" && m.sent_at)
     .reduce<string | null>((latest, m) => {
@@ -111,6 +113,13 @@ export function LeadWhatsAppPanel({ leadId, phone }: LeadWhatsAppPanelProps) {
       return Date.parse(m.sent_at ?? "") > Date.parse(latest) ? (m.sent_at ?? latest) : latest;
     }, null);
   const sessionOpen = isWhatsappFreeTextAllowed(lastInboundAt);
+  // Pre-filled only once the window has actually closed — while it's open, the
+  // in-CRM reply box is the intended path, so the fallback link stays a plain
+  // "open my WhatsApp" convenience rather than putting words in the agent's mouth.
+  const reengagementMessage = !sessionOpen
+    ? defaultWhatsappReengagementMessage({ contactName, campaignName })
+    : null;
+  const personalLink = whatsappPersonalLink(phone, reengagementMessage);
 
   const send = useMutation({
     mutationFn: () =>
@@ -170,7 +179,7 @@ export function LeadWhatsAppPanel({ leadId, phone }: LeadWhatsAppPanelProps) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <MessageCircle className="h-3.5 w-3.5 text-green-500" />
         <Label className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
           WhatsApp
@@ -188,15 +197,16 @@ export function LeadWhatsAppPanel({ leadId, phone }: LeadWhatsAppPanelProps) {
               .join(" · ")}
           </span>
         )}
+        <WhatsAppWindowCountdown lastInboundAt={lastInboundAt} className="ml-auto" />
         {personalLink && (
           <a
             href={personalLink}
             target="_blank"
             rel="noreferrer"
-            className="ml-auto inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+            className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
           >
             <ExternalLink className="h-3 w-3" />
-            My WhatsApp
+            {sessionOpen ? "My WhatsApp" : "Chat on WhatsApp"}
           </a>
         )}
       </div>

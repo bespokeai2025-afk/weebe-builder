@@ -58,7 +58,18 @@ import {
   listWAContacts,
   getBuzzchatOpsDashboard,
   checkCampaignAudienceOverlapFn,
+  getWhatsappInboxMeta,
 } from "@/lib/dashboard/whatsapp.functions";
+import {
+  CAMPAIGN_TYPE_LABELS,
+  CAMPAIGN_TYPES,
+  DEFAULT_CAMPAIGN_TYPE,
+  EMPTY_OFF_PLAN_CAMPAIGN_FIELDS,
+  EMPTY_SECONDARY_CAMPAIGN_FIELDS,
+  type CampaignType,
+  type OffPlanCampaignFields,
+  type SecondaryCampaignFields,
+} from "@/lib/whatsapp/campaign-types.shared";
 import {
   getWatiConnection,
   listWatiTemplates,
@@ -109,6 +120,9 @@ type SendWhen = "now" | "later";
 type CampaignForm = {
   name: string;
   type: "broadcast" | "follow_up" | "scheduled";
+  campaignType: CampaignType;
+  offPlanFields: OffPlanCampaignFields;
+  secondaryFields: SecondaryCampaignFields;
   sendWhen: SendWhen;
   template_id: string;
   scheduled_at: string;
@@ -128,6 +142,9 @@ function emptyForm(): CampaignForm {
   return {
     name: "",
     type: "broadcast",
+    campaignType: DEFAULT_CAMPAIGN_TYPE,
+    offPlanFields: { ...EMPTY_OFF_PLAN_CAMPAIGN_FIELDS },
+    secondaryFields: { ...EMPTY_SECONDARY_CAMPAIGN_FIELDS },
     sendWhen: "now",
     template_id: "",
     scheduled_at: "",
@@ -144,6 +161,12 @@ function emptyForm(): CampaignForm {
   };
 }
 
+function typeFieldsForSubmit(form: CampaignForm): Record<string, string> {
+  if (form.campaignType === "off_plan") return { ...form.offPlanFields };
+  if (form.campaignType === "secondary") return { ...form.secondaryFields };
+  return {};
+}
+
 function toDatetimeLocal(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -156,6 +179,8 @@ function defaultScheduleLocal(): string {
 function watiTemplateParamSlots(template: Record<string, unknown> | null | undefined): string[] {
   return extractWatiTemplateParamSlots(template ?? undefined);
 }
+
+const CAMPAIGN_STATUS_FILTERS = ["all", "draft", "scheduled", "running", "completed", "failed"] as const;
 
 function buildAudienceFilter(form: CampaignForm, csvLeadIds: string[]) {
   if (form.audienceMode === "csv" || form.audienceMode === "contacts") {
@@ -186,6 +211,7 @@ export function WhatsAppCampaigns() {
   const importCsvFn = useServerFn(importWatiCampaignLeadsCsv);
   const loadContactsAudienceFn = useServerFn(prepareCampaignAudienceFromContacts);
   const listContactsFn = useServerFn(listWAContacts);
+  const metaFn = useServerFn(getWhatsappInboxMeta);
   const csvInputRef = useRef<HTMLInputElement>(null);
 
   const { data: campaigns = [], isLoading } = useQuery({
@@ -193,6 +219,13 @@ export function WhatsAppCampaigns() {
     queryFn: () => listFn(),
     throwOnError: false,
   });
+  const { data: inboxMeta } = useQuery({
+    queryKey: ["wa-inbox-meta"],
+    queryFn: () => metaFn(),
+    staleTime: 60_000,
+    throwOnError: false,
+  });
+  const isAvenueElite = inboxMeta?.isAvenueElite === true;
   const { data: templates = [] } = useQuery({
     queryKey: ["wa-templates"],
     queryFn: () => tmplFn(),
@@ -229,6 +262,9 @@ export function WhatsAppCampaigns() {
 
   const [open, setOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [errorsCampaign, setErrorsCampaign] = useState<any>(null);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
   const [launchId, setLaunchId] = useState<string | null>(null);
   const [launchCampaign, setLaunchCampaign] = useState<any>(null);
   const [launchAllowOverlap, setLaunchAllowOverlap] = useState(false);
@@ -307,6 +343,8 @@ export function WhatsAppCampaigns() {
         data: {
           name: form.name,
           type: form.sendWhen === "later" ? "scheduled" : "broadcast",
+          campaignType: form.campaignType,
+          typeFields: typeFieldsForSubmit(form),
           template_id: !watiConnected ? form.template_id || undefined : undefined,
           scheduled_at:
             form.sendWhen === "later" && form.scheduled_at
@@ -334,6 +372,12 @@ export function WhatsAppCampaigns() {
       );
     },
     onError: (e: Error) => toast.error(e.message),
+  });
+
+  const filteredCampaigns = (campaigns as any[]).filter((c) => {
+    if (statusFilter !== "all" && c.status !== statusFilter) return false;
+    if (typeFilter !== "all" && (c.campaign_type ?? "listing_acquisition") !== typeFilter) return false;
+    return true;
   });
 
   const del = useMutation({
@@ -650,8 +694,68 @@ export function WhatsAppCampaigns() {
         </div>
       )}
 
+      {!isLoading && (campaigns as any[]).length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="h-8 w-36 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CAMPAIGN_STATUS_FILTERS.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {s === "all" ? "All statuses" : STATUS_CONFIG[s]?.label ?? s}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {isAvenueElite && (
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger className="h-8 w-44 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All campaign types</SelectItem>
+                {CAMPAIGN_TYPES.map((id) => (
+                  <SelectItem key={id} value={id}>
+                    {CAMPAIGN_TYPE_LABELS[id]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {(statusFilter !== "all" || typeFilter !== "all") && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs text-muted-foreground"
+              onClick={() => {
+                setStatusFilter("all");
+                setTypeFilter("all");
+              }}
+            >
+              Clear filters
+            </Button>
+          )}
+          <span className="ml-auto text-xs text-muted-foreground">
+            {filteredCampaigns.length} of {(campaigns as any[]).length}
+          </span>
+        </div>
+      )}
+
       {isLoading ? (
-        <div className="py-16 text-center text-sm text-muted-foreground">Loading…</div>
+        <div className="overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
+          <div className="divide-y divide-border/60">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="flex items-center gap-4 px-4 py-3.5 animate-pulse">
+                <div className="h-4 w-32 rounded bg-muted" />
+                <div className="h-4 w-24 rounded bg-muted" />
+                <div className="h-5 w-20 rounded-full bg-muted" />
+                <div className="h-4 w-12 rounded bg-muted" />
+                <div className="ml-auto h-4 w-16 rounded bg-muted" />
+              </div>
+            ))}
+          </div>
+        </div>
       ) : (campaigns as any[]).length === 0 ? (
         <BuzzchatEmptyState
           icon={Megaphone}
@@ -668,6 +772,10 @@ export function WhatsAppCampaigns() {
             </Button>
           }
         />
+      ) : filteredCampaigns.length === 0 ? (
+        <div className="py-12 text-center text-sm text-muted-foreground">
+          No campaigns match these filters.
+        </div>
       ) : (
         <div className="overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
           <table className="w-full text-sm">
@@ -675,9 +783,11 @@ export function WhatsAppCampaigns() {
               <tr>
                 {[
                   "Name",
+                  ...(isAvenueElite ? ["Type"] : []),
                   "Template",
                   "Status",
                   "Sent",
+                  "Failed",
                   "Replied",
                   "When",
                   "",
@@ -692,14 +802,23 @@ export function WhatsAppCampaigns() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
-              {(campaigns as any[]).map((c: any) => {
+              {filteredCampaigns.map((c: any) => {
                 const sc = STATUS_CONFIG[c.status] ?? STATUS_CONFIG.draft;
                 const Icon = sc.icon;
                 const stats = c.stats ?? {};
                 const isDraft = c.status === "draft" || c.status === "scheduled";
+                const failedCount = stats.failed ?? 0;
+                const campaignType = c.campaign_type ?? "listing_acquisition";
                 return (
                   <tr key={c.id} className="hover:bg-muted/20 transition-colors">
                     <td className="px-4 py-2.5 font-medium">{c.name}</td>
+                    {isAvenueElite && (
+                      <td className="px-4 py-2.5">
+                        <Badge variant="outline" className="text-[10px]">
+                          {CAMPAIGN_TYPE_LABELS[campaignType as CampaignType] ?? campaignType}
+                        </Badge>
+                      </td>
+                    )}
                     <td className="px-4 py-2.5 text-xs text-muted-foreground">
                       {templateLabel(c)}
                     </td>
@@ -713,6 +832,20 @@ export function WhatsAppCampaigns() {
                       </Badge>
                     </td>
                     <td className="px-4 py-2.5 text-xs tabular-nums">{stats.sent ?? 0}</td>
+                    <td className="px-4 py-2.5 text-xs tabular-nums">
+                      {failedCount > 0 ? (
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 rounded-full bg-destructive/15 px-2 py-0.5 text-destructive hover:bg-destructive/25"
+                          title="Click to see why these failed"
+                          onClick={() => setErrorsCampaign(c)}
+                        >
+                          {failedCount}
+                        </button>
+                      ) : (
+                        <span className="text-muted-foreground">0</span>
+                      )}
+                    </td>
                     <td className="px-4 py-2.5 text-xs tabular-nums">{stats.replied ?? 0}</td>
                     <td className="px-4 py-2.5 text-[11px] text-muted-foreground">
                       {c.status === "scheduled" && c.scheduled_at ? (
@@ -776,6 +909,168 @@ export function WhatsAppCampaigns() {
                 placeholder="e.g. Summer Promo 2026"
               />
             </div>
+            {isAvenueElite && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Campaign Type *</Label>
+                <Select
+                  value={form.campaignType}
+                  onValueChange={(v) => setForm({ ...form, campaignType: v as CampaignType })}
+                >
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CAMPAIGN_TYPES.map((id) => (
+                      <SelectItem key={id} value={id}>
+                        {CAMPAIGN_TYPE_LABELS[id]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {isAvenueElite && form.campaignType === "off_plan" && (
+              <div className="space-y-3 rounded-md border border-border/60 p-3">
+                <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Off-Plan campaign details
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Developer</Label>
+                    <Input
+                      className="h-8 text-xs"
+                      placeholder="e.g. Emaar"
+                      value={form.offPlanFields.developer}
+                      onChange={(e) =>
+                        setForm({ ...form, offPlanFields: { ...form.offPlanFields, developer: e.target.value } })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Project</Label>
+                    <Input
+                      className="h-8 text-xs"
+                      placeholder="e.g. Beachfront"
+                      value={form.offPlanFields.project}
+                      onChange={(e) =>
+                        setForm({ ...form, offPlanFields: { ...form.offPlanFields, project: e.target.value } })
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Area</Label>
+                  <Input
+                    className="h-8 text-xs"
+                    placeholder="e.g. Dubai Marina"
+                    value={form.offPlanFields.area}
+                    onChange={(e) => setForm({ ...form, offPlanFields: { ...form.offPlanFields, area: e.target.value } })}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Unit / property focus</Label>
+                    <Input
+                      className="h-8 text-xs"
+                      placeholder="e.g. 1-2BR"
+                      value={form.offPlanFields.unit_focus}
+                      onChange={(e) =>
+                        setForm({ ...form, offPlanFields: { ...form.offPlanFields, unit_focus: e.target.value } })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Buyer / investor objective</Label>
+                    <Input
+                      className="h-8 text-xs"
+                      placeholder="e.g. Investment"
+                      value={form.offPlanFields.buyer_objective}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          offPlanFields: { ...form.offPlanFields, buyer_objective: e.target.value },
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+            {isAvenueElite && form.campaignType === "secondary" && (
+              <div className="space-y-3 rounded-md border border-border/60 p-3">
+                <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Secondary campaign details
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Area / community</Label>
+                    <Input
+                      className="h-8 text-xs"
+                      placeholder="e.g. JVC"
+                      value={form.secondaryFields.area}
+                      onChange={(e) =>
+                        setForm({ ...form, secondaryFields: { ...form.secondaryFields, area: e.target.value } })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Property type</Label>
+                    <Input
+                      className="h-8 text-xs"
+                      placeholder="e.g. Apartment"
+                      value={form.secondaryFields.property_type}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          secondaryFields: { ...form.secondaryFields, property_type: e.target.value },
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Bedrooms / unit focus</Label>
+                    <Input
+                      className="h-8 text-xs"
+                      placeholder="e.g. 2-3BR"
+                      value={form.secondaryFields.bedrooms_focus}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          secondaryFields: { ...form.secondaryFields, bedrooms_focus: e.target.value },
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Buyer objective</Label>
+                    <Input
+                      className="h-8 text-xs"
+                      placeholder="e.g. End-user"
+                      value={form.secondaryFields.buyer_objective}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          secondaryFields: { ...form.secondaryFields, buyer_objective: e.target.value },
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Price range (optional)</Label>
+                  <Input
+                    className="h-8 text-xs"
+                    placeholder="e.g. AED 1.5M - 2.5M"
+                    value={form.secondaryFields.price_range}
+                    onChange={(e) =>
+                      setForm({ ...form, secondaryFields: { ...form.secondaryFields, price_range: e.target.value } })
+                    }
+                  />
+                </div>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label className="text-xs">When</Label>
               <div className="grid grid-cols-2 gap-2">
@@ -1309,6 +1604,7 @@ export function WhatsAppCampaigns() {
                 Cancel
               </Button>
               <Button onClick={() => create.mutate()} disabled={!canCreate || create.isPending}>
+                {create.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
                 {create.isPending
                   ? form.sendWhen === "later"
                     ? "Scheduling…"
@@ -1339,6 +1635,43 @@ export function WhatsAppCampaigns() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={!!errorsCampaign} onOpenChange={(o) => !o && setErrorsCampaign(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertCircle className="h-4 w-4" />
+              {errorsCampaign?.stats?.failed ?? 0} message
+              {(errorsCampaign?.stats?.failed ?? 0) === 1 ? "" : "s"} failed to send
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <p className="text-xs text-muted-foreground">
+              "{errorsCampaign?.name}" — these are the exact errors WATI returned. "Sent" only means
+              WATI accepted the request; it does not mean the recipient received it — a failed
+              delivery shows up here, not as a success.
+            </p>
+            {Array.isArray(errorsCampaign?.stats?.errors) && errorsCampaign.stats.errors.length > 0 ? (
+              <ul className="max-h-64 space-y-1.5 overflow-y-auto rounded-md border border-border bg-muted/30 p-2">
+                {errorsCampaign.stats.errors.map((err: string, i: number) => (
+                  <li key={i} className="rounded bg-card px-2 py-1.5 text-xs text-destructive">
+                    {err}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                No detailed error text was recorded for this send.
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setErrorsCampaign(null)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog
         open={!!launchId}

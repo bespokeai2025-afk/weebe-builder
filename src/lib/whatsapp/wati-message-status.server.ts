@@ -164,15 +164,24 @@ async function refreshCampaignStatsForMessage(
 ): Promise<void> {
   const { data: campaignMsgs } = await sb()
     .from("whatsapp_messages")
-    .select("status")
+    .select("status, contact_phone, wati_status")
     .eq("workspace_id", workspaceId)
     .eq("campaign_id", campaignId)
     .eq("direction", "outbound");
 
-  const outbound = (campaignMsgs ?? []) as Array<{ status: string }>;
-  const sent = outbound.length;
+  const outbound = (campaignMsgs ?? []) as Array<{
+    status: string;
+    contact_phone: string | null;
+    wati_status: string | null;
+  }>;
   const delivered = outbound.filter((m) => ["delivered", "read"].includes(m.status)).length;
   const read = outbound.filter((m) => m.status === "read").length;
+  const failedRows = outbound.filter((m) => m.status === "failed");
+  const failed = failedRows.length;
+  // "Sent" keeps meaning "accepted by WATI at launch" (set once, at launch time) —
+  // total outbound row count would double-count a message that later flips to
+  // failed as both "sent" and "failed". Only failed/delivered/read reflect the
+  // reconciled, post-launch truth; sent is intentionally left untouched here.
 
   const { data: campaign } = await sb()
     .from("whatsapp_campaigns")
@@ -181,10 +190,19 @@ async function refreshCampaignStatsForMessage(
     .maybeSingle();
 
   const prevStats = (campaign?.stats ?? {}) as Record<string, unknown>;
+  // Reasons discovered after launch (async reconciliation) — merged with any
+  // synchronous launch-time errors so the campaign UI can explain a failure
+  // that only became known later, like this one.
+  const priorErrors = Array.isArray(prevStats.errors) ? (prevStats.errors as string[]) : [];
+  const reconciledErrors = failedRows
+    .filter((m) => m.wati_status)
+    .map((m) => `${m.contact_phone ?? "unknown"}: ${m.wati_status}`);
+  const errors = [...new Set([...priorErrors, ...reconciledErrors])].slice(0, 20);
+
   await sb()
     .from("whatsapp_campaigns")
     .update({
-      stats: { ...prevStats, sent, delivered, read },
+      stats: { ...prevStats, delivered, read, failed, errors },
       updated_at: new Date().toISOString(),
     })
     .eq("id", campaignId);
@@ -197,12 +215,15 @@ export async function applyWatiMessageStatusToRow(opts: {
   newStatus: string;
   campaignId?: string | null;
   whatsappMessageId?: string | null;
+  /** WATI's own explanation (e.g. "Meta has restricted it for higher quality messaging") — stored so a failure is diagnosable without a manual API call. */
+  failedDetail?: string | null;
 }): Promise<boolean> {
   if (!shouldApplyMessageStatus(opts.currentStatus, opts.newStatus)) return false;
 
   const patch: Record<string, unknown> = { status: opts.newStatus };
   const wamid = opts.whatsappMessageId ? String(opts.whatsappMessageId).trim() : "";
   if (wamid) patch.whatsapp_message_id = wamid;
+  if (opts.failedDetail) patch.wati_status = opts.failedDetail;
 
   await sb()
     .from("whatsapp_messages")
@@ -305,13 +326,18 @@ async function reconcileViaV3ConversationMessages(
 
       if (!match) continue;
 
+      // Broadcast/campaign messages come back as status_string (snake_case) —
+      // statusString/messageStatus only exist on the older direct-message shape.
+      // Missing this meant campaign sends never got reconciled via this path.
       const newStatus = mapWatiStatusString(
-        match.statusString ?? match.status ?? match.messageStatus,
+        match.status_string ?? match.statusString ?? match.status ?? match.messageStatus,
       );
       if (!newStatus) continue;
 
       const wamid = String(match.whatsapp_message_id ?? match.whatsappMessageId ?? "").trim();
       const watiLocalId = String(match.local_message_id ?? match.localMessageId ?? "").trim();
+      const failedDetail =
+        newStatus === "failed" ? String(match.failed_detail ?? "").trim() || null : null;
 
       const applied = await applyWatiMessageStatusToRow({
         workspaceId,
@@ -320,6 +346,7 @@ async function reconcileViaV3ConversationMessages(
         newStatus,
         campaignId: msg.campaign_id,
         whatsappMessageId: wamid || null,
+        failedDetail,
       });
 
       if (applied && watiLocalId && watiLocalId !== msg.external_id) {

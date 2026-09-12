@@ -72,6 +72,8 @@ import {
   type InboxCampaignScope,
 } from "@/lib/whatsapp/inbox-campaign-org.shared";
 import { readListingOutcome } from "@/lib/whatsapp/campaign-leads.shared";
+import { isAvenueEliteWorkspace } from "@/lib/avenue-elite-workspace.shared";
+import { CAMPAIGN_TYPES, resolveCampaignType } from "@/lib/whatsapp/campaign-types.shared";
 
 // ── Inbox ─────────────────────────────────────────────────────────────────────
 
@@ -886,7 +888,7 @@ export const getWhatsappInboxMeta = createServerFn({ method: "GET" })
           .eq("workspace_id", workspaceId),
         sb
           .from("whatsapp_campaigns")
-          .select("id, name, status")
+          .select("id, name, status, campaign_type")
           .eq("workspace_id", workspaceId)
           .order("created_at", { ascending: false })
           .limit(200),
@@ -927,12 +929,13 @@ export const getWhatsappInboxMeta = createServerFn({ method: "GET" })
     ].sort();
 
     const campaigns = (
-      (camps ?? []) as Array<{ id: string; name: string; status: string | null }>
+      (camps ?? []) as Array<{ id: string; name: string; status: string | null; campaign_type?: string | null }>
     ).map((c) => ({
       id: c.id,
       name: c.name,
       status: c.status,
       archived: isArchivedCampaignStatus(c.status),
+      campaignType: resolveCampaignType(c.campaign_type),
     }));
 
     const areas = [
@@ -961,6 +964,8 @@ export const getWhatsappInboxMeta = createServerFn({ method: "GET" })
       areas,
       /** Total threads, so the inbox can tell the user how many are still below the fold. */
       conversationCount: conversationCount ?? 0,
+      /** Only this workspace can create Off-Plan / Secondary campaigns. */
+      isAvenueElite: isAvenueEliteWorkspace(workspaceId),
     };
   });
 
@@ -1038,6 +1043,18 @@ export const sendWhatsappMessage = createServerFn({ method: "POST" })
       // The inbox refetch that follows a send triggers an API sync, which writes the same message
       // again under WATI's real id. Drop whichever copy is redundant before the thread reloads.
       await collapseOptimisticOutboundDuplicates(workspaceId, contactPhone);
+
+      // Pull WATI's confirmed copy of this exact message right now, instead of waiting for the
+      // next scheduled poll (10-15s later). Without this, the optimistic row and WATI's real-id
+      // row can both be visible in the inbox for that entire window before the periodic sync
+      // finally runs collapseOptimisticOutboundDuplicates again — the "message sent twice" look.
+      // Best-effort: a slow/failed WATI call here must never break the send itself.
+      try {
+        await syncWatiInboxFromWatiApi(workspaceId, [contactPhone], { maxPages: 1 });
+        await collapseOptimisticOutboundDuplicates(workspaceId, contactPhone);
+      } catch (e) {
+        console.warn("[wa-send] immediate post-send resync failed (non-fatal)", (e as Error).message);
+      }
 
       await markWhatsappContactsMessaged(sb, workspaceId, [contactPhone]);
       await syncWhatsappConversation(workspaceId, contactPhone);
@@ -1387,6 +1404,13 @@ export const createWACampaign = createServerFn({ method: "POST" })
       .object({
         name: z.string().min(1),
         type: z.enum(["broadcast", "follow_up", "scheduled"]),
+        // Business type (Listing Acquisition / Off-Plan / Secondary) — the
+        // routing key that determines outcome vocabulary, qualification
+        // schema, and pipeline for every lead this campaign produces.
+        campaignType: z.enum(CAMPAIGN_TYPES).default("listing_acquisition"),
+        // Developer/Project/Area etc. — shape depends on campaignType,
+        // validated loosely here and read back through campaign-types.shared.
+        typeFields: z.record(z.string(), z.string()).default({}),
         template_id: z.string().optional(),
         scheduled_at: z.string().optional(),
         provider: z.enum(["twilio", "wati"]).optional(),
@@ -1409,6 +1433,14 @@ export const createWACampaign = createServerFn({ method: "POST" })
     }
     if (provider === "wati") assertNotWbahWorkspace(workspaceId);
 
+    // Off-Plan / Secondary are real-estate-specific business types — only
+    // Avenue Elite Properties runs those; every other workspace stays on
+    // Listing Acquisition even if a stale client sends something else.
+    const campaignType =
+      data.campaignType !== "listing_acquisition" && !isAvenueEliteWorkspace(workspaceId)
+        ? "listing_acquisition"
+        : resolveCampaignType(data.campaignType);
+
     const scheduledAt = data.scheduled_at ? new Date(data.scheduled_at) : null;
     const isScheduled = !!(scheduledAt && !Number.isNaN(scheduledAt.getTime()) && scheduledAt.getTime() > Date.now() + 15_000);
     if (data.scheduled_at && !isScheduled) {
@@ -1421,6 +1453,8 @@ export const createWACampaign = createServerFn({ method: "POST" })
         workspace_id: workspaceId,
         name: data.name,
         type: isScheduled ? "scheduled" : data.type,
+        campaign_type: campaignType,
+        type_fields: data.typeFields ?? {},
         template_id: data.template_id ?? null,
         scheduled_at: isScheduled ? scheduledAt!.toISOString() : null,
         provider,

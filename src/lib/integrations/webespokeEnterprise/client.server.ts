@@ -9,12 +9,23 @@
  */
 
 import type { CallHistoryRow } from "@/lib/dashboard/wbah-call-history.types";
-import { getWebespokeApiBaseUrlFromEnv } from "./webespoke-env.server";
 
 export type { CallHistoryRow };
 
-/** UAT base URL — .env file first (Vite often omits this from process.env). */
-export function getWebespokeApiBaseUrl(): string {
+/**
+ * UAT base URL — .env file first (Vite often omits this from process.env).
+ *
+ * Dynamic import is deliberate: webespoke-env.server.ts reads node:fs at
+ * module scope. A static top-level import here previously dragged that into
+ * ANY client bundle that imports something from this file transitively
+ * (e.g. a .tsx component importing a .functions.ts that imports this module),
+ * which Vite then tried to externalize and threw
+ * "Cannot access 'node:fs.readFileSync' in client code" at runtime. A
+ * dynamic import lets Vite/Rollup code-split this out of the client bundle
+ * since it only resolves inside a function body that runs server-side.
+ */
+export async function getWebespokeApiBaseUrl(): Promise<string> {
+  const { getWebespokeApiBaseUrlFromEnv } = await import("./webespoke-env.server");
   return getWebespokeApiBaseUrlFromEnv();
 }
 
@@ -36,7 +47,7 @@ async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<ApiResponse<T>> {
-  const url = `${getWebespokeApiBaseUrl()}${path}`;
+  const url = `${await getWebespokeApiBaseUrl()}${path}`;
   try {
     const res = await fetch(url, {
       ...options,
@@ -298,7 +309,7 @@ export async function wbahUploadCrmExcel(
   const form = new FormData();
   form.append("file", file);
   try {
-    const res = await fetch(`${getWebespokeApiBaseUrl()}/crm-data/upload-excel`, {
+    const res = await fetch(`${await getWebespokeApiBaseUrl()}/crm-data/upload-excel`, {
       method: "POST",
       headers: { Authorization: `Bearer ${accessToken}` },
       body: form,

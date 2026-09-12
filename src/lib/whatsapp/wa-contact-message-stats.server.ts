@@ -1,4 +1,5 @@
 import { findLeadByPhone, normalizeWhatsAppPhone, phoneTail } from "@/lib/whatsapp/wati-campaign.server";
+import { resolveCampaignType, type CampaignType } from "@/lib/whatsapp/campaign-types.shared";
 
 export type WaContactMessageStats = {
   outbound_count: number;
@@ -11,6 +12,7 @@ export type WaContactMessageStats = {
   last_outbound_status: string | null;
   last_campaign_id: string | null;
   last_campaign_name: string | null;
+  last_campaign_type: CampaignType;
   delivered_count: number;
   read_count: number;
   failed_count: number;
@@ -27,6 +29,7 @@ const EMPTY_STATS: WaContactMessageStats = {
   last_outbound_status: null,
   last_campaign_id: null,
   last_campaign_name: null,
+  last_campaign_type: "listing_acquisition",
   delivered_count: 0,
   read_count: 0,
   failed_count: 0,
@@ -57,6 +60,7 @@ function normalizeStatus(raw: unknown): string {
 export function aggregateWaMessageStatsByPhone(
   messages: MessageRow[],
   campaignNames: Map<string, string>,
+  campaignTypes: Map<string, CampaignType> = new Map(),
 ): Map<string, WaContactMessageStats> {
   const byExact = new Map<string, WaContactMessageStats>();
 
@@ -89,12 +93,14 @@ export function aggregateWaMessageStatsByPhone(
         if (row.campaign_id) {
           stats.last_campaign_id = String(row.campaign_id);
           stats.last_campaign_name = campaignNames.get(String(row.campaign_id)) ?? null;
+          stats.last_campaign_type = resolveCampaignType(campaignTypes.get(String(row.campaign_id)));
         }
       } else {
         stats.last_outbound_at = prev.last_outbound_at;
         stats.last_outbound_status = prev.last_outbound_status;
         stats.last_campaign_id = prev.last_campaign_id;
         stats.last_campaign_name = prev.last_campaign_name;
+        stats.last_campaign_type = prev.last_campaign_type;
       }
       stats.messaged = true;
     } else if (row.direction === "inbound") {
@@ -145,30 +151,49 @@ async function fetchCampaignNameMap(
   sb: { from: (t: string) => any },
   workspaceId: string,
   campaignIds: string[],
-): Promise<Map<string, string>> {
-  const map = new Map<string, string>();
+): Promise<{ names: Map<string, string>; types: Map<string, CampaignType> }> {
+  const names = new Map<string, string>();
+  const types = new Map<string, CampaignType>();
   const unique = [...new Set(campaignIds.filter(Boolean))];
   for (let i = 0; i < unique.length; i += 200) {
     const chunk = unique.slice(i, i + 200);
     const { data } = await sb
       .from("whatsapp_campaigns")
-      .select("id, name")
+      .select("id, name, campaign_type")
       .eq("workspace_id", workspaceId)
       .in("id", chunk);
-    for (const row of (data ?? []) as Array<{ id: string; name: string }>) {
-      map.set(String(row.id), row.name);
+    for (const row of (data ?? []) as Array<{ id: string; name: string; campaign_type?: string | null }>) {
+      names.set(String(row.id), row.name);
+      types.set(String(row.id), resolveCampaignType(row.campaign_type));
     }
   }
-  return map;
+  return { names, types };
 }
+
+type WorkspaceStatsMaps = {
+  byExact: Map<string, WaContactMessageStats>;
+  byTail: Map<string, WaContactMessageStats>;
+};
+
+// Building these maps means scanning up to 25k messages and re-aggregating
+// them in JS — expensive, and every campaign-leads list/remark/stage save
+// triggers a re-fetch of the whole board, re-running this each time. A short
+// in-process cache (this runs as a long-lived Node process, not serverless)
+// means back-to-back calls within the window reuse the same scan instead of
+// repeating it; "last campaign per phone" doesn't change fast enough for a
+// few seconds of staleness to matter.
+const workspaceStatsCache = new Map<string, { at: number; data: WorkspaceStatsMaps }>();
+const STATS_CACHE_TTL_MS = 20_000;
 
 export async function fetchWorkspaceMessageStatsMaps(
   sb: { from: (t: string) => any },
   workspaceId: string,
-): Promise<{
-  byExact: Map<string, WaContactMessageStats>;
-  byTail: Map<string, WaContactMessageStats>;
-}> {
+): Promise<WorkspaceStatsMaps> {
+  const cached = workspaceStatsCache.get(workspaceId);
+  if (cached && Date.now() - cached.at < STATS_CACHE_TTL_MS) {
+    return cached.data;
+  }
+
   const { data, error } = await sb
     .from("whatsapp_messages")
     .select("contact_phone, direction, sent_at, status, campaign_id")
@@ -181,9 +206,15 @@ export async function fetchWorkspaceMessageStatsMaps(
   const campaignIds = rows
     .map((r) => (r.campaign_id ? String(r.campaign_id) : null))
     .filter(Boolean) as string[];
-  const campaignNames = await fetchCampaignNameMap(sb, workspaceId, campaignIds);
-  const byExact = aggregateWaMessageStatsByPhone(rows, campaignNames);
-  return { byExact, byTail: buildWaMessageStatsTailIndex(byExact) };
+  const { names: campaignNames, types: campaignTypes } = await fetchCampaignNameMap(
+    sb,
+    workspaceId,
+    campaignIds,
+  );
+  const byExact = aggregateWaMessageStatsByPhone(rows, campaignNames, campaignTypes);
+  const result = { byExact, byTail: buildWaMessageStatsTailIndex(byExact) };
+  workspaceStatsCache.set(workspaceId, { at: Date.now(), data: result });
+  return result;
 }
 
 export async function markWhatsappContactsMessaged(

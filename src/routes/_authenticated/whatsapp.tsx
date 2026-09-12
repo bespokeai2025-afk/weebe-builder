@@ -9,6 +9,7 @@ import {
   Settings,
   Bot,
   ClipboardList,
+  Kanban,
 } from "lucide-react";
 import { WhatsAppInbox } from "@/components/whatsapp/WhatsAppInbox";
 import { WhatsAppContacts } from "@/components/whatsapp/WhatsAppContacts";
@@ -18,11 +19,13 @@ import { WhatsAppAnalytics } from "@/components/whatsapp/WhatsAppAnalytics";
 import { WhatsAppSettings } from "@/components/whatsapp/WhatsAppSettings";
 import { WhatsAppAgents } from "@/components/whatsapp/WhatsAppAgents";
 import { CampaignLeadsBoard } from "@/components/whatsapp/CampaignLeadsBoard";
+import { ListingPipelineBoard } from "@/components/whatsapp/ListingPipelineBoard";
 import { useIsWbahWorkspace } from "@/hooks/useIsWbahWorkspace";
 
 const BUZZCHAT_TABS = [
   { id: "inbox", label: "Inbox", icon: MessageCircle },
   { id: "leads", label: "Leads", icon: ClipboardList },
+  { id: "pipeline", label: "Pipeline", icon: Kanban },
   { id: "contacts", label: "Contacts", icon: Users },
   { id: "campaigns", label: "Campaigns", icon: Megaphone },
   { id: "templates", label: "Templates", icon: FileText },
@@ -52,8 +55,9 @@ function WhatsappPage() {
   const { tab = "inbox" } = Route.useSearch();
   const { isWbah } = useIsWbahWorkspace();
 
-  const tabs = BUZZCHAT_TABS.filter((t) => !(isWbah && t.id === "leads"));
-  const activeTab: BuzzchatTab = tab === "leads" && isWbah ? "inbox" : tab;
+  const tabs = BUZZCHAT_TABS.filter((t) => !(isWbah && (t.id === "leads" || t.id === "pipeline")));
+  const activeTab: BuzzchatTab =
+    (tab === "leads" || tab === "pipeline") && isWbah ? "inbox" : tab;
 
   return (
     <div className="flex h-[calc(100dvh-2.5rem)] min-h-0 flex-col overflow-hidden px-4 pb-3 pt-2 md:px-5">
@@ -84,6 +88,9 @@ function WhatsappPage() {
         </TabsContent>
         <TabsContent value="leads" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden">
           <CampaignLeadsBoard />
+        </TabsContent>
+        <TabsContent value="pipeline" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden">
+          <ListingPipelineBoard />
         </TabsContent>
         <TabsContent value="contacts" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden">
           <WhatsAppContacts />

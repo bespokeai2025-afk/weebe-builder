@@ -383,7 +383,7 @@ export async function listWbahCrmPeopleCategories(cbs: WbahCbs): Promise<{
   categories: { name: string; count: number }[];
   total: number;
 }> {
-  const base = api.getWebespokeApiBaseUrl();
+  const base = await api.getWebespokeApiBaseUrl();
   const counts = await Promise.all(
     WBAH_PEOPLE_CRM_CATEGORIES.map(async (cat) => {
       try {

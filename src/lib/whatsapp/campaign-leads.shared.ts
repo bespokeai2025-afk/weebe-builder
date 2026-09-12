@@ -25,7 +25,10 @@ export const CAMPAIGN_LEAD_STAGE_LABELS: Record<CampaignLeadStage, string> = {
   assigned: "Assigned",
   follow_up: "Follow-up",
   converted: "Converted",
-  closed: "Closed",
+  // Stored value stays "closed" (no data migration needed) — relabeled to
+  // match the spec's terminology: this is where a lead lands when the
+  // working relationship ends without a listing (cancelled / archived).
+  closed: "Cancelled",
   no_activity: "No activity",
 };
 
@@ -76,10 +79,28 @@ export const LISTING_OUTCOME_LABELS: Record<ListingOutcome, string> = {
   no_activity: "No activity",
 };
 
+/**
+ * The Remark dropdown shows only these four — the simple triage categories
+ * from the spec ("Interested / Not Interested / No response / Sold or no
+ * longer available"). The other LISTING_OUTCOMES values (qualified, assigned,
+ * converted, etc.) remain valid stored values — "converted" in particular is
+ * now driven by the Stage dropdown, not picked directly as a remark — so
+ * existing data and any automation that still writes them keeps working;
+ * only the human-facing dropdown is narrowed.
+ */
+export const SIMPLIFIED_LISTING_REMARKS = [
+  "interested",
+  "not_interested",
+  "no_response",
+  "already_sold_rented",
+] as const satisfies readonly ListingOutcome[];
+
 export type ListingOutcomeRecord = {
   status: ListingOutcome;
   at: string;
   by?: string | null;
+  /** Optional free-text reason alongside the remark (e.g. why "Not interested"). */
+  reason?: string | null;
 };
 
 export function isListingOutcome(value: unknown): value is ListingOutcome {
@@ -184,6 +205,7 @@ export function readListingOutcome(
     status: rec.status,
     at: String(rec.at ?? ""),
     by: rec.by != null ? String(rec.by) : null,
+    reason: rec.reason != null ? String(rec.reason) : null,
   };
 }
 
@@ -209,6 +231,108 @@ export function belongsOnSalesPipeline(lead: {
 
 export function isSalesPipelineLocked(pipelineStage: string | null | undefined): boolean {
   return pipelineStage === "sale_done" || pipelineStage === "documentation";
+}
+
+// ─── Listing Pipeline — the second stage after a listing is converted ──────
+// Spec: "Agreed → Details/Docs → Listing Created → Live → Viewings/Offers →
+// Negotiation → Sold by Us → Closed", tracking what happened to the listing,
+// separate from the generic cross-business sales pipeline (`pipeline_stage`)
+// and from the BuzzChat working stage (`listing_stage`).
+
+export const LISTING_PIPELINE_STAGES = [
+  "agreed",
+  "details_docs",
+  "listing_created",
+  "live",
+  "viewings_offers",
+  "negotiation",
+  "sold_by_us",
+  "closed",
+] as const;
+
+export type ListingPipelineStage = (typeof LISTING_PIPELINE_STAGES)[number];
+
+export const LISTING_PIPELINE_STAGE_LABELS: Record<ListingPipelineStage, string> = {
+  agreed: "Agreed",
+  details_docs: "Details / Docs",
+  listing_created: "Listing Created",
+  live: "Live",
+  viewings_offers: "Viewings / Offers",
+  negotiation: "Negotiation",
+  sold_by_us: "Sold/Rent",
+  closed: "Closed",
+};
+
+export const DEFAULT_LISTING_PIPELINE_STAGE: ListingPipelineStage = "agreed";
+
+export function isListingPipelineStage(value: unknown): value is ListingPipelineStage {
+  return typeof value === "string" && (LISTING_PIPELINE_STAGES as readonly string[]).includes(value);
+}
+
+const LISTING_PIPELINE_KEY = "listing_pipeline";
+
+export interface ListingPipelineRecord {
+  stage: ListingPipelineStage;
+  /** When the lead entered its *current* stage — drives "days in stage". */
+  enteredAt: string;
+  offerAmount: string;
+}
+
+export function readListingPipeline(
+  meta: Record<string, unknown> | null | undefined,
+): ListingPipelineRecord | null {
+  const raw = meta && typeof meta === "object" ? meta[LISTING_PIPELINE_KEY] : null;
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  if (!isListingPipelineStage(r.stage)) return null;
+  return {
+    stage: r.stage,
+    enteredAt: typeof r.enteredAt === "string" && r.enteredAt ? r.enteredAt : new Date().toISOString(),
+    offerAmount: String(r.offerAmount ?? "").trim(),
+  };
+}
+
+/** Starts the listing pipeline at "agreed" — called once, when a listing lead converts. */
+export function startListingPipeline(
+  meta: Record<string, unknown> | null | undefined,
+  now: string = new Date().toISOString(),
+): Record<string, unknown> {
+  if (readListingPipeline(meta)) return meta ?? {};
+  const record: ListingPipelineRecord = { stage: DEFAULT_LISTING_PIPELINE_STAGE, enteredAt: now, offerAmount: "" };
+  return { ...(meta ?? {}), [LISTING_PIPELINE_KEY]: record };
+}
+
+/** Moves to a new stage — bumps enteredAt only when the stage actually changes, so "days in stage" stays accurate. */
+export function writeListingPipelineStage(
+  meta: Record<string, unknown> | null | undefined,
+  stage: ListingPipelineStage,
+  now: string = new Date().toISOString(),
+): Record<string, unknown> {
+  const current = readListingPipeline(meta);
+  const record: ListingPipelineRecord = {
+    stage,
+    enteredAt: current?.stage === stage ? current.enteredAt : now,
+    offerAmount: current?.offerAmount ?? "",
+  };
+  return { ...(meta ?? {}), [LISTING_PIPELINE_KEY]: record };
+}
+
+export function writeListingPipelineOffer(
+  meta: Record<string, unknown> | null | undefined,
+  offerAmount: string,
+): Record<string, unknown> {
+  const current = readListingPipeline(meta) ?? {
+    stage: DEFAULT_LISTING_PIPELINE_STAGE,
+    enteredAt: new Date().toISOString(),
+    offerAmount: "",
+  };
+  return { ...(meta ?? {}), [LISTING_PIPELINE_KEY]: { ...current, offerAmount } };
+}
+
+export function daysInListingPipelineStage(enteredAt: string, now: number = Date.now()): number {
+  const ms = Date.parse(enteredAt);
+  if (Number.isNaN(ms)) return 0;
+  return Math.max(0, Math.floor((now - ms) / (24 * 60 * 60 * 1000)));
 }
 
 export const LISTING_SLA_HOURS = 24;
@@ -258,6 +382,20 @@ export function isCampaignLeadStage(value: unknown): value is CampaignLeadStage 
   );
 }
 
+/**
+ * The Stage dropdown shows only these three — a lead coming in from Inbox has
+ * no stage marked at all (shown as "Not set") until someone picks one of
+ * these. The other CAMPAIGN_LEAD_STAGES values (new_response, contacted,
+ * engaged, etc.) are still written automatically by inbound/outbound message
+ * handling and remain valid stored values; only the human-facing dropdown is
+ * narrowed to the three the spec calls out.
+ */
+export const SIMPLIFIED_LEAD_STAGES = [
+  "follow_up",
+  "converted",
+  "closed",
+] as const satisfies readonly CampaignLeadStage[];
+
 export type CampaignIntent = "sell" | "rent" | "both" | "";
 
 export interface CampaignQualification {
@@ -305,6 +443,58 @@ export function writeCampaignQualification(
   qualification: CampaignQualification,
 ): Record<string, unknown> {
   return { ...(meta ?? {}), [QUALIFICATION_KEY]: qualification };
+}
+
+// ─── Follow-up date + next action ───────────────────────────────────────────
+// "Set follow-up date" / "keep the next follow-up/action visible" — kept
+// alongside next_action so a due date always carries what to actually do.
+
+const FOLLOW_UP_KEY = "follow_up";
+
+export interface CampaignFollowUp {
+  /** ISO date (yyyy-mm-dd) or full ISO datetime — stored as given, parsed for comparisons. */
+  date: string | null;
+  nextAction: string;
+}
+
+export const EMPTY_CAMPAIGN_FOLLOW_UP: CampaignFollowUp = { date: null, nextAction: "" };
+
+export function readCampaignFollowUp(
+  meta: Record<string, unknown> | null | undefined,
+): CampaignFollowUp {
+  const raw = meta && typeof meta === "object" ? meta[FOLLOW_UP_KEY] : null;
+  if (!raw || typeof raw !== "object") return { ...EMPTY_CAMPAIGN_FOLLOW_UP };
+  const f = raw as Record<string, unknown>;
+  const date = typeof f.date === "string" && f.date.trim() ? f.date.trim() : null;
+  return { date, nextAction: String(f.nextAction ?? "").trim() };
+}
+
+export function writeCampaignFollowUp(
+  meta: Record<string, unknown> | null | undefined,
+  followUp: CampaignFollowUp,
+): Record<string, unknown> {
+  return { ...(meta ?? {}), [FOLLOW_UP_KEY]: followUp };
+}
+
+export function isCampaignFollowUpOverdue(
+  followUp: CampaignFollowUp,
+  now: number = Date.now(),
+): boolean {
+  if (!followUp.date) return false;
+  const ms = Date.parse(followUp.date);
+  if (Number.isNaN(ms)) return false;
+  return ms < now;
+}
+
+export function isCampaignFollowUpDueSoon(
+  followUp: CampaignFollowUp,
+  now: number = Date.now(),
+  withinHours: number = 24,
+): boolean {
+  if (!followUp.date) return false;
+  const ms = Date.parse(followUp.date);
+  if (Number.isNaN(ms)) return false;
+  return ms >= now && ms - now <= withinHours * 60 * 60 * 1000;
 }
 
 export function formatCampaignRequirement(q: CampaignQualification): string {
@@ -388,11 +578,33 @@ export function threadMatchesInboxQueue(
   return true;
 }
 
-/** Opens WhatsApp on the agent's personal phone for this number. */
-export function whatsappPersonalLink(phone: string | null | undefined): string | null {
+/** Opens WhatsApp on the agent's personal phone for this number, with an optional pre-filled message. */
+export function whatsappPersonalLink(phone: string | null | undefined, prefilledMessage?: string | null): string | null {
   const digits = String(phone ?? "").replace(/\D/g, "");
   if (digits.length < 8) return null;
-  return `https://wa.me/${digits}`;
+  const base = `https://wa.me/${digits}`;
+  const text = prefilledMessage?.trim();
+  return text ? `${base}?text=${encodeURIComponent(text)}` : base;
+}
+
+/**
+ * Default re-engagement message for the 24h-expired WhatsApp fallback —
+ * mirrors the spec's example ("Hey Bilel, I am chatting you regarding our
+ * previous conversation..."). Falls back gracefully when property/campaign
+ * context is missing rather than producing an awkward half-sentence.
+ */
+export function defaultWhatsappReengagementMessage(input: {
+  contactName?: string | null;
+  property?: string | null;
+  campaignName?: string | null;
+}): string {
+  const name = input.contactName?.trim() || "there";
+  const propertyBit = input.property?.trim()
+    ? ` about ${input.property.trim()}`
+    : input.campaignName?.trim()
+      ? ` regarding our ${input.campaignName.trim()} conversation`
+      : "";
+  return `Hey ${name}, I'm following up on our previous conversation${propertyBit}. Just wanted to continue our discussion when you have a moment.`;
 }
 
 export function propertyLabelFromMeta(meta: Record<string, unknown> | null | undefined): string {
@@ -449,6 +661,8 @@ export function qualificationFromImportMeta(
   return q;
 }
 
+export const WHATSAPP_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 /** Free-text is allowed only inside the 24h window after the client's last inbound message. */
 export function isWhatsappFreeTextAllowed(
   lastInboundAt: string | null | undefined,
@@ -457,5 +671,39 @@ export function isWhatsappFreeTextAllowed(
   if (!lastInboundAt) return false;
   const ms = Date.parse(lastInboundAt);
   if (Number.isNaN(ms)) return false;
-  return now - ms <= 24 * 60 * 60 * 1000;
+  return now - ms <= WHATSAPP_WINDOW_MS;
+}
+
+/** Milliseconds left in the 24h window — negative/zero once closed, null if never opened. */
+export function whatsappWindowRemainingMs(
+  lastInboundAt: string | null | undefined,
+  now: number = Date.now(),
+): number | null {
+  if (!lastInboundAt) return null;
+  const ms = Date.parse(lastInboundAt);
+  if (Number.isNaN(ms)) return null;
+  return WHATSAPP_WINDOW_MS - (now - ms);
+}
+
+export type WhatsappWindowUrgency = "safe" | "warning" | "critical" | "closed" | "none";
+
+/** Escalates as the window nears expiry — drives color/urgency in the countdown UI. */
+export function whatsappWindowUrgency(remainingMs: number | null): WhatsappWindowUrgency {
+  if (remainingMs == null) return "none";
+  if (remainingMs <= 0) return "closed";
+  const ONE_HOUR = 60 * 60 * 1000;
+  if (remainingMs <= ONE_HOUR) return "critical";
+  if (remainingMs <= 4 * ONE_HOUR) return "warning";
+  return "safe";
+}
+
+/** Human-readable countdown, e.g. "23h 12m left" / "42m left" / "Window closed". */
+export function formatWhatsappWindowRemaining(remainingMs: number | null): string {
+  if (remainingMs == null) return "";
+  if (remainingMs <= 0) return "Window closed";
+  const totalMinutes = Math.floor(remainingMs / 60_000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours <= 0) return `${minutes}m left`;
+  return `${hours}h ${minutes}m left`;
 }

@@ -46,7 +46,7 @@ import {
   INBOX_PRIMARY_QUEUE_FILTERS,
   INBOX_QUEUE_FILTERS,
   LISTING_OUTCOME_LABELS,
-  LISTING_OUTCOMES,
+  SIMPLIFIED_LISTING_REMARKS,
   isWhatsappFreeTextAllowed,
   threadMatchesInboxQueue,
   whatsappPersonalLink,
@@ -234,7 +234,14 @@ export function WhatsAppInbox() {
       return result;
     },
     enabled: watiConnected,
-    refetchInterval: 15_000,
+    // Realtime subscription (below) already invalidates instantly on any DB
+    // change — this poll exists only as a resilience fallback for messages
+    // that reach WATI without triggering our webhook. It doesn't need to be
+    // frequent; running it every 15s alongside a separate 10s per-thread poll
+    // (further down) meant two independent WATI-pull cycles racing to
+    // invalidate the same query, which is wasted load and can make updates
+    // feel slower (queued/out-of-order responses) rather than faster.
+    refetchInterval: 30_000,
     throwOnError: false,
   });
 
@@ -310,7 +317,11 @@ export function WhatsAppInbox() {
     };
 
     pullFromWati();
-    const interval = setInterval(pullFromWati, 10_000);
+    // Widened from 10s — this and the workspace-wide sync above both pull
+    // from WATI's API independently; running both on tight, overlapping
+    // schedules was redundant load, not extra responsiveness (the realtime
+    // subscription is what actually delivers new messages instantly).
+    const interval = setInterval(pullFromWati, 20_000);
     return () => {
       cancelled = true;
       clearInterval(interval);
@@ -797,7 +808,7 @@ export function WhatsAppInbox() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="__unset__">Needs remark</SelectItem>
-                        {LISTING_OUTCOMES.map((id) => (
+                        {SIMPLIFIED_LISTING_REMARKS.map((id) => (
                           <SelectItem key={id} value={id}>
                             {LISTING_OUTCOME_LABELS[id]}
                           </SelectItem>

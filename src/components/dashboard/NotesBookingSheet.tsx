@@ -233,6 +233,7 @@ export function NotesBookingSheet({
               <LeadWhatsAppPanel
                 leadId={leadId ?? entityId}
                 phone={defaultPhone}
+                contactName={entityName}
               />
               <Separator className="bg-white/[0.06]" />
             </>
