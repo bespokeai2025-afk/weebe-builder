@@ -8,6 +8,22 @@ export type WbahCrmPatchPayload = Record<string, string | number | boolean | nul
 
 const NUMERIC_FIELD_PATTERN = /^(100000\d+|181510\d+|279640\d+)$/;
 
+/**
+ * Dynamics `Edm.Decimal`/whole-number fields — the Web API rejects the whole
+ * PATCH (400: "Cannot convert a value to target type 'Edm.Decimal'") if these
+ * arrive as a JSON string instead of a number. Retell's post-call extraction
+ * always emits string values (even for numbers), and the agentic normalize
+ * path has no numeric coercion for these specific fields — only the
+ * unrelated option-set codes matched isNumericOptionValue below — so a plain
+ * "250" for ground rent slipped through as a string and broke the PATCH.
+ */
+const DYNAMICS_DECIMAL_FIELDS = new Set([
+  "cos_groundrent",
+  "cos_servicecharge",
+  "cos_numberofyearsonlease",
+  "new_propinfo_rentachieved",
+]);
+
 /** Explicit nulls Dynamics will accept to clear stale / garbage values. */
 const CLEARABLE_DYNAMICS_FIELDS = new Set([
   "cos_callbackrequest",
@@ -54,6 +70,15 @@ export function filterValidDynamicsFields(fields: Record<string, unknown>): Wbah
     if (typeof value === "string") {
       const trimmed = value.trim();
       if (!trimmed) continue;
+      if (DYNAMICS_DECIMAL_FIELDS.has(key)) {
+        const n = Number(trimmed.replace(/[£$,]/g, ""));
+        if (Number.isFinite(n)) {
+          out[key] = n;
+        } else {
+          console.log("[WBAH CRM PATCH] dropping non-numeric decimal field", { key, rawValue: trimmed });
+        }
+        continue;
+      }
       out[key] = isNumericOptionValue(trimmed) ? Number(trimmed) : truncateForDynamics(key, trimmed);
       continue;
     }
@@ -84,8 +109,9 @@ export function buildWbahAllensCrmPayload(input: {
   callbackUtc: string | null;
   custom?: Record<string, unknown>;
   transcript?: string | null;
+  dynVars?: Record<string, unknown>;
 }): WbahCrmPatchPayload {
-  const { formatted, allens, calendlyBookingUrl, callbackUtc, custom, transcript } = input;
+  const { formatted, allens, calendlyBookingUrl, callbackUtc, custom, transcript, dynVars } = input;
   const payload: Record<string, unknown> = {};
   const vd = formatted.verifiedDetails ?? formatted.structuredJsonOutput ?? {};
   const slotBooked = Boolean(
@@ -135,6 +161,7 @@ export function buildWbahAllensCrmPayload(input: {
     fallbackEmail: formatted.email,
     custom,
     transcript,
+    dynVars,
   });
   Object.assign(payload, mapped);
 
@@ -156,9 +183,10 @@ export function buildWbahAgenticCrmPayload(
   structured: Record<string, unknown> | null,
   custom?: Record<string, unknown>,
   transcript?: string | null,
+  dynVars?: Record<string, unknown>,
 ): WbahCrmPatchPayload {
   if (!structured) return {};
-  const normalized = normalizeWbahAgenticCrmFields(structured, custom, transcript);
+  const normalized = normalizeWbahAgenticCrmFields(structured, custom, transcript, dynVars);
   return filterValidDynamicsFields(normalized);
 }
 

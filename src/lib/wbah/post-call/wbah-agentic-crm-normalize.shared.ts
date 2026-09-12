@@ -10,6 +10,7 @@ import { pickWbahCrmEmail } from "./wbah-email.shared";
 import {
   applyContactAddressSameAsProperty,
   applyVacantOrTenantedToPayload,
+  seedContactSameAsPropertyFromDynVars,
   WBAH_VERIFIED_DETAILS_ALIASES,
   WBAH_VERIFIED_DETAILS_DYNAMICS_FIELDS,
   WBAH_VERIFIED_DETAILS_EXCLUDED_KEYS,
@@ -62,6 +63,7 @@ export function normalizeWbahAgenticCrmFields(
   structured: Record<string, unknown>,
   custom?: Record<string, unknown>,
   transcript?: string | null,
+  dynVars?: Record<string, unknown>,
 ): Record<string, unknown> {
   const verified =
     structured.verified_details && typeof structured.verified_details === "object"
@@ -69,6 +71,7 @@ export function normalizeWbahAgenticCrmFields(
       : {};
   const working: Record<string, unknown> = { ...structured, ...verified };
 
+  seedContactSameAsPropertyFromDynVars(working, dynVars);
   enrichWbahVerifiedDetailsFromSummaries(working, custom, transcript);
   sanitizeWbahUkAddressFields(working);
   applyVacantOrTenantedToPayload(working, working.vacant_or_tenanted);

@@ -9,7 +9,11 @@ function isEmptyValue(v: unknown): boolean {
 
 /** Normalize to uppercase outward code + space, e.g. "m14 5pq" → "M14 5PQ". */
 export function formatUkPostcode(raw: string): string | null {
-  const compact = raw.replace(/\s+/g, "").toUpperCase();
+  // Phonetic-alphabet dictation ("papa oscar one two two november golf" read
+  // back and transcribed) often leaves stray punctuation around the letters
+  // the LLM extracted (periods, hyphens, commas) — strip those too, not just
+  // whitespace, so a correctly-heard postcode isn't rejected on formatting.
+  const compact = raw.replace(/[\s.\-,]+/g, "").toUpperCase();
   const m = compact.match(/^([A-Z]{1,2}\d[A-Z\d]?)(\d[A-Z]{2})$/);
   if (!m) return null;
   return `${m[1]} ${m[2]}`;

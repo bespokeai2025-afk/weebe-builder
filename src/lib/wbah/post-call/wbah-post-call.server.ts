@@ -188,6 +188,7 @@ async function runDynamicsAllensPath(input: {
   calendlyBookingUrl: string | null;
   custom?: Record<string, unknown>;
   transcript?: string | null;
+  dynVars?: Record<string, unknown>;
 }): Promise<void> {
   const leadStatus = await getWbahLeadCurrentStatus(input.leadId).catch(() => null);
   const custom = input.custom ?? {};
@@ -220,6 +221,7 @@ async function runDynamicsAllensPath(input: {
     callbackUtc: input.formatted.callbackDatetimeUtc,
     custom: input.custom,
     transcript: input.transcript ?? null,
+    dynVars: input.dynVars,
   });
 
   if (!Object.keys(patch).length) {
@@ -243,9 +245,15 @@ async function runDynamicsAgenticPath(input: {
   formatted: ReturnType<typeof formatWbahRetellCallData>;
   custom: Record<string, unknown>;
   transcript?: string | null;
+  dynVars?: Record<string, unknown>;
 }): Promise<void> {
   const structured = input.formatted.structuredJsonOutput;
-  const patch = buildWbahAgenticCrmPayload(structured, input.custom, input.transcript ?? null);
+  const patch = buildWbahAgenticCrmPayload(
+    structured,
+    input.custom,
+    input.transcript ?? null,
+    input.dynVars,
+  );
   if (Object.keys(patch).length) {
     console.log("[WBAH POST-CALL] dynamics_agentic PATCH", {
       leadId: input.leadId,
@@ -504,7 +512,14 @@ export async function runWbahPostCallPipelineCore(
   if (isWbahDynamicsConfigured()) {
     if (stepOn("dynamics_allens")) {
       try {
-        await runDynamicsAllensPath({ leadId, formatted, calendlyBookingUrl, custom, transcript: call.transcript ?? null });
+        await runDynamicsAllensPath({
+          leadId,
+          formatted,
+          calendlyBookingUrl,
+          custom,
+          transcript: call.transcript ?? null,
+          dynVars,
+        });
         branches.push("dynamics_allens");
       } catch (e) {
         errors.push(`dynamics_allens: ${(e as Error).message}`);
@@ -518,6 +533,7 @@ export async function runWbahPostCallPipelineCore(
           formatted,
           custom,
           transcript: call.transcript ?? null,
+          dynVars,
         });
         branches.push("dynamics_agentic");
       } catch (e) {
@@ -525,10 +541,8 @@ export async function runWbahPostCallPipelineCore(
       }
     }
 
-    if (
-      leadId &&
-      (stepOn("dynamics_allens") || stepOn("dynamics_agentic"))
-    ) {
+    const noteGateOpen = Boolean(leadId) && (stepOn("dynamics_allens") || stepOn("dynamics_agentic"));
+    if (noteGateOpen) {
       try {
         const noteText = buildWbahAiTimelineNoteText({
           label: "WBAH AI call",
@@ -541,14 +555,31 @@ export async function runWbahPostCallPipelineCore(
           callbackUtc: formatted.callbackDatetimeUtc,
         });
         await postWbahLeadTimelineNote({
-          leadId,
+          leadId: leadId!,
           subject: `WBAH AI call summary${call.call_id ? ` — ${call.call_id}` : ""}`.slice(0, 200),
           noteText,
         });
         branches.push("dynamics_lead_note");
+        console.log("[WBAH POST-CALL] dynamics_lead_note posted", { leadId, callId: call.call_id ?? null });
       } catch (e) {
         errors.push(`dynamics_lead_note: ${(e as Error).message}`);
+        console.log("[WBAH POST-CALL] dynamics_lead_note FAILED", {
+          leadId,
+          callId: call.call_id ?? null,
+          error: (e as Error).message,
+        });
       }
+    } else {
+      // A call with real transcript/summary data but no note ever showing up
+      // in Dynamics is otherwise undiagnosable after the fact — log exactly
+      // why this gate was closed so a future report can be traced in seconds.
+      console.log("[WBAH POST-CALL] dynamics_lead_note skipped (gate closed)", {
+        leadId,
+        hasLeadId: Boolean(leadId),
+        dynamicsAllensStepOn: stepOn("dynamics_allens"),
+        dynamicsAgenticStepOn: stepOn("dynamics_agentic"),
+        callId: call.call_id ?? null,
+      });
     }
   }
 

@@ -43,6 +43,26 @@ describe("filterValidDynamicsFields", () => {
       new_currentstatus: 181510002,
     });
   });
+
+  it("coerces decimal/whole-number fields (ground rent etc.) to actual numbers, not Edm.Decimal-breaking strings", () => {
+    expect(
+      filterValidDynamicsFields({
+        cos_groundrent: "250",
+        cos_servicecharge: "£1,200",
+        cos_numberofyearsonlease: "85",
+        new_propinfo_rentachieved: "950",
+      }),
+    ).toEqual({
+      cos_groundrent: 250,
+      cos_servicecharge: 1200,
+      cos_numberofyearsonlease: 85,
+      new_propinfo_rentachieved: 950,
+    });
+  });
+
+  it("drops a non-numeric decimal field instead of sending a string Dynamics will reject", () => {
+    expect(filterValidDynamicsFields({ cos_groundrent: "not discussed" })).toEqual({});
+  });
 });
 
 describe("buildWbahAllensCrmPayload — callback (Amal Samine scenario)", () => {

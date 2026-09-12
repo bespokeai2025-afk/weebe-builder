@@ -60,6 +60,26 @@ const WBAH_PROPERTY_TO_CONTACT_ADDRESS: ReadonlyArray<[string, string]> = [
 const SAME_AS_PROPERTY_PATTERN =
   /\b(?:same\s*(as)?\s*(the\s*)?(property|prop(?:erty)?(?:\s*address)?|address)|yes[\s,]*same)\b/i;
 
+/**
+ * A Retell Conversation Flow node can capture the caller's live yes/no answer
+ * to "is your contact address the same as the property address?" as a
+ * dynamic variable — set deterministically by whichever transition edge
+ * fired, not re-guessed after the fact. Prefer it over the post-call LLM's
+ * transcript re-read whenever the live call already captured it.
+ */
+export function seedContactSameAsPropertyFromDynVars(
+  working: Record<string, unknown>,
+  dynVars?: Record<string, unknown>,
+): void {
+  if (!dynVars || !isEmptyValue(working.contact_same_as_property)) return;
+  const raw = boolVal(
+    dynVars.contact_same_as_property ??
+      dynVars.contact_address_same_as_property ??
+      dynVars.same_as_property_address,
+  );
+  if (raw !== undefined) working.contact_same_as_property = raw ? "true" : "false";
+}
+
 function confirmsContactSameAsProperty(
   source: Record<string, unknown>,
   custom?: Record<string, unknown>,
@@ -220,13 +240,25 @@ export function applyContactAddressSameAsProperty(
 ): void {
   if (!confirmsContactSameAsProperty({ ...source, ...target }, custom, transcript)) return;
 
+  let copied = 0;
+  let blockedByExistingValue = 0;
   for (const [propertyKey, contactKey] of WBAH_PROPERTY_TO_CONTACT_ADDRESS) {
     const propertyValue = val(source[propertyKey], target[propertyKey]);
     if (isEmptyValue(propertyValue)) continue;
     if (isEmptyValue(target[contactKey]) || indicatesSameAsPropertyAddress(target[contactKey])) {
       target[contactKey] = propertyValue;
+      copied++;
+    } else {
+      blockedByExistingValue++;
     }
   }
+  // Regex/transcript-based confirmation is inherently best-effort — log every
+  // time it fires so a future "address still didn't copy" report can be
+  // diagnosed from journalctl instead of re-guessing at phrasing blind.
+  console.log("[WBAH CONTACT-ADDRESS] same-as-property confirmed", {
+    fieldsCopied: copied,
+    fieldsBlockedByExistingValue: blockedByExistingValue,
+  });
 }
 
 export function applyVacantOrTenantedToPayload(
@@ -254,8 +286,10 @@ export function mapWbahVerifiedDetailsToDynamicsFields(input: {
   fallbackEmail?: string | null;
   custom?: Record<string, unknown>;
   transcript?: string | null;
+  dynVars?: Record<string, unknown>;
 }): Record<string, unknown> {
   const vd = { ...input.verifiedDetails };
+  seedContactSameAsPropertyFromDynVars(vd, input.dynVars);
   enrichWbahVerifiedDetailsFromSummaries(vd, input.custom, input.transcript);
   sanitizeWbahUkAddressFields(vd);
 
@@ -313,6 +347,14 @@ export function mapWbahVerifiedDetailsToDynamicsFields(input: {
       (key === "address1_postalcode" || key === "new_propinfo_postalcode") &&
       !looksLikeUkPostcode(v)
     ) {
+      // Retell extracted *something* for a postcode field but it didn't parse
+      // as a UK postcode (phonetic-alphabet dictation garbles easily) — log
+      // instead of silently dropping it, so a "postcode didn't make it to
+      // the CRM" report can be traced to the exact raw value next time.
+      console.log("[WBAH CONTACT-ADDRESS] postcode-shaped value rejected", {
+        field: key,
+        rawValue: String(v),
+      });
       continue;
     }
     payload[key] = v;

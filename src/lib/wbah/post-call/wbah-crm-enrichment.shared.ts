@@ -40,9 +40,45 @@ export function summaryRequestsHumanCallback(
   );
 }
 
+const CONTACT_SAME_QUESTION_PATTERN =
+  /(?:is\s+)?(?:your\s+|the\s+)?(?:contact|correspondence|mailing|postal)?\s*address(?:es)?\s*(?:details?\s*)?(?:the\s+)?same\s+as\s+(?:your\s+|the\s+)?(?:property|prop|home)\b/i;
+
+const AFFIRMATIVE_REPLY =
+  /\b(yes|yeah|yep|yup|correct|confirmed|confirm|exactly|right|spot on|of course|sure|uh-?huh|mm-?hmm|okay|ok)\b/i;
+const NEGATIVE_REPLY = /\b(no|nope|nah|not\b|different|separate|isn'?t|wasn'?t)\b/i;
+
+/**
+ * Real Retell transcripts alternate "Agent: ...\nUser: ..." turns. When that
+ * structure is present, find the agent's same-as-property question and read
+ * whatever the caller said in reply — regardless of how long the question or
+ * the gap is. Falls back to null (caller does character-window matching
+ * instead) when the transcript has no speaker labels, e.g. in older tests
+ * or summary-only text.
+ */
+function replyFollowingQuestion(text: string, questionEndIndex: number): string | null {
+  const rest = text.slice(questionEndIndex, questionEndIndex + 400);
+  const boundedToNextTurn = /\b(?:user|caller)\s*:\s*([\s\S]*?)\b(?:agent|assistant)\s*:/i.exec(rest);
+  if (boundedToNextTurn) return boundedToNextTurn[1].trim();
+  // No further agent turn inside the window (likely the transcript's last
+  // turn) — take a short slice right after the speaker label instead of the
+  // rest of the string, so an unrelated "not"/"no" much later can't flip a
+  // genuine "yes" reply.
+  const shortTail = /\b(?:user|caller)\s*:\s*([\s\S]{0,120})/i.exec(rest);
+  return shortTail ? shortTail[1].trim() : null;
+}
+
 export function transcriptIndicatesContactSameAsProperty(transcript?: string | null): boolean {
   if (isEmptyValue(transcript)) return false;
   const text = String(transcript).toLowerCase().replace(/\s+/g, " ");
+
+  const question = CONTACT_SAME_QUESTION_PATTERN.exec(text);
+  if (question) {
+    const reply = replyFollowingQuestion(text, question.index + question[0].length);
+    if (reply) {
+      if (NEGATIVE_REPLY.test(reply)) return false;
+      if (AFFIRMATIVE_REPLY.test(reply)) return true;
+    }
+  }
 
   // Caller said no after the same-as-property question (Jim / Copy / Amarjit).
   if (
@@ -55,8 +91,10 @@ export function transcriptIndicatesContactSameAsProperty(transcript?: string | n
 
   return (
     /\byes[,.]?\s+(they are |it is )?(the )?same\b/.test(text) ||
-    /\b(yes|yeah|yep)[,.]?\s+they are the same\b/.test(text) ||
-    /\bsame as (your )?(the )?(property|prop).{0,160}\b(yes|yeah|yep|correct)\b/.test(text)
+    /\b(yes|yeah|yep|yup)[,.]?\s+they are the same\b/.test(text) ||
+    /\bsame as (your )?(the )?(property|prop).{0,220}\b(yes|yeah|yep|yup|correct|exactly|that'?s right)\b/.test(
+      text,
+    )
   );
 }
 

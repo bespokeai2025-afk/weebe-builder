@@ -5,6 +5,7 @@ import {
   mapWbahVerifiedDetailsToDynamicsFields,
 } from "@/lib/wbah/post-call/wbah-verified-details-dynamics.shared";
 import { buildWbahAgenticCrmPayload } from "@/lib/wbah/post-call/wbah-crm-payload.shared";
+import { transcriptIndicatesContactSameAsProperty } from "@/lib/wbah/post-call/wbah-crm-enrichment.shared";
 
 describe("mapWbahVerifiedDetailsToDynamicsFields", () => {
   it("maps on_market and decision_maker", () => {
@@ -440,5 +441,113 @@ describe("buildWbahAgenticCrmPayload", () => {
     });
     expect(patch.cos_propertyempty).toBe(181510000);
     expect(patch.cos_propertyrented).toBe(181510000);
+  });
+});
+
+describe("transcriptIndicatesContactSameAsProperty — role-labeled transcripts", () => {
+  it("catches a bare 'Yes' reply on a real Agent/User transcript regardless of question length", () => {
+    const transcript =
+      "Agent: Great, thanks for confirming those details about the property, the number of bedrooms and the tenure. " +
+      "Now, one last thing — is your contact address the same as the property address we discussed earlier?\n" +
+      "User: Yes.\nAgent: Perfect, thank you.";
+    expect(transcriptIndicatesContactSameAsProperty(transcript)).toBe(true);
+  });
+
+  it("catches short affirmations beyond 'yes/yeah/yep' (correct, exactly, that's right)", () => {
+    for (const reply of ["Correct.", "Exactly.", "That's right.", "Yup.", "Sure."]) {
+      const transcript = `Agent: Is your contact address the same as your property address?\nUser: ${reply}\nAgent: Thanks.`;
+      expect(transcriptIndicatesContactSameAsProperty(transcript)).toBe(true);
+    }
+  });
+
+  it("does not confirm on a negative reply even when a later turn mentions an unrelated 'no'", () => {
+    const transcript =
+      "Agent: Is your contact address the same as your property address?\n" +
+      "User: No, I live somewhere else.\n" +
+      "Agent: Okay, what is your contact address?\nUser: 12 Elm Street.";
+    expect(transcriptIndicatesContactSameAsProperty(transcript)).toBe(false);
+  });
+
+  it("does not let an unrelated 'not' several turns later flip a genuine 'yes'", () => {
+    const transcript =
+      "Agent: Is your contact address the same as your property address?\n" +
+      "User: Yes, that's correct.\n" +
+      "Agent: Thanks. Is the property currently rented?\nUser: No, it's not rented.";
+    expect(transcriptIndicatesContactSameAsProperty(transcript)).toBe(true);
+  });
+
+  it("falls back to the plain-text window match when there are no speaker labels", () => {
+    const transcript =
+      "Is your contact address the same as your property address at forty nine Mid Summer Avenue? Yes.";
+    expect(transcriptIndicatesContactSameAsProperty(transcript)).toBe(true);
+  });
+});
+
+describe("mapWbahVerifiedDetailsToDynamicsFields — dynVars priority", () => {
+  it("mirrors the property address when a Retell conversation-flow node set contact_same_as_property live", () => {
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails: {
+        new_propinfo_street2: "12 High Street",
+        new_propinfo_city: "Thorley",
+        new_propinfo_postalcode: "PO41 0AA",
+      },
+      dynVars: { contact_same_as_property: "true" },
+    });
+    expect(patch.address1_line1).toBe("12 High Street");
+    expect(patch.address1_city).toBe("Thorley");
+    expect(patch.address1_postalcode).toBe("PO41 0AA");
+  });
+
+  it("does not mirror when the dynamic variable says false and no other confirmation exists", () => {
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails: {
+        new_propinfo_street2: "12 High Street",
+      },
+      dynVars: { contact_same_as_property: "false" },
+    });
+    expect(patch.address1_line1).toBeUndefined();
+  });
+
+  it("does not let a live dynVar override an explicit post-call verified_details value", () => {
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails: {
+        new_propinfo_street2: "12 High Street",
+        contact_same_as_property: "false",
+      },
+      dynVars: { contact_same_as_property: "true" },
+    });
+    expect(patch.address1_line1).toBeUndefined();
+  });
+});
+
+describe("mapWbahVerifiedDetailsToDynamicsFields — Cedric Coupland pattern (phonetic contact postcode)", () => {
+  it("accepts a contact postcode with stray punctuation from phonetic-alphabet dictation", () => {
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails: {
+        new_propinfo_street2: "109B Saint Andrews Road",
+        new_propinfo_city: "South C",
+        new_propinfo_postalcode: "PO51ES",
+        // Extraction sometimes leaves punctuation around phonetic letters.
+        address1_postalcode: "P.O.12-2N.G",
+        contact_same_as_property: "false",
+      },
+    });
+    expect(patch.address1_postalcode).toBe("PO12 2NG");
+    // No street was ever asked for when the caller only gave a postcode —
+    // address1_line1 correctly stays unset rather than being guessed at.
+    expect(patch.address1_line1).toBeUndefined();
+  });
+
+  it("does not mirror the property address when contact_same_as_property is false, even with a different postcode given", () => {
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails: {
+        new_propinfo_street2: "109B Saint Andrews Road",
+        new_propinfo_postalcode: "PO51ES",
+        address1_postalcode: "PO122NG",
+        contact_same_as_property: "false",
+      },
+    });
+    expect(patch.address1_postalcode).toBe("PO12 2NG");
+    expect(patch.address1_line1).toBeUndefined();
   });
 });
