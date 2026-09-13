@@ -13,6 +13,7 @@ import {
 
 const BASE_BACKOFF_MS = 2000;
 const MAX_BATCH = 25;
+const STALE_PROCESSING_MS = 5 * 60_000;
 
 export function isWbahPostCallQueueEnabled(): boolean {
   const v = process.env.WBAH_POST_CALL_QUEUE ?? "true";
@@ -84,14 +85,30 @@ export async function processWbahPostCallJobById(jobId: string): Promise<{
   }
 
   const attempt = (row.attempt_count ?? 0) + 1;
-  await sb
+  // Claim atomically: the update only succeeds if the row is still "pending"
+  // (or has been stuck "processing" long enough to assume a crashed worker).
+  // Without this WHERE guard, the immediate post-enqueue drain and the
+  // scheduled poller can both read "pending" before either write lands and
+  // both run the full pipeline concurrently — this is exactly what produced
+  // 8x duplicate Dynamics PATCHes for a single call.
+  const staleThreshold = new Date(Date.now() - STALE_PROCESSING_MS).toISOString();
+  const { data: claimed } = await sb
     .from("wbah_post_call_jobs")
     .update({
       status: "processing",
       attempt_count: attempt,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", jobId);
+    .eq("id", jobId)
+    .or(`status.eq.pending,and(status.eq.processing,updated_at.lt.${staleThreshold})`)
+    .select("id");
+
+  if (!claimed || claimed.length === 0) {
+    // Another worker already claimed (or is actively processing) this job —
+    // bail without re-running the pipeline.
+    console.warn("[WBAH QUEUE] job already claimed elsewhere, skipping", { jobId });
+    return { ok: true, branches: row.branches ?? [], errors: row.errors ?? [] };
+  }
 
   try {
     const { runWbahPostCallPipelineCore } = await import("./wbah-post-call.server");

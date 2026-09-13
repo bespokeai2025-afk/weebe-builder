@@ -59,6 +59,7 @@ type RetellCall = {
     custom_analysis_data?: Record<string, unknown>;
   };
   retell_llm_dynamic_variables?: Record<string, unknown>;
+  collected_dynamic_variables?: Record<string, unknown>;
 };
 
 export type WbahPostCallProcessInput = {
@@ -75,7 +76,7 @@ export type WbahPostCallProcessResult = {
   errors: string[];
 };
 
-function extractDynVars(call: RetellCall, payload: Record<string, unknown>): Record<string, unknown> {
+export function extractDynVars(call: RetellCall, payload: Record<string, unknown>): Record<string, unknown> {
   const fromCall =
     call.retell_llm_dynamic_variables ??
     ((payload.call as RetellCall | undefined)?.retell_llm_dynamic_variables as
@@ -88,7 +89,25 @@ function extractDynVars(call: RetellCall, payload: Record<string, unknown>): Rec
   const nested =
     (payload.call as Record<string, unknown> | undefined)?.retell_llm_dynamic_variables ??
     {};
-  return { ...(typeof nested === "object" ? nested : {}), ...fromCall };
+  // Retell keeps the initial call-setup variables (lead_id, property_address,
+  // etc.) under retell_llm_dynamic_variables, but anything captured LIVE by
+  // an Extract Variable node mid-call — e.g. contact_same_as_property — lands
+  // in a completely separate field, collected_dynamic_variables. Missing
+  // this merge is why a variable that visibly fired in the Retell dashboard
+  // (tool call + response both showing "true") never reached this pipeline:
+  // it was never absent, just read from the wrong key. Collected values win
+  // on overlap since they reflect the latest in-call state.
+  const collected =
+    call.collected_dynamic_variables ??
+    ((payload.call as RetellCall | undefined)?.collected_dynamic_variables as
+      | Record<string, unknown>
+      | undefined) ??
+    {};
+  return {
+    ...(typeof nested === "object" ? nested : {}),
+    ...fromCall,
+    ...(typeof collected === "object" ? collected : {}),
+  };
 }
 
 async function handleLiveTranscript(
@@ -683,12 +702,7 @@ export async function processWbahRetellWebhook(input: {
     }
   }
 
-  const dynVars =
-    input.call.retell_llm_dynamic_variables ??
-    ((input.payload.call as RetellCall | undefined)?.retell_llm_dynamic_variables as
-      | Record<string, unknown>
-      | undefined) ??
-    {};
+  const dynVars = extractDynVars(input.call, input.payload);
   const leadId = String(dynVars.lead_id ?? dynVars.leadId ?? "").trim() || null;
 
   const { isWbahPostCallQueueEnabled, enqueueWbahPostCallJob, drainWbahPostCallQueueAsync } =
