@@ -476,6 +476,29 @@ describe("transcriptIndicatesContactSameAsProperty — role-labeled transcripts"
     expect(transcriptIndicatesContactSameAsProperty(transcript)).toBe(true);
   });
 
+  it("catches 'address IS the same' phrasing (auxiliary verb between address and same)", () => {
+    const transcript =
+      "Agent: Just to confirm, your contact address is the same as your property address?\n" +
+      "User: Yeah.\nAgent: Great, thank you.";
+    expect(transcriptIndicatesContactSameAsProperty(transcript)).toBe(true);
+  });
+
+  it("Emma Mayo pattern — bare 'Yeah.' reply, with a garbled/unintelligible second utterance afterward", () => {
+    // Real production transcript: caller says "Yeah." immediately after the
+    // question (before the agent even finishes the "if not..." half of its
+    // sentence), then a second, ASR-garbled utterance ("Well, that's the
+    // sign" — almost certainly a mis-transcription of "the same") follows
+    // once the agent finishes asking for a contact postcode. The first
+    // "Yeah." alone must be enough — no reliance on decoding the garbled part.
+    const transcript =
+      "Agent: Are your contact address details the same as your property address, Emma? If\n" +
+      "User: Yeah.\n" +
+      "Agent: not, could you please let me know your contact postcode?\n" +
+      "User: Well, that's the sign.\n" +
+      "Agent: Could you tell me what type of property it is, Emma?";
+    expect(transcriptIndicatesContactSameAsProperty(transcript)).toBe(true);
+  });
+
   it("falls back to the plain-text window match when there are no speaker labels", () => {
     const transcript =
       "Is your contact address the same as your property address at forty nine Mid Summer Avenue? Yes.";
@@ -520,6 +543,58 @@ describe("mapWbahVerifiedDetailsToDynamicsFields — dynVars priority", () => {
   });
 });
 
+describe("mapWbahVerifiedDetailsToDynamicsFields — Arjo Virani test call (live Extract Variable node)", () => {
+  it("mirrors the property address using the live dynVar even though post-call verified_details omits contact_same_as_property entirely", () => {
+    // Real test call after wiring the new Retell "Extract Variables" node:
+    // the tool response showed {{contact_same_as_property}}=true live during
+    // the call, but the post-call structured_json_output still came back
+    // with no contact_same_as_property key at all (same gap as every prior
+    // case) and empty address1_* fields. This is precisely what the dynVars
+    // priority path exists for.
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails: {
+        new_propinfo_street2: "Twelve Midnight Street",
+        new_propinfo_city: "Manchester",
+        new_propinfo_postalcode: "PNG123",
+        address1_line1: "",
+        address1_city: "",
+        address1_postalcode: "",
+        // No contact_same_as_property key — matches the real post-call JSON.
+      },
+      dynVars: { contact_same_as_property: "true" },
+    });
+    expect(patch.address1_line1).toBe("Twelve Midnight Street");
+    expect(patch.address1_city).toBe("Manchester");
+  });
+});
+
+describe("mapWbahVerifiedDetailsToDynamicsFields — Emma Mayo pattern (real production verified_details)", () => {
+  it("mirrors the property address end-to-end from Emma Mayo's exact verified_details + transcript", () => {
+    const transcript =
+      "Agent: Are your contact address details the same as your property address, Emma? If\n" +
+      "User: Yeah.\n" +
+      "Agent: not, could you please let me know your contact postcode?\n" +
+      "User: Well, that's the sign.\n" +
+      "Agent: Could you tell me what type of property it is, Emma?";
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails: {
+        new_propinfo_street2: "Three Brynwood Drive",
+        new_propinfo_street3: "",
+        new_propinfo_city: "Newtown",
+        address1_line1: "",
+        address1_line2: "",
+        address1_city: "",
+        new_propinfo_postalcode: "SY162EG",
+        address1_postalcode: "",
+        // No contact_same_as_property key — matches the real extraction.
+      },
+      transcript,
+    });
+    expect(patch.address1_line1).toBe("Three Brynwood Drive");
+    expect(patch.address1_postalcode).toBe("SY16 2EG");
+  });
+});
+
 describe("mapWbahVerifiedDetailsToDynamicsFields — Cedric Coupland pattern (phonetic contact postcode)", () => {
   it("accepts a contact postcode with stray punctuation from phonetic-alphabet dictation", () => {
     const patch = mapWbahVerifiedDetailsToDynamicsFields({
@@ -536,6 +611,31 @@ describe("mapWbahVerifiedDetailsToDynamicsFields — Cedric Coupland pattern (ph
     // No street was ever asked for when the caller only gave a postcode —
     // address1_line1 correctly stays unset rather than being guessed at.
     expect(patch.address1_line1).toBeUndefined();
+  });
+
+  it("Joanne Ryder-Maddocks pattern — mirrors when Retell omits contact_same_as_property entirely but the transcript has a clear double confirmation", () => {
+    // Real production case: Retell's structured_json_output left out
+    // contact_same_as_property altogether (not even ""), despite the caller
+    // confirming twice ("Yes." then "It's the same.") right after the
+    // question. Only the transcript-based turn detector can catch this.
+    const transcript =
+      "Agent: Could I just confirm, are your contact address details the same as your property address? If\n" +
+      "User: Yes.\n" +
+      "Agent: not, could you please provide your contact postcode, spelling it out with the phonetic alphabet?\n" +
+      "User: It's the same.\n" +
+      "Agent: Could you tell me the type of property you're looking to sell?";
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails: {
+        new_propinfo_street2: "Forty seven Ogden Crescent",
+        new_propinfo_street3: "Denholm",
+        new_propinfo_postalcode: "VD13 4LD",
+        // No contact_same_as_property key at all, and no address1_* given —
+        // matches the real extraction exactly.
+      },
+      transcript,
+    });
+    expect(patch.address1_line1).toBe("Forty seven Ogden Crescent");
+    expect(patch.address1_postalcode).toBe("VD13 4LD");
   });
 
   it("does not mirror the property address when contact_same_as_property is false, even with a different postcode given", () => {

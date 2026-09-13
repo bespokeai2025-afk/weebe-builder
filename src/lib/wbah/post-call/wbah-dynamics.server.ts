@@ -80,6 +80,18 @@ function unknownDynamicsProperty(body: string): string | null {
   return m?.[1] ?? null;
 }
 
+/**
+ * Dynamics refuses any field PATCH on a Lead/Opportunity that's already
+ * closed (won/lost) — error 0x80040519 "The lead is already closed." This is
+ * an expected, permanent state, not a transient failure: retrying the exact
+ * same PATCH will fail identically every time, so treat it as a graceful
+ * no-op instead of burning through the job queue's 5 retry attempts and
+ * ending in a false "failed" status.
+ */
+export function isRecordAlreadyClosedError(body: string): boolean {
+  return /already closed/i.test(body) || body.includes("0x80040519");
+}
+
 async function patchDynamicsEntity(
   kind: "lead" | "opportunity",
   id: string,
@@ -103,6 +115,13 @@ async function patchDynamicsEntity(
     });
     if (res.ok) return;
     const body = await res.text().catch(() => "");
+    if (isRecordAlreadyClosedError(body)) {
+      console.warn(`[Dynamics] skipping ${kind} PATCH — record is already closed`, {
+        id,
+        fields: Object.keys(remaining),
+      });
+      return;
+    }
     const unknown = unknownDynamicsProperty(body);
     if (!unknown || !(unknown in remaining)) {
       throw new Error(`Dynamics PATCH ${kind} failed (${res.status}): ${body.slice(0, 400)}`);

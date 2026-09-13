@@ -324,9 +324,41 @@ export async function runWbahPostCallPipeline(
 export async function runWbahPostCallPipelineCore(
   input: WbahPostCallProcessInput & { skipLiveTranscript?: boolean },
 ): Promise<WbahPostCallProcessResult> {
-  const { event, call, payload, agent, skipLiveTranscript } = input;
   const branches: string[] = [];
   const errors: string[] = [];
+  try {
+    return await runWbahPostCallPipelineCoreUnsafe(input, branches, errors);
+  } catch (e) {
+    // A thrown business-rule rejection (e.g. Dynamics "lead is already
+    // closed") used to escape all the way to the job queue, which wipes
+    // `branches` and retries the whole event up to 5 times — pointless,
+    // since retrying doesn't change the CRM's lead state, and it also
+    // erases the record of whichever steps already succeeded before the
+    // throw. Catch it here instead: keep what ran, report the failure,
+    // and let the job settle as "completed with errors" rather than churn
+    // through identical retries.
+    const msg = e instanceof Error ? e.message : String(e);
+    console.log("[WBAH POST-CALL] unexpected error — returning partial result instead of retrying", {
+      event: input.event,
+      callId: input.call.call_id,
+      branches,
+      error: msg,
+    });
+    return {
+      handled: true,
+      message: "completed with errors",
+      branches,
+      errors: [...errors, `unexpected: ${msg}`],
+    };
+  }
+}
+
+async function runWbahPostCallPipelineCoreUnsafe(
+  input: WbahPostCallProcessInput & { skipLiveTranscript?: boolean },
+  branches: string[],
+  errors: string[],
+): Promise<WbahPostCallProcessResult> {
+  const { event, call, payload, agent, skipLiveTranscript } = input;
 
   const isWebCall = call.call_type === "web_call" || call.call_type === "webcall";
   if (isWebCall) {

@@ -41,7 +41,7 @@ export function summaryRequestsHumanCallback(
 }
 
 const CONTACT_SAME_QUESTION_PATTERN =
-  /(?:is\s+)?(?:your\s+|the\s+)?(?:contact|correspondence|mailing|postal)?\s*address(?:es)?\s*(?:details?\s*)?(?:the\s+)?same\s+as\s+(?:your\s+|the\s+)?(?:property|prop|home)\b/i;
+  /(?:is\s+)?(?:your\s+|the\s+)?(?:contact|correspondence|mailing|postal)?\s*address(?:es)?\s*(?:details?\s*)?(?:is\s+|are\s+)?(?:the\s+)?same\s+as\s+(?:your\s+|the\s+)?(?:property|prop|home)\b/i;
 
 const AFFIRMATIVE_REPLY =
   /\b(yes|yeah|yep|yup|correct|confirmed|confirm|exactly|right|spot on|of course|sure|uh-?huh|mm-?hmm|okay|ok)\b/i;
