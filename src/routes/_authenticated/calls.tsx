@@ -44,6 +44,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { listWbahCallsLive, getWbahCallDetail, getWbahContactCallHistory } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { CallInspectorPanel } from "@/components/calls/CallInspectorPanel";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 import { RelativeTime } from "@/components/ui/relative-time";
@@ -140,6 +141,13 @@ function TestCallRow({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [recordingPlayer, setRecordingPlayer] = useState<{ url: string; contact: string } | null>(null);
+  // A call with no transcript can still have captured variables or tool calls
+  // worth inspecting — don't gate the expander on the transcript alone.
+  const hasDetail = Boolean(
+    c.transcript ||
+      (c.collected_variables && Object.keys(c.collected_variables).length > 0) ||
+      (c.tool_calls && c.tool_calls.length > 0),
+  );
   const label = c.agent_name ?? c.agent_id ?? "Builder test";
   const sessionId = c.retell_call_id ?? "—";
   const shortSessionId = sessionId !== "—" && sessionId.length > 24
@@ -157,7 +165,7 @@ function TestCallRow({
       )}
       <tr
         className="group h-8 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors cursor-pointer"
-        onClick={() => c.transcript && setExpanded((p) => !p)}
+        onClick={() => hasDetail && setExpanded((p) => !p)}
       >
         <td className="px-2 py-0.5" onClick={(e) => e.stopPropagation()}>
           <Checkbox
@@ -168,7 +176,7 @@ function TestCallRow({
           />
         </td>
         <td className="px-2 py-0.5">
-          {c.transcript ? (
+          {hasDetail ? (
             expanded ? (
               <ChevronDown className="h-3 w-3 text-muted-foreground" />
             ) : (
@@ -242,12 +250,14 @@ function TestCallRow({
           <RelativeTime date={c.started_at} fallback="—" />
         </td>
       </tr>
-      {expanded && c.transcript && (
+      {expanded && (
         <tr className="border-b border-white/[0.04]">
           <td colSpan={15} className="px-4 pb-3 pt-1">
-            <div className="rounded-lg bg-black/30 border border-white/[0.06] p-3 font-mono text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap max-h-64 overflow-y-auto">
-              {c.transcript}
-            </div>
+            <CallInspectorPanel
+              transcript={c.transcript}
+              collectedVariables={c.collected_variables}
+              toolCalls={c.tool_calls}
+            />
           </td>
         </tr>
       )}

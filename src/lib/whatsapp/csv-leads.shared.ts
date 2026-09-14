@@ -752,3 +752,70 @@ export async function readCsvFileHead(file: File, maxDataRows: number): Promise<
   const text = lines.slice(0, maxDataRows + 1).join("\n");
   return { text, truncated };
 }
+
+/** Extensions accepted by the contact/audience importers. */
+export const SPREADSHEET_ACCEPT = ".csv,text/csv,.xlsx,.xls,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+export function isExcelFile(file: { name?: string; type?: string }): boolean {
+  const name = String(file.name ?? "").toLowerCase();
+  if (name.endsWith(".xlsx") || name.endsWith(".xls")) return true;
+  const type = String(file.type ?? "").toLowerCase();
+  return (
+    type === "application/vnd.ms-excel" ||
+    type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  );
+}
+
+/**
+ * Read a CSV *or* Excel file into the one shape the importers already consume.
+ *
+ * Excel is converted to rows of strings from the first sheet, so column
+ * auto-detection, the mapping UI and the import path stay identical — an
+ * .xlsx behaves exactly like the same data saved as .csv. `xlsx` is imported
+ * dynamically so it only loads when someone actually picks a spreadsheet.
+ */
+export async function readSpreadsheetFileHead(
+  file: File,
+  maxDataRows: number,
+): Promise<{ headers: string[]; rows: Record<string, string>[]; truncated: boolean }> {
+  if (!isExcelFile(file)) {
+    const { text, truncated } = await readCsvFileHead(file, maxDataRows);
+    const parsed = parseCsvText(text);
+    return { headers: parsed.headers, rows: parsed.rows, truncated: truncated || parsed.truncated };
+  }
+
+  const XLSX = await import("xlsx");
+  const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
+  const sheetName = workbook.SheetNames[0];
+  if (!sheetName) return { headers: [], rows: [], truncated: false };
+  const sheet = workbook.Sheets[sheetName];
+  if (!sheet) return { headers: [], rows: [], truncated: false };
+
+  // `header: 1` gives raw rows, so a numeric-looking phone column keeps the
+  // exact characters shown in Excel instead of being reformatted.
+  const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+    header: 1,
+    raw: false,
+    defval: "",
+    blankrows: false,
+  });
+  if (matrix.length === 0) return { headers: [], rows: [], truncated: false };
+
+  const headers = (matrix[0] ?? []).map((h) => String(h ?? "").trim()).filter(Boolean);
+  if (headers.length === 0) return { headers: [], rows: [], truncated: false };
+
+  const body = matrix.slice(1);
+  const truncated = body.length > maxDataRows;
+  const rows: Record<string, string>[] = [];
+  for (const raw of body.slice(0, maxDataRows)) {
+    const row: Record<string, string> = {};
+    let hasValue = false;
+    headers.forEach((header, i) => {
+      const value = String((raw as unknown[])[i] ?? "").trim();
+      row[header] = value;
+      if (value) hasValue = true;
+    });
+    if (hasValue) rows.push(row);
+  }
+  return { headers, rows, truncated };
+}

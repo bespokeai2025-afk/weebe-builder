@@ -165,11 +165,14 @@ export function compileRealtimePrompt(
             "Do NOT say anything here. Stay silent and wait for the caller's next input, then follow the transition below.\n[WAIT FOR CALLER]";
         } else if (mode === "static_text") {
           body = `SAY EXACTLY (do not rephrase): "${spokenDialogue}"\n[WAIT FOR CALLER — you MUST be completely silent after saying the above until the caller speaks next]`;
-        } else if (mode === "hybrid") {
-          const exact = prefix ? `SAY EXACTLY (do not rephrase): "${prefix}"\nThen generate a short spoken reply from this instruction:\n${spokenDialogue}` : spokenDialogue;
-          body = `${exact}\n[WAIT FOR CALLER — you MUST be completely silent after saying the above until the caller speaks next]`;
         } else {
-          body = `${spokenDialogue}\n[WAIT FOR CALLER — you MUST be completely silent after saying the above until the caller speaks next]`;
+          // A legacy hybrid node still carries its exact words in speechPrefix;
+          // say those first, then generate, so folding the mode away does not
+          // drop the line the author expected to be spoken verbatim.
+          const instruction = prefix
+            ? `SAY EXACTLY (do not rephrase): "${prefix}"\nThen generate a short spoken reply from this instruction:\n${spokenDialogue}`
+            : spokenDialogue;
+          body = `${instruction}\n[WAIT FOR CALLER — you MUST be completely silent after saying the above until the caller speaks next]`;
         }
         return `${headerPrefix} ${d.label || "Conversation"}\n${body}${transitionText}`;
       }

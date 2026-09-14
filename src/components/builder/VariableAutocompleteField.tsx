@@ -70,6 +70,33 @@ function useTokenMenu(
   const cursorRef = useRef(0);
   const items = useMemo(() => filterFlowVariables(variables, query).slice(0, 12), [variables, query]);
 
+  /**
+   * Caret restoration after inserting a token.
+   *
+   * `pick()` rewrites the whole string, so on the next render the browser puts
+   * the caret at the end — inserting a variable in the middle of a sentence
+   * threw you to the bottom of the box and you had to click back. The element
+   * is registered here so the hook can put the caret back where the insert
+   * finished, straight after the closing braces.
+   */
+  const elementRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
+  const restoreToRef = useRef<number | null>(null);
+
+  useLayoutEffect(() => {
+    const target = restoreToRef.current;
+    if (target === null) return;
+    restoreToRef.current = null;
+    const el = elementRef.current;
+    if (!el) return;
+    const pos = Math.min(target, el.value.length);
+    try {
+      el.focus();
+      el.setSelectionRange(pos, pos);
+    } catch {
+      /* selection is unsupported on some input types — harmless */
+    }
+  }, [value]);
+
   const syncFrom = (text: string, cursor: number) => {
     cursorRef.current = cursor;
     const token = incompleteVariableToken(text, cursor);
@@ -86,6 +113,8 @@ function useTokenMenu(
     const next = insertVariableToken(value, cursorRef.current, name);
     onValueChange(next.text);
     cursorRef.current = next.cursor;
+    // Applied in the layout effect above, once the new value has rendered.
+    restoreToRef.current = next.cursor;
     setOpen(false);
   };
 
@@ -106,7 +135,12 @@ function useTokenMenu(
     }
   };
 
-  return { open, items, active, pick, syncFrom, onKeyDown, setOpen };
+  /** Callback ref — avoids variance problems between input and textarea refs. */
+  const registerElement = (el: HTMLInputElement | HTMLTextAreaElement | null) => {
+    elementRef.current = el;
+  };
+
+  return { open, items, active, pick, syncFrom, onKeyDown, setOpen, registerElement };
 }
 
 type TextareaProps = Omit<ComponentProps<typeof Textarea>, "onChange" | "value"> & {
@@ -127,6 +161,7 @@ export function VariableTextarea({
     <div className="relative min-w-0 w-full flex-1">
       <Textarea
         {...props}
+        ref={menu.registerElement}
         value={value}
         className={cn("w-full min-w-0", className)}
         onChange={(e) => {
@@ -169,6 +204,7 @@ export function VariableInput({
     <div className="relative flex-1 min-w-0">
       <Input
         {...props}
+        ref={menu.registerElement}
         value={value}
         className={className}
         onChange={(e) => {
@@ -211,6 +247,7 @@ export function VariableBareInput({
     <div className="relative min-w-0 flex-1">
       <input
         {...props}
+        ref={menu.registerElement}
         value={value}
         className={className}
         onChange={(e) => {
@@ -277,7 +314,10 @@ export function VariableBareTextarea({
     <div className="relative min-w-0 flex-1">
       <textarea
         {...props}
-        ref={ref}
+        ref={(el) => {
+          ref.current = el;
+          menu.registerElement(el);
+        }}
         rows={1}
         value={value}
         className={className}

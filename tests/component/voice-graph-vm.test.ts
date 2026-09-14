@@ -447,8 +447,11 @@ describe("ConversationVm conversation flow", () => {
     expect(tmpl.calls.generate).toHaveLength(0);
   });
 
-  it("speaks a hybrid prefix without the LLM, then generates the rest", async () => {
-    const llm = fakeLlm({ generate: () => "Thursday at 2 PM is free." });
+  it("runs a legacy hybrid node through the single prompt path, keeping the exact prefix", async () => {
+    // Hybrid is no longer a runtime mode (Retell has only prompt | static).
+    // A saved hybrid node must still work: the prefix is folded into the
+    // prompt so the LLM says those words first, in one generated turn.
+    const llm = fakeLlm({ generate: () => "Thanks, Sarah. Thursday at 2 PM is free." });
     const vm = new ConversationVm({
       flow: flowOf([
         {
@@ -465,12 +468,12 @@ describe("ConversationVm conversation flow", () => {
       variables: { customer_name: "sarah" },
     });
     const out = await drainWithSpeech(vm.run({ type: "begin" }));
-    expect(out.speeches[0]).toBe("Thanks, Sarah.");
-    expect(out.speeches[1]).toBe("Thursday at 2 PM is free.");
+    expect(out.speeches).toEqual(["Thanks, Sarah. Thursday at 2 PM is free."]);
     expect(llm.calls.generate.length).toBeGreaterThan(0);
     const sys = llm.calls.generate[0]?.find((m) => m.role === "system")?.content ?? "";
     expect(sys).not.toContain("{{customer_name}}");
-    expect(sys).toContain("Already spoken this turn");
+    // The exact words survive the fold, as an instruction to say them verbatim.
+    expect(sys).toContain("Thanks, Sarah.");
   });
 
   it("resolves prompt variables before the LLM runs", async () => {

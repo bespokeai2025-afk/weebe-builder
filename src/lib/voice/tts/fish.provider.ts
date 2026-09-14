@@ -168,7 +168,11 @@ export function buildStartRequest(
     chunk_length: FISH_CLONE_CHUNK_LENGTH,
     min_chunk_length: FISH_CLONE_MIN_CHUNK_LENGTH,
   };
-  if (anchor?.wav.byteLength && anchor.text.trim() && req.cloneVoice) {
+  // Anchor on every voice, not just detected clones. The anchor is a clip of
+  // this same call's first utterance, so it can only pull later sessions back
+  // toward the voice already being used — and relying on clone detection meant
+  // a misclassified voice silently lost its drift protection.
+  if (anchor?.wav.byteLength && anchor.text.trim()) {
     request.references = [
       {
         audio: new Uint8Array(anchor.wav),
@@ -586,7 +590,7 @@ class BoundCallUtteranceRunner {
   }
 
   private maybeSetAnchor(pcm: Buffer, spokenText: string): void {
-    if (this.anchor || !this.req.cloneVoice) return;
+    if (this.anchor) return;
     const bytesPerSecond = this.req.sampleRate * 2;
     const minBytes = Math.floor(ANCHOR_MIN_SECONDS * bytesPerSecond);
     if (pcm.byteLength < minBytes) return;

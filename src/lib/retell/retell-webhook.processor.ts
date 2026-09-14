@@ -403,6 +403,24 @@ async function resolveAgent(incomingAgentId: string, forcedWorkspaceId?: string)
   };
 }
 
+/**
+ * Providers split call variables across two fields: the ones supplied at call
+ * setup (`retell_llm_dynamic_variables`) and the ones captured live during the
+ * call by Extract Variable nodes and tool output (`collected_dynamic_variables`).
+ * Reading only the first is what made a variable that demonstrably fired in the
+ * Retell dashboard look "missing" downstream — so persist the merge, with the
+ * in-call values winning since they reflect the latest state.
+ */
+function collectedVariablesForRow(call: Record<string, unknown>): Record<string, unknown> | null {
+  const setup = call.retell_llm_dynamic_variables;
+  const collected = call.collected_dynamic_variables;
+  const merged: Record<string, unknown> = {
+    ...(setup && typeof setup === "object" ? (setup as Record<string, unknown>) : {}),
+    ...(collected && typeof collected === "object" ? (collected as Record<string, unknown>) : {}),
+  };
+  return Object.keys(merged).length > 0 ? merged : null;
+}
+
 async function upsertCall(row: Record<string, unknown>) {
   const retellCallId = row.retell_call_id as string;
   const { data: existing, error: lookupError } = await supabaseAdmin
@@ -868,6 +886,10 @@ export async function processRetellWebhook(
     call_successful: call.call_analysis?.call_successful ?? null,
     in_voicemail: call.call_analysis?.in_voicemail ?? null,
     is_voicemail: isVoicemail,
+    collected_variables: collectedVariablesForRow(call),
+    tool_calls: Array.isArray((call as Record<string, unknown>).tool_calls)
+      ? ((call as Record<string, unknown>).tool_calls as unknown[])
+      : null,
   } as Record<string, unknown>;
 
   const cleaned: Record<string, unknown> = {};

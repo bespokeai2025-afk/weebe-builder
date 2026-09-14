@@ -59,9 +59,22 @@ function resolveTemperature(
   return temp;
 }
 
+/**
+ * Is this a workspace-cloned Fish voice rather than a stock library one?
+ *
+ * Clones need the in-call audio anchor or their timbre re-samples on every new
+ * Fish WebSocket — the caller hears the voice change mid-call. Detection used
+ * to rely on `webeeVoiceOwned === true` or a name matching "your clone", which
+ * silently missed any renamed clone: the same voice on two agents classified
+ * differently purely because one was missing the flag, and only the unflagged
+ * one drifted. A legacy `custom_voice_*` id is the other reliable marker that
+ * the voice was cloned, so treat it as ownership too.
+ */
 export function isOwnedFishCloneVoice(settings?: Record<string, unknown> | null): boolean {
   if (!settings) return false;
   if (settings.webeeVoiceOwned === true) return true;
+  const legacyId = String(settings.voice_id ?? settings.voiceId ?? "").trim();
+  if (/^custom_voice_/i.test(legacyId)) return true;
   return /your clone/i.test(String(settings.webeeVoiceName ?? ""));
 }
 

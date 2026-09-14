@@ -79,8 +79,26 @@ export interface RetellShapedCall {
   /** Campaign attribution. The processor re-verifies tenancy before trusting it. */
   metadata?: Record<string, unknown>;
   retell_llm_dynamic_variables?: Record<string, string>;
+  /**
+   * Variables captured *during* the call (Extract Variable nodes, tool output,
+   * collected answers) — kept separate from the setup variables above because
+   * that is exactly how Retell reports them, and consumers read both.
+   */
+  collected_dynamic_variables?: Record<string, string>;
+  /** Tool/function invocations, in Retell's reporting shape. */
+  tool_calls?: RetellToolCall[];
   /** `combined_cost` is USD cents, as Retell reports it. */
   call_cost?: { combined_cost: number; total_duration_seconds: number };
+}
+
+/** One tool invocation, matching the shape Retell reports on `call.tool_calls`. */
+export interface RetellToolCall {
+  name: string;
+  type: string;
+  success: boolean;
+  latency_ms?: number;
+  tool_call_id?: string;
+  start_time_sec?: number;
 }
 
 export type VoiceLifecycleEvent =

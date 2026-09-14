@@ -55,6 +55,13 @@ const WBAH_PROPERTY_TO_CONTACT_ADDRESS: ReadonlyArray<[string, string]> = [
   ["new_propinfo_city", "address1_city"],
   ["new_propinfo_postalcode", "address1_postalcode"],
   ["new_propinfo_stateorprovince", "address1_stateorprovince"],
+  // The Lead has both address1_stateorprovince and address1_county. On live
+  // records the county is the one actually carrying data (address1_county =
+  // "West Midlands"/"West Yorkshire"), while stateorprovince is null
+  // everywhere — expected for a UK CRM, where "state or province" is just the
+  // US-centric default. Mirror the property county into both so the populated
+  // field is the one that gets it.
+  ["new_propinfo_stateorprovince", "address1_county"],
 ];
 
 const SAME_AS_PROPERTY_PATTERN =
@@ -135,6 +142,8 @@ export const WBAH_VERIFIED_DETAILS_EXCLUDED_KEYS = new Set([
 
 /** Dynamics Lead attributes writable from WBAH verified_details (production set). */
 export const WBAH_VERIFIED_DETAILS_DYNAMICS_FIELDS = new Set([
+  // Boolean on the Lead: Yes/No in the UI, true/false over the Web API.
+  "new_propinfo_sameascontactaddress",
   "new_propinfo_numberofbedrooms",
   "cos_propertyempty",
   "cos_propertyrented",
@@ -158,6 +167,7 @@ export const WBAH_VERIFIED_DETAILS_DYNAMICS_FIELDS = new Set([
   "address1_city",
   "new_propinfo_stateorprovince",
   "address1_stateorprovince",
+  "address1_county",
   "address1_postalcode",
   "new_propinfo_postalcode",
   "firstname",
@@ -232,12 +242,41 @@ function indicatesSameAsPropertyAddress(...values: unknown[]): boolean {
  * copy property fields into contact fields. Only runs on explicit confirmation —
  * empty contact fields alone are not enough.
  */
+/**
+ * The Dynamics Lead flag that records the answer itself, alongside the copied
+ * address: `new_propinfo_sameascontactaddress` (a Boolean attribute — Yes/No
+ * in the UI, so the Web API wants true/false, not 1/0).
+ *
+ * Returns undefined when the call never established it, so an unknown answer
+ * leaves whatever the CRM already holds rather than asserting "No".
+ */
+export function contactSameAsPropertyFlag(
+  source: Record<string, unknown>,
+  custom?: Record<string, unknown>,
+  transcript?: string | null,
+): boolean | undefined {
+  if (confirmsContactSameAsProperty(source, custom, transcript)) return true;
+  const explicit = boolVal(
+    source.contact_same_as_property ??
+      source.contact_address_same_as_property ??
+      source.same_as_property_address,
+  );
+  if (explicit === false) return false;
+  // A contact address that is present and demonstrably different is a No.
+  const contactLine = String(source.address1_line1 ?? source.contact_address ?? "").trim();
+  const contactPc = String(source.address1_postalcode ?? source.postcode_contact ?? "").trim();
+  if (contactLine || contactPc) return false;
+  return undefined;
+}
+
 export function applyContactAddressSameAsProperty(
   target: Record<string, unknown>,
   source: Record<string, unknown>,
   custom?: Record<string, unknown>,
   transcript?: string | null,
 ): void {
+  const flag = contactSameAsPropertyFlag({ ...source, ...target }, custom, transcript);
+  if (flag !== undefined) target.new_propinfo_sameascontactaddress = flag;
   if (!confirmsContactSameAsProperty({ ...source, ...target }, custom, transcript)) return;
 
   let copied = 0;

@@ -5,6 +5,7 @@ import { Plus, Pencil, Trash2, Download, Upload, Search, Users, RefreshCw, Loade
 import { Button } from "@/components/ui/button";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -40,8 +41,8 @@ import {
 import {
   autoDetectCsvColumnMapping,
   mapCsvRowsToLeads,
-  parseCsvText,
-  readCsvFileHead,
+  readSpreadsheetFileHead,
+  SPREADSHEET_ACCEPT,
   getContactField,
   getContactFieldsMap,
   getContactPhones,
@@ -597,8 +598,7 @@ export function WhatsAppContacts() {
     const limit = Math.max(1, Math.min(csvImportLimit, 5000));
     try {
       const scanRows = Math.max(limit * 100, 2000);
-      const { text, truncated } = await readCsvFileHead(file, scanRows);
-      const { headers, rows } = parseCsvText(text);
+      const { headers, rows, truncated } = await readSpreadsheetFileHead(file, scanRows);
       const mapping = autoDetectCsvColumnMapping(headers);
       setCsvHeaders(headers);
       setCsvRows(rows);
@@ -616,7 +616,7 @@ export function WhatsAppContacts() {
         await runContactsCsvImport(rows, mapping);
       }
     } catch (err) {
-      toast.error("Could not parse CSV", { description: (err as Error).message });
+      toast.error("Could not read that file", { description: (err as Error).message });
       resetCsvImportState();
     } finally {
       setCsvParsing(false);
@@ -1008,14 +1008,12 @@ export function WhatsAppContacts() {
             </p>
             <div>
               <Label className="text-xs">Max contacts</Label>
-              <Input
-                type="number"
+              <NumberInput
                 min={1}
                 max={5000}
+                fallback={20}
                 value={csvImportLimit}
-                onChange={(e) =>
-                  setCsvImportLimit(Math.max(1, parseInt(e.target.value, 10) || 20))
-                }
+                onValueChange={setCsvImportLimit}
                 className="mt-1 h-8 text-xs"
               />
             </div>
@@ -1029,7 +1027,7 @@ export function WhatsAppContacts() {
             <input
               ref={csvInputRef}
               type="file"
-              accept=".csv,text/csv"
+              accept={SPREADSHEET_ACCEPT}
               className="hidden"
               onChange={handleCsvFile}
             />
@@ -1051,7 +1049,7 @@ export function WhatsAppContacts() {
                   ? "Importing…"
                   : csvFileName
                     ? csvFileName
-                    : "Choose CSV file"}
+                    : "Choose CSV or Excel file"}
             </Button>
             {csvNeedsMapping && csvMapping && csvRows.length > 0 && (
               <div className="space-y-2 rounded border border-border/40 p-2">

@@ -4,7 +4,7 @@ import {
   applyVacantOrTenantedToPayload,
   mapWbahVerifiedDetailsToDynamicsFields,
 } from "@/lib/wbah/post-call/wbah-verified-details-dynamics.shared";
-import { buildWbahAgenticCrmPayload } from "@/lib/wbah/post-call/wbah-crm-payload.shared";
+import { buildWbahAgenticCrmPayload, filterValidDynamicsFields } from "@/lib/wbah/post-call/wbah-crm-payload.shared";
 import { transcriptIndicatesContactSameAsProperty } from "@/lib/wbah/post-call/wbah-crm-enrichment.shared";
 
 describe("mapWbahVerifiedDetailsToDynamicsFields", () => {
@@ -649,5 +649,91 @@ describe("mapWbahVerifiedDetailsToDynamicsFields — Cedric Coupland pattern (ph
     });
     expect(patch.address1_postalcode).toBe("PO12 2NG");
     expect(patch.address1_line1).toBeUndefined();
+  });
+});
+
+describe("new_propinfo_sameascontactaddress — the Dynamics Yes/No flag", () => {
+  it("sets true when the caller confirmed the addresses match", () => {
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails: {
+        new_propinfo_street2: "12 High Street",
+        new_propinfo_postalcode: "PO12 2NG",
+      },
+      dynVars: { contact_same_as_property: "true" },
+    });
+    // Boolean attribute in Dynamics — true/false over the Web API, not 1/0.
+    expect(patch.new_propinfo_sameascontactaddress).toBe(true);
+  });
+
+  it("sets false when the caller gave a different contact address", () => {
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails: {
+        new_propinfo_street2: "12 High Street",
+        new_propinfo_postalcode: "PO12 2NG",
+        address1_postalcode: "NG10 1BS",
+      },
+      dynVars: { contact_same_as_property: "false" },
+    });
+    expect(patch.new_propinfo_sameascontactaddress).toBe(false);
+  });
+
+  it("leaves the flag untouched when the call never established it", () => {
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails: { new_propinfo_street2: "12 High Street" },
+    });
+    // Writing a blanket false on an unknown answer would overwrite whatever a
+    // human had already set in the CRM.
+    expect(patch.new_propinfo_sameascontactaddress).toBeUndefined();
+  });
+
+  it("survives the Dynamics field filter as a real boolean", () => {
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails: { new_propinfo_street2: "12 High Street" },
+      dynVars: { contact_same_as_property: "true" },
+    });
+    const cleaned = filterValidDynamicsFields(patch);
+    expect(cleaned.new_propinfo_sameascontactaddress).toBe(true);
+  });
+});
+
+describe("contact city and county placement", () => {
+  it("mirrors property city into address1_city", () => {
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails: {
+        new_propinfo_street2: "two Kingsville Street",
+        new_propinfo_city: "Coventry",
+        new_propinfo_postalcode: "CV6 4QQ",
+      },
+      dynVars: { contact_same_as_property: "true" },
+    });
+    expect(patch.address1_city).toBe("Coventry");
+  });
+
+  it("mirrors property county into address1_county, the field live records actually use", () => {
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails: {
+        new_propinfo_street2: "two Kingsville Street",
+        new_propinfo_city: "Coventry",
+        new_propinfo_stateorprovince: "West Midlands",
+        new_propinfo_postalcode: "CV6 4QQ",
+      },
+      dynVars: { contact_same_as_property: "true" },
+    });
+    expect(patch.address1_county).toBe("West Midlands");
+    // Kept as well, so nothing that reads the old field regresses.
+    expect(patch.address1_stateorprovince).toBe("West Midlands");
+  });
+
+  it("does not write city or county when the addresses are not the same", () => {
+    const patch = mapWbahVerifiedDetailsToDynamicsFields({
+      verifiedDetails: {
+        new_propinfo_city: "Coventry",
+        new_propinfo_stateorprovince: "West Midlands",
+        address1_postalcode: "NG10 1BS",
+      },
+      dynVars: { contact_same_as_property: "false" },
+    });
+    expect(patch.address1_city).toBeUndefined();
+    expect(patch.address1_county).toBeUndefined();
   });
 });

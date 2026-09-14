@@ -24,7 +24,7 @@
 import {
   compileFlow,
   interpolate,
-  interpolateDeclaredSpeech,
+  interpolateStaticSpeech,
   interpolateForSpeech,
   isBuilderDirection,
   nodeClassifierModel,
@@ -264,6 +264,22 @@ export class ConversationVm {
     return { ...this.variables };
   }
 
+  /**
+   * Merge variables in from outside the graph — an API/workflow result, a
+   * contact record loaded mid-call, anything the host resolves asynchronously.
+   *
+   * Until now variables could only be written by the VM's own nodes (extract,
+   * tool output, collected answers), so a host holding, say, freshly fetched
+   * appointment slots had no way to make them available to `{{available_slots}}`.
+   *
+   * Precedence is last-write-wins against a single flat store, matching how
+   * every other writer behaves: the newest value for a name is the one the next
+   * node resolves against. Nodes are never rewritten — only this store is.
+   */
+  setVariables(values: Record<string, VariableValue>): void {
+    this.rememberVariables(values);
+  }
+
   getTranscript(): LlmMessage[] {
     return [...this.history];
   }
@@ -361,16 +377,9 @@ export class ConversationVm {
     if (!dest?.instruction) return null;
     const mode = responseModeFromInstruction(dest.instruction.type);
     if (mode === "llm") return null;
-    if (mode === "hybrid") {
-      const prefix = interpolateDeclaredSpeech(
-        String(dest.instruction.prefix ?? ""),
-        this.variables,
-      );
-      return prefix || null;
-    }
     const raw = String(dest.instruction.text ?? "").trim();
     if (!raw || /^NO_RESPONSE_NEEDED$/i.test(raw)) return null;
-    return interpolateDeclaredSpeech(raw, this.variables) || null;
+    return interpolateStaticSpeech(raw, this.variables) || null;
   }
 
   private consumeSkipSpeech(nodeId: string): boolean {
@@ -387,15 +396,8 @@ export class ConversationVm {
     const mode = responseModeFromInstruction(dest.instruction.type);
     if (mode === "static") {
       if (!raw || /^NO_RESPONSE_NEEDED$/i.test(raw)) return null;
-      const spoken = interpolateDeclaredSpeech(raw, this.variables);
+      const spoken = interpolateStaticSpeech(raw, this.variables);
       return spoken ? { kind: "static", text: spoken } : null;
-    }
-    if (mode === "hybrid") {
-      const prefix = interpolateDeclaredSpeech(
-        String(dest.instruction.prefix ?? ""),
-        this.variables,
-      );
-      if (prefix) return { kind: "static", text: prefix };
     }
     if (!raw || /^NO_RESPONSE_NEEDED$/i.test(raw)) return null;
 
@@ -1299,16 +1301,12 @@ export class ConversationVm {
 
     if (mode === "static") {
       if (!raw) return null;
-      const spoken = interpolateDeclaredSpeech(raw, this.variables);
+      const spoken = interpolateStaticSpeech(raw, this.variables);
       if (!spoken) return null;
       return { kind: "static", text: spoken };
     }
 
-    const prefix =
-      mode === "hybrid" ? interpolateDeclaredSpeech(prefixRaw, this.variables) : "";
-    if (mode === "hybrid" && !raw) {
-      return prefix ? { kind: "static", text: prefix } : null;
-    }
+    const prefix = "";
     if (!raw) return null;
 
     const interpolated = interpolateForSpeech(raw, this.variables);
@@ -1389,7 +1387,7 @@ export class ConversationVm {
     if (notes) {
       system.push(`Notes (do not read aloud):\n${notes}`);
     }
-    const spokenPrefix = interpolateDeclaredSpeech(
+    const spokenPrefix = interpolateStaticSpeech(
       String(node.instruction?.prefix ?? ""),
       this.variables,
     );

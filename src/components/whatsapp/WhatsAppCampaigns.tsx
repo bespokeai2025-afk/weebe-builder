@@ -20,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -80,8 +81,8 @@ import {
   csvScanRowCount,
   loadCsvSkipForFile,
   mapCsvRowsToLeads,
-  parseCsvText,
-  readCsvFileHead,
+  readSpreadsheetFileHead,
+  SPREADSHEET_ACCEPT,
   saveCsvSkipForFile,
   type CsvColumnMapping,
 } from "@/lib/whatsapp/csv-leads.shared";
@@ -527,8 +528,7 @@ export function WhatsAppCampaigns() {
     const skip = Math.max(0, csvSkipCount);
     try {
       const scanRows = csvScanRowCount(limit, skip);
-      const { text, truncated } = await readCsvFileHead(file, scanRows);
-      const { headers, rows } = parseCsvText(text);
+      const { headers, rows, truncated } = await readSpreadsheetFileHead(file, scanRows);
       const mapping = autoDetectCsvColumnMapping(headers);
       setCsvHeaders(headers);
       setCsvRows(rows);
@@ -557,7 +557,7 @@ export function WhatsAppCampaigns() {
         });
       }
     } catch (err) {
-      toast.error("Could not parse CSV", { description: (err as Error).message });
+      toast.error("Could not read that file", { description: (err as Error).message });
       resetCsvState();
     } finally {
       setCsvParsing(false);
@@ -1245,7 +1245,7 @@ export function WhatsAppCampaigns() {
                       className="h-7 text-xs"
                       onClick={() => setForm({ ...form, audienceMode: "csv" })}
                     >
-                      <Upload className="h-3 w-3 mr-1" /> New CSV
+                      <Upload className="h-3 w-3 mr-1" /> New file
                     </Button>
                     <Button
                       type="button"
@@ -1329,28 +1329,23 @@ export function WhatsAppCampaigns() {
                               ? ` of ${contactsSummary?.not_messaged} unsent`
                               : ""}
                           </Label>
-                          <Input
-                            type="number"
+                          <NumberInput
                             min={1}
                             max={5000}
+                            fallback={50}
                             value={csvImportLimit}
-                            onChange={(e) =>
-                              setCsvImportLimit(Math.max(1, parseInt(e.target.value, 10) || 50))
-                            }
+                            onValueChange={setCsvImportLimit}
                             className="mt-1 h-8 text-xs"
                           />
                         </div>
                         {!skipAlreadySent && (
                           <div>
                             <Label className="text-xs">Skip first</Label>
-                            <Input
-                              type="number"
+                            <NumberInput
                               min={0}
                               max={500000}
                               value={csvSkipCount}
-                              onChange={(e) =>
-                                setCsvSkipCount(Math.max(0, parseInt(e.target.value, 10) || 0))
-                              }
+                              onValueChange={setCsvSkipCount}
                               className="mt-1 h-8 text-xs"
                             />
                           </div>
@@ -1373,7 +1368,7 @@ export function WhatsAppCampaigns() {
                       </Button>
                       {waContacts.length === 0 && (
                         <p className="text-[10px] text-amber-400">
-                          Import contacts first, or switch to New CSV.
+                          Import contacts first, or switch to New file.
                         </p>
                       )}
                     </div>
@@ -1382,27 +1377,22 @@ export function WhatsAppCampaigns() {
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <Label className="text-xs">This batch</Label>
-                          <Input
-                            type="number"
+                          <NumberInput
                             min={1}
                             max={5000}
+                            fallback={50}
                             value={csvImportLimit}
-                            onChange={(e) =>
-                              setCsvImportLimit(Math.max(1, parseInt(e.target.value, 10) || 50))
-                            }
+                            onValueChange={setCsvImportLimit}
                             className="mt-1 h-8 text-xs"
                           />
                         </div>
                         <div>
                           <Label className="text-xs">Skip already used rows</Label>
-                          <Input
-                            type="number"
+                          <NumberInput
                             min={0}
                             max={500000}
                             value={csvSkipCount}
-                            onChange={(e) =>
-                              setCsvSkipCount(Math.max(0, parseInt(e.target.value, 10) || 0))
-                            }
+                            onValueChange={setCsvSkipCount}
                             className="mt-1 h-8 text-xs"
                           />
                         </div>
@@ -1422,7 +1412,7 @@ export function WhatsAppCampaigns() {
                       <input
                         ref={csvInputRef}
                         type="file"
-                        accept=".csv,text/csv"
+                        accept={SPREADSHEET_ACCEPT}
                         className="hidden"
                         onChange={handleCsvFile}
                       />
@@ -1441,12 +1431,12 @@ export function WhatsAppCampaigns() {
                             <FileSpreadsheet className="h-3.5 w-3.5" />
                           )}
                           {csvParsing
-                            ? "Parsing CSV…"
+                            ? "Parsing…"
                             : csvImporting
                               ? "Importing…"
                               : csvFileName
-                                ? "Replace CSV"
-                                : "Upload CSV"}
+                                ? "Replace file"
+                                : "Upload CSV or Excel"}
                         </Button>
                         {csvFileName && (
                           <Button

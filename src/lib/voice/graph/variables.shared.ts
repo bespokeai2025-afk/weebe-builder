@@ -23,20 +23,96 @@ export function referencedVariableNames(text: string): string[] {
   return [...names];
 }
 
+/**
+ * Render a non-scalar variable value.
+ *
+ * `{{available_slots}}` holding an array of objects used to stringify to
+ * "[object Object],[object Object]" — and on a static node that went straight
+ * to TTS and was read aloud. Arrays and objects are legitimate variable values
+ * (tool output, workflow results), so they need a defined rendering:
+ *
+ *   speech  — human-readable, for anything heading to TTS
+ *   prompt  — compact JSON, so the LLM keeps the full structure it can reason
+ *             over (an appointment list is far more useful to it as data)
+ *
+ * Both paths share one resolver; only the rendering differs.
+ */
+export type VariableFormat = "speech" | "prompt";
+
+function renderScalar(value: unknown): string | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return undefined;
+}
+
+function renderForSpeech(value: unknown): string | undefined {
+  const scalar = renderScalar(value);
+  if (scalar !== undefined) return scalar;
+
+  if (Array.isArray(value)) {
+    const parts = value
+      .map((item) => {
+        const s = renderScalar(item);
+        if (s !== undefined) return s;
+        if (item && typeof item === "object") {
+          // Speak the object's own scalar values, not its shape.
+          const inner = Object.values(item as Record<string, unknown>)
+            .map(renderScalar)
+            .filter((v): v is string => v !== undefined);
+          return inner.length ? inner.join(" ") : undefined;
+        }
+        return undefined;
+      })
+      .filter((v): v is string => v !== undefined && v !== "");
+    if (parts.length === 0) return undefined;
+    if (parts.length === 1) return parts[0];
+    return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+  }
+
+  if (value && typeof value === "object") {
+    const parts = Object.values(value as Record<string, unknown>)
+      .map(renderScalar)
+      .filter((v): v is string => v !== undefined && v !== "");
+    return parts.length ? parts.join(" ") : undefined;
+  }
+  return undefined;
+}
+
+function renderForPrompt(value: unknown): string | undefined {
+  const scalar = renderScalar(value);
+  if (scalar !== undefined) return scalar;
+  if (value && typeof value === "object") {
+    try {
+      const json = JSON.stringify(value);
+      return json && json !== "{}" && json !== "[]" ? json : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
+export function renderVariableValue(value: unknown, format: VariableFormat): string | undefined {
+  return format === "prompt" ? renderForPrompt(value) : renderForSpeech(value);
+}
+
 export function lookupRuntimeValue(
   runtime: Record<string, VariableValue>,
   name: string,
+  format: VariableFormat = "speech",
 ): string | undefined {
   if (Object.prototype.hasOwnProperty.call(runtime, name)) {
-    const value = runtime[name];
-    if (value !== undefined && value !== null && value !== "") return String(value);
+    const rendered = renderVariableValue(runtime[name], format);
+    if (rendered !== undefined) return rendered;
   }
   if (name === "caller_number") {
     const alias = runtime.user_number ?? runtime.from_number ?? runtime.customer_phone;
-    if (alias !== undefined && alias !== null && alias !== "") return String(alias);
+    const rendered = renderVariableValue(alias, format);
+    if (rendered !== undefined) return rendered;
   }
   if (name.includes(".")) {
-    const nested = lookupNested(runtime, name);
+    const nested = lookupNested(runtime, name, format);
     if (nested !== undefined) return nested;
   }
   return systemVariable(name);
@@ -82,12 +158,17 @@ export function parseToolOutputVariables(
 export function resolveVariables(
   text: string,
   runtime: Record<string, VariableValue>,
-  opts: { stripUnresolved?: boolean; titleCaseNames?: boolean } = {},
+  opts: {
+    stripUnresolved?: boolean;
+    titleCaseNames?: boolean;
+    /** How non-scalar values render. Speech joins readably; prompt keeps JSON. */
+    format?: VariableFormat;
+  } = {},
 ): string {
   if (!text || !text.includes("{{")) return text;
   const re = new RegExp(PLACEHOLDER.source, "g");
   return text.replace(re, (match, name: string) => {
-    const raw = lookupRuntimeValue(runtime, name);
+    const raw = lookupRuntimeValue(runtime, name, opts.format ?? "speech");
     if (raw === undefined) return opts.stripUnresolved ? "" : match;
     if (
       opts.titleCaseNames &&
@@ -181,7 +262,11 @@ function bracketAliasValue(
   return undefined;
 }
 
-function lookupNested(runtime: Record<string, VariableValue>, path: string): string | undefined {
+function lookupNested(
+  runtime: Record<string, VariableValue>,
+  path: string,
+  format: VariableFormat = "speech",
+): string | undefined {
   const parts = path.split(".");
   let current: unknown = runtime;
   for (const part of parts) {
@@ -189,11 +274,7 @@ function lookupNested(runtime: Record<string, VariableValue>, path: string): str
     if (typeof current !== "object") return undefined;
     current = (current as Record<string, unknown>)[part];
   }
-  if (current === undefined || current === null || current === "") return undefined;
-  if (typeof current === "string" || typeof current === "number" || typeof current === "boolean") {
-    return String(current);
-  }
-  return undefined;
+  return renderVariableValue(current, format);
 }
 
 function systemVariable(name: string): string | undefined {

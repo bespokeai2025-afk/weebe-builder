@@ -731,6 +731,11 @@ export class CascadeSession {
         console.info(
           `${this.log} [FUNCTION_RESULT] ${toolId} ${ok ? "ok" : "fail"} ${String(result).slice(0, 160)}`,
         );
+        this.lifecycleRef?.recordToolCall({
+          name: toolId,
+          type: "custom",
+          success: ok,
+        });
         this.transport.onToolCall?.(toolId, result, ok);
       },
       onTransfer: async (destination, transferType) => {

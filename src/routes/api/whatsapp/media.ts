@@ -102,6 +102,12 @@ export const Route = createFileRoute("/api/whatsapp/media")({
         if (conn?.api_key && target.host.toLowerCase() === watiHost.toLowerCase()) {
           headers.Authorization = `Bearer ${conn.api_key.replace(/^Bearer\s+/i, "")}`;
         }
+        // Audio and video elements request byte ranges to seek, and Safari
+        // refuses to play media served without range support at all. Forward
+        // the caller's Range upstream so voice notes are playable, not just
+        // downloadable.
+        const range = request.headers.get("range");
+        if (range) headers.Range = range;
 
         let upstream: Response;
         try {
@@ -117,8 +123,15 @@ export const Route = createFileRoute("/api/whatsapp/media")({
         }
 
         const filename = safeFilename(message.media_filename);
+        const passthrough: Record<string, string> = {};
+        for (const header of ["content-range", "content-length", "accept-ranges"]) {
+          const value = upstream.headers.get(header);
+          if (value) passthrough[header] = value;
+        }
         return new Response(upstream.body, {
-          status: 200,
+          // Mirror 206 so the browser knows partial content came back; a range
+          // request answered with a flat 200 leaves the player unable to seek.
+          status: upstream.status === 206 ? 206 : 200,
           headers: {
             "Content-Type":
               upstream.headers.get("content-type") ??
@@ -126,6 +139,8 @@ export const Route = createFileRoute("/api/whatsapp/media")({
               "application/octet-stream",
             "Cache-Control": "private, max-age=300",
             "X-Content-Type-Options": "nosniff",
+            "Accept-Ranges": "bytes",
+            ...passthrough,
             ...(filename ? { "Content-Disposition": `inline; filename="${filename}"` } : {}),
           },
         });

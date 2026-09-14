@@ -16,11 +16,12 @@ describe("declared speech mode", () => {
   it("maps builder instruction types without reading the text", () => {
     expect(responseModeFromInstruction("static_text")).toBe("static");
     expect(responseModeFromInstruction("template")).toBe("static");
-    expect(responseModeFromInstruction("hybrid")).toBe("hybrid");
+    // Legacy hybrid data normalizes to prompt — there are only two modes now.
+    expect(responseModeFromInstruction("hybrid")).toBe("llm");
     expect(responseModeFromInstruction("prompt")).toBe("llm");
     expect(responseModeFromInstruction(undefined)).toBe("llm");
     expect(instructionTypeFromMode("static")).toBe("static_text");
-    expect(instructionTypeFromMode("hybrid")).toBe("hybrid");
+    expect(instructionTypeFromMode("llm")).toBe("prompt");
     expect(retellInstructionType("template")).toBe("static_text");
     expect(retellInstructionType("hybrid")).toBe("prompt");
     expect(retellInstructionType("prompt")).toBe("prompt");
@@ -96,7 +97,7 @@ describe("declared speech mode", () => {
     expect(compiled.nodes.get("welcome")?.instruction?.type).toBe("static_text");
   });
 
-  it("compiles hybrid prefix + prompt", () => {
+  it("folds a legacy hybrid node into a single prompt, keeping the exact prefix", () => {
     const compiled = compileFlow({
       start_node_id: "opts",
       nodes: [
@@ -111,7 +112,11 @@ describe("declared speech mode", () => {
         },
       ],
     });
-    expect(compiled.nodes.get("opts")?.instruction?.type).toBe("hybrid");
-    expect(compiled.nodes.get("opts")?.instruction?.prefix).toBe("Thanks, {{customer_name}}.");
+    const instruction = compiled.nodes.get("opts")?.instruction;
+    // One runtime path: prompt. The prefix is folded into the prompt text so
+    // the words the author expected spoken verbatim are still said first.
+    expect(instruction?.type).toBe("prompt");
+    expect(instruction?.text).toContain("Thanks, {{customer_name}}.");
+    expect(instruction?.text).toContain("Explain the available appointment options.");
   });
 });

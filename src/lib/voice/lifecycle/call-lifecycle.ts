@@ -18,6 +18,7 @@ import type {
   DisconnectionReason,
   RetellCallAnalysis,
   RetellShapedCall,
+  RetellToolCall,
   TranscriptTurn,
   VoiceLifecycleEvent,
   VoiceWebhookPayload,
@@ -74,6 +75,9 @@ export class NativeCallLifecycle {
   private lastTranscriptText = "";
   private transferTarget: string | null = null;
   private finished = false;
+  /** Variables captured in-call, tracked apart from the setup ones. */
+  private readonly collectedVariables: Record<string, string> = {};
+  private readonly toolCalls: RetellToolCall[] = [];
 
   constructor(identity: NativeCallIdentity, deps: NativeCallLifecycleDeps = {}) {
     this.identity = identity;
@@ -163,6 +167,18 @@ export class NativeCallLifecycle {
       ...(this.identity.dynamicVariables ?? {}),
       ...values,
     };
+    // Also tracked separately so the webhook can report setup vs in-call
+    // variables the way Retell does, instead of one indistinguishable bag.
+    Object.assign(this.collectedVariables, values);
+  }
+
+  /** Record a tool invocation for the call's tool-call history. */
+  recordToolCall(entry: RetellToolCall): void {
+    this.toolCalls.push({
+      ...entry,
+      start_time_sec:
+        entry.start_time_sec ?? Number(((this.now() - this.startedAt) / 1000).toFixed(3)),
+    });
   }
 
   /**
@@ -289,6 +305,12 @@ export class NativeCallLifecycle {
 
     if (this.identity.dynamicVariables) {
       call.retell_llm_dynamic_variables = this.identity.dynamicVariables;
+    }
+    if (Object.keys(this.collectedVariables).length > 0) {
+      call.collected_dynamic_variables = { ...this.collectedVariables };
+    }
+    if (this.toolCalls.length > 0) {
+      call.tool_calls = [...this.toolCalls];
     }
     if (this.endedAt) {
       call.end_timestamp = this.endedAt;

@@ -328,22 +328,48 @@ export function WhatsAppInbox() {
     };
   }, [active?.phone, active?.lastInboundAt, syncThreadFn, invalidateThreads]);
 
+  /**
+   * Single entry point for sending, used by both the button and the Enter key.
+   *
+   * The button was disabled while a send was in flight but the Enter handler
+   * was not, and the draft was only cleared in onSuccess — so holding Enter
+   * during the round-trip fired a fresh WATI call on every keypress and the
+   * customer received the same message several times. The ref guard is
+   * deliberately not `send.isPending`: that is React state, and two keydowns
+   * in the same tick would both read it as false before a re-render.
+   */
+  const sendingRef = useRef(false);
   const send = useMutation({
-    mutationFn: () =>
+    mutationFn: (body: string) =>
       sendFn({
         data: {
           to: active!.phone,
-          body: reply,
+          body,
           contactName: active!.name ?? undefined,
         },
       }),
     onSuccess: () => {
-      setReply("");
       invalidateThreads();
       toast.success("Message sent");
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error, body) => {
+      // Put the draft back so the text is not lost on a failed send.
+      setReply((current) => (current.trim() ? current : body));
+      toast.error(e.message);
+    },
+    onSettled: () => {
+      sendingRef.current = false;
+    },
   });
+
+  const submitReply = () => {
+    if (sendingRef.current || send.isPending) return;
+    const body = reply.trim();
+    if (!body || !active?.phone) return;
+    sendingRef.current = true;
+    setReply("");
+    send.mutate(body);
+  };
 
   const updateConversation = useMutation({
     mutationFn: (patch: {
@@ -922,7 +948,13 @@ export function WhatsAppInbox() {
               <div className="flex flex-col gap-2">
                 {msgs.map((m) => {
                   const src = mediaSrc(m);
-                  const isImage = (m.media_mime_type ?? "").startsWith("image/");
+                  const mime = m.media_mime_type ?? "";
+                  const isImage = mime.startsWith("image/");
+                  // WhatsApp voice notes arrive as audio/ogg (opus). Without a
+                  // player they rendered as a "Download attachment" link, so a
+                  // voice note could not be listened to in the inbox at all.
+                  const isAudio = mime.startsWith("audio/");
+                  const isVideo = mime.startsWith("video/");
                   return (
                     <div
                       key={m.id}
@@ -952,7 +984,42 @@ export function WhatsAppInbox() {
                           />
                         </a>
                       )}
-                      {src && !isImage && (
+                      {src && isAudio && (
+                        <div className="mb-1 flex flex-col gap-1">
+                          <audio
+                            controls
+                            preload="metadata"
+                            src={src}
+                            className="w-60 max-w-full"
+                          >
+                            <a href={src} target="_blank" rel="noreferrer">
+                              Download voice note
+                            </a>
+                          </audio>
+                          <a
+                            href={src}
+                            target="_blank"
+                            rel="noreferrer"
+                            className={cn(
+                              "text-[10px] underline underline-offset-2",
+                              m.direction === "outbound"
+                                ? "text-primary-foreground/70"
+                                : "text-muted-foreground",
+                            )}
+                          >
+                            {m.media_filename ?? "Download"}
+                          </a>
+                        </div>
+                      )}
+                      {src && isVideo && (
+                        <video
+                          controls
+                          preload="metadata"
+                          src={src}
+                          className="mb-1 max-h-64 w-full rounded-lg"
+                        />
+                      )}
+                      {src && !isImage && !isAudio && !isVideo && (
                         <a
                           href={src}
                           target="_blank"
@@ -969,7 +1036,13 @@ export function WhatsAppInbox() {
                           Attachment
                         </p>
                       )}
-                      <p className="whitespace-pre-wrap break-words">{m.body ?? "(media)"}</p>
+                      {/* A player or thumbnail already shows what this is —
+                          only fall back to a label when nothing rendered. */}
+                      {(m.body ?? "").trim() ? (
+                        <p className="whitespace-pre-wrap break-words">{m.body}</p>
+                      ) : src ? null : (
+                        <p className="whitespace-pre-wrap break-words opacity-70">(media)</p>
+                      )}
                       <p
                         className={cn(
                           "mt-1 text-[9px]",
@@ -1001,14 +1074,14 @@ export function WhatsAppInbox() {
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && !e.shiftKey) {
                           e.preventDefault();
-                          if (reply.trim()) send.mutate();
+                          submitReply();
                         }
                       }}
                     />
                     <Button
                       size="icon"
                       disabled={!reply.trim() || send.isPending}
-                      onClick={() => send.mutate()}
+                      onClick={submitReply}
                       aria-label={send.isPending ? "Sending" : "Send message"}
                     >
                       <Send className="h-4 w-4" />
@@ -1032,14 +1105,14 @@ export function WhatsAppInbox() {
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && !e.shiftKey) {
                         e.preventDefault();
-                        if (reply.trim()) send.mutate();
+                        submitReply();
                       }
                     }}
                   />
                   <Button
                     size="icon"
                     disabled={!reply.trim() || send.isPending}
-                    onClick={() => send.mutate()}
+                    onClick={submitReply}
                   >
                     <Send className="h-4 w-4" />
                   </Button>

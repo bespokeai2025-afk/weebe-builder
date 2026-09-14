@@ -102,18 +102,13 @@ export function InstructionTypeTabs({
   const tabs = [
     {
       id: "static_text" as const,
-      label: compact ? "Exact" : "Exact",
-      hint: "Spoken word-for-word. No LLM.",
+      label: compact ? "Static" : "Static Sentence",
+      hint: "Spoken word-for-word after variables resolve. No LLM.",
     },
     {
       id: "prompt" as const,
-      label: compact ? "AI" : "AI Generated",
+      label: "Prompt",
       hint: "LLM writes the line from your instruction.",
-    },
-    {
-      id: "hybrid" as const,
-      label: compact ? "Hybrid" : "Hybrid",
-      hint: "Exact prefix, then AI.",
     },
   ];
   return (
@@ -122,7 +117,7 @@ export function InstructionTypeTabs({
         compact ? "rounded-lg border bg-muted/40 p-1" : "rounded-lg border bg-muted/30 p-1"
       }
     >
-      <div className="grid grid-cols-3 gap-1">
+      <div className="grid grid-cols-2 gap-1">
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -160,12 +155,9 @@ function patchSpeechMode(
   );
   const patch: Partial<FlowNodeData> = { instructionType: next };
   const spoken = d.kind === "ending" ? d.endingPrompt : d.dialogue;
-  if (next === "hybrid" && prev === "static_text" && !d.speechPrefix && spoken) {
-    patch.speechPrefix = spoken;
-    if (d.kind === "ending") patch.endingPrompt = "";
-    else patch.dialogue = "";
-  }
-  if (next === "static_text" && prev === "hybrid" && d.speechPrefix && !spoken) {
+  // Legacy hybrid nodes kept their exact words in speechPrefix. Switching such
+  // a node to Exact should recover those words rather than leave the box empty.
+  if (next === "static_text" && d.speechPrefix && !spoken) {
     if (d.kind === "ending") patch.endingPrompt = d.speechPrefix;
     else patch.dialogue = d.speechPrefix;
     patch.speechPrefix = "";
@@ -245,14 +237,14 @@ export function NodeEditorDialog() {
   );
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] pb-2 mb-2">
-        <div className="min-w-0">
-          <p className="text-[11px] font-semibold tracking-tight truncate">
+    <div className="webee-node-settings flex h-full min-h-0 flex-col">
+      <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] pb-3 mb-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <p className="truncate text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             {d.kind.replace(/_/g, " ")}
           </p>
           {d.isStart && (
-            <span className="text-[10px] rounded bg-violet-100 text-violet-700 px-1.5 py-0.5">
+            <span className="shrink-0 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700">
               Start
             </span>
           )}
@@ -267,7 +259,7 @@ export function NodeEditorDialog() {
         </button>
       </div>
 
-      <div className="space-y-4 py-1 flex-1 overflow-y-auto pr-0.5">
+      <div className="flex-1 space-y-5 overflow-y-auto py-1 pr-1">
         <div className="flex items-end gap-2">
           <div className="flex-1">
             <Label>Name</Label>
@@ -345,28 +337,11 @@ export function NodeEditorDialog() {
           d.kind === "wait") && (
           <>
             <div>
-              {speechMode === "hybrid" && (
-                <div className="mb-3">
-                  <Label>Exact prefix</Label>
-                  <p className="mb-1 text-[11px] text-muted-foreground">
-                    Spoken first, word-for-word. Variables like {"{{customer_name}}"} are filled
-                    before TTS. Not sent to the LLM.
-                  </p>
-                  <VariableTextarea
-                    rows={2}
-                    value={d.speechPrefix ?? ""}
-                    onValueChange={(v) => updateNode(node.id, { speechPrefix: v })}
-                    placeholder="Thanks, {{customer_name}}."
-                  />
-                </div>
-              )}
               <div className="flex items-center justify-between">
                 <Label>
                   {speechMode === "static_text"
                     ? "Exact text"
-                    : speechMode === "hybrid"
-                      ? "AI instruction"
-                      : "Prompt"}
+                    : "Prompt"}
                 </Label>
                 {speechMode !== "static_text" && !d.dialogue && (
                   <Button
@@ -385,7 +360,7 @@ export function NodeEditorDialog() {
                 )}
               </div>
               <VariableTextarea
-                rows={speechMode === "hybrid" ? 4 : 6}
+                rows={6}
                 value={d.dialogue}
                 onValueChange={(v) => updateNode(node.id, { dialogue: v })}
                 placeholder={
@@ -393,9 +368,7 @@ export function NodeEditorDialog() {
                     ? "Optional line to say while waiting, or leave blank"
                     : speechMode === "static_text"
                       ? "Spoken exactly after {{variables}} are filled. Not sent to the LLM."
-                      : speechMode === "hybrid"
-                        ? "Tell the LLM what to say next. Keep it short."
-                        : DEFAULT_PROMPT_TEMPLATE(d.label || "this step")
+                      : DEFAULT_PROMPT_TEMPLATE(d.label || "this step")
                 }
               />
               {speechMode === "static_text" && (
@@ -1212,27 +1185,11 @@ export function NodeEditorDialog() {
 
         {d.kind === "ending" && (
           <div className="space-y-3">
-            {speechMode === "hybrid" && (
-              <div>
-                <Label>Exact prefix</Label>
-                <p className="mb-1 text-[11px] text-muted-foreground">
-                  Spoken first, word-for-word. Not sent to the LLM.
-                </p>
-                <VariableTextarea
-                  rows={2}
-                  value={d.speechPrefix ?? ""}
-                  onValueChange={(v) => updateNode(node.id, { speechPrefix: v })}
-                  placeholder="Thanks for calling."
-                />
-              </div>
-            )}
             <div>
               <Label>
                 {speechMode === "static_text"
                   ? "Exact text"
-                  : speechMode === "hybrid"
-                    ? "AI instruction"
-                    : "Ending prompt"}
+                  : "Ending prompt"}
               </Label>
               <VariableTextarea
                 rows={3}
@@ -1247,9 +1204,7 @@ export function NodeEditorDialog() {
               <p className="mt-1 text-[11px] text-muted-foreground">
                 {speechMode === "static_text"
                   ? "The agent reads this line verbatim before hanging up. Variables are filled first."
-                  : speechMode === "hybrid"
-                    ? "Prefix is spoken exactly, then the LLM generates the closing line."
-                    : "The LLM generates a closing line from this instruction."}
+                  : "The LLM generates a closing line from this instruction."}
               </p>
             </div>
           </div>

@@ -84,7 +84,10 @@ export const listTestCalls = createServerFn({ method: "POST" })
     const sb = supabase as any;
     const { data: rows, error } = await sb
       .from("calls")
-      .select("id, agent_id, agent_name, call_status, call_type, duration_seconds, started_at, ended_at, recording_url, transcript, call_summary, retell_call_id, from_number, to_number, sentiment, disconnection_reason, cost_cents")
+      // `*` rather than an explicit column list so this query keeps working
+      // whether or not the call-variables migration has been applied yet —
+      // naming a not-yet-created column would hard-fail the whole page.
+      .select("*")
       .eq("workspace_id", workspaceId)
       .eq("to_number", "unknown")
       .order("started_at", { ascending: false, nullsFirst: false })
@@ -108,6 +111,16 @@ export const listTestCalls = createServerFn({ method: "POST" })
       sentiment: string | null;
       disconnection_reason: string | null;
       cost_cents: number | null;
+      // Null until the call-variables migration is applied.
+      collected_variables?: Record<string, string | number | boolean | null> | null;
+      tool_calls?: Array<{
+        name?: string;
+        type?: string;
+        success?: boolean;
+        latency_ms?: number;
+        tool_call_id?: string;
+        start_time_sec?: number;
+      }> | null;
     }>;
     });
   });

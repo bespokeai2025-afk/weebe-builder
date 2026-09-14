@@ -19,7 +19,7 @@ import type {
 } from "./types";
 import { parseEquationGroup, serializeEquationPrompt } from "./equations.shared";
 import { referencedVariableNames, resolveVariables, fillBracketPlaceholders } from "./variables.shared";
-import { normalizeBuilderSpeechMode } from "./speech-mode.shared";
+import { normalizeBuilderSpeechMode, retellHybridPrompt } from "./speech-mode.shared";
 
 const KNOWN_TYPES = new Set<FlowNodeType>([
   "conversation",
@@ -69,25 +69,29 @@ function normalizeInstruction(
   const responseMode = str(candidate.response_mode).trim().toLowerCase();
   if (!instr && !responseMode) return undefined;
   const rawType = str(instr?.type).trim();
-  const normalized = normalizeBuilderSpeechMode(
+  const declared =
     rawType ||
-      (responseMode === "static"
+    (responseMode === "static"
+      ? "static_text"
+      : responseMode === "template"
         ? "static_text"
         : responseMode === "hybrid"
           ? "hybrid"
-          : responseMode === "template"
-            ? "static_text"
-            : "prompt"),
-  );
-  const type: "prompt" | "static_text" | "hybrid" =
-    normalized === "static_text" ? "static_text" : normalized === "hybrid" ? "hybrid" : "prompt";
+          : "prompt");
+  const type: "prompt" | "static_text" = normalizeBuilderSpeechMode(declared);
   const notes = str(instr?.notes).trim();
   const prefix = str(instr?.prefix).trim();
+  // Legacy hybrid nodes carried a spoken prefix plus a prompt. There is no
+  // third runtime path any more, so fold the prefix into the prompt rather
+  // than dropping the words the author expected to be said first.
+  const text =
+    declared === "hybrid" && prefix
+      ? retellHybridPrompt(prefix, str(instr?.text))
+      : str(instr?.text);
   return {
     type,
-    text: str(instr?.text),
+    text,
     ...(notes ? { notes } : {}),
-    ...(prefix ? { prefix } : {}),
   };
 }
 
@@ -358,8 +362,16 @@ function needsStrongClassifier(node: FlowNode, edges: FlowEdge[]): boolean {
  * bug an operator can fix, whereas silently blanking it produces a sentence that
  * reads fine but has lost its meaning.
  */
+/**
+ * Interpolation for text heading to the LLM (prompts, turn rules).
+ *
+ * Uses the prompt rendering so a structured variable — an array of appointment
+ * slots, say — reaches the model as JSON it can reason over, rather than the
+ * flattened phrase TTS needs. Speech paths use interpolateForSpeech /
+ * interpolateStaticSpeech instead.
+ */
 export function interpolate(text: string, variables: Record<string, VariableValue>): string {
-  return resolveVariables(text, variables);
+  return resolveVariables(text, variables, { format: "prompt" });
 }
 
 /**
@@ -376,6 +388,32 @@ export function interpolateDeclaredSpeech(
     variables,
   );
   return out.replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/**
+ * Static-sentence text, ready for TTS.
+ *
+ * A declared static node is spoken verbatim — that is the whole point of the
+ * mode — but authors routinely mix builder directions into the same box
+ * ("don't read it back to client!", "if variables are not detected please ask
+ * for them"). Interpolating raw meant those were read aloud to the caller,
+ * and an unresolved `{{var}}` left mid-sentence fragments ("I have your
+ * contact address as"). The prompt path already strips both via
+ * `cleanupSpeechLines`; static mode skipped that hygiene entirely.
+ *
+ * Safety valve: if stripping would leave nothing to say, speak the
+ * interpolated original instead. A one-line static sentence that happens to
+ * start with "Always"/"Only" is then still spoken, and directions are only
+ * dropped when there is real content beside them.
+ */
+export function interpolateStaticSpeech(
+  text: string,
+  variables: Record<string, VariableValue>,
+): string {
+  if (!text) return text;
+  const cleaned = interpolateForSpeech(text, variables);
+  if (cleaned.trim()) return cleaned;
+  return interpolateDeclaredSpeech(text, variables);
 }
 
 /**
