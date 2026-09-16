@@ -26,6 +26,27 @@ export function looksLikeUkPostcode(raw: unknown): boolean {
   return UK_POSTCODE_CORE.test(text);
 }
 
+/** Dynamics attributes that hold a postcode and must never take a garbled one. */
+export const WBAH_POSTCODE_FIELDS: ReadonlySet<string> = new Set([
+  "new_propinfo_postalcode",
+  "address1_postalcode",
+]);
+
+/**
+ * True when `value` is headed for a postcode attribute but does not parse as a
+ * UK postcode.
+ *
+ * Dictated postcodes garble easily — "P R five six X Q" came back as "KR562"
+ * on call_737e10b06ced477f741a1a31ec5 and overwrote the correct "PR5 6XQ"
+ * that was already on the lead. A postcode is a lookup key for the rest of the
+ * business, so a value that cannot be one is worse than no value at all:
+ * writing it destroys good data and silently breaks every downstream match.
+ * Callers skip the field so the CRM keeps whatever it already holds.
+ */
+export function rejectsAsUkPostcode(key: string, value: unknown): boolean {
+  return WBAH_POSTCODE_FIELDS.has(key) && !looksLikeUkPostcode(value);
+}
+
 type AddressFieldSet = {
   line1: string;
   line2?: string;

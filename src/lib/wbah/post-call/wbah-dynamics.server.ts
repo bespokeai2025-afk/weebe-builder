@@ -106,6 +106,7 @@ async function patchDynamicsEntity(
   const path = kind === "lead" ? "leads" : "opportunities";
   const url = `${apiBase(cfg)}/${path}(${id})`;
   const remaining: Record<string, string | number | boolean | null> = { ...fields };
+  const dropped: string[] = [];
 
   for (let attempt = 0; attempt < 8; attempt++) {
     const res = await fetch(url, {
@@ -113,12 +114,26 @@ async function patchDynamicsEntity(
       headers,
       body: JSON.stringify(remaining),
     });
-    if (res.ok) return;
+    if (res.ok) {
+      // Every attempt after the first re-sends the whole payload, so a single
+      // rejected attribute costs another full write — and each one is visible
+      // downstream as the record changing again. Report what actually landed
+      // rather than letting a partial success read as a clean one.
+      console.log(`[Dynamics] ${kind} PATCH ok`, {
+        id,
+        attempts: attempt + 1,
+        wrote: Object.keys(remaining),
+        ...(dropped.length ? { droppedAttributes: dropped } : {}),
+      });
+      return;
+    }
     const body = await res.text().catch(() => "");
     if (isRecordAlreadyClosedError(body)) {
-      console.warn(`[Dynamics] skipping ${kind} PATCH — record is already closed`, {
+      // Not an error, but not a write either — these fields are simply gone.
+      // Without this at warn level a closed record looks identical to success.
+      console.warn(`[Dynamics] ${kind} PATCH DISCARDED — record is already closed`, {
         id,
-        fields: Object.keys(remaining),
+        discardedFields: Object.keys(remaining),
       });
       return;
     }
@@ -126,10 +141,29 @@ async function patchDynamicsEntity(
     if (!unknown || !(unknown in remaining)) {
       throw new Error(`Dynamics PATCH ${kind} failed (${res.status}): ${body.slice(0, 400)}`);
     }
-    console.warn(`[Dynamics] dropping unknown ${kind} attribute`, { id, field: unknown });
+    console.warn(`[Dynamics] dropping rejected ${kind} attribute and retrying`, {
+      id,
+      field: unknown,
+      value: remaining[unknown],
+      status: res.status,
+      reason: body.slice(0, 200),
+    });
+    dropped.push(unknown);
     delete remaining[unknown];
-    if (!Object.keys(remaining).length) return;
+    if (!Object.keys(remaining).length) {
+      console.warn(`[Dynamics] ${kind} PATCH wrote nothing — every attribute was rejected`, {
+        id,
+        droppedAttributes: dropped,
+      });
+      return;
+    }
   }
+
+  console.warn(`[Dynamics] ${kind} PATCH gave up after 8 attempts`, {
+    id,
+    unwritten: Object.keys(remaining),
+    droppedAttributes: dropped,
+  });
 }
 
 export async function patchWbahLead(

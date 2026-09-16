@@ -4,7 +4,7 @@
  */
 
 import { enrichWbahVerifiedDetailsFromSummaries, applyOwnerOccupiedCorrection, applyNotRentedCorrection } from "./wbah-crm-enrichment.shared";
-import { sanitizeWbahUkAddressFields } from "./wbah-uk-address.shared";
+import { rejectsAsUkPostcode, sanitizeWbahUkAddressFields } from "./wbah-uk-address.shared";
 import { normalizeWbahUkMobilePhone } from "./wbah-uk-phone.shared";
 import { pickWbahCrmEmail } from "./wbah-email.shared";
 import {
@@ -98,6 +98,18 @@ export function normalizeWbahAgenticCrmFields(
     if (AGENTIC_EXCLUDED_KEYS.has(key)) continue;
     if (!WBAH_AGENTIC_DYNAMICS_FIELDS.has(key)) continue;
     if (isEmptyValue(value)) continue;
+
+    // The Allen's path already screens postcodes before they reach Dynamics;
+    // this path wrote them straight through, which is how "KR562" replaced the
+    // correct "PR5 6XQ" on a lead that already had it.
+    if (rejectsAsUkPostcode(key, value)) {
+      console.log("[WBAH CONTACT-ADDRESS] postcode-shaped value rejected", {
+        path: "agentic",
+        field: key,
+        rawValue: String(value),
+      });
+      continue;
+    }
 
     if (key === "mobilephone" && typeof value === "string") {
       const normalized = normalizeWbahUkMobilePhone(value);

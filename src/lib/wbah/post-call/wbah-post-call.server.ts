@@ -286,6 +286,8 @@ async function runDynamicsAgenticPath(input: {
   custom: Record<string, unknown>;
   transcript?: string | null;
   dynVars?: Record<string, unknown>;
+  /** True when the Allen's path already ran and owns the narrative fields. */
+  narrativeOwnedByAllens?: boolean;
 }): Promise<void> {
   const structured = input.formatted.structuredJsonOutput;
   const patch = buildWbahAgenticCrmPayload(
@@ -294,6 +296,15 @@ async function runDynamicsAgenticPath(input: {
     input.transcript ?? null,
     input.dynVars,
   );
+  // Allen's logic decides whether the narrative should change at all (it can
+  // deliberately preserve an existing summary). When both paths run they each
+  // write their own wording of cos_call_summary, so the lead's summary visibly
+  // flipped back and forth on every call — ten times in 36 seconds on
+  // call_737e10b06ced477f741a1a31ec5, once per PATCH and retry. One owner.
+  if (input.narrativeOwnedByAllens) {
+    delete (patch as Record<string, unknown>).cos_call_summary;
+    delete (patch as Record<string, unknown>).cos_user_sentiment;
+  }
   if (Object.keys(patch).length) {
     console.log("[WBAH POST-CALL] dynamics_agentic PATCH", {
       leadId: input.leadId,
@@ -309,8 +320,8 @@ async function runDynamicsAgenticPath(input: {
   const clearPatch = buildWbahClearDataAgenticPayload({
     statecode: leadStatus?.statecode ?? null,
     newCurrentstatus: leadStatus?.new_currentstatus ?? null,
-    userSentiment: input.formatted.userSentiment,
-    callSummary: input.formatted.callSummary,
+    userSentiment: input.narrativeOwnedByAllens ? null : input.formatted.userSentiment,
+    callSummary: input.narrativeOwnedByAllens ? null : input.formatted.callSummary,
   });
   if (Object.keys(clearPatch).length) {
     console.log("[WBAH POST-CALL] clearDataforAgentic PATCH", {
@@ -582,6 +593,7 @@ async function runWbahPostCallPipelineCoreUnsafe(
   }
 
   if (isWbahDynamicsConfigured()) {
+    let allensWroteNarrative = false;
     if (stepOn("dynamics_allens")) {
       try {
         await runDynamicsAllensPath({
@@ -592,6 +604,7 @@ async function runWbahPostCallPipelineCoreUnsafe(
           transcript: call.transcript ?? null,
           dynVars,
         });
+        allensWroteNarrative = true;
         branches.push("dynamics_allens");
       } catch (e) {
         errors.push(`dynamics_allens: ${(e as Error).message}`);
@@ -606,6 +619,7 @@ async function runWbahPostCallPipelineCoreUnsafe(
           custom,
           transcript: call.transcript ?? null,
           dynVars,
+          narrativeOwnedByAllens: allensWroteNarrative,
         });
         branches.push("dynamics_agentic");
       } catch (e) {
