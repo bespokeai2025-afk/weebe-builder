@@ -45,7 +45,6 @@ import {
   BuzzchatTableSkeleton,
 } from "@/components/whatsapp/buzzchat-ui";
 import {
-  exportCampaignLeadsCsv,
   listCampaignLeads,
   updateCampaignFollowUp,
   updateCampaignLeadStage,
@@ -56,6 +55,7 @@ import {
 import {
   CAMPAIGN_LEAD_STAGE_LABELS,
   SIMPLIFIED_LEAD_STAGES,
+  FILTERABLE_LEAD_STAGES,
   SIMPLIFIED_LISTING_REMARKS,
   LISTING_OUTCOME_LABELS,
   EMPTY_CAMPAIGN_FOLLOW_UP,
@@ -94,9 +94,14 @@ const STAGE_TONE: Record<string, string> = {
   closed: "bg-muted text-muted-foreground",
 };
 
-/** A lead starts with no stage marked — only Follow-up/Converted/Cancelled are ever picked manually. */
+/**
+ * A lead starts with no stage marked. "Not set" covers only the automatic
+ * stages (new_response, contacted, engaged, no_activity) — Qualified and
+ * Assigned are real positions a lead reaches through the pipeline, so they stay
+ * visible and filterable even though neither can be picked from the dropdown.
+ */
 function displayStage(stage: string | null): string {
-  return (SIMPLIFIED_LEAD_STAGES as readonly string[]).includes(stage ?? "") ? (stage as string) : UNSET_STAGE;
+  return (FILTERABLE_LEAD_STAGES as readonly string[]).includes(stage ?? "") ? (stage as string) : UNSET_STAGE;
 }
 
 /** Outcome value regardless of vocabulary — a lead is either a listing or buyer lead, never both. */
@@ -113,6 +118,45 @@ function belongsOnBoard(lead: CampaignLeadRow, now: number = Date.now()): boolea
 /** Stage "closed" (labeled "Cancelled") archives a lead out of the active working board by default. */
 function isArchivedStage(lead: CampaignLeadRow): boolean {
   return lead.stage === "closed";
+}
+
+const CSV_HEADER = [
+  "owner",
+  "phone",
+  "email",
+  "property",
+  "requirement",
+  "intent",
+  "asking_price",
+  "rental_price",
+  "stage",
+  "remark",
+  "agent",
+  "campaign",
+  "area",
+  "last_contacted_at",
+  "last_reply_at",
+  "source",
+] as const;
+
+/** Human-readable stage for the export, matching the label shown on the board. */
+function stageLabel(stage: string | null): string {
+  const shown = displayStage(stage);
+  if (shown === UNSET_STAGE) return "Not set";
+  return CAMPAIGN_LEAD_STAGE_LABELS[shown as CampaignLeadStage] ?? shown;
+}
+
+/** Human-readable remark for the export, blank when the lead has none yet. */
+function outcomeLabel(outcome: CampaignOutcome | null): string {
+  if (!outcome) return "";
+  return (LISTING_OUTCOME_LABELS as Record<string, string>)[outcome] ?? outcome;
+}
+
+/** Quote every cell — names carry commas, and a leading = or + is a spreadsheet formula. */
+function csvCell(value: unknown): string {
+  const text = value == null ? "" : String(value);
+  const safe = /^[=+\-@]/.test(text) ? `'${text}` : text;
+  return `"${safe.replace(/"/g, '""')}"`;
 }
 
 function leadHaystack(lead: CampaignLeadRow): string {
@@ -133,7 +177,6 @@ function leadHaystack(lead: CampaignLeadRow): string {
 export function CampaignLeadsBoard() {
   const qc = useQueryClient();
   const listFn = useServerFn(listCampaignLeads);
-  const exportFn = useServerFn(exportCampaignLeadsCsv);
   const stageFn = useServerFn(updateCampaignLeadStage);
   const qualFn = useServerFn(updateCampaignQualification);
   const outcomeFn = useServerFn(updateListingOutcome);
@@ -282,16 +325,52 @@ export function CampaignLeadsBoard() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const downloadCsv = async () => {
+  const downloadCsv = () => {
     try {
-      const res = await exportFn({ data: {} });
-      const blob = new Blob([res.csv], { type: "text/csv;charset=utf-8" });
+      // Export what the screen shows. The remark, campaign and agent filters
+      // are derived from lead meta rather than columns the server can filter
+      // on, so exporting from the already-filtered rows is the only way the
+      // file can be guaranteed to match the list the user is looking at —
+      // previously this always downloaded every lead regardless of filters.
+      if (!leads.length) {
+        toast.error("No leads match the current filters");
+        return;
+      }
+      const csv = [
+        CSV_HEADER.join(","),
+        ...leads.map((l) =>
+          [
+            l.full_name,
+            l.phone,
+            l.email,
+            l.property,
+            l.requirement,
+            l.qualification?.intent,
+            l.qualification?.asking_price,
+            l.qualification?.rental_price,
+            stageLabel(l.stage),
+            outcomeLabel(leadOutcome(l)),
+            l.assigned_name,
+            l.campaign_name,
+            l.area,
+            l.last_contacted_at,
+            l.last_reply_at,
+            l.source,
+          ]
+            .map(csvCell)
+            .join(","),
+        ),
+      ].join("\n");
+
+      // A BOM keeps Excel from mangling non-ASCII names on open.
+      const blob = new Blob([`﻿${csv}`], { type: "text/csv;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "listing-leads.csv";
+      a.download = `listing-leads-${new Date().toISOString().slice(0, 10)}.csv`;
       a.click();
       URL.revokeObjectURL(url);
+      toast.success(`Exported ${leads.length} lead${leads.length === 1 ? "" : "s"}`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Export failed");
     }
@@ -412,7 +491,7 @@ export function CampaignLeadsBoard() {
               <TabsTrigger value={UNSET_STAGE} className="text-xs">
                 Not set
               </TabsTrigger>
-              {SIMPLIFIED_LEAD_STAGES.map((id) => (
+              {FILTERABLE_LEAD_STAGES.map((id) => (
                 <TabsTrigger key={id} value={id} className="text-xs">
                   {CAMPAIGN_LEAD_STAGE_LABELS[id]}
                 </TabsTrigger>

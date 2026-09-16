@@ -396,6 +396,23 @@ export const SIMPLIFIED_LEAD_STAGES = [
   "closed",
 ] as const satisfies readonly CampaignLeadStage[];
 
+/**
+ * Stages the board can filter and group by.
+ *
+ * Wider than SIMPLIFIED_LEAD_STAGES, which is only what an agent may pick by
+ * hand. Qualified and Assigned are reached through the pipeline rather than the
+ * dropdown, so leads genuinely sit in them — treating those as "Not set" hid
+ * them from every filter and left no way to pull up, say, the assigned list.
+ * Picking a stage stays narrowed to the three; reading one does not.
+ */
+export const FILTERABLE_LEAD_STAGES = [
+  "qualified",
+  "assigned",
+  "follow_up",
+  "converted",
+  "closed",
+] as const satisfies readonly CampaignLeadStage[];
+
 export type CampaignIntent = "sell" | "rent" | "both" | "";
 
 export interface CampaignQualification {
@@ -529,6 +546,27 @@ export type InboxQueueFilter =
   | "closed";
 
 export const DEFAULT_INBOX_QUEUE_FILTER: InboxQueueFilter = "working";
+
+/**
+ * Has someone read everything in this thread?
+ *
+ * Read state is "last_read_at is at or after the newest message", which needs
+ * no extra column and is self-correcting: a new inbound message moves
+ * last_message_at past last_read_at and the thread goes unread again on its
+ * own. Deliberately independent of whether a reply is owed — an agent can read
+ * "Okay, thank you" and be done with it.
+ */
+export function isWhatsappThreadSeen(
+  lastReadAt: string | null | undefined,
+  lastMessageAt: string | null | undefined,
+): boolean {
+  if (!lastReadAt) return false;
+  if (!lastMessageAt) return true;
+  const read = new Date(lastReadAt).getTime();
+  const last = new Date(lastMessageAt).getTime();
+  if (Number.isNaN(read) || Number.isNaN(last)) return false;
+  return read >= last;
+}
 
 export const INBOX_QUEUE_FILTERS: Array<{ id: InboxQueueFilter; label: string; hint: string }> = [
   { id: "working", label: "Inbox", hint: "Open replies that still need a remark — expired and closed stay out" },

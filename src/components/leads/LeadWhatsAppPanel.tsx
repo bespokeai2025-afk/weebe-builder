@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, Loader2, MessageCircle, Send } from "lucide-react";
@@ -103,6 +103,44 @@ export function LeadWhatsAppPanel({ leadId, phone, contactName }: LeadWhatsAppPa
   const listingOutcome = Array.isArray(history)
     ? null
     : ((history as { listingOutcome?: string | null } | undefined)?.listingOutcome ?? null);
+
+  const historyRef = useRef<HTMLDivElement>(null);
+  const messageCount = (messages as unknown[]).length;
+
+  // Open on the newest message. The server returns this history oldest-first,
+  // and nothing here used to scroll, so the panel sat on the very first message
+  // ever exchanged — the agent had to scroll down every single time to find out
+  // where the conversation actually stood. Scrolling up for history is the
+  // deliberate action; landing there is not.
+  //
+  // The ResizeObserver matters because this panel is inside a sheet: bubbles
+  // land before the sheet has finished sizing, so a one-shot scroll is computed
+  // against a height that is about to change. Re-pinning until the layout
+  // settles is what makes it reliable, and it detaches the moment the agent
+  // scrolls up so it never fights them mid-read.
+  useEffect(() => {
+    const el = historyRef.current;
+    if (!el || messageCount === 0) return;
+
+    let pinned = true;
+    const toBottom = () => {
+      if (pinned) el.scrollTop = el.scrollHeight;
+    };
+    const onScroll = () => {
+      pinned = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+    };
+
+    toBottom();
+    const observer = new ResizeObserver(toBottom);
+    observer.observe(el);
+    for (const child of Array.from(el.children)) observer.observe(child);
+    el.addEventListener("scroll", onScroll, { passive: true });
+
+    return () => {
+      observer.disconnect();
+      el.removeEventListener("scroll", onScroll);
+    };
+  }, [leadId, messageCount]);
 
   const selectedTemplate = (watiTemplates as any[]).find((t) => t.name === templateName);
   const paramSlots = watiTemplateParamSlots(selectedTemplate);
@@ -211,7 +249,10 @@ export function LeadWhatsAppPanel({ leadId, phone, contactName }: LeadWhatsAppPa
         )}
       </div>
 
-      <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] max-h-72 overflow-y-auto divide-y divide-white/[0.04]">
+      <div
+        ref={historyRef}
+        className="rounded-lg border border-white/[0.06] bg-white/[0.02] max-h-72 overflow-y-auto divide-y divide-white/[0.04]"
+      >
         {isLoading ? (
           <div className="flex justify-center py-6">
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />

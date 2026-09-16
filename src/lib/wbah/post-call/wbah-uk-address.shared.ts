@@ -47,6 +47,91 @@ export function rejectsAsUkPostcode(key: string, value: unknown): boolean {
   return WBAH_POSTCODE_FIELDS.has(key) && !looksLikeUkPostcode(value);
 }
 
+/** Free-text address attributes, where dictation drift looks like a real edit. */
+const WBAH_ADDRESS_TEXT_FIELDS: ReadonlySet<string> = new Set([
+  "new_propinfo_street2",
+  "new_propinfo_street3",
+  "new_propinfo_city",
+  "new_propinfo_stateorprovince",
+  "address1_line1",
+  "address1_line2",
+  "address1_city",
+  "address1_stateorprovince",
+  "address1_county",
+]);
+
+function levenshtein(a: string, b: string): number {
+  if (a === b) return 0;
+  if (!a.length || !b.length) return Math.max(a.length, b.length);
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const row = [i];
+    for (let j = 1; j <= b.length; j++) {
+      row[j] = Math.min(
+        prev[j]! + 1,
+        row[j - 1]! + 1,
+        prev[j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1),
+      );
+    }
+    prev = row;
+  }
+  return prev[b.length]!;
+}
+
+const letters = (s: string) => s.toLowerCase().replace(/[^a-z]/g, "");
+const digits = (s: string) => s.replace(/\D/g, "");
+
+/**
+ * Drop address writes that look like the transcriber re-hearing an address the
+ * CRM already holds, rather than the lead correcting it.
+ *
+ * On call_737e10b06ced477f741a1a31ec5 the lead's own web form had recorded
+ * "Bamber Bridge"; the call wrote back "Bamba Bridge". Nothing about that value
+ * is invalid, so no format check catches it — but the CRM's copy was typed by
+ * the lead and the call's copy came through a phone line, and the second is not
+ * better evidence than the first.
+ *
+ * Two conditions keep this from swallowing genuine corrections. The digits must
+ * match, so "Flat 21" → "Flat 22" is always written through — numbers carry the
+ * part of an address people actually correct. And the letters must be a near
+ * match, so a move to an entirely different street is written through too. Only
+ * the narrow middle — same numbers, almost the same letters — is treated as
+ * noise and discarded.
+ *
+ * Returns the fields it removed, for the caller to log.
+ */
+export function preserveWbahAddressAgainstDictationDrift(
+  patch: Record<string, unknown>,
+  existing: Record<string, unknown> | null | undefined,
+): string[] {
+  if (!existing) return [];
+  const dropped: string[] = [];
+
+  for (const key of Object.keys(patch)) {
+    if (!WBAH_ADDRESS_TEXT_FIELDS.has(key)) continue;
+    const incoming = patch[key];
+    const current = existing[key];
+    if (isEmptyValue(incoming) || isEmptyValue(current)) continue;
+
+    const a = String(incoming).trim();
+    const b = String(current).trim();
+    if (a.toLowerCase() === b.toLowerCase()) continue;
+    if (digits(a) !== digits(b)) continue;
+
+    const la = letters(a);
+    const lb = letters(b);
+    if (!la || !lb) continue;
+    const distance = levenshtein(la, lb);
+    const similarity = 1 - distance / Math.max(la.length, lb.length);
+    if (similarity < 0.8) continue;
+
+    delete patch[key];
+    dropped.push(key);
+  }
+
+  return dropped;
+}
+
 type AddressFieldSet = {
   line1: string;
   line2?: string;

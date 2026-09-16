@@ -59,7 +59,14 @@ export async function getWbahLeadCurrentStatus(
   if (!cfg) throw new Error("Dynamics credentials not configured");
 
   const headers = await dynamicsHeaders(cfg);
-  const url = `${apiBase(cfg)}/leads(${leadId})?$select=leadid,new_currentstatus,statecode,statuscode`;
+  // The address fields ride along on the status read that both Dynamics paths
+  // already make, so preserveWbahAddressAgainstDictationDrift can compare the
+  // call's transcription against what the CRM holds without a second request.
+  const url =
+    `${apiBase(cfg)}/leads(${leadId})?$select=leadid,new_currentstatus,statecode,statuscode,` +
+    `new_propinfo_street2,new_propinfo_street3,new_propinfo_city,new_propinfo_stateorprovince,` +
+    `new_propinfo_postalcode,address1_line1,address1_line2,address1_city,` +
+    `address1_stateorprovince,address1_county,address1_postalcode`;
   const res = await fetch(url, { headers });
   if (!res.ok) {
     const body = await res.text().catch(() => "");

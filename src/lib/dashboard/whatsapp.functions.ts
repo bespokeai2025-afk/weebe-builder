@@ -71,7 +71,7 @@ import {
   threadMatchesInboxOrg,
   type InboxCampaignScope,
 } from "@/lib/whatsapp/inbox-campaign-org.shared";
-import { readListingOutcome } from "@/lib/whatsapp/campaign-leads.shared";
+import { isWhatsappThreadSeen, readListingOutcome } from "@/lib/whatsapp/campaign-leads.shared";
 import { isAvenueEliteWorkspace } from "@/lib/avenue-elite-workspace.shared";
 import { CAMPAIGN_TYPES, resolveCampaignType } from "@/lib/whatsapp/campaign-types.shared";
 
@@ -618,6 +618,12 @@ export const listWhatsappThreads = createServerFn({ method: "GET" })
         // Stored count is authoritative — it survives page reloads and is shared across agents.
         unread: conv.unread_count,
         lastReadAt: conv.last_read_at,
+        // Reading a thread clears the indicator, replying is not required. The
+        // dot used to be `last_direction === "inbound"`, so "Okay, thank you"
+        // stayed marked new forever unless someone sent a pointless reply.
+        needsReply:
+          conv.last_direction === "inbound" &&
+          !isWhatsappThreadSeen(conv.last_read_at, conv.last_message_at),
         watiChatStatus: conv.wati_chat_status,
         watiTopic: conv.wati_topic,
         watiAgentName: conv.wati_agent_name,
@@ -659,6 +665,46 @@ export const listWhatsappThreads = createServerFn({ method: "GET" })
   });
 
 /** Clear the unread badge once an agent opens the thread. */
+/**
+ * Put a thread back to unread.
+ *
+ * Clearing last_read_at is what makes the indicator return: isWhatsappThreadSeen
+ * reads it against last_message_at, so a null there means nothing in the thread
+ * counts as seen. The count is set to at least 1 so the badge has something to
+ * show even for a thread whose stored count had already been zeroed.
+ */
+export const markWhatsappThreadUnread = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) => z.object({ phone: z.string().min(5) }).parse(input))
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+
+    const phone = normalizeWhatsAppPhone(data.phone);
+    if (!phone) throw new Error("Invalid phone number");
+
+    const sb = supabase as any;
+    const { data: existing } = await sb
+      .from("whatsapp_conversations")
+      .select("unread_count")
+      .eq("workspace_id", workspaceId)
+      .eq("contact_phone", phone)
+      .maybeSingle();
+
+    const { error } = await sb
+      .from("whatsapp_conversations")
+      .update({
+        unread_count: Math.max(1, Number(existing?.unread_count ?? 0)),
+        last_read_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("workspace_id", workspaceId)
+      .eq("contact_phone", phone);
+    if (error) throw new Error(error.message);
+
+    return { ok: true as const };
+  });
+
 export const markWhatsappThreadRead = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input) => z.object({ phone: z.string().min(5) }).parse(input))

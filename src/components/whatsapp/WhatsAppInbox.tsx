@@ -35,6 +35,7 @@ import {
   getWhatsappInboxMeta,
   listWhatsappThreads,
   markWhatsappThreadRead,
+  markWhatsappThreadUnread,
   refreshWatiInboxFromWati,
   sendWhatsappMessage,
   syncWhatsappThread,
@@ -129,6 +130,7 @@ export function WhatsAppInbox() {
   const syncThreadFn = useServerFn(syncWhatsappThread);
   const metaFn = useServerFn(getWhatsappInboxMeta);
   const markReadFn = useServerFn(markWhatsappThreadRead);
+  const markUnreadFn = useServerFn(markWhatsappThreadUnread);
   const updateConversationFn = useServerFn(updateWhatsappConversation);
   const listingOutcomeFn = useServerFn(updateListingOutcome);
 
@@ -283,22 +285,55 @@ export function WhatsAppInbox() {
       )
     : [];
 
+  // Open on the newest message, and stay there while the thread finishes
+  // laying itself out. A single scroll after render was landing mid-thread:
+  // audio, video and image bubbles have no height until their media loads, so
+  // the container kept growing underneath a scroll position that was correct
+  // when it was set. A ResizeObserver re-pins through all of it, and detaches
+  // as soon as the agent scrolls up to read history.
   useEffect(() => {
     const el = messagesRef.current;
     if (!el) return;
-    el.scrollTop = el.scrollHeight;
+
+    let pinned = true;
+    const toBottom = () => {
+      if (pinned) el.scrollTop = el.scrollHeight;
+    };
+
+    const onScroll = () => {
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      pinned = distanceFromBottom < 80;
+    };
+
+    toBottom();
+    const observer = new ResizeObserver(toBottom);
+    observer.observe(el);
+    for (const child of Array.from(el.children)) observer.observe(child);
+    el.addEventListener("scroll", onScroll, { passive: true });
+
+    return () => {
+      observer.disconnect();
+      el.removeEventListener("scroll", onScroll);
+    };
   }, [active?.phone, msgs.length]);
 
   const openPhone = active?.phone;
   const openUnread = active?.unread ?? 0;
+  const openNeedsReply = Boolean(active?.needsReply);
+  const openLastAt = active?.lastAt;
   useEffect(() => {
-    if (!openPhone || openUnread === 0) return;
+    // Opening a thread is reading it. The old gate was `unread === 0`, which
+    // skipped exactly the case the team hit most: a thread whose stored count
+    // was already zero but whose dot was still showing, so last_read_at never
+    // moved and the dot never cleared without a reply.
+    if (!openPhone) return;
+    if (openUnread === 0 && !openNeedsReply) return;
     markReadFn({ data: { phone: openPhone } })
       .then(() => invalidateThreads())
       .catch(() => {
         /* badge will clear on the next read attempt */
       });
-  }, [openPhone, openUnread, markReadFn, invalidateThreads]);
+  }, [openPhone, openUnread, openNeedsReply, openLastAt, markReadFn, invalidateThreads]);
 
   useEffect(() => {
     if (!active?.phone) return;
@@ -899,6 +934,25 @@ export function WhatsAppInbox() {
                       </SelectContent>
                     </Select>
                   )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs"
+                    onClick={() => {
+                      const phone = active.phone;
+                      markUnreadFn({ data: { phone } })
+                        .then(() => {
+                          invalidateThreads();
+                          toast.success("Marked unread");
+                        })
+                        .catch((e: unknown) =>
+                          toast.error(e instanceof Error ? e.message : "Could not mark unread"),
+                        );
+                    }}
+                  >
+                    Mark unread
+                  </Button>
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-1.5">

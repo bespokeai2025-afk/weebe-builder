@@ -31,6 +31,7 @@ import {
   patchWbahLead,
   postWbahLeadTimelineNote,
 } from "./wbah-dynamics.server";
+import { preserveWbahAddressAgainstDictationDrift } from "./wbah-uk-address.shared";
 import { buildWbahAiTimelineNoteText } from "./wbah-timeline-note.shared";
 import { cleanWbahRawData, formatWbahRetellCallData } from "./wbah-format-data.shared";
 import {
@@ -264,6 +265,15 @@ async function runDynamicsAllensPath(input: {
     dynVars: input.dynVars,
   });
 
+  const preserved = preserveWbahAddressAgainstDictationDrift(patch, leadStatus?.raw);
+  if (preserved.length) {
+    console.log("[WBAH CONTACT-ADDRESS] kept existing CRM address over dictation drift", {
+      leadId: input.leadId,
+      path: "allens",
+      fields: preserved,
+    });
+  }
+
   if (!Object.keys(patch).length) {
     console.log("[WBAH POST-CALL] dynamics_allens skipped", { rule: allens.rule });
     return;
@@ -305,6 +315,19 @@ async function runDynamicsAgenticPath(input: {
     delete (patch as Record<string, unknown>).cos_call_summary;
     delete (patch as Record<string, unknown>).cos_user_sentiment;
   }
+
+  // Read before the write: the same lead fetch feeds the drift guard here and
+  // the clear-data payload below, so ordering it first costs nothing.
+  const leadStatus = await getWbahLeadCurrentStatus(input.leadId).catch(() => null);
+  const preserved = preserveWbahAddressAgainstDictationDrift(patch, leadStatus?.raw);
+  if (preserved.length) {
+    console.log("[WBAH CONTACT-ADDRESS] kept existing CRM address over dictation drift", {
+      leadId: input.leadId,
+      path: "agentic",
+      fields: preserved,
+    });
+  }
+
   if (Object.keys(patch).length) {
     console.log("[WBAH POST-CALL] dynamics_agentic PATCH", {
       leadId: input.leadId,
@@ -316,7 +339,6 @@ async function runDynamicsAgenticPath(input: {
     console.log("[WBAH POST-CALL] dynamics_agentic skipped (no CRM fields after normalize)");
   }
 
-  const leadStatus = await getWbahLeadCurrentStatus(input.leadId).catch(() => null);
   const clearPatch = buildWbahClearDataAgenticPayload({
     statecode: leadStatus?.statecode ?? null,
     newCurrentstatus: leadStatus?.new_currentstatus ?? null,
