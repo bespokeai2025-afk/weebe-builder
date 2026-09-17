@@ -18,6 +18,7 @@ import { HiveMindShell } from "@/components/hivemind/HiveMindShell";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { IntelligencePacketPanel, ReadinessBadge } from "@/components/minds/IntelligencePacketPanel";
 import type { UniversalMindIntelligencePacket } from "@/lib/minds/intelligence-packet.shared";
+import { WO_STATUS_STYLES, WO_STATUS_STYLE_FALLBACK } from "@/lib/hivemind/work-order-status.shared";
 import { GadsAnalysisReportViewer } from "@/components/growthmind/GadsAnalysisReportViewer";
 import { getGadsAnalysisReport } from "@/lib/growthmind/gads-analysis-report.server";
 import {
@@ -38,17 +39,6 @@ export const Route = createFileRoute("/_authenticated/hivemind/work-orders_/$id"
 });
 
 // ── Status styles ─────────────────────────────────────────────────────────────
-
-const WO_STATUS_STYLES: Record<string, string> = {
-  open:                "bg-sky-500/15 text-sky-400 border-sky-500/25",
-  in_progress:         "bg-amber-500/15 text-amber-400 border-amber-500/25",
-  awaiting_approval:   "bg-violet-500/15 text-violet-400 border-violet-500/25",
-  blocked:             "bg-red-500/15 text-red-400 border-red-500/25",
-  partially_completed: "bg-emerald-500/15 text-emerald-300 border-emerald-500/25",
-  completed:           "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
-  cancelled:           "bg-slate-500/15 text-slate-400 border-slate-500/25",
-  failed:              "bg-red-500/15 text-red-400 border-red-500/25",
-};
 
 // ── Stage task card ───────────────────────────────────────────────────────────
 
@@ -233,7 +223,7 @@ function StageCard({ task, index, total }: { task: WorkOrderStageTask; index: nu
 function WorkOrderHeader({ wo }: { wo: WorkOrderSummary }) {
   const pct = workOrderProgressPct(wo);
   const statusLabel = workOrderStatusLabel(wo.status);
-  const statusStyle = WO_STATUS_STYLES[wo.status] ?? "bg-white/[0.05] text-muted-foreground border-white/[0.1]";
+  const statusStyle = WO_STATUS_STYLES[wo.status] ?? WO_STATUS_STYLE_FALLBACK;
   const mainBlockers = (wo.intelligence_packet?.blockers ?? []);
 
   return (

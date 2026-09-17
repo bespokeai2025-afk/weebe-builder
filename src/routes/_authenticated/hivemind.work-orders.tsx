@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { HiveMindShell } from "@/components/hivemind/HiveMindShell";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { ReadinessBadge } from "@/components/minds/IntelligencePacketPanel";
+import { WO_STATUS_STYLES, WO_STATUS_STYLE_FALLBACK } from "@/lib/hivemind/work-order-status.shared";
 import {
   getWorkOrders,
   workOrderStatusLabel,
@@ -30,17 +31,6 @@ export const Route = createFileRoute("/_authenticated/hivemind/work-orders")({
 
 // ── Status config ─────────────────────────────────────────────────────────────
 
-const WO_STATUS_STYLES: Record<string, string> = {
-  open:                "bg-sky-500/15 text-sky-400 border-sky-500/25",
-  in_progress:         "bg-amber-500/15 text-amber-400 border-amber-500/25",
-  awaiting_approval:   "bg-violet-500/15 text-violet-400 border-violet-500/25",
-  blocked:             "bg-red-500/15 text-red-400 border-red-500/25",
-  partially_completed: "bg-emerald-500/15 text-emerald-300 border-emerald-500/25",
-  completed:           "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
-  cancelled:           "bg-slate-500/15 text-slate-400 border-slate-500/25",
-  failed:              "bg-red-500/15 text-red-400 border-red-500/25",
-};
-
 const STATUS_GROUPS = [
   { key: "active",    label: "Active",    statuses: ["open","in_progress","awaiting_approval","blocked","partially_completed","failed"] },
   { key: "done",      label: "Completed", statuses: ["completed","cancelled"] },
@@ -51,7 +41,7 @@ const STATUS_GROUPS = [
 function WorkOrderCard({ wo }: { wo: WorkOrderSummary }) {
   const pct = workOrderProgressPct(wo);
   const label = workOrderStatusLabel(wo.status);
-  const style = WO_STATUS_STYLES[wo.status] ?? "bg-white/[0.05] text-muted-foreground border-white/[0.1]";
+  const style = WO_STATUS_STYLES[wo.status] ?? WO_STATUS_STYLE_FALLBACK;
   const hasBlockers = wo.blocker_count > 0;
 
   const topFindings = packetAuditFindings(wo.intelligence_packet).slice(0, 4);
