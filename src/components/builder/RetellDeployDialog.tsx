@@ -3085,14 +3085,15 @@ export function RetellDeployDialog({
           </Button>
         )}
 
-        {/* Update existing */}
+        {/* Update existing — the everyday action once an agent is already deployed,
+            so it gets the primary/filled treatment. */}
         {hasAgent && (
           <Button
             size="sm"
-            variant="ghost"
+            variant="default"
             onClick={() => handleDeploy("update")}
             disabled={deploying !== null}
-            className="!h-8 !w-8 !p-0 text-muted-foreground/60 hover:bg-sky-500/10 hover:text-sky-300"
+            className="!h-8 gap-1.5 px-2.5"
             title={
               isOpenAI
                 ? "Sync current changes to local database"
@@ -3104,20 +3105,24 @@ export function RetellDeployDialog({
             ) : (
               <RefreshCw className="h-3.5 w-3.5" />
             )}
+            Update
           </Button>
         )}
 
-        {/* Divider before primary CTA */}
+        {/* Divider before the create action */}
         <div className="h-3.5 w-px bg-white/[0.07] mx-0.5" />
 
-        {/* Create / Deploy */}
+        {/* Create / Deploy — the only deploy-like action for a brand-new agent
+            (no Update button exists yet), so it's primary in that state; once
+            Update exists above, Create becomes the secondary "spin up a
+            separate agent" action, so it steps back to outline. */}
         <Button
           data-tour="builder-create-deploy-btn"
           size="sm"
-          variant="ghost"
+          variant={hasAgent ? "outline" : "default"}
           onClick={() => handleDeploy("create")}
           disabled={deploying !== null}
-          className="!h-8 !w-8 !p-0 text-muted-foreground/60 hover:bg-primary/10 hover:text-primary"
+          className="!h-8 gap-1.5 px-2.5"
           title={
             isOpenAI
               ? "Save agent to HyperStream local database"
@@ -3129,6 +3134,7 @@ export function RetellDeployDialog({
           ) : (
             <Plus className="h-3.5 w-3.5" />
           )}
+          {hasAgent ? "New Agent" : "Deploy"}
         </Button>
       </div>
 

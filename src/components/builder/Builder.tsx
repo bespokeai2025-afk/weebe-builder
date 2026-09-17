@@ -893,10 +893,21 @@ export function Builder({
       )}
     >
       {/* Canvas toolbar */}
-      <div className="flex flex-nowrap items-center gap-1.5 border-b border-white/[0.04] bg-background/60 px-2 py-1 backdrop-blur-sm [&_button]:h-7 [&_button]:px-2 [&_button]:text-[11px] [&_button]:gap-1 [&_button_svg]:h-3.5 [&_button_svg]:w-3.5">
+      <div
+        role="toolbar"
+        aria-label="Builder toolbar"
+        className="flex flex-nowrap items-center gap-1.5 border-b border-white/[0.04] bg-background/60 px-2 py-1 backdrop-blur-sm [&_button]:h-7 [&_button]:px-2 [&_button]:text-[11px] [&_button]:gap-1 [&_button_svg]:h-3.5 [&_button_svg]:w-3.5"
+      >
         {/* Left: panel toggle + agent name + status */}
         <div className="flex flex-1 items-center gap-1 min-w-0">
           {toolbarStart}
+          {/* Page identity — the global app header is hidden on this route
+              (see hideHeader in _authenticated.tsx), so this is the only
+              "you are here" anchor on the whole screen. */}
+          <span className="shrink-0 px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">
+            Builder
+          </span>
+          <div className="h-3.5 w-px shrink-0 bg-white/[0.06]" />
           <Input
             data-tour="agent-name-input"
             value={settings.agentName}
@@ -944,7 +955,12 @@ export function Builder({
         {/* Right: canvas utilities + primary actions */}
         <div className="flex flex-nowrap items-center gap-1.5">
           {/* Canvas utility cluster */}
-          <div className="flex items-center gap-0.5 rounded-md border border-white/[0.05] bg-white/[0.02] px-1 py-0.5">
+          <div
+            role="group"
+            aria-label="Canvas tools"
+            title="Canvas tools"
+            className="flex items-center gap-0.5 rounded-md border border-white/[0.05] bg-white/[0.02] px-1 py-0.5"
+          >
             <Button
               size="sm"
               variant="ghost"
@@ -1139,7 +1155,12 @@ export function Builder({
 
           {/* Voice Copilot — hidden in WhatsApp mode */}
           {settings.channelType !== "whatsapp" && (
-            <div className="flex items-center rounded-md bg-white/[0.03] border border-white/[0.05] px-0.5 gap-0.5">
+            <div
+              role="group"
+              aria-label="Copilot"
+              title="Copilot"
+              className="flex items-center rounded-md bg-white/[0.03] border border-white/[0.05] px-0.5 gap-0.5"
+            >
               <VoiceCopilotButton
                 onModeChange={(m) => setGuideOpen(m === "PLATFORM_HELP")}
               />
@@ -1150,7 +1171,7 @@ export function Builder({
           <div className="h-4 w-px bg-white/[0.06]" />
 
           {/* Deploy / utility cluster + trailing save actions */}
-          <div data-tour="deploy-btn" className="inline-flex items-center">
+          <div data-tour="deploy-btn" role="group" aria-label="Deploy" className="inline-flex items-center">
             {settings.channelType !== "whatsapp" && (
               <RetellDeployDialog
                 onCallActive={setCallActive}
