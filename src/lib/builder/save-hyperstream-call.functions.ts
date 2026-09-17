@@ -90,9 +90,37 @@ export const saveHyperStreamTestCall = createServerFn({ method: "POST" })
       row.retell_call_id = data.sessionId;
     }
 
-    const { data: inserted, error } = await sb.from("calls").insert(row).select("id").single();
+    // Upsert, not insert: the voice webhook may already have written this call
+    // (transcript, summary, sentiment, collected variables) keyed on the same
+    // retell_call_id. Inserting produced a second row for one call. Without an
+    // id there is nothing to match on, so that case still inserts.
+    let inserted: { id: string } | null = null;
+    let error: { message: string } | null = null;
+    if (row.retell_call_id) {
+      const existing = await sb
+        .from("calls")
+        .select("id")
+        .eq("retell_call_id", row.retell_call_id)
+        .maybeSingle();
+      if (existing.data?.id) {
+        // Only fill what the webhook cannot know — never clobber its analysis.
+        const patch: Record<string, unknown> = {};
+        if (recordingUrl) patch.recording_url = recordingUrl;
+        if (row.cost_cents != null) patch.cost_cents = row.cost_cents;
+        if (Object.keys(patch).length) {
+          const upd = await sb.from("calls").update(patch).eq("id", existing.data.id);
+          error = upd.error ?? null;
+        }
+        inserted = { id: existing.data.id as string };
+      }
+    }
+    if (!inserted) {
+      const res = await sb.from("calls").insert(row).select("id").single();
+      inserted = res.data ?? null;
+      error = res.error ?? null;
+    }
     if (error) {
-      console.error("[saveHyperStreamTestCall] insert error:", error.message);
+      console.error("[saveHyperStreamTestCall] write error:", error.message);
       throw new Error(error.message);
     }
 

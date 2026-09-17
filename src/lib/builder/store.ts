@@ -11,7 +11,7 @@ import type {
   NodeKind,
   SavedFlowComponent,
 } from "./types";
-import { autoLayoutNodes } from "./auto-layout";
+import { autoLayoutNodes, builderNodeSize, resolveNodeOverlaps } from "./auto-layout";
 import { defaultNodeData } from "./node-registry";
 import {
   FLOW_EDGE_TYPE,
@@ -303,6 +303,14 @@ export const useBuilderStore = create<State>()(
           edges = edges.filter((e) => live.has(e.source) && live.has(e.target));
           nodes = pruneTransitionTargets(nodes, live);
         }
+        if (dragEnd) {
+          // Only the card that was just dropped is allowed to move, so a drop
+          // onto an occupied spot slides clear instead of burying a node.
+          const dropped = changes
+            .filter((c) => c.type === "position" && c.dragging === false)
+            .map((c) => (c as { id: string }).id);
+          if (dropped.length) nodes = resolveNodeOverlaps(nodes, { moveIds: dropped });
+        }
         set({
           nodes,
           edges,
@@ -395,12 +403,24 @@ export const useBuilderStore = create<State>()(
       addNode: (kind, position) => {
         pushHistory(get().nodes, get().edges);
         const id = nextId(kind);
+        // Deterministic: directly below the lowest card. The old
+        // `Math.random()` x with a 40px y step put every new node somewhere
+        // unpredictable and on top of the previous one, since cards are several
+        // hundred pixels tall.
+        const existing = get().nodes;
+        const lowestBottom = existing.reduce((acc, n) => {
+          const { height } = builderNodeSize(n);
+          return Math.max(acc, n.position.y + height);
+        }, 0);
         const pos = position ?? {
-          x: 320 + Math.random() * 240,
-          y: 120 + get().nodes.length * 40,
+          x: 320,
+          y: existing.length === 0 ? 120 : lowestBottom + 60,
         };
         const node = makeNode(kind, id, pos.x, pos.y);
-        let nodes = [...deselectAll(get().nodes), { ...node, selected: true }];
+        let nodes = resolveNodeOverlaps(
+          [...deselectAll(get().nodes), { ...node, selected: true }],
+          { moveIds: [id] },
+        );
         if (kind === "begin") {
           nodes = nodes.map((n) => ({
             ...n,
@@ -425,7 +445,9 @@ export const useBuilderStore = create<State>()(
         };
         const cloned = cloneGraphSlice(slice, nextId, origin);
         set({
-          nodes: [...deselectAll(get().nodes), ...cloned.nodes],
+          nodes: resolveNodeOverlaps([...deselectAll(get().nodes), ...cloned.nodes], {
+            moveIds: cloned.nodes.map((n) => n.id),
+          }),
           edges: [...get().edges, ...cloned.edges],
           selectedNodeId: cloned.nodes[0]?.id ?? get().selectedNodeId,
           ...dirtyFields(get().editRevision),

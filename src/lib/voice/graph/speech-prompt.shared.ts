@@ -50,6 +50,7 @@ export function spokenExecutionFiller(raw: string): string | null {
 export function looksLikeSpokenLine(script: string): boolean {
   const t = script.trim();
   if (!t || looksLikeAgentTask(t) || looksLikeBuilderPrompt(t)) return false;
+  if (looksLikeAgentInstructionProse(t)) return false;
   const spoken = spokenLinesOnly(t);
   if (spoken.length === 0) return false;
   const compact = spoken.join(" ");
@@ -150,6 +151,38 @@ export function splitPromptParts(
   return { script: bodyText, directions, task: "" };
 }
 
+/**
+ * Prose written *about* the caller and *at* the agent, rather than words for
+ * the caller to hear.
+ *
+ * `looksLikeAgentTask` only inspects the first line for an imperative verb
+ * ("Ask the…", "Confirm the…"). A node whose prompt opens with a statement —
+ * "The caller needs to speak with clinic staff. … Acknowledge their concern.
+ * Say something like: …" — matched nothing, so when the speech model produced
+ * no tokens the fallback read the entire instruction block down the phone.
+ *
+ * The signals here are the ones an agent would never utter to the person it is
+ * talking to. Nobody says "the caller" to the caller; nobody says "say
+ * something like" out loud. Kept narrow on purpose — a false positive silences
+ * a legitimate line, so ordinary second-person speech ("if you would like…")
+ * must not trip it.
+ */
+export function looksLikeAgentInstructionProse(text: string): boolean {
+  const t = text.trim();
+  if (!t) return false;
+  // Third-person reference to the person being spoken to.
+  if (/\b(?:the|this)\s+(?:caller|user|patient|customer|lead|prospect)\b/i.test(t)) return true;
+  // Directions aimed at the model.
+  if (
+    /\b(?:say something like|respond with|reply with|acknowledge (?:their|the)|reassure them|advise them to|remind them to|your (?:goal|task|job|role) is|do not read|read this aloud|use a .* tone)\b/i.test(
+      t,
+    )
+  ) {
+    return true;
+  }
+  return false;
+}
+
 export function spokenFallback(parts: PromptParts): string {
   const fromScript = parts.script
     .split("\n")
@@ -157,8 +190,18 @@ export function spokenFallback(parts: PromptParts): string {
     .filter(Boolean)
     .join(" ")
     .trim();
-  if (fromScript && !looksLikeAgentTask(fromScript)) return fromScript;
-  return spokenQuestionFromTask(parts.task || fromScript);
+  if (
+    fromScript &&
+    !looksLikeAgentTask(fromScript) &&
+    !looksLikeAgentInstructionProse(fromScript)
+  ) {
+    return fromScript;
+  }
+  const derived = spokenQuestionFromTask(parts.task || fromScript);
+  if (derived) return derived;
+  // Nothing safe to say. Silence is better than reading the prompt out, and a
+  // short holding line keeps the turn natural while the caller is still there.
+  return looksLikeAgentInstructionProse(fromScript) ? "One moment, please." : "";
 }
 
 /** Builder asked for a performed line, not a verbatim collect question. */
@@ -173,6 +216,7 @@ export function wantsSpokenFlavor(text: string): boolean {
 export function isVerbatimSpeakable(script: string): boolean {
   const t = script.trim();
   if (!t || looksLikeAgentTask(t) || looksLikeBuilderPrompt(t)) return false;
+  if (looksLikeAgentInstructionProse(t)) return false;
   const lines = spokenLinesOnly(t);
   if (lines.length === 0) return false;
   const compact = lines.join(" ");

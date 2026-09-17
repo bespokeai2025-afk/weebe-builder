@@ -283,6 +283,29 @@ export function getExecutionOrder(
   return order;
 }
 
+/**
+ * Turn the named steps off in a resolved config, leaving the stored workflow
+ * untouched.
+ *
+ * Used by a manual rerun to hold back steps that must not repeat. It works by
+ * flipping `enabled`, which is the same field isStepEnabledInOrder reads and
+ * the same field the automation-engine graph adapter reads, so one call covers
+ * both execution paths — a rerun cannot skip a step on one path and fire it on
+ * the other.
+ */
+export function applyDisabledStepIds<
+  T extends { steps: Array<{ id: string; type?: string; enabled?: boolean }> },
+>(cfg: T, disabledStepIds: readonly string[] | undefined): T {
+  if (!disabledStepIds?.length) return cfg;
+  const off = new Set(disabledStepIds);
+  return {
+    ...cfg,
+    steps: cfg.steps.map((step) =>
+      off.has(step.id) || (step.type && off.has(step.type)) ? { ...step, enabled: false } : step,
+    ),
+  };
+}
+
 export function isStepEnabledInOrder(
   cfg: WbahPostCallWorkflowConfig,
   stepId: string,

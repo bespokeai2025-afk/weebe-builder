@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type KeyboardEvent } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -64,6 +64,35 @@ function useTokenMenu(
 ) {
   const storeVars = useFlowVariables();
   const variables = extraVars ?? storeVars;
+
+  /**
+   * Local draft, because the value can come back a render late.
+   *
+   * On the canvas the field is bound to React Flow's `data` prop, which is one
+   * hop behind the builder store. That extra hop meant the field re-rendered
+   * with the *previous* string, React wrote it to the DOM, and the caret was
+   * dragged to the end — so editing mid-sentence typed one character in place
+   * and then jumped to the end of the box.
+   *
+   * The draft is authoritative while this field is the one making changes. An
+   * incoming value is adopted only when it differs from what we last emitted,
+   * which is exactly the case for a real external change (undo, flow load,
+   * another editor) and never the case for the parent echoing our own edit.
+   */
+  const [draft, setDraft] = useState(value);
+  const emittedRef = useRef(value);
+  useEffect(() => {
+    if (value === emittedRef.current) return;
+    emittedRef.current = value;
+    setDraft(value);
+  }, [value]);
+
+  const emit = (next: string) => {
+    emittedRef.current = next;
+    setDraft(next);
+    onValueChange(next);
+  };
+
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -95,7 +124,7 @@ function useTokenMenu(
     } catch {
       /* selection is unsupported on some input types — harmless */
     }
-  }, [value]);
+  }, [draft]);
 
   const syncFrom = (text: string, cursor: number) => {
     cursorRef.current = cursor;
@@ -110,8 +139,8 @@ function useTokenMenu(
   };
 
   const pick = (name: string) => {
-    const next = insertVariableToken(value, cursorRef.current, name);
-    onValueChange(next.text);
+    const next = insertVariableToken(draft, cursorRef.current, name);
+    emit(next.text);
     cursorRef.current = next.cursor;
     // Applied in the layout effect above, once the new value has rendered.
     restoreToRef.current = next.cursor;
@@ -140,7 +169,7 @@ function useTokenMenu(
     elementRef.current = el;
   };
 
-  return { open, items, active, pick, syncFrom, onKeyDown, setOpen, registerElement };
+  return { open, items, active, pick, syncFrom, onKeyDown, setOpen, registerElement, draft, emit };
 }
 
 type TextareaProps = Omit<ComponentProps<typeof Textarea>, "onChange" | "value"> & {
@@ -162,10 +191,10 @@ export function VariableTextarea({
       <Textarea
         {...props}
         ref={menu.registerElement}
-        value={value}
+        value={menu.draft}
         className={cn("w-full min-w-0", className)}
         onChange={(e) => {
-          onValueChange(e.target.value);
+          menu.emit(e.target.value);
           menu.syncFrom(e.target.value, e.target.selectionStart ?? e.target.value.length);
         }}
         onSelect={(e) => {
@@ -205,10 +234,10 @@ export function VariableInput({
       <Input
         {...props}
         ref={menu.registerElement}
-        value={value}
+        value={menu.draft}
         className={className}
         onChange={(e) => {
-          onValueChange(e.target.value);
+          menu.emit(e.target.value);
           menu.syncFrom(e.target.value, e.target.selectionStart ?? e.target.value.length);
         }}
         onSelect={(e) => {
@@ -248,10 +277,10 @@ export function VariableBareInput({
       <input
         {...props}
         ref={menu.registerElement}
-        value={value}
+        value={menu.draft}
         className={className}
         onChange={(e) => {
-          onValueChange(e.target.value);
+          menu.emit(e.target.value);
           menu.syncFrom(e.target.value, e.target.selectionStart ?? e.target.value.length);
         }}
         onSelect={(e) => {
@@ -319,10 +348,10 @@ export function VariableBareTextarea({
           menu.registerElement(el);
         }}
         rows={1}
-        value={value}
+        value={menu.draft}
         className={className}
         onChange={(e) => {
-          onValueChange(e.target.value);
+          menu.emit(e.target.value);
           const el = e.currentTarget;
           el.style.height = "auto";
           el.style.height = `${Math.max(22, el.scrollHeight)}px`;

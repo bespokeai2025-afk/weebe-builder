@@ -14,7 +14,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { Loader2, Megaphone, Phone, User, UserPlus } from "lucide-react";
+import { Loader2, Megaphone, Phone, Trash2, User, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -38,6 +38,7 @@ import { BuzzchatEmptyState } from "@/components/whatsapp/buzzchat-ui";
 import { LeadWhatsAppPanel } from "@/components/leads/LeadWhatsAppPanel";
 import {
   listListingPipelineLeads,
+  removeFromListingPipeline,
   updateListingPipelineOffer,
   updateListingPipelineStage,
   type ListingPipelineLeadRow,
@@ -205,6 +206,7 @@ function PipelineLeadSheet({
   onStageChange,
   onOfferSave,
   onAssign,
+  onRemove,
 }: {
   lead: ListingPipelineLeadRow | null;
   open: boolean;
@@ -212,6 +214,7 @@ function PipelineLeadSheet({
   onStageChange: (leadId: string, stage: ListingPipelineStage) => void;
   onOfferSave: (leadId: string, offer: string) => void;
   onAssign: (leadId: string) => void;
+  onRemove: (lead: ListingPipelineLeadRow) => void;
 }) {
   const [offerDraft, setOfferDraft] = useState("");
 
@@ -336,6 +339,26 @@ function PipelineLeadSheet({
             <div className="border-t border-border pt-4">
               <LeadWhatsAppPanel leadId={lead.id} phone={lead.phone} contactName={lead.full_name} />
             </div>
+
+            {/* Takes the card off the board. Not a lead delete — the person,
+                their conversation and their qualification all stay, so this is
+                undoable by re-converting the lead. */}
+            <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
+              <p className="text-[10px] leading-snug text-muted-foreground">
+                Removes this lead from the pipeline board. Their contact, chat history and
+                qualification are kept.
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10"
+                onClick={() => onRemove(lead)}
+              >
+                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                Remove
+              </Button>
+            </div>
           </div>
         )}
       </SheetContent>
@@ -354,6 +377,7 @@ export function ListingPipelineBoard() {
   const qc = useQueryClient();
   const listFn = useServerFn(listListingPipelineLeads);
   const stageFn = useServerFn(updateListingPipelineStage);
+  const removeFn = useServerFn(removeFromListingPipeline);
   const offerFn = useServerFn(updateListingPipelineOffer);
 
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -374,6 +398,31 @@ export function ListingPipelineBoard() {
   });
 
   const leads = data?.leads ?? [];
+
+  const removeLead = useMutation({
+    mutationFn: (input: { leadId: string }) => removeFn({ data: input }),
+    onMutate: async (input) => {
+      await qc.cancelQueries({ queryKey: ["listing-pipeline"] });
+      const prev = qc.getQueryData<{ leads: ListingPipelineLeadRow[] }>(["listing-pipeline"]);
+      // Drop the card immediately — a removal that lags feels broken.
+      qc.setQueryData<{ leads: ListingPipelineLeadRow[] }>(["listing-pipeline"], (old) =>
+        old ? { leads: old.leads.filter((l) => l.id !== input.leadId) } : old,
+      );
+      return { prev };
+    },
+    onError: (e: Error, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["listing-pipeline"], ctx.prev);
+      toast.error(e.message);
+    },
+    onSuccess: () => {
+      setSelected(null);
+      toast.success("Removed from pipeline");
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["listing-pipeline"] });
+      qc.invalidateQueries({ queryKey: ["campaign-leads"] });
+    },
+  });
 
   const saveStage = useMutation({
     mutationFn: (input: { leadId: string; stage: ListingPipelineStage }) => stageFn({ data: input }),
@@ -477,6 +526,7 @@ export function ListingPipelineBoard() {
         onStageChange={(leadId, stage) => saveStage.mutate({ leadId, stage })}
         onOfferSave={(leadId, offerAmount) => saveOffer.mutate({ leadId, offerAmount })}
         onAssign={(leadId) => setAssignId(leadId)}
+        onRemove={(lead) => removeLead.mutate({ leadId: lead.id })}
       />
 
       <AssignLeadsDialog

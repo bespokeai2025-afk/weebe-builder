@@ -295,6 +295,31 @@ function CanvasInner({
     addNode,
     autoLayout,
   } = useBuilderStore();
+  /**
+   * Follow the conversation during a test call.
+   *
+   * `activeNodeId` is already driven live from the test-call handler, but the
+   * canvas never reacted to it — on a flow wider than the viewport the node
+   * that is speaking is usually off-screen, so you had to hunt for it while
+   * the call ran. Centre on it instead.
+   *
+   * Zoom is left alone deliberately: re-zooming on every hop is disorienting,
+   * and the operator may have chosen their zoom on purpose. Panning only also
+   * means a node already comfortably in view barely moves.
+   */
+  const activeNodeId = useBuilderStore((st) => st.activeNodeId);
+  useEffect(() => {
+    if (!activeNodeId) return;
+    const node = rf.getNode(activeNodeId);
+    if (!node) return;
+    const { width, height } = node.measured ?? {};
+    rf.setCenter(
+      node.position.x + (width ?? 480) / 2,
+      node.position.y + (height ?? 340) / 2,
+      { zoom: rf.getZoom(), duration: 400 },
+    );
+  }, [activeNodeId, rf]);
+
   const [menu, setMenu] = useState<{ x: number; y: number; nodeId?: string } | null>(null);
   useEffect(() => {
     if (!menu) return;

@@ -6,6 +6,14 @@ export interface ExtractVariableItem {
   description: string;
   type: "string" | "number" | "boolean" | "date" | "enum" | "json";
   required?: boolean;
+  /**
+   * Allowed values when `type` is "enum".
+   *
+   * The graph VM has always passed these to the extractor (`choices`), but the
+   * field did not exist on this type and the editor never offered a way to set
+   * them — so choosing Enum produced an extraction with no constraint at all.
+   */
+  choices?: string[];
 }
 
 export type NodeKind =

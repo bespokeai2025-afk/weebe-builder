@@ -1051,7 +1051,14 @@ function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id
         | Array<{ name?: string; description?: string; type?: string }>
         | undefined;
       const extractVars = d.extractVariables as
-        | Array<{ id?: string; name: string; description: string; type: string; required?: boolean }>
+        | Array<{
+            id?: string;
+            name: string;
+            description: string;
+            type: string;
+            required?: boolean;
+            choices?: string[];
+          }>
         | undefined;
       const variables =
         extractVars && extractVars.length
@@ -1061,7 +1068,17 @@ function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id
                 v.type === "json"
                   ? `${v.description ?? ""} Extract as a JSON object.`.trim()
                   : (v.description ?? ""),
-              type: v.type === "json" ? "string" : (v.type ?? "string"),
+              // An enum with no choices is not an enum — degrade to string so
+              // the extractor is asked for something it can actually satisfy.
+              type:
+                v.type === "json"
+                  ? "string"
+                  : v.type === "enum" && !(v.choices ?? []).length
+                    ? "string"
+                    : (v.type ?? "string"),
+              ...(v.type === "enum" && (v.choices ?? []).length
+                ? { choices: (v.choices ?? []).map((c) => String(c).trim()).filter(Boolean) }
+                : {}),
               ...(v.required ? { required: true } : {}),
             }))
           : rawVars && rawVars.length

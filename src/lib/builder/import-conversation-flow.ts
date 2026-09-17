@@ -343,6 +343,15 @@ export function importAgentJson(raw: string): {
                 ? "json"
                 : "string") as ExtractVariableItem["type"],
             required: v.required === true,
+            // Enum options round-trip; without this an imported enum lost its
+            // allowed values and silently degraded to a free-text extraction.
+            ...(Array.isArray((v as { choices?: unknown }).choices)
+              ? {
+                  choices: ((v as { choices?: unknown[] }).choices ?? [])
+                    .map((c) => String(c).trim())
+                    .filter(Boolean),
+                }
+              : {}),
           }))
         : undefined,
       endingPrompt: kind === "ending" ? rn.instruction?.text : undefined,

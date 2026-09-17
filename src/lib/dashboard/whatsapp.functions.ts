@@ -995,6 +995,19 @@ export const getWhatsappInboxMeta = createServerFn({ method: "GET" })
       ),
     ].sort((a, b) => a.localeCompare(b));
 
+    // Upload categories in use, so the Listing Leads filter and the campaign
+    // audience picker offer the same list without either inventing one.
+    // Derived from the `contacts` rows already fetched above: an equivalent
+    // query against `leads` took ~6s even with an index, because the planner
+    // will not use it on a table that size, and this runs on page load.
+    const uploadTypes = [
+      ...new Set(
+        ((contacts ?? []) as Array<{ import_meta: Record<string, unknown> | null }>)
+          .map((c) => String(c.import_meta?.upload_type ?? "").trim())
+          .filter(Boolean),
+      ),
+    ].sort((a, b) => a.localeCompare(b));
+
     return {
       members: memberRows.map((m) => ({
         userId: m.user_id,
@@ -1008,6 +1021,8 @@ export const getWhatsappInboxMeta = createServerFn({ method: "GET" })
       tags,
       campaigns,
       areas,
+      /** Distinct `meta.upload_type` values — the import categories. */
+      uploadTypes,
       /** Total threads, so the inbox can tell the user how many are still below the fold. */
       conversationCount: conversationCount ?? 0,
       /** Only this workspace can create Off-Plan / Secondary campaigns. */
@@ -1312,6 +1327,8 @@ export const importWAContactsCsv = createServerFn({ method: "POST" })
     z
       .object({
         rows: z.array(csvLeadRowSchema).min(1).max(5000),
+        /** Category for this upload — see batchImportCsvLeads.uploadType. */
+        uploadType: z.string().trim().max(60).nullable().optional(),
       })
       .parse(input),
   )
@@ -1319,7 +1336,10 @@ export const importWAContactsCsv = createServerFn({ method: "POST" })
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
     const sb = supabase as any;
-    return batchImportCsvLeads(sb, workspaceId, data.rows as CsvLeadRow[], { syncWhatsappContacts: true });
+    return batchImportCsvLeads(sb, workspaceId, data.rows as CsvLeadRow[], {
+      syncWhatsappContacts: true,
+      uploadType: data.uploadType ?? null,
+    });
   });
 
 // ── Templates ─────────────────────────────────────────────────────────────────
@@ -2351,7 +2371,12 @@ export const launchWACampaign = createServerFn({ method: "POST" })
 export const importWatiCampaignLeadsCsv = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input) =>
-    z.object({ rows: z.array(csvLeadRowSchema).min(1).max(5000) }).parse(input),
+    z
+      .object({
+        rows: z.array(csvLeadRowSchema).min(1).max(5000),
+        uploadType: z.string().trim().max(60).nullable().optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
@@ -2360,6 +2385,7 @@ export const importWatiCampaignLeadsCsv = createServerFn({ method: "POST" })
     const sb = supabase as any;
     return batchImportCsvLeads(sb, workspaceId, data.rows as CsvLeadRow[], {
       syncWhatsappContacts: true,
+      uploadType: data.uploadType ?? null,
     });
   });
 
@@ -2372,6 +2398,22 @@ export const prepareCampaignAudienceFromContacts = createServerFn({ method: "POS
         limit: z.number().int().min(1).max(5000).optional(),
         offset: z.number().int().min(0).max(500000).optional(),
         skipMessaged: z.boolean().optional(),
+        /**
+         * Exact contacts to use, chosen from the table in the campaign form.
+         *
+         * When present this wins over limit/offset/skipMessaged: the operator
+         * has picked the audience by hand, and the batch walk would silently
+         * substitute a different set.
+         */
+        phones: z.array(z.string().min(3).max(40)).max(5000).optional(),
+        /**
+         * Restrict the audience to one import batch (`meta.upload_type`).
+         *
+         * This is what makes "send to the JVC list" possible without keeping
+         * separate contact books — the campaign draws only from contacts
+         * stamped with that category at import time.
+         */
+        uploadType: z.string().trim().max(60).nullable().optional(),
       })
       .parse(input),
   )
@@ -2386,7 +2428,7 @@ export const prepareCampaignAudienceFromContacts = createServerFn({ method: "POS
 
     const { data: contacts, error: cErr } = await sb
       .from("whatsapp_contacts")
-      .select("phone, name, notes, lead_status")
+      .select("phone, name, notes, lead_status, import_meta")
       .eq("workspace_id", workspaceId)
       .not("phone", "is", null)
       .neq("phone", "")
@@ -2400,10 +2442,25 @@ export const prepareCampaignAudienceFromContacts = createServerFn({ method: "POS
       );
     }
 
+    // Filtered here rather than in SQL: a JSON-path predicate on this table
+    // does not use an index reliably, and the rows are already loaded and
+    // ordered for the offset/limit walk below.
+    const wantUploadType = (data.uploadType ?? "").trim();
+    const scoped = wantUploadType
+      ? (contacts as Array<{ import_meta?: Record<string, unknown> | null }>).filter(
+          (c) => String(c.import_meta?.upload_type ?? "").trim() === wantUploadType,
+        )
+      : contacts;
+    if (wantUploadType && scoped.length === 0) {
+      throw new Error(
+        `No contacts found in the "${wantUploadType}" upload. Import that list first, or pick a different upload.`,
+      );
+    }
+
     const { byExact, byTail } = await fetchWorkspaceMessageStatsMaps(sb, workspaceId);
     let skippedMessaged = 0;
     const eligible = (
-      contacts as Array<{
+      scoped as Array<{
         phone: string;
         name?: string | null;
         notes?: string | null;
@@ -2420,7 +2477,19 @@ export const prepareCampaignAudienceFromContacts = createServerFn({ method: "POS
       return true;
     });
 
-    const sliced = eligible.slice(offset, offset + limit);
+    // An explicit selection is honoured exactly — no skip-messaged filtering,
+    // no offset walk. Choosing rows in the table and then being sent a
+    // different set is the worst kind of surprise for a broadcast.
+    const wantPhones = (data.phones ?? []).map((p) => p.trim()).filter(Boolean);
+    const byPhone = new Map(
+      (scoped as Array<{ phone: string }>).map((c) => [String(c.phone).trim(), c]),
+    );
+    const sliced = wantPhones.length
+      ? (wantPhones.map((p) => byPhone.get(p)).filter(Boolean) as typeof eligible)
+      : eligible.slice(offset, offset + limit);
+    if (wantPhones.length && sliced.length === 0) {
+      throw new Error("None of the selected contacts are still available to message.");
+    }
     if (sliced.length === 0) {
       throw new Error(
         skipMessaged
@@ -2448,7 +2517,9 @@ export const prepareCampaignAudienceFromContacts = createServerFn({ method: "POS
       total: result.total,
       contactCount: sliced.length,
       skippedMessaged,
-      remainingUnsent: Math.max(0, eligible.length - offset - sliced.length),
+      remainingUnsent: wantPhones.length
+        ? 0
+        : Math.max(0, eligible.length - offset - sliced.length),
       unsentTotal: eligible.length,
     };
   });

@@ -72,7 +72,10 @@ export async function enqueueWbahPostCallJob(input: {
   return { jobId: data.id as string, deduped: false };
 }
 
-export async function processWbahPostCallJobById(jobId: string): Promise<{
+export async function processWbahPostCallJobById(
+  jobId: string,
+  opts?: { disabledStepIds?: string[] },
+): Promise<{
   ok: boolean;
   branches: string[];
   errors: string[];
@@ -130,6 +133,7 @@ export async function processWbahPostCallJobById(jobId: string): Promise<{
           agent,
           skipLiveTranscript: true,
           wbahJobId: jobId,
+          disabledStepIds: opts?.disabledStepIds,
         })
       : await runWbahPostCallPipelineCore({
           event: row.event,
@@ -137,6 +141,7 @@ export async function processWbahPostCallJobById(jobId: string): Promise<{
           payload,
           agent,
           skipLiveTranscript: true,
+          disabledStepIds: opts?.disabledStepIds,
         });
 
     await sb
@@ -410,4 +415,78 @@ export async function getWbahPostCallQueueStats(workspaceId: string): Promise<{
     failed: failed.count ?? 0,
     completed24h: completed.count ?? 0,
   };
+}
+
+/**
+ * Steps a manual rerun holds back unless the operator explicitly opts in.
+ *
+ * `calendly_invitee` calls createWbahCalendlyInvitee, which is not idempotent —
+ * replaying it books the customer a second appointment for the same slot.
+ * `live_transcript` only mirrors an in-progress call into the live session
+ * table and means nothing once the call has ended.
+ */
+export const WBAH_RERUN_UNSAFE_STEP_IDS = ["calendly_invitee", "live_transcript"] as const;
+
+/**
+ * Re-run one finished execution from its stored webhook payload.
+ *
+ * The job row keeps the original payload, so a rerun is a genuine replay rather
+ * than a reconstruction: the same event goes through the same pipeline against
+ * whatever the code and the CRM now look like. That is the point — it is how a
+ * call that landed before a fix gets the fix applied.
+ *
+ * Two things this deliberately does NOT do. It does not reset attempt_count,
+ * because that number records how hard the queue tried automatically and is
+ * worth keeping; the rerun counts as one more attempt. And it does not bypass
+ * `processWbahPostCallJobById`'s atomic claim — a rerun races the poller like
+ * anything else, and the claim is what stops both running at once.
+ */
+export async function rerunWbahPostCallJob(
+  workspaceId: string,
+  jobId: string,
+  opts?: { includeUnsafeSteps?: boolean },
+): Promise<{
+  ok: boolean;
+  branches: string[];
+  errors: string[];
+  skippedSteps: string[];
+}> {
+  const sb = supabaseAdmin as any;
+  const { data: row, error } = await sb
+    .from("wbah_post_call_jobs")
+    .select("id, workspace_id, payload, status")
+    .eq("workspace_id", workspaceId)
+    .eq("id", jobId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!row) throw new Error("Execution not found");
+  if (!row.payload || !(row.payload as Record<string, unknown>).call) {
+    throw new Error("This execution has no stored payload to replay");
+  }
+  if (row.status === "processing") {
+    throw new Error("This execution is already running");
+  }
+
+  const skippedSteps = opts?.includeUnsafeSteps ? [] : [...WBAH_RERUN_UNSAFE_STEP_IDS];
+
+  // Back to pending so the claim in processWbahPostCallJobById can take it;
+  // the completed-status early return would otherwise turn a rerun into a
+  // no-op that reported the previous run's branches as if they were fresh.
+  const { error: resetErr } = await sb
+    .from("wbah_post_call_jobs")
+    .update({
+      status: "pending",
+      branches: [],
+      errors: [],
+      last_error: null,
+      next_retry_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("workspace_id", workspaceId)
+    .eq("id", jobId);
+  if (resetErr) throw new Error(resetErr.message);
+
+  console.log("[WBAH QUEUE] manual rerun requested", { jobId, workspaceId, skippedSteps });
+  const result = await processWbahPostCallJobById(jobId, { disabledStepIds: skippedSteps });
+  return { ...result, skippedSteps };
 }

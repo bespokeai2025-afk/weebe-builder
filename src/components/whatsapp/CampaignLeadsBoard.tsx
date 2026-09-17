@@ -187,6 +187,8 @@ export function CampaignLeadsBoard() {
   const [search, setSearch] = useState("");
   const [area, setArea] = useState(ALL);
   const [campaign, setCampaign] = useState(ALL);
+  const [uploadType, setUploadType] = useState(ALL);
+  const [unreadOnly, setUnreadOnly] = useState(false);
   const [stage, setStage] = useState(ALL);
   const [remark, setRemark] = useState(ALL);
   const [agent, setAgent] = useState(ALL);
@@ -223,6 +225,17 @@ export function CampaignLeadsBoard() {
     return [...new Set([...(meta?.areas ?? []), ...fromLeads])].sort((a, b) => a.localeCompare(b));
   }, [allLeads, meta?.areas]);
 
+  const unreadCount = useMemo(() => allLeads.filter((l) => l.has_unread_reply).length, [allLeads]);
+
+  const uploadTypes = useMemo(() => {
+    // Read off the loaded rows rather than the meta endpoint: a freshly
+    // imported batch is then filterable immediately, without waiting for the
+    // 60s-cached workspace meta to refresh.
+    return [...new Set(allLeads.map((l) => l.upload_type).filter(Boolean))].sort((a, b) =>
+      a.localeCompare(b),
+    );
+  }, [allLeads]);
+
   const campaigns = useMemo(() => {
     const map = new Map<string, string>();
     for (const lead of allLeads) {
@@ -236,13 +249,15 @@ export function CampaignLeadsBoard() {
       if (search && !leadHaystack(lead).includes(search)) return false;
       if (area !== ALL && lead.area !== area) return false;
       if (campaign !== ALL && lead.campaign_id !== campaign) return false;
+      if (uploadType !== ALL && (lead.upload_type || "") !== uploadType) return false;
+      if (unreadOnly && !lead.has_unread_reply) return false;
       if (stage !== ALL && displayStage(lead.stage) !== stage) return false;
       if (remark !== ALL && (leadOutcome(lead) ?? NEEDS_REMARK) !== remark) return false;
       if (agent === UNASSIGNED && lead.assigned_to) return false;
       if (agent !== ALL && agent !== UNASSIGNED && lead.assigned_to !== agent) return false;
       return true;
     });
-  }, [allLeads, search, area, campaign, stage, remark, agent]);
+  }, [allLeads, search, area, campaign, uploadType, unreadOnly, stage, remark, agent]);
 
   // Picking a specific Stage or Remark is a deliberate "browse the archive"
   // action — it drops the default working-board gates (active outcome, open
@@ -377,7 +392,13 @@ export function CampaignLeadsBoard() {
   };
 
   const hasFilters =
-    Boolean(search) || area !== ALL || campaign !== ALL || stage !== ALL || remark !== ALL || agent !== ALL;
+    Boolean(search) ||
+    area !== ALL ||
+    campaign !== ALL ||
+    uploadType !== ALL ||
+    stage !== ALL ||
+    remark !== ALL ||
+    agent !== ALL;
   const blankLeads = !hasFilters && leads.length === 0;
   const selectedStage = (selected?.stage as CampaignLeadStage | null) ?? null;
 
@@ -386,6 +407,8 @@ export function CampaignLeadsBoard() {
     setSearch("");
     setArea(ALL);
     setCampaign(ALL);
+    setUploadType(ALL);
+    setUnreadOnly(false);
     setStage(ALL);
     setRemark(ALL);
     setAgent(ALL);
@@ -444,6 +467,22 @@ export function CampaignLeadsBoard() {
               {campaigns.map(([id, name]) => (
                 <SelectItem key={id} value={id}>
                   {name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
+        {uploadTypes.length > 0 && (
+          <Select value={uploadType} onValueChange={setUploadType}>
+            <SelectTrigger className={cn(BUZZ_SELECT, "w-40")} aria-label="Upload type">
+              <SelectValue placeholder="Upload type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>All uploads</SelectItem>
+              {uploadTypes.map((t) => (
+                <SelectItem key={t} value={t}>
+                  {t}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -522,13 +561,33 @@ export function CampaignLeadsBoard() {
         </div>
       </div>
 
-      <p className="text-xs text-muted-foreground">
-        {blankLeads
-          ? "Waiting for remarks"
-          : `${leads.length} lead${leads.length === 1 ? "" : "s"}${
-              data?.total != null && data.total !== allLeads.length ? ` of ${data.total}` : ""
-            }${hasFilters ? " matching" : ""}. Click a row to chat or assign.`}
-      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-xs text-muted-foreground">
+          {blankLeads
+            ? "Waiting for remarks"
+            : `${leads.length} lead${leads.length === 1 ? "" : "s"}${
+                data?.total != null && data.total !== allLeads.length ? ` of ${data.total}` : ""
+              }${hasFilters ? " matching" : ""}. Click a row to chat or assign.`}
+        </p>
+        {/* Standing count, so a new reply is visible without scanning rows.
+            Clicking it narrows the board to just those leads. */}
+        {unreadCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setUnreadOnly((v) => !v)}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors",
+              unreadOnly
+                ? "border-primary/50 bg-primary/15 text-primary"
+                : "border-primary/30 bg-primary/10 text-primary hover:bg-primary/15",
+            )}
+          >
+            <span className="inline-flex h-1.5 w-1.5 rounded-full bg-primary" />
+            {unreadCount} new {unreadCount === 1 ? "reply" : "replies"}
+            {unreadOnly && <X className="h-2.5 w-2.5" />}
+          </button>
+        )}
+      </div>
 
       <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-border bg-card">
         {isLoading ? (
@@ -576,7 +635,24 @@ export function CampaignLeadsBoard() {
                     onClick={() => openLead(lead)}
                   >
                     <td className="px-3 py-2.5">
-                      <p className="font-medium text-foreground">{lead.full_name || lead.phone || "Unknown"}</p>
+                      <p className="flex items-center gap-1.5 font-medium text-foreground">
+                        {/* Unread reply. The board could already show when a
+                            lead last replied but not whether anyone had read
+                            it, so finding new messages meant opening every
+                            chat. Cleared by reading the thread in the inbox. */}
+                        {lead.has_unread_reply && (
+                          <span
+                            className="inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-primary ring-2 ring-primary/25"
+                            title="New message — not opened yet"
+                          />
+                        )}
+                        <span className="truncate">{lead.full_name || lead.phone || "Unknown"}</span>
+                        {lead.has_unread_reply && (
+                          <span className="shrink-0 rounded-full bg-primary/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-primary">
+                            New reply
+                          </span>
+                        )}
+                      </p>
                       {lead.phone && (
                         <p className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground">
                           <Phone className="h-2.5 w-2.5" />

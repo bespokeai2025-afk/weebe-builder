@@ -147,6 +147,11 @@ export interface CascadeSessionConfig {
   variables?: Record<string, VariableValue>;
   /** Builder web test: force who speaks first, ignoring inbound start_speaker. */
   startSpeaker?: "agent" | "user";
+  /**
+   * Marks this as a test call, so its turns are recorded but excluded from
+   * production latency percentiles. Set by the builder/test-call surfaces.
+   */
+  isTestCall?: boolean;
   /** BCP-47 speech languages from builder settings — drives STT + language lock. */
   speechLanguages?: string[];
   /** Builder tuning mapped into VAD / barge-in. */
@@ -236,6 +241,21 @@ export class CascadeSession {
   private awaitingCallerInput = false;
   /** Caller spoke during duplex playback; process after audio drains. */
   private pendingDuplexUserText: string | null = null;
+  /** Variables present before the conversation started — the extraction baseline. */
+  private seededVariables: Record<string, string> = {};
+  /** Resolved once, so persistTurnLatency needs no await mid-turn. */
+  private workspaceIdCache: string | null | undefined;
+  /**
+   * Facts about the turn that is *about* to start.
+   *
+   * The caller starts speaking, and partials drive the adaptive hangover, both
+   * before `beginTurn` creates the Turn and its trace. Writing them straight to
+   * `this.turn.trace` therefore landed them on the previous turn (or nowhere):
+   * speech_to_first_audio_ms came out null or nonsensical, and hangover_ms was
+   * null on every row. Buffer here, seed the trace the moment it exists.
+   */
+  private pendingUserSpeechStartAt: number | null = null;
+  private pendingEndpointing: { hangoverMs: number; heldForIncomplete: boolean } | null = null;
   private partialNormalized = "";
   private partialStableSince = 0;
   private speculativeFlat: SpeculativeFlatRun | null = null;
@@ -301,13 +321,16 @@ export class CascadeSession {
 
   private async resolveCallWorkspaceId(): Promise<string | null> {
     if (this.config.workspaceId) return this.config.workspaceId;
+    if (this.workspaceIdCache !== undefined) return this.workspaceIdCache;
     if (!this.config.supabase || !this.config.agentId) return null;
     const { data } = await this.config.supabase
       .from("agents")
       .select("workspace_id")
       .eq("id", this.config.agentId)
       .maybeSingle();
-    return (data?.workspace_id as string | null) ?? null;
+    // Cached so reportLatency can persist without an await mid-turn.
+    this.workspaceIdCache = (data?.workspace_id as string | null) ?? null;
+    return this.workspaceIdCache;
   }
 
   private async resolveSttKeys(): Promise<SttProviderKeys> {
@@ -388,6 +411,20 @@ export class CascadeSession {
     });
 
     const runtime = await this.loadGraphRuntime();
+
+    // What the flow starts with — test-prep values, lead fields, current_date
+    // and friends. Held so "collected" can mean what the conversation actually
+    // produced. Without this every seeded value was reported as an extraction,
+    // so a call where the caller volunteered nothing still listed ten
+    // "extracted variables".
+    // Read from `runtime.vm`, not `this.graphVm` — the latter is not assigned
+    // until further down, so this snapshot was always empty and every seeded
+    // value still came back reported as an extraction.
+    this.seededVariables = {};
+    for (const [k, v] of Object.entries(runtime?.vm?.getVariables() ?? {})) {
+      if (v === undefined || v === null) continue;
+      this.seededVariables[k] = String(v);
+    }
 
     this.lifecycleRef = this.config.resolveLifecycle?.(runtime) ?? null;
 
@@ -959,8 +996,7 @@ export class CascadeSession {
     const t = this.beginTurn(endpointAt);
     t.sttAt = Date.now();
     if (this.graph) {
-      const trace = new CallTurnTrace(t.id, t.startedAt, this.log);
-      t.trace = trace;
+      const trace = this.startTurnTrace(t);
       this.graphVm?.setTurnTrace(trace);
       trace.setSttFinal(t.sttAt);
       trace.mark("stt_final");
@@ -1181,7 +1217,12 @@ export class CascadeSession {
     for (const [key, value] of Object.entries(values)) {
       if (value === undefined || value === null) continue;
       const text = String(value).trim();
-      if (text) str[key] = text;
+      if (!text) continue;
+      // Unchanged from the seed means the caller never told us this — it was
+      // already known. Reporting it as collected is what made the extraction
+      // list indistinguishable from the test inputs.
+      if (this.seededVariables[key] === text) continue;
+      str[key] = text;
     }
     if (Object.keys(str).length === 0) return;
     this.lifecycleRef?.mergeDynamicVariables(str);
@@ -1264,8 +1305,7 @@ export class CascadeSession {
     const t = this.beginTurn(Date.now());
     t.sttAt = Date.now();
     if (this.graph) {
-      const trace = new CallTurnTrace(t.id, t.startedAt, this.log);
-      t.trace = trace;
+      const trace = this.startTurnTrace(t);
       this.graphVm?.setTurnTrace(trace);
       trace.setSttFinal(t.sttAt);
       trace.mark("stt_final");
@@ -1298,13 +1338,36 @@ export class CascadeSession {
     await this.runFlatTurn(userText, t);
   }
 
+  /**
+   * Create the turn's trace and hand it the marks already gathered for it.
+   * Pending values are consumed so they can never leak into the next turn.
+   */
+  private startTurnTrace(t: Turn): CallTurnTrace {
+    const trace = new CallTurnTrace(t.id, t.startedAt, this.log);
+    t.trace = trace;
+    if (this.pendingUserSpeechStartAt !== null) {
+      trace.setUserSpeechStart(this.pendingUserSpeechStartAt);
+      this.pendingUserSpeechStartAt = null;
+    }
+    if (this.pendingEndpointing) {
+      trace.setEndpointing(
+        this.pendingEndpointing.hangoverMs,
+        this.pendingEndpointing.heldForIncomplete,
+      );
+      this.pendingEndpointing = null;
+    }
+    return trace;
+  }
+
   private applyAdaptiveHangover(partial: string): void {
-    const hangoverMs = resolveEndpointHangoverMs(
-      partial,
-      this.runtime.endpointing.silenceDurationMs,
-    );
+    const baseMs = this.runtime.endpointing.silenceDurationMs;
+    const hangoverMs = resolveEndpointHangoverMs(partial, baseMs);
     const frames = Math.max(3, Math.round(hangoverMs / BROWSER_VAD_FRAME_MS));
     this.vad?.setSilenceFramesTrigger(frames);
+    // Buffered, not written to this.turn: partials arrive before beginTurn
+    // creates the turn this window applies to. Recorded so the adaptive window
+    // can be judged from data rather than by ear.
+    this.pendingEndpointing = { hangoverMs, heldForIncomplete: hangoverMs > baseMs };
   }
 
   private restoreHangover(): void {
@@ -1427,6 +1490,35 @@ export class CascadeSession {
         ` total=${total !== null ? `${total}ms` : "n/a"}` +
         `${total !== null && total > LATENCY_BUDGET_MS ? " OVER BUDGET" : ""}`,
     );
+    this.persistTurnLatency(t);
+  }
+
+  /**
+   * Store the turn's marks. Fire-and-forget by construction: a latency row is
+   * worth losing, a blocking write mid-conversation is not.
+   */
+  private persistTurnLatency(t: Turn): void {
+    const trace = t.trace;
+    if (!trace || !trace.hasTimings()) return;
+    const workspaceId = this.config.workspaceId ?? this.workspaceIdCache;
+    if (!workspaceId) return;
+    void import("../call-turn-latency.server")
+      .then(({ recordCallTurnLatencyAsync }) =>
+        recordCallTurnLatencyAsync(
+          {
+            workspaceId,
+            callId: this.config.callId,
+            nodeId: this.graphVm?.nodeId ?? null,
+            engine: "webee_native",
+            agentId: this.config.agentId ?? null,
+            isTestCall: this.config.isTestCall ?? false,
+          },
+          trace.toRecord(),
+        ),
+      )
+      .catch(() => {
+        /* latency telemetry must never affect a live call */
+      });
   }
 
   private get bargeInActive(): boolean {
@@ -1447,7 +1539,8 @@ export class CascadeSession {
         this.callerSpeaking = true;
         this.speechFrames = 1;
         this.lastSpeechRms = event.rms;
-        this.turn?.trace?.setUserSpeechStart(Date.now());
+        // Belongs to the turn this speech will produce, not the one just finished.
+        this.pendingUserSpeechStartAt = Date.now();
         this.turn?.trace?.mark("turn_detected");
         if (this.bargeInActive && event.rms < this.runtime.interruption.bargeInMinRms) {
           this.speechFrames = 0;

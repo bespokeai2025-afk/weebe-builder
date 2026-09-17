@@ -108,6 +108,10 @@ function handleConnection(ws: WebSocket, _ctx: VoiceGatewayContext): void {
         msg.startSpeaker === "agent" || msg.startSpeaker === "user"
           ? msg.startSpeaker
           : undefined,
+      // This relay is the browser test-call path; telephony and FreJun have
+      // their own routes. Marking it keeps builder turns in the test register
+      // and out of the production latency percentiles.
+      isTestCall: msg.isTestCall !== false,
       speechLanguages: Array.isArray(msg.speechLanguages)
         ? (msg.speechLanguages as string[])
         : msg.speechLanguages
@@ -125,7 +129,18 @@ function handleConnection(ws: WebSocket, _ctx: VoiceGatewayContext): void {
       // Only saved agents are reported: an unsaved builder flow has no row to
       // report against.
       resolveLifecycle: (runtime) => {
-        if (!runtime?.agent) return null;
+        if (!runtime?.agent) {
+          // No saved agent means no workspace to attribute the call to, so the
+          // webhook processor could only answer "unknown agent". The call still
+          // runs, but nothing is recorded — which looked like "variables are
+          // not being extracted" when the real answer was that no call row was
+          // ever written. Say so instead of failing silently.
+          console.warn(
+            `${LOG} call ${callId}: agent is not saved — transcript, summary, sentiment and ` +
+              "collected variables will NOT be recorded in call history. Save the agent and re-test.",
+          );
+          return null;
+        }
         const sb = makeSupabaseAdmin();
         const lifecycle = new NativeCallLifecycle(
           {

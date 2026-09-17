@@ -77,7 +77,21 @@ export function resolveWebeeLlmProvider(
     .trim()
     .toLowerCase();
   if (raw === "cerebras" || raw === "openai") return raw;
-  return "openai";
+  // Default to Cerebras when a key is configured.
+  //
+  // First token dominates voice latency, and measured time to the first
+  // *speakable* token is ~549ms median on Cerebras gpt-oss-120b (reasoning
+  // effort low) against ~2080ms on OpenAI gpt-4o-mini — matching the
+  // 1161–4781ms stt→first_token seen on real calls while this defaulted to
+  // OpenAI. The classifier gap is wider still: ~547ms vs ~2646ms.
+  //
+  // Guarded on the key so the model picked downstream always matches a
+  // provider that can serve it: declaring "cerebras" with no key would send
+  // gpt-oss-120b to OpenAI, which rejects it. Set
+  // WEBEE_NATIVE_LLM_PROVIDER=openai to override.
+  const cerebrasKey =
+    typeof process !== "undefined" ? String(process.env?.CEREBRAS_API_KEY ?? "").trim() : "";
+  return cerebrasKey ? "cerebras" : "openai";
 }
 
 export function resolveWebeeSpeechModel(settings?: Record<string, unknown> | null): string {

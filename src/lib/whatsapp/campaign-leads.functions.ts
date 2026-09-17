@@ -20,6 +20,8 @@ import {
   readListingStage,
   startListingPipeline,
   writeListingPipelineOffer,
+  clearListingPipeline,
+  isWhatsappThreadSeen,
   writeListingPipelineStage,
   writeListingStage,
   writeCampaignFollowUp,
@@ -91,6 +93,11 @@ export type CampaignLeadRow = {
   email: string | null;
   property: string;
   area: string;
+  /** Import category from `meta.upload_type` — the batch this lead arrived in. */
+  upload_type: string;
+  /** Caller wrote something nobody has opened yet. */
+  has_unread_reply: boolean;
+  last_inbound_at: string | null;
   requirement: string;
   campaign_type: CampaignType;
   campaign_id: string | null;
@@ -133,12 +140,50 @@ async function memberNames(
   return map;
 }
 
+/**
+ * Unread-reply state per contact phone.
+ *
+ * The board could already show *when* a lead last replied, but not whether
+ * anyone had read it — so spotting a new message meant opening every chat in
+ * turn. `last_read_at` is the same column the inbox uses for its seen state, so
+ * the two surfaces agree: reading a thread in the inbox clears the flag here.
+ */
+async function fetchUnreadRepliesByPhone(
+  sb: any,
+  workspaceId: string,
+): Promise<Map<string, { lastInboundAt: string | null; unread: boolean }>> {
+  const out = new Map<string, { lastInboundAt: string | null; unread: boolean }>();
+  const { data, error } = await sb
+    .from("whatsapp_conversations")
+    .select("contact_phone, last_read_at, last_inbound_at, last_message_at, unread_count")
+    .eq("workspace_id", workspaceId)
+    .limit(5000);
+  if (error) return out;
+  for (const row of (data ?? []) as Array<Record<string, unknown>>) {
+    const phone = String(row.contact_phone ?? "").trim();
+    if (!phone) continue;
+    const lastInboundAt = (row.last_inbound_at as string | null) ?? null;
+    // Unread means the caller wrote something the agent has not opened. A
+    // stored unread_count is honoured too, since WATI sets it directly.
+    const seen = isWhatsappThreadSeen(
+      row.last_read_at as string | null,
+      (row.last_message_at as string | null) ?? lastInboundAt,
+    );
+    out.set(phone, {
+      lastInboundAt,
+      unread: Boolean(lastInboundAt) && (!seen || Number(row.unread_count ?? 0) > 0),
+    });
+  }
+  return out;
+}
+
 function mapRow(
   lead: Record<string, unknown>,
   names: Map<string, string>,
   campaignType: CampaignType,
   campaignId: string | null = null,
   campaignName: string | null = null,
+  unread: { lastInboundAt: string | null; unread: boolean } | undefined = undefined,
 ): CampaignLeadRow {
   const meta = (lead.meta as Record<string, unknown> | null) ?? {};
   const qualification = readCampaignQualification(meta);
@@ -164,6 +209,9 @@ function mapRow(
     email: (lead.email as string | null) ?? null,
     property: propertyLabelFromMeta(meta),
     area: areaFromPropertyMeta(meta),
+    upload_type: String(meta.upload_type ?? "").trim(),
+    has_unread_reply: unread?.unread ?? false,
+    last_inbound_at: unread?.lastInboundAt ?? null,
     requirement,
     campaign_type: campaignType,
     campaign_id: campaignId,
@@ -246,10 +294,19 @@ export const listCampaignLeads = createServerFn({ method: "POST" })
       ((rows ?? []) as Array<{ assigned_to?: string | null }>).map((r) => r.assigned_to ?? ""),
     );
     const { byExact, byTail } = await fetchWorkspaceMessageStatsMaps(sb, workspaceId);
+    const unreadByPhone = await fetchUnreadRepliesByPhone(sb, workspaceId);
     return {
       leads: ((rows ?? []) as Record<string, unknown>[]).map((row) => {
         const stats = lookupWaContactMessageStats(row.phone as string | null, byExact, byTail);
-        return mapRow(row, names, stats.last_campaign_type, stats.last_campaign_id, stats.last_campaign_name);
+        const phone = String(row.phone ?? "").trim();
+        return mapRow(
+          row,
+          names,
+          stats.last_campaign_type,
+          stats.last_campaign_id,
+          stats.last_campaign_name,
+          unreadByPhone.get(phone),
+        );
       }),
       total: count ?? 0,
     };
@@ -491,6 +548,8 @@ export type ListingPipelineLeadRow = {
   phone: string | null;
   property: string;
   area: string;
+  /** Import category from `meta.upload_type` — the batch this lead arrived in. */
+  upload_type: string;
   askingPrice: string;
   stage: ListingPipelineStage;
   daysInStage: number;
@@ -518,6 +577,7 @@ function mapListingPipelineRow(
     phone: (lead.phone as string | null) ?? null,
     property: propertyLabelFromMeta(meta),
     area: areaFromPropertyMeta(meta),
+    upload_type: String(meta.upload_type ?? "").trim(),
     askingPrice: qualification.asking_price,
     stage: pipeline.stage,
     daysInStage: daysInListingPipelineStage(pipeline.enteredAt),
@@ -559,6 +619,40 @@ export const listListingPipelineLeads = createServerFn({ method: "GET" })
       .map((row) => mapListingPipelineRow(row, names))
       .filter(Boolean) as ListingPipelineLeadRow[];
     return { leads };
+  });
+
+/**
+ * Remove a lead from the pipeline board.
+ *
+ * Clears the pipeline record only — the lead row, its conversation and its
+ * qualification all survive. See clearListingPipeline for why.
+ */
+export const removeFromListingPipeline = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) => z.object({ leadId: z.string().min(1) }).parse(input))
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId, userId } = context;
+    if (!workspaceId) throw new Error("No workspace");
+    assertNotWbahWorkspace(workspaceId);
+    const sb = supabase as any;
+    const perms = await resolvePermissions(workspaceId, userId);
+
+    let sel = sb.from("leads").select("id, meta").eq("id", data.leadId).eq("workspace_id", workspaceId);
+    if (perms.assignedRecordsOnly) sel = sel.eq("assigned_to", userId);
+    const { data: lead, error: loadErr } = await sel.maybeSingle();
+    if (loadErr) throw new Error(loadErr.message);
+    if (!lead) throw new Error("Lead not found");
+
+    const meta = clearListingPipeline((lead.meta as Record<string, unknown> | null) ?? {});
+    let q = sb
+      .from("leads")
+      .update({ meta, updated_at: new Date().toISOString() })
+      .eq("id", data.leadId)
+      .eq("workspace_id", workspaceId);
+    if (perms.assignedRecordsOnly) q = q.eq("assigned_to", userId);
+    const { error } = await q;
+    if (error) throw new Error(error.message);
+    return { ok: true as const, leadId: data.leadId };
   });
 
 export const updateListingPipelineStage = createServerFn({ method: "POST" })

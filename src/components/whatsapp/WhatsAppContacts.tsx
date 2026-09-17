@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Pencil, Trash2, Download, Upload, Search, Users, RefreshCw, Loader2, FolderOpen, FileSpreadsheet, ChevronDown, CheckCircle2, MessageCircle, Circle, Ban, Copy, X, Phone, User } from "lucide-react";
@@ -34,6 +34,7 @@ import {
   updateWAContact,
   deleteWAContact,
   deleteAllWAContacts,
+  getWhatsappInboxMeta,
   importWAContactsCsv,
   exportBuzzchatContactsCsv,
   backfillWhatsappContactedStatus,
@@ -59,6 +60,9 @@ import { toast } from "sonner";
 const STATUSES = ["new", "contacted", "qualified", "closed", "lost"];
 const SOURCES  = ["manual", "import", "webhook", "campaign", "referral", "wati"];
 type MessagedFilter = "all" | "messaged" | "not_messaged" | "replied" | "dnc";
+
+/** Radix Select cannot hold an empty value. */
+const ALL_UPLOADS = "__all_uploads__";
 
 type WaContactRow = {
   id: string;
@@ -376,6 +380,16 @@ export function WhatsAppContacts() {
     queryFn: () => listFn(),
     throwOnError: false,
   });
+  // Shared with the inbox and the leads board — supplies the upload-type
+  // suggestions so a second import reuses an existing category instead of
+  // inventing a near-duplicate.
+  const metaFn = useServerFn(getWhatsappInboxMeta);
+  const { data: meta } = useQuery({
+    queryKey: ["wa-inbox-meta"],
+    queryFn: () => metaFn(),
+    staleTime: 60_000,
+    throwOnError: false,
+  });
   const contacts = (contactsPayload?.contacts ?? []) as WaContactRow[];
   const summary = contactsPayload?.summary ?? {
     total: contacts.length,
@@ -402,6 +416,8 @@ export function WhatsAppContacts() {
   });
 
   const [search, setSearch]     = useState("");
+  /** Narrow the table to one import batch (`meta.upload_type`). */
+  const [uploadFilter, setUploadFilter] = useState(ALL_UPLOADS);
   const [messagedFilter, setMessagedFilter] = useState<MessagedFilter>("all");
   const [open, setOpen]         = useState(false);
   const [editRow, setEditRow]   = useState<any>(null);
@@ -413,6 +429,8 @@ export function WhatsAppContacts() {
   const [importOpen, setImportOpen] = useState(false);
   const [csvParsing, setCsvParsing] = useState(false);
   const [csvImporting, setCsvImporting] = useState(false);
+  /** Category stamped on every lead/contact in this upload. */
+  const [csvUploadType, setCsvUploadType] = useState("");
   const [csvImportLimit, setCsvImportLimit] = useState(20);
   const [csvBuyersOnly, setCsvBuyersOnly] = useState(true);
   const [csvFileName, setCsvFileName] = useState<string | null>(null);
@@ -421,8 +439,28 @@ export function WhatsAppContacts() {
   const [csvMapping, setCsvMapping] = useState<CsvColumnMapping | null>(null);
   const [csvNeedsMapping, setCsvNeedsMapping] = useState(false);
 
+  // Categories actually present in the loaded contacts, so the dropdown never
+  // offers an upload that has since been removed.
+  const uploadOptions = useMemo(
+    () =>
+      [
+        ...new Set(
+          contacts
+            .map((c) =>
+              String(((c.import_meta as Record<string, unknown> | null) ?? {}).upload_type ?? "").trim(),
+            )
+            .filter(Boolean),
+        ),
+      ].sort((a, b) => a.localeCompare(b)),
+    [contacts],
+  );
+
   const filtered = contacts.filter((c) => {
     if (!contactSearchHaystack(c).includes(search.toLowerCase())) return false;
+    if (uploadFilter !== ALL_UPLOADS) {
+      const meta = (c.import_meta as Record<string, unknown> | null) ?? {};
+      if (String(meta.upload_type ?? "").trim() !== uploadFilter) return false;
+    }
     const stats = c.wa_stats;
     if (messagedFilter === "messaged") return !!stats?.messaged;
     if (messagedFilter === "not_messaged") return !stats?.messaged;
@@ -567,7 +605,9 @@ export function WhatsAppContacts() {
     }
     setCsvImporting(true);
     try {
-      const result = await importCsvFn({ data: { rows: leads } });
+      const result = await importCsvFn({
+        data: { rows: leads, uploadType: csvUploadType.trim() || null },
+      });
       qc.invalidateQueries({ queryKey: ["wa-contacts"] });
       qc.invalidateQueries({ queryKey: ["campaign-leads"] });
       toast.success(`Imported ${result.total} contact(s)`, {
@@ -583,6 +623,7 @@ export function WhatsAppContacts() {
   }
 
   function resetCsvImportState() {
+    setCsvUploadType("");
     setCsvFileName(null);
     setCsvHeaders([]);
     setCsvRows([]);
@@ -727,6 +768,24 @@ export function WhatsAppContacts() {
                 </button>
               ))}
             </div>
+            {/* Which import batch this table is showing. Hidden until at least
+                one upload is categorised, so it does not sit empty for
+                workspaces that never used upload types. */}
+            {uploadOptions.length > 0 && (
+              <Select value={uploadFilter} onValueChange={setUploadFilter}>
+                <SelectTrigger className="h-7 w-40 text-xs" aria-label="Upload type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_UPLOADS}>All uploads</SelectItem>
+                  {uploadOptions.map((t: string) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             {filtered.length > 0 && (
               <span className="ml-auto text-xs text-muted-foreground">
                 {filtered.length} shown
@@ -1006,6 +1065,25 @@ export function WhatsAppContacts() {
               Requirement (Sell / Rent / Both), Asking Price, Rental Price, and Tags. Turn off Buyers
               only for JVC owner registry files. Re-import to refresh numbers and property fields.
             </p>
+            <div>
+              <Label className="text-xs">Upload type</Label>
+              <Input
+                list="wa-upload-types"
+                value={csvUploadType}
+                onChange={(e) => setCsvUploadType(e.target.value)}
+                placeholder="e.g. Dubai Marina · Off-plan Q3 · Cold list"
+                className="mt-1 h-8 text-xs"
+              />
+              <datalist id="wa-upload-types">
+                {(meta?.uploadTypes ?? []).map((t) => (
+                  <option key={t} value={t} />
+                ))}
+              </datalist>
+              <p className="mt-1 text-[10px] text-muted-foreground">
+                Categorises this batch. Filter by it in Listing Leads and when picking a campaign
+                audience.
+              </p>
+            </div>
             <div>
               <Label className="text-xs">Max contacts</Label>
               <NumberInput

@@ -48,10 +48,36 @@ export type LatencyMark =
   | "router_start"
   | "router_complete";
 
+/**
+ * One turn's latency, shaped for `call_turns`.
+ *
+ * Every field is nullable on purpose: a turn cut short by barge-in genuinely
+ * has no first-audio mark, and that has to stay distinguishable from a zero.
+ */
+export type TurnLatencyRecord = {
+  turnIndex: number;
+  speechToFirstAudioMs: number | null;
+  endpointToSttFinalMs: number | null;
+  sttToRouteMs: number | null;
+  sttToNodeLoadedMs: number | null;
+  sttToFirstTokenMs: number | null;
+  sttToFirstSentenceMs: number | null;
+  sttToFirstAudioMs: number | null;
+  hangoverMs: number | null;
+  heldForIncomplete: boolean | null;
+  edgeRouteMethod: RouteMethod | null;
+  globalRouteMethod: RouteMethod | null;
+  speculativeHit: boolean;
+  partialCommit: boolean;
+  interrupted: boolean;
+};
+
 export class CallTurnTrace {
   private readonly marks = new Map<LatencyMark, number>();
   private sttFinalAt: number | null = null;
   private userSpeechStartAt: number | null = null;
+  private hangoverMs: number | null = null;
+  private heldForIncomplete: boolean | null = null;
   private edgeRouteMethod: RouteMethod | null = null;
   private globalRouteMethod: RouteMethod | null = null;
 
@@ -76,6 +102,12 @@ export class CallTurnTrace {
     if (!this.marks.has(name)) this.marks.set(name, at);
   }
 
+  /** The silence window this turn actually used, and why. */
+  setEndpointing(hangoverMs: number, heldForIncomplete: boolean): void {
+    this.hangoverMs = hangoverMs;
+    this.heldForIncomplete = heldForIncomplete;
+  }
+
   /** Record how an edge or global transition was resolved (equation/heuristic/llm/…). */
   recordRoute(scope: "edge" | "global", method: RouteMethod): void {
     if (scope === "edge") this.edgeRouteMethod = method;
@@ -83,15 +115,58 @@ export class CallTurnTrace {
   }
 
   msSinceStt(name: LatencyMark): number | null {
-    if (!this.sttFinalAt) return null;
+    // Null checks, not truthiness: a timestamp of 0 is a real value, and
+    // reading it as "never recorded" silently drops the span.
+    if (this.sttFinalAt === null) return null;
     const at = this.marks.get(name);
-    return at ? Math.round(at - this.sttFinalAt) : null;
+    return at === undefined ? null : Math.round(at - this.sttFinalAt);
   }
 
   msSinceUserSpeech(name: LatencyMark): number | null {
-    if (!this.userSpeechStartAt) return null;
+    if (this.userSpeechStartAt === null) return null;
     const at = this.marks.get(name);
-    return at ? Math.round(at - this.userSpeechStartAt) : null;
+    return at === undefined ? null : Math.round(at - this.userSpeechStartAt);
+  }
+
+  /**
+   * The same numbers `flushSummary` prints, as data.
+   *
+   * Kept separate from the log line so persistence never changes what an
+   * engineer reads in the console, and so the caller can decide what to do
+   * with a turn that produced no usable marks.
+   */
+  toRecord(): TurnLatencyRecord {
+    return {
+      turnIndex: this.turnId,
+      speechToFirstAudioMs: this.msSinceUserSpeech("tts_first_audio"),
+      // Endpoint→STT is the one span measured from turn origin rather than
+      // from STT final, since it is what STT itself costs.
+      endpointToSttFinalMs:
+        this.sttFinalAt === null ? null : Math.round(this.sttFinalAt - this.turnOrigin),
+      sttToRouteMs:
+        this.msSinceStt("graph_route_edge_end") ?? this.msSinceStt("graph_route_global_end"),
+      sttToNodeLoadedMs: this.msSinceStt("graph_node_loaded"),
+      sttToFirstTokenMs: this.msSinceStt("llm_speech_first_token"),
+      sttToFirstSentenceMs: this.msSinceStt("llm_speech_first_sentence"),
+      sttToFirstAudioMs: this.msSinceStt("tts_first_audio"),
+      hangoverMs: this.hangoverMs,
+      heldForIncomplete: this.heldForIncomplete,
+      edgeRouteMethod: this.edgeRouteMethod,
+      globalRouteMethod: this.globalRouteMethod,
+      speculativeHit: this.marks.has("speculative_speech_hit"),
+      partialCommit: this.marks.has("partial_stt_stable"),
+      interrupted: this.marks.has("interruption_detected"),
+    };
+  }
+
+  /** True when the turn produced at least one usable timing. */
+  hasTimings(): boolean {
+    const r = this.toRecord();
+    return (
+      r.speechToFirstAudioMs !== null ||
+      r.sttToFirstAudioMs !== null ||
+      r.sttToFirstTokenMs !== null
+    );
   }
 
   flushSummary(): void {

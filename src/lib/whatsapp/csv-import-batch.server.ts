@@ -254,7 +254,17 @@ export async function batchImportCsvLeads(
   sb: any,
   workspaceId: string,
   rows: CsvLeadRow[],
-  opts?: { syncWhatsappContacts?: boolean },
+  opts?: {
+    syncWhatsappContacts?: boolean;
+    /**
+     * Label for this upload, stamped onto every lead as `meta.upload_type`.
+     *
+     * Gives an import an identity, so a batch can later be filtered as a group
+     * — in Listing Leads and when picking an audience for a campaign. Applied
+     * here rather than per row so a row's own notes-derived meta still works.
+     */
+    uploadType?: string | null;
+  },
 ): Promise<CsvImportBatchResult> {
   const lookup = await loadLeadLookupForRows(sb, workspaceId, rows);
   const now = new Date().toISOString();
@@ -291,6 +301,10 @@ export async function batchImportCsvLeads(
     seenPhones.add(phone);
 
     const rowMeta = leadMetaFromCsvRow(row);
+    const uploadType = (opts?.uploadType ?? "").trim();
+    // Re-importing the same phone under a new label re-categorises it, which
+    // matches the mental model: the newest upload is what it belongs to now.
+    if (uploadType) rowMeta.upload_type = uploadType;
     const existing = resolveExistingLead(phone, lookup);
     const mergedMetaRaw = mergeLeadMeta(existing?.meta, rowMeta, row.qualification);
     const mergedMeta = readListingStage(mergedMetaRaw, existing?.pipeline_stage)
@@ -330,9 +344,12 @@ export async function batchImportCsvLeads(
       const prev = existingContacts.get(phone);
       if (prev?.id) contactUpdated++;
       else contactInserted++;
+      // rowMeta, not row.import_meta: it carries the stamped upload_type, and
+      // the contacts table is the cheap place to read the category list back
+      // from (the leads table is too large to scan on page load).
       const contactMeta = {
         ...parseNotesToMeta(prev?.notes),
-        ...(row.import_meta ?? {}),
+        ...rowMeta,
       };
       const tags = [
         ...new Set([...(prev?.tags ?? []), ...(row.tags ?? [])].filter(Boolean)),

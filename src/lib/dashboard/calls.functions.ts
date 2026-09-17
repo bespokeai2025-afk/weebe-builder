@@ -50,6 +50,10 @@ export const listCalls = createServerFn({ method: "POST" })
         // Exclude test/builder calls. Web calls have no real phone number and are
         // stored with to_number = "unknown". Only live phone calls should appear.
         .neq("to_number", "unknown")
+        // Builder/web test calls are now persisted too — keep them out of
+        // the live log. `is_test_call` is false for every pre-existing row,
+        // so this cannot hide real history.
+        .not("is_test_call", "is", true)
         .order("started_at", { ascending: false, nullsFirst: false })
         .limit(data.limit);
       if (data.status && data.status !== "all") q = q.eq("call_status", data.status as any);
@@ -89,7 +93,9 @@ export const listTestCalls = createServerFn({ method: "POST" })
       // naming a not-yet-created column would hard-fail the whole page.
       .select("*")
       .eq("workspace_id", workspaceId)
-      .eq("to_number", "unknown")
+      // Flag first; `to_number` was only ever a proxy and never matched the
+      // browser test calls, which arrive as "web:test".
+      .or("is_test_call.eq.true,to_number.eq.unknown")
       .order("started_at", { ascending: false, nullsFirst: false })
       .limit(data.limit);
     if (error) throw new Error(error.message);
@@ -142,7 +148,9 @@ export const deleteTestCalls = createServerFn({ method: "POST" })
       .from("calls")
       .delete()
       .eq("workspace_id", workspaceId)
-      .eq("to_number", "unknown")
+      // Flag first; `to_number` was only ever a proxy and never matched the
+      // browser test calls, which arrive as "web:test".
+      .or("is_test_call.eq.true,to_number.eq.unknown")
       .in("id", data.ids)
       .select("id");
     if (error) throw new Error(error.message);

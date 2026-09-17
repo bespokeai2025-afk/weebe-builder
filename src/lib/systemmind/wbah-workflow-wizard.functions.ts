@@ -317,6 +317,34 @@ export const getWbahPostCallExecutionFn = createServerFn({ method: "GET" })
     return row;
   });
 
+/**
+ * Replay one finished execution from its stored webhook payload.
+ *
+ * POST, not GET: this re-runs real side effects — Dynamics PATCHes, timeline
+ * notes, dashboard posts — against the current code. Steps that cannot safely
+ * repeat are held back unless the caller opts in explicitly, and the result
+ * names which ones were skipped so the UI can say so rather than implying a
+ * full replay happened.
+ */
+export const rerunWbahPostCallExecutionFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator(
+    z.object({
+      jobId: z.string().uuid(),
+      includeUnsafeSteps: z.boolean().optional(),
+    }),
+  )
+  .handler(async ({ data, context }) => {
+    const ctx = context as any;
+    await assertWbah(ctx);
+    const { rerunWbahPostCallJob } = await import(
+      "@/lib/wbah/post-call/wbah-post-call-queue.server"
+    );
+    return rerunWbahPostCallJob(ctx.workspaceId, data.jobId, {
+      includeUnsafeSteps: data.includeUnsafeSteps,
+    });
+  });
+
 export const listWbahPostCallDraftsFn = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {

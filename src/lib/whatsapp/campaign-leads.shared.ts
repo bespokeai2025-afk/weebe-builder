@@ -317,6 +317,22 @@ export function writeListingPipelineStage(
   return { ...(meta ?? {}), [LISTING_PIPELINE_KEY]: record };
 }
 
+/**
+ * Take a lead off the pipeline board, keeping the lead itself.
+ *
+ * Deliberately not a row delete: the lead still carries its WhatsApp history,
+ * qualification and campaign attribution, and an agent clearing a card off a
+ * Kanban board is saying "not in my pipeline", not "erase this person". It also
+ * means the action is undoable by re-converting the lead.
+ */
+export function clearListingPipeline(
+  meta: Record<string, unknown> | null | undefined,
+): Record<string, unknown> {
+  const next = { ...(meta ?? {}) };
+  delete next[LISTING_PIPELINE_KEY];
+  return next;
+}
+
 export function writeListingPipelineOffer(
   meta: Record<string, unknown> | null | undefined,
   offerAmount: string,

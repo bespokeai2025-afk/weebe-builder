@@ -7,6 +7,13 @@ import type { DeploymentMode } from "@/lib/runtime/types";
 import { CustomVoiceUploadDialog } from "@/components/builder/CustomVoiceUploadDialog";
 import { WebeeMigrationDialog } from "@/components/builder/WebeeMigrationDialog";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -462,6 +469,7 @@ export function Builder({
   });
   const [pendingEngine, setPendingEngine] = useState<DeploymentMode | null>(null);
   const [migrationOpen, setMigrationOpen] = useState(false);
+  const [voicePickerOpen, setVoicePickerOpen] = useState(false);
   const undoToastIdRef = useRef<string | number | null>(null);
   const saveVersionRef = useRef(saveVersion);
 
@@ -1584,9 +1592,6 @@ export function Builder({
                     { mode: "RETELL"            as DeploymentMode, label: "OmniVoice",   sub: "Premium Catalog",  icon: Radio,    available: true  },
                     { mode: "OPENAI_NATIVE"     as DeploymentMode, label: "HyperStream", sub: "OpenAI Realtime",  icon: Zap,      available: true  },
                     { mode: "WEBEE_NATIVE"      as DeploymentMode, label: "WEBEE Native", sub: "In-house cascade", icon: Waves, available: true  },
-                    { mode: "ELEVENLABS_NATIVE" as DeploymentMode, label: "VoxStream",   sub: "Coming Soon",      icon: Mic,      available: false },
-                    { mode: "CLAUDE_NATIVE"     as DeploymentMode, label: "Claude",      sub: "Coming Soon",      icon: Sparkles, available: false },
-                    { mode: "GEMINI_NATIVE"     as DeploymentMode, label: "Gemini",      sub: "Coming Soon",      icon: Gem,      available: false },
                   ]
                 ).map(({ mode, label, sub, icon: Icon, available }) => {
                   const active = activeMode === mode;
@@ -1625,18 +1630,6 @@ export function Builder({
                 })}
               </div>
 
-              {/* Migration console — only meaningful once the agent is saved, since
-                  shadow replays need its stored flow and its past calls. */}
-              {(isRetell || isWebeeNative) && currentAgentRowId && (
-                <button
-                  type="button"
-                  onClick={() => setMigrationOpen(true)}
-                  className="flex w-full items-center gap-1.5 rounded-md border border-white/[0.08] bg-white/[0.02] px-2 py-1 text-[10px] text-muted-foreground transition-colors hover:border-white/[0.16] hover:bg-white/[0.04] hover:text-foreground"
-                >
-                  <ArrowLeftRight className="h-3 w-3 shrink-0" />
-                  {isWebeeNative ? "Migration console · rollback available" : "Shadow test & cut over to WEBEE Native"}
-                </button>
-              )}
               {isOpenAI && (
                 <div className="flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 w-fit">
                   <Lock className="h-2.5 w-2.5 shrink-0 text-muted-foreground" />
@@ -1647,15 +1640,6 @@ export function Builder({
                 <div className="flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 w-fit">
                   <Lock className="h-2.5 w-2.5 shrink-0 text-muted-foreground" />
                   <span className="text-[9px] text-muted-foreground">Routed via ElevenLabs Conversational AI</span>
-                </div>
-              )}
-
-              {isWebeeNative && (
-                <div className="flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 w-fit">
-                  <Waves className="h-2.5 w-2.5 shrink-0 text-muted-foreground" />
-                  <span className="text-[9px] text-muted-foreground">
-                    Runs the flow graph in-house · Fish Audio TTS — pick a voice under Voice &amp; Language
-                  </span>
                 </div>
               )}
 
@@ -1913,11 +1897,6 @@ export function Builder({
                           <SelectItem value="deepgram">Deepgram Nova-2</SelectItem>
                         </SelectContent>
                       </Select>
-                      <p className="text-[10px] text-muted-foreground leading-snug">
-                        {settings.webeeSttProvider === "deepgram"
-                          ? "Uses DEEPGRAM_API_KEY. Voice synthesis stays Fish Audio."
-                          : "Uses the same FISH_API_KEY as voice synthesis."}
-                      </p>
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-[10px] text-muted-foreground">LLM</Label>
@@ -1974,8 +1953,37 @@ export function Builder({
                         </SelectContent>
                       </Select>
                     </div>
+                    {/* Voice picker moved into a dialog. Filters, search,
+                        clone button, preview text and the scrolling library
+                        needed far more room than the settings rail affords —
+                        inline it squeezed every control into a few pixels. The
+                        rail now shows the chosen voice and opens this. */}
                     <div className="space-y-1.5">
                       <Label className="text-[10px] text-muted-foreground">Voice</Label>
+                      <button
+                        type="button"
+                        onClick={() => setVoicePickerOpen(true)}
+                        className="flex w-full items-center gap-2 rounded-md border border-white/[0.08] bg-white/[0.02] px-2.5 py-2 text-left transition-colors hover:border-white/[0.16] hover:bg-white/[0.04]"
+                      >
+                        <Waves className="h-3.5 w-3.5 shrink-0 text-primary" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[11px] font-medium">
+                            {settings.webeeVoiceName || "Choose a voice"}
+                          </span>
+                          <span className="block text-[9px] text-muted-foreground">
+                            {settings.webeeVoiceId ? "Fish Audio · tap to change" : "Browse clones and library"}
+                          </span>
+                        </span>
+                        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      </button>
+                    </div>
+
+                    <Dialog open={voicePickerOpen} onOpenChange={setVoicePickerOpen}>
+                      <DialogContent className="max-w-2xl gap-0 p-0">
+                        <DialogHeader className="border-b border-white/[0.06] px-5 py-3">
+                          <DialogTitle className="text-sm">Choose a voice</DialogTitle>
+                        </DialogHeader>
+                        <div className="max-h-[70vh] overflow-y-auto px-5 py-4">
                     {settings.webeeVoiceId && (
                       <div className="flex items-center gap-2 rounded-md border border-primary/20 bg-primary/[0.04] px-2.5 py-1.5">
                         <Waves className="h-3 w-3 text-primary shrink-0" />
@@ -2257,7 +2265,14 @@ export function Builder({
                         )}
                       </>
                     )}
-                  </div>
+                        </div>
+                        <DialogFooter className="border-t border-white/[0.06] px-5 py-3">
+                          <Button size="sm" onClick={() => setVoicePickerOpen(false)}>
+                            Done
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
                   </div>
                 )}
               </CollapsibleContent>

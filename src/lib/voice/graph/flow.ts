@@ -455,6 +455,18 @@ function cleanupSpeechLines(text: string): string {
     .map((line) =>
       line
         .replace(/\bas\s+a?\s*[,.]?\s*$/i, "")
+        // Repair the hole a stripped variable leaves behind. "Hi
+        // {{first_name}}, how are you?" with no name became "Hi , how are
+        // you?" — TTS reads that with an audible stumble, and it was the most
+        // visible symptom of a variable not resolving.
+        .replace(/\s+([,.;:!?])/g, "$1")
+        // A separator that now sits against a terminal mark, or doubled up.
+        .replace(/([,;:])\s*(?=[.!?])/g, "")
+        .replace(/([,;:])\s*\1+/g, "$1")
+        // A line reduced to nothing but its own punctuation.
+        .replace(/^[\s,.;:!?]+$/, "")
+        // Leading separator left by a variable at the start of the line.
+        .replace(/^\s*[,;:]\s*/, "")
         .replace(/\s{2,}/g, " ")
         .trim(),
     )

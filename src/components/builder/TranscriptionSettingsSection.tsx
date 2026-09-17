@@ -258,37 +258,9 @@ function WebeeNativeTranscriptionSettings() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <SectionLabel
-          label="Speech-to-Text"
-          description="WEBEE Native voice stays Fish Audio. Pick who transcribes the caller."
-        />
-        <Select
-          value={settings.webeeSttProvider ?? "fish"}
-          onValueChange={(v) => setSettings({ webeeSttProvider: v as "fish" | "deepgram" })}
-        >
-          <SelectTrigger className="h-8 text-[11px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="fish">
-              <div className="flex flex-col">
-                <span>Fish Audio ASR</span>
-                <span className="text-[10px] text-muted-foreground">Same key as TTS — default</span>
-              </div>
-            </SelectItem>
-            <SelectItem value="deepgram">
-              <div className="flex flex-col">
-                <span>Deepgram Nova-2</span>
-                <span className="text-[10px] text-muted-foreground">
-                  Needs Deepgram key — Fish still speaks
-                </span>
-              </div>
-            </SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
+      {/* Speech-to-Text picker lives in the engine panel above. The copy
+          here bound to the same `settings.webeeSttProvider`, so two
+          controls fought over one value. */}
       <div>
         <SectionLabel
           label="Boosted Keywords"

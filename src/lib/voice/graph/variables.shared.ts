@@ -115,6 +115,16 @@ export function lookupRuntimeValue(
     const nested = lookupNested(runtime, name, format);
     if (nested !== undefined) return nested;
   }
+  // Case-insensitive fallback. Providers are inconsistent about casing — Retell
+  // sends `First_name` where a flow was written against `{{first_name}}` — and
+  // a case mismatch silently produced an empty name rather than any error.
+  // Exact match above always wins; this only rescues a miss.
+  const wanted = name.toLowerCase();
+  for (const key of Object.keys(runtime)) {
+    if (key.toLowerCase() !== wanted) continue;
+    const rendered = renderVariableValue(runtime[key], format);
+    if (rendered !== undefined) return rendered;
+  }
   return systemVariable(name);
 }
 
@@ -166,8 +176,14 @@ export function resolveVariables(
   } = {},
 ): string {
   if (!text || !text.includes("{{")) return text;
+  // Two passes. The strict one handles real references. The loose one exists
+  // because an LLM writing its own line will sometimes emit a near-miss —
+  // "{{first name}}" instead of "{{first_name}}" — which the strict pattern
+  // does not match, so it was neither resolved nor stripped and Fish read the
+  // braces out loud on a live call. Normalising the spelling rescues the value;
+  // stripping whatever is left guarantees braces never reach TTS.
   const re = new RegExp(PLACEHOLDER.source, "g");
-  return text.replace(re, (match, name: string) => {
+  const strict = text.replace(re, (match, name: string) => {
     const raw = lookupRuntimeValue(runtime, name, opts.format ?? "speech");
     if (raw === undefined) return opts.stripUnresolved ? "" : match;
     if (
@@ -177,6 +193,28 @@ export function resolveVariables(
       return raw.replace(/\b\w/g, (c) => c.toUpperCase());
     }
     return raw;
+  });
+
+  if (!strict.includes("{{")) return strict;
+  return strict.replace(/\{\{([^{}]{0,120})\}\}/g, (match, inner: string) => {
+    const normalized = String(inner)
+      .trim()
+      .replace(/[\s-]+/g, "_")
+      .replace(/[^a-zA-Z0-9_.]/g, "");
+    if (normalized) {
+      const raw = lookupRuntimeValue(runtime, normalized, opts.format ?? "speech");
+      if (raw !== undefined) {
+        if (
+          opts.titleCaseNames &&
+          (/(^|_)name$/i.test(normalized) || /^(first_name|last_name)$/i.test(normalized))
+        ) {
+          return raw.replace(/\b\w/g, (c) => c.toUpperCase());
+        }
+        return raw;
+      }
+    }
+    // Unresolvable: drop it rather than speak punctuation aloud.
+    return opts.stripUnresolved ? "" : match;
   });
 }
 

@@ -650,8 +650,23 @@ export async function processRetellWebhook(
     incomingAgentId === DNR_RETELL_AGENT_ID ||
     process.env.RETELL_STORE_WEB_CALLS === "true";
 
-  if (isWebCall && !persistWebCall) {
-    console.log("[RETELL WEBHOOK] Ignoring web/test call (not a live call)", { event, callId });
+  /**
+   * Builder/web test calls are recorded, not discarded.
+   *
+   * They used to return here, which is why a test call never appeared in call
+   * history — no transcript, no summary, no sentiment, no extracted variables,
+   * even though the payload carried all of it. They are now written like any
+   * other call and tagged `is_test_call`, so the call list can show or hide
+   * them.
+   *
+   * What must NOT happen is a test call touching real data. This flag gates the
+   * same lead-affecting paths that `isAvaHomepageCall` already gates:
+   * no-answer lead updates, lead-gen intelligence, client qualification and CRM
+   * dispatch. Set RETELL_IGNORE_WEB_CALLS=true to drop them entirely again.
+   */
+  const isBuilderTestCall = isWebCall && !persistWebCall;
+  if (isWebCall && process.env.RETELL_IGNORE_WEB_CALLS === "true") {
+    console.log("[RETELL WEBHOOK] Ignoring web/test call (explicitly disabled)", { event, callId });
     await updateWebhookEvent(eventLogId, "ignored", "web_call type — builder test call");
     return { ok: true, status: 200, message: "ignored: test call", event, callId };
   }
@@ -886,6 +901,7 @@ export async function processRetellWebhook(
     call_successful: call.call_analysis?.call_successful ?? null,
     in_voicemail: call.call_analysis?.in_voicemail ?? null,
     is_voicemail: isVoicemail,
+    is_test_call: isBuilderTestCall,
     collected_variables: collectedVariablesForRow(call),
     tool_calls: Array.isArray((call as Record<string, unknown>).tool_calls)
       ? ((call as Record<string, unknown>).tool_calls as unknown[])
@@ -994,7 +1010,8 @@ export async function processRetellWebhook(
     callType === "outbound" &&
     ["call_ended", "call_failed"].includes(event) &&
     isNoAnswerCall &&
-    !isAvaHomepageCall
+    !isAvaHomepageCall &&
+    !isBuilderTestCall
   ) {
     await supabaseAdmin
       .from("leads")
@@ -1216,6 +1233,7 @@ export async function processRetellWebhook(
   if (
     event === "call_analyzed" &&
     !isAvaHomepageCall &&
+    !isBuilderTestCall &&
     (agentRow.dashboardAgentType === "lead_generation" ||
       (agentRow as any).agent_type === "lead_gen") &&
     contactPhone
@@ -1279,6 +1297,7 @@ export async function processRetellWebhook(
   if (
     event === "call_analyzed" &&
     !isAvaHomepageCall &&
+    !isBuilderTestCall &&
     agentRow.dashboardAgentType === "client_qualification" &&
     contactPhone
   ) {
@@ -1351,7 +1370,13 @@ export async function processRetellWebhook(
   }
 
   // ── CRM post-call dispatch ────────────────────────────────────────────────
-  if (event === "call_analyzed" && contactPhone && !isAvaHomepageCall && !isRuntimeManagedCall) {
+  if (
+    event === "call_analyzed" &&
+    contactPhone &&
+    !isAvaHomepageCall &&
+    !isBuilderTestCall &&
+    !isRuntimeManagedCall
+  ) {
     try {
       const custom = call.call_analysis?.custom_analysis_data ?? {};
       const dynVars = (payload as any)?.call?.retell_llm_dynamic_variables ?? {};

@@ -1,5 +1,7 @@
 import { useBuilderStore } from "@/lib/builder/store";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { JsonSchemaField } from "./JsonSchemaField";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { VariableInput, VariableTextarea } from "./VariableAutocompleteField";
@@ -25,7 +27,7 @@ import {
   normalizeBuilderSpeechMode,
   type BuilderSpeechMode,
 } from "@/lib/voice/graph/speech-mode.shared";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getWorkspaceCalendarSettings } from "@/lib/calendar/calendar.functions";
@@ -114,27 +116,57 @@ export function InstructionTypeTabs({
   return (
     <div
       className={
-        compact ? "rounded-lg border bg-muted/40 p-1" : "rounded-lg border bg-muted/30 p-1"
+        compact
+          ? "rounded-md border border-white/[0.08] bg-black/20 p-0.5"
+          : "rounded-lg border bg-muted/30 p-1"
       }
     >
-      <div className="grid grid-cols-2 gap-1">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => onChange(tab.id)}
-            className={`${compact ? "rounded-md px-2 py-1.5" : "rounded-md px-3 py-2 text-left"} transition-colors ${
-              current === tab.id
-                ? "bg-background shadow-sm ring-1 ring-border"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <div className={compact ? "text-xs font-medium leading-tight" : "text-sm font-medium"}>
+      <div className={compact ? "grid grid-cols-2 gap-0.5" : "grid grid-cols-2 gap-1"}>
+        {/* The hint is a tooltip rather than a permanent second line: it is
+            read once while learning the two modes, then costs vertical space
+            on every visit after that.
+            Only in the side panel, never on the canvas card — a tooltip that
+            follows the pointer across the graph fires while you are panning or
+            reaching for another node, which is why the inline hint was
+            `!compact` in the first place. */}
+        {tabs.map((tab) => {
+          const selected = current === tab.id;
+          const button = (
+            <button
+              type="button"
+              onClick={() => onChange(tab.id)}
+              // w-full matters: in the compact case this button is wrapped for
+              // keying, and without it the element shrank to its label and sat
+              // as a small pill in the middle of an empty half.
+              className={
+                compact
+                  ? `w-full rounded px-2 py-1 text-center text-[11px] font-medium leading-none transition-colors ${
+                      selected
+                        ? "bg-primary/15 text-primary ring-1 ring-primary/30"
+                        : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground"
+                    }`
+                  : `w-full rounded-md px-3 py-2 text-center text-sm font-medium transition-colors ${
+                      selected
+                        ? "bg-background shadow-sm ring-1 ring-border"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`
+              }
+            >
               {tab.label}
-            </div>
-            {!compact && <div className="text-[11px] text-muted-foreground">{tab.hint}</div>}
-          </button>
-        ))}
+            </button>
+          );
+          // Fragment, not a div: a wrapper element becomes the grid item and
+          // stops the button from filling its track.
+          if (compact) return <Fragment key={tab.id}>{button}</Fragment>;
+          return (
+            <Tooltip key={tab.id}>
+              <TooltipTrigger asChild>{button}</TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[220px] text-[11px]">
+                {tab.hint}
+              </TooltipContent>
+            </Tooltip>
+          );
+        })}
       </div>
     </div>
   );
@@ -524,12 +556,9 @@ export function NodeEditorDialog() {
                 </div>
                 <div>
                   <Label>Parameters / body schema</Label>
-                  <Textarea
-                    rows={4}
+                  <JsonSchemaField
                     value={d.httpBody ?? ""}
-                    onChange={(e) => updateNode(node.id, { httpBody: e.target.value })}
-                    placeholder='{"type":"object","properties":{…}}'
-                    className="font-mono text-xs"
+                    onValueChange={(v) => updateNode(node.id, { httpBody: v })}
                   />
                 </div>
                 <div>
@@ -1128,6 +1157,71 @@ export function NodeEditorDialog() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Enum options. Choosing Enum previously offered nowhere to
+                    put the allowed values, so the extractor received an enum
+                    with no constraint and behaved as free text. */}
+                {editingVar.type === "enum" && (
+                  <div className="space-y-1.5">
+                    <Label>
+                      Options{" "}
+                      <span className="font-normal text-muted-foreground">
+                        the extractor must pick one of these
+                      </span>
+                    </Label>
+                    {(editingVar.choices ?? []).map((choice, i) => (
+                      <div key={i} className="flex items-center gap-1.5">
+                        <Input
+                          value={choice}
+                          placeholder={`Option ${i + 1}`}
+                          onChange={(e) =>
+                            setEditingVar((prev) => {
+                              if (!prev) return prev;
+                              const next = [...(prev.choices ?? [])];
+                              next[i] = e.target.value;
+                              return { ...prev, choices: next };
+                            })
+                          }
+                        />
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          aria-label={`Remove option ${i + 1}`}
+                          className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                          onClick={() =>
+                            setEditingVar((prev) =>
+                              prev
+                                ? { ...prev, choices: (prev.choices ?? []).filter((_, j) => j !== i) }
+                                : prev,
+                            )
+                          }
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      onClick={() =>
+                        setEditingVar((prev) =>
+                          prev ? { ...prev, choices: [...(prev.choices ?? []), ""] } : prev,
+                        )
+                      }
+                    >
+                      <Plus className="mr-1 h-3 w-3" />
+                      Add option
+                    </Button>
+                    {(editingVar.choices ?? []).filter((c) => c.trim()).length === 0 && (
+                      <p className="text-[11px] text-amber-400/90">
+                        No options yet — this will be extracted as free text until you add some.
+                      </p>
+                    )}
+                  </div>
+                )}
                 <div className="flex items-center justify-between rounded-md border px-3 py-2">
                   <Label className="text-sm">Required</Label>
                   <Switch

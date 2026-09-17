@@ -2125,6 +2125,11 @@ export function RetellDeployDialog({
     // call, which is what lets a test call be inspected afterwards.
     const relaySessionId =
       typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `web-${Date.now()}`;
+    // Actually share it. This used to be a local UUID while the saved row used a
+    // second, different UUID from hsSessionIdRef — so the webhook wrote one row
+    // keyed on the relay id and the recording save wrote another keyed on its
+    // own, producing two rows with the same transcript for one test call.
+    hsSessionIdRef.current = relaySessionId;
 
     try {
       // ── Audio + mic capture BEFORE WebSocket (HyperStream pattern) ─────────

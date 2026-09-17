@@ -2,7 +2,7 @@
  * n8n-style execution history for WBAH post-call pipeline runs.
  */
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   AlertCircle,
@@ -10,9 +10,22 @@ import {
   Clock,
   Loader2,
   RefreshCw,
+  RotateCcw,
   XCircle,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -34,6 +47,7 @@ import {
   getWbahPostCallExecutionFn,
   getWbahPostCallQueueStatsFn,
   listWbahPostCallExecutionsFn,
+  rerunWbahPostCallExecutionFn,
 } from "@/lib/systemmind/wbah-workflow-wizard.functions";
 import type { WbahExecutionDisplayStatus } from "@/lib/wbah/post-call/wbah-execution-status.shared";
 
@@ -146,10 +160,15 @@ export function WbahPostCallExecutionsPanel() {
   const listFn = useServerFn(listWbahPostCallExecutionsFn);
   const detailFn = useServerFn(getWbahPostCallExecutionFn);
   const statsFn = useServerFn(getWbahPostCallQueueStatsFn);
+  const rerunFn = useServerFn(rerunWbahPostCallExecutionFn);
+  const qc = useQueryClient();
 
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedStepKey, setSelectedStepKey] = useState<string | null>(null);
+  const [rerunId, setRerunId] = useState<string | null>(null);
+  const [includeUnsafe, setIncludeUnsafe] = useState(false);
+  const [rerunning, setRerunning] = useState<string | null>(null);
 
   const { data: stats } = useQuery({
     queryKey: ["wbah-queue-stats"],
@@ -169,6 +188,39 @@ export function WbahPostCallExecutionsPanel() {
     refetchInterval: 15_000,
     throwOnError: false,
   });
+
+  const runRerun = async (jobId: string, withUnsafe: boolean) => {
+    setRerunning(jobId);
+    try {
+      const res = (await rerunFn({
+        data: { jobId, includeUnsafeSteps: withUnsafe },
+      } as any)) as { ok: boolean; errors: string[]; skippedSteps: string[] };
+
+      // A rerun that "succeeds" can still carry per-step errors — the pipeline
+      // collects them rather than throwing, so reporting only ok/not-ok would
+      // call a half-failed replay a success.
+      if (res.errors?.length) {
+        toast.error(`Rerun finished with ${res.errors.length} error(s)`, {
+          description: res.errors.slice(0, 2).join("; "),
+        });
+      } else {
+        toast.success("Rerun complete", {
+          description: res.skippedSteps?.length
+            ? `Skipped: ${res.skippedSteps.join(", ")}`
+            : "All steps replayed",
+        });
+      }
+      qc.invalidateQueries({ queryKey: ["wbah-executions"] });
+      qc.invalidateQueries({ queryKey: ["wbah-execution", jobId] });
+      qc.invalidateQueries({ queryKey: ["wbah-queue-stats"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Rerun failed");
+    } finally {
+      setRerunning(null);
+      setRerunId(null);
+      setIncludeUnsafe(false);
+    }
+  };
 
   const { data: detail, isLoading: detailLoading } = useQuery({
     queryKey: ["wbah-execution", selectedId],
@@ -237,6 +289,7 @@ export function WbahPostCallExecutionsPanel() {
                 <TableHead className="text-[10px] text-gray-500">Call</TableHead>
                 <TableHead className="text-[10px] text-gray-500">Event</TableHead>
                 <TableHead className="text-[10px] text-gray-500 text-right">Time</TableHead>
+                <TableHead className="text-[10px] text-gray-500 text-right w-16">Rerun</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -253,6 +306,28 @@ export function WbahPostCallExecutionsPanel() {
                   <TableCell className="py-2.5 text-[11px] text-gray-300">{ex.event}</TableCell>
                   <TableCell className="py-2.5 text-[10px] text-gray-500 text-right whitespace-nowrap">
                     {fmtTime(ex.createdAt)}
+                  </TableCell>
+                  <TableCell className="py-2.5 text-right">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-1.5 text-gray-400 hover:text-gray-100"
+                      title="Replay this execution"
+                      aria-label={`Rerun execution ${shortId(ex.retellCallId)}`}
+                      disabled={rerunning === ex.id}
+                      onClick={(e) => {
+                        // The row itself opens the detail sheet.
+                        e.stopPropagation();
+                        setIncludeUnsafe(false);
+                        setRerunId(ex.id);
+                      }}
+                    >
+                      {rerunning === ex.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <RotateCcw className="h-3 w-3" />
+                      )}
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -271,6 +346,25 @@ export function WbahPostCallExecutionsPanel() {
           <SheetHeader>
             <SheetTitle className="text-sm text-gray-100">Run details</SheetTitle>
           </SheetHeader>
+          {selectedId && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-3 h-7 w-full text-[11px]"
+              disabled={rerunning === selectedId}
+              onClick={() => {
+                setIncludeUnsafe(false);
+                setRerunId(selectedId);
+              }}
+            >
+              {rerunning === selectedId ? (
+                <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+              ) : (
+                <RotateCcw className="mr-1.5 h-3 w-3" />
+              )}
+              Rerun this execution
+            </Button>
+          )}
           {detailLoading || !detail ? (
             <div className="flex items-center gap-2 py-8 text-sm text-gray-500">
               <Loader2 className="h-4 w-4 animate-spin" /> Loading…
@@ -431,6 +525,74 @@ export function WbahPostCallExecutionsPanel() {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* A rerun writes to Dynamics for real, so it asks first. The Calendly
+          opt-in is off by default and stays a deliberate choice: that step
+          books an actual appointment and is not idempotent. */}
+      <AlertDialog
+        open={!!rerunId}
+        onOpenChange={(open) => {
+          if (!open && !rerunning) {
+            setRerunId(null);
+            setIncludeUnsafe(false);
+          }
+        }}
+      >
+        <AlertDialogContent className="bg-gray-950 border-gray-800">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-sm text-gray-100">
+              Rerun this execution?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-[11px] leading-relaxed text-gray-400">
+              The original webhook payload is replayed through the pipeline as it exists now, so
+              this is how a call from before a fix picks the fix up. It writes for real: Dynamics
+              field updates, the timeline note and the dashboard post all happen again.
+              <br />
+              <br />
+              Held back by default: <span className="text-gray-300">calendly_invitee</span>, which
+              would book the customer a second appointment, and{" "}
+              <span className="text-gray-300">live_transcript</span>, which only means anything
+              during a live call.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <label className="flex items-start gap-2 rounded border border-amber-500/30 bg-amber-500/5 p-2.5">
+            <Checkbox
+              checked={includeUnsafe}
+              onCheckedChange={(v) => setIncludeUnsafe(v === true)}
+              className="mt-0.5"
+            />
+            <span className="text-[11px] leading-relaxed text-amber-200/90">
+              Also replay the held-back steps — this can create a duplicate Calendly booking. Only
+              use it when the original run failed before reaching them.
+            </span>
+          </label>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel className="h-7 text-[11px]" disabled={!!rerunning}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="h-7 text-[11px]"
+              disabled={!!rerunning}
+              onClick={(e) => {
+                // Keep the dialog up while the run is in flight; runRerun
+                // closes it when the result is known.
+                e.preventDefault();
+                if (rerunId) void runRerun(rerunId, includeUnsafe);
+              }}
+            >
+              {rerunning ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3 w-3 animate-spin" /> Running…
+                </>
+              ) : (
+                "Rerun"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

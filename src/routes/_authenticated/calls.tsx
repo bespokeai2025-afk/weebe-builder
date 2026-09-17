@@ -5,6 +5,7 @@ import { Fragment, useState, useEffect, useMemo } from "react";
 import {
   ChevronDown,
   ChevronRight,
+  FileText,
   FlaskConical,
   MessageSquare,
   Phone,
@@ -44,7 +45,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { listWbahCallsLive, getWbahCallDetail, getWbahContactCallHistory } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
-import { CallInspectorPanel } from "@/components/calls/CallInspectorPanel";
+import { CallDetailSheet, type CallDetailRow } from "@/components/calls/CallDetailSheet";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 import { RelativeTime } from "@/components/ui/relative-time";
@@ -139,15 +140,11 @@ function TestCallRow({
   selected: boolean;
   onToggleSelect: (id: string) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  // Detail opens in a sheet now; a table row cannot give a transcript and a
+  // variables table enough room, and expanding one lost the row you were
+  // comparing it against.
+  const [detailOpen, setDetailOpen] = useState(false);
   const [recordingPlayer, setRecordingPlayer] = useState<{ url: string; contact: string } | null>(null);
-  // A call with no transcript can still have captured variables or tool calls
-  // worth inspecting — don't gate the expander on the transcript alone.
-  const hasDetail = Boolean(
-    c.transcript ||
-      (c.collected_variables && Object.keys(c.collected_variables).length > 0) ||
-      (c.tool_calls && c.tool_calls.length > 0),
-  );
   const label = c.agent_name ?? c.agent_id ?? "Builder test";
   const sessionId = c.retell_call_id ?? "—";
   const shortSessionId = sessionId !== "—" && sessionId.length > 24
@@ -165,7 +162,7 @@ function TestCallRow({
       )}
       <tr
         className="group h-8 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors cursor-pointer"
-        onClick={() => hasDetail && setExpanded((p) => !p)}
+        onClick={() => setDetailOpen(true)}
       >
         <td className="px-2 py-0.5" onClick={(e) => e.stopPropagation()}>
           <Checkbox
@@ -176,15 +173,7 @@ function TestCallRow({
           />
         </td>
         <td className="px-2 py-0.5">
-          {hasDetail ? (
-            expanded ? (
-              <ChevronDown className="h-3 w-3 text-muted-foreground" />
-            ) : (
-              <ChevronRight className="h-3 w-3 text-muted-foreground" />
-            )
-          ) : (
-            <span className="h-3 w-3 inline-block" />
-          )}
+          <ChevronRight className="h-3 w-3 text-muted-foreground transition-colors group-hover:text-foreground" />
         </td>
         <td className="px-2 py-0.5 text-xs font-medium whitespace-nowrap">{label}</td>
         <td className="px-2 py-0.5 text-muted-foreground tabular-nums text-[11px] whitespace-nowrap">
@@ -250,17 +239,11 @@ function TestCallRow({
           <RelativeTime date={c.started_at} fallback="—" />
         </td>
       </tr>
-      {expanded && (
-        <tr className="border-b border-white/[0.04]">
-          <td colSpan={15} className="px-4 pb-3 pt-1">
-            <CallInspectorPanel
-              transcript={c.transcript}
-              collectedVariables={c.collected_variables}
-              toolCalls={c.tool_calls}
-            />
-          </td>
-        </tr>
-      )}
+      <CallDetailSheet
+        call={c as never}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+      />
     </>
   );
 }
@@ -455,6 +438,9 @@ function CallsPage() {
 
   const [recordingPlayer, setRecordingPlayer] = useState<{ url: string; contact: string } | null>(null);
   const [panel, setPanel] = useState<PanelTarget | null>(null);
+  // Live rows already open Notes & Booking on click, so call detail gets its
+  // own affordance rather than competing for the row.
+  const [detailCall, setDetailCall] = useState<CallDetailRow | null>(null);
   const [wbahTranscript, setWbahTranscript] = useState<{
     text: string;
     name: string;
@@ -1054,6 +1040,17 @@ function CallsPage() {
                         <Fragment key={c.id}>
                           <tr onClick={() => openPanel(c)} className={cn("group border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors cursor-pointer", isVmMode ? "h-auto" : "h-8", isVmMode && "bg-amber-500/[0.015]")}>
                             <td className={cn("px-2 py-0.5 text-[11px] font-medium whitespace-nowrap", isVmMode && "border-l-2 border-l-amber-500/50")}>
+                              <button
+                                type="button"
+                                title="Call detail — transcript, summary, variables"
+                                className="mr-1 inline-flex align-middle text-muted-foreground/60 transition-colors hover:text-primary"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDetailCall(c as CallDetailRow);
+                                }}
+                              >
+                                <FileText className="h-3 w-3" />
+                              </button>
                               {contact}
                               {c.is_voicemail && (
                                 <span className="ml-1.5 inline-block rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-400">Voicemail</span>
@@ -1288,6 +1285,12 @@ function CallsPage() {
           </div>
         </>
       )}
+
+      <CallDetailSheet
+        call={detailCall}
+        open={!!detailCall}
+        onOpenChange={(o) => { if (!o) setDetailCall(null); }}
+      />
 
       {/* Notes & Booking sheet */}
       {panel && (

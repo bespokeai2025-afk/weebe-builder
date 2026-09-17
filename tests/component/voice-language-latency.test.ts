@@ -61,16 +61,44 @@ describe("language lock", () => {
   });
 });
 
+/** Run `fn` with CEREBRAS_API_KEY forced to a value (or removed), then restore. */
+function withCerebrasKey(value: string | undefined, fn: () => void): void {
+  const had = Object.prototype.hasOwnProperty.call(process.env, "CEREBRAS_API_KEY");
+  const prev = process.env.CEREBRAS_API_KEY;
+  if (value === undefined) delete process.env.CEREBRAS_API_KEY;
+  else process.env.CEREBRAS_API_KEY = value;
+  try {
+    fn();
+  } finally {
+    if (had) process.env.CEREBRAS_API_KEY = prev;
+    else delete process.env.CEREBRAS_API_KEY;
+  }
+}
+
 describe("WEBEE Native speech model", () => {
-  it("defaults the provider to OpenAI", () => {
-    expect(resolveWebeeLlmProvider({})).toBe("openai");
+  // These previously asserted a flat "default to OpenAI" while reading the
+  // ambient CEREBRAS_API_KEY, so they were quietly environment-dependent. The
+  // default is now Cerebras when a key exists (measured ~549ms to first
+  // speakable token vs ~2080ms), so the key is set explicitly here instead.
+  it("defaults the provider to Cerebras when a key is present", () => {
+    withCerebrasKey("csk-test", () => {
+      expect(resolveWebeeLlmProvider({})).toBe("cerebras");
+    });
     expect(resolveWebeeLlmProvider({ webeeLlmProvider: "cerebras" })).toBe("cerebras");
   });
 
-  it("defaults to OpenAI gpt-4o-mini when provider is unset", () => {
-    expect(resolveWebeeSpeechModel({})).toBe("gpt-4o-mini");
-    expect(resolveWebeeSpeechModel({ model: "gpt-4.1" })).toBe("gpt-4o-mini");
-    expect(resolveWebeeSpeechModel({ webeeSpeechModel: "gpt-4.1" })).toBe("gpt-4.1");
+  it("defaults the provider to OpenAI with no Cerebras key", () => {
+    withCerebrasKey(undefined, () => {
+      expect(resolveWebeeLlmProvider({})).toBe("openai");
+    });
+  });
+
+  it("defaults to OpenAI gpt-4o-mini when there is no Cerebras key", () => {
+    withCerebrasKey(undefined, () => {
+      expect(resolveWebeeSpeechModel({})).toBe("gpt-4o-mini");
+      expect(resolveWebeeSpeechModel({ model: "gpt-4.1" })).toBe("gpt-4o-mini");
+      expect(resolveWebeeSpeechModel({ webeeSpeechModel: "gpt-4.1" })).toBe("gpt-4.1");
+    });
   });
 
   it("uses Cerebras models when the provider is Cerebras", () => {
@@ -85,8 +113,10 @@ describe("WEBEE Native speech model", () => {
 });
 
 describe("WEBEE Native classifier model", () => {
-  it("defaults to gpt-4.1-nano on OpenAI", () => {
-    expect(resolveWebeeClassifierModel({})).toBe("gpt-4.1-nano");
+  it("defaults to gpt-4.1-nano when there is no Cerebras key", () => {
+    withCerebrasKey(undefined, () => {
+      expect(resolveWebeeClassifierModel({})).toBe("gpt-4.1-nano");
+    });
   });
 
   it("uses gpt-oss-120b when the provider is Cerebras", () => {

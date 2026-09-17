@@ -1,5 +1,6 @@
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -79,7 +80,7 @@ export function EquationConditionEditor({
   };
 
   return (
-    <div className={cn("min-w-0 flex-1 space-y-1.5", compact && "space-y-1")}>
+    <div className={cn("min-w-0 flex-1 space-y-2", compact && "space-y-1.5")}>
       <div className="flex items-center gap-1.5">
         <Select value={join} onValueChange={(v: EquationJoin) => setJoin(v)}>
           <SelectTrigger
@@ -95,10 +96,21 @@ export function EquationConditionEditor({
             <SelectItem value="&&">If all</SelectItem>
           </SelectContent>
         </Select>
+        {/* Was an inline sentence ("one matching clause is enough") that wrapped
+            onto four lines in the settings rail and crowded out the controls.
+            Same information on hover — and only in the panel, never on the
+            canvas card, where a hover target fires while panning the graph. */}
         {!compact && (
-          <span className="text-[11px] text-muted-foreground">
-            {join === "&&" ? "every clause must match" : "one matching clause is enough"}
-          </span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="cursor-default text-[10px] text-muted-foreground">
+                {join === "&&" ? "all" : "any"}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-[200px] text-[11px]">
+              {join === "&&" ? "Every clause must match." : "One matching clause is enough."}
+            </TooltipContent>
+          </Tooltip>
         )}
         <Button
           type="button"
@@ -115,7 +127,7 @@ export function EquationConditionEditor({
         </Button>
       </div>
       {clauses.map((clause, i) => (
-        <div key={i} className={cn("flex items-center gap-1", compact && "gap-0.5")}>
+        <div key={i} className={cn("flex items-center gap-1.5", compact && "gap-1")}>
           {compact ? (
             <VariableBareInput
               value={clause.left}

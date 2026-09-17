@@ -3,6 +3,7 @@
  */
 import type { WbahPostCallProcessInput, WbahPostCallProcessResult } from "@/lib/wbah/post-call/wbah-post-call.server";
 import { resolveWbahPostCallWorkflowConfig } from "@/lib/wbah/workflow/wbah-workflow-resolver.server";
+import { applyDisabledStepIds } from "@/lib/wbah/workflow/wbah-workflow-graph.shared";
 import { attachAutomationToWbahPipeline } from "../../sync-automation.server";
 import { wbahPipelineToAutomationDocument } from "../../adapters/wbah-graph.adapter";
 import { executeWorkflowWithPersistence } from "../../executor/execute-with-persistence";
@@ -24,15 +25,22 @@ export async function runWbahPostCallViaAutomationEngine(
       payload: input.payload,
       agent: input.agent,
       skipLiveTranscript: input.skipLiveTranscript,
+      disabledStepIds: input.disabledStepIds,
     });
   }
 
   ensureAutomationEngineBootstrapped();
 
-  const cfg = await resolveWbahPostCallWorkflowConfig({
-    workspaceId: input.agent.workspaceId,
-    agentId: String(input.call.agent_id ?? ""),
-  });
+  // Same per-run step suppression the core pipeline applies. Without this a
+  // rerun that means to hold back calendly_invitee would still book a second
+  // appointment whenever the automation engine is the active path.
+  const cfg = applyDisabledStepIds(
+    await resolveWbahPostCallWorkflowConfig({
+      workspaceId: input.agent.workspaceId,
+      agentId: String(input.call.agent_id ?? ""),
+    }),
+    input.disabledStepIds,
+  );
   const withAutomation = cfg.automation ? cfg : attachAutomationToWbahPipeline(cfg);
   const workflowDoc =
     (withAutomation.automation as Record<string, unknown> | undefined) ??

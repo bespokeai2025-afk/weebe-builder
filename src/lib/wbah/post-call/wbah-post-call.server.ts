@@ -68,6 +68,14 @@ export type WbahPostCallProcessInput = {
   call: RetellCall;
   payload: Record<string, unknown>;
   agent: WbahRetellAgentMapping;
+  /**
+   * Step ids to force off for this run only, without touching the saved
+   * workflow. A manual rerun uses this to hold back steps that are not safe to
+   * repeat — `calendly_invitee` books a real appointment and would book a
+   * second one. Applied by flipping `enabled` on the resolved config, so both
+   * the core pipeline and the automation engine honour it from one place.
+   */
+  disabledStepIds?: string[];
 };
 
 export type WbahPostCallProcessResult = {
@@ -431,7 +439,7 @@ async function runWbahPostCallPipelineCoreUnsafe(
   branches: string[],
   errors: string[],
 ): Promise<WbahPostCallProcessResult> {
-  const { event, call, payload, agent, skipLiveTranscript } = input;
+  const { event, call, payload, agent, skipLiveTranscript, disabledStepIds } = input;
 
   const isWebCall = call.call_type === "web_call" || call.call_type === "webcall";
   if (isWebCall) {
@@ -441,11 +449,16 @@ async function runWbahPostCallPipelineCoreUnsafe(
   const { resolveWbahPostCallWorkflowConfig } = await import(
     "@/lib/wbah/workflow/wbah-workflow-resolver.server"
   );
-  const { isStepEnabledInOrder } = await import("@/lib/wbah/workflow/wbah-workflow-graph.shared");
-  const wfConfig = await resolveWbahPostCallWorkflowConfig({
-    workspaceId: agent.workspaceId,
-    agentId: String(call.agent_id ?? ""),
-  });
+  const { applyDisabledStepIds, isStepEnabledInOrder } = await import(
+    "@/lib/wbah/workflow/wbah-workflow-graph.shared"
+  );
+  const wfConfig = applyDisabledStepIds(
+    await resolveWbahPostCallWorkflowConfig({
+      workspaceId: agent.workspaceId,
+      agentId: String(call.agent_id ?? ""),
+    }),
+    disabledStepIds,
+  );
 
   if (
     agent.role === "rebooking" ||

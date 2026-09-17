@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, CircleDot, Eraser } from "lucide-react";
 import { useBuilderStore } from "@/lib/builder/store";
 import { validateFlow } from "@/lib/builder/validate";
+import { TestCallLatencyPanel } from "./TestCallLatencyPanel";
 import { cn } from "@/lib/utils";
 
 const TYPE_TONE: Record<string, string> = {
@@ -26,7 +27,7 @@ export function BuilderDebugConsole() {
   const nodes = useBuilderStore((s) => s.nodes);
   const edges = useBuilderStore((s) => s.edges);
   const variables = useBuilderStore((s) => s.variables);
-  const [tab, setTab] = useState<"timeline" | "validation">("timeline");
+  const [tab, setTab] = useState<"timeline" | "validation" | "latency">("timeline");
   const issues = useMemo(() => validateFlow(nodes, edges, variables), [nodes, edges, variables]);
 
   return (
@@ -66,6 +67,19 @@ export function BuilderDebugConsole() {
         >
           Validation {issues.length ? `(${issues.length})` : ""}
         </button>
+        <button
+          type="button"
+          onClick={() => {
+            setTab("latency");
+            setOpen(true);
+          }}
+          className={cn(
+            "rounded px-1.5 py-0.5 text-[10px]",
+            tab === "latency" && open ? "bg-white/[0.06] text-foreground" : "text-muted-foreground",
+          )}
+        >
+          Latency
+        </button>
         <span className="ml-auto" />
         {tab === "timeline" && events.length > 0 && (
           <button
@@ -78,7 +92,12 @@ export function BuilderDebugConsole() {
           </button>
         )}
       </div>
-      {open && (
+      {open && tab === "latency" && (
+        <div className="h-64 overflow-hidden border-t border-white/[0.06]">
+          <TestCallLatencyPanel />
+        </div>
+      )}
+      {open && tab !== "latency" && (
         <div className="max-h-48 overflow-y-auto px-2 pb-2">
           {tab === "timeline" ? (
             events.length === 0 ? (
