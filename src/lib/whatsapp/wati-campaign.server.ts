@@ -819,23 +819,111 @@ function parseWatiInboundMessageSentAt(payload: Record<string, unknown>): string
   return new Date().toISOString();
 }
 
+/** Extensions WhatsApp actually delivers, so a stored path can be served with a real type. */
+const MEDIA_MIME_BY_EXTENSION: Record<string, string> = {
+  pdf: "application/pdf",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  gif: "image/gif",
+  mp4: "video/mp4",
+  "3gp": "video/3gpp",
+  mov: "video/quicktime",
+  ogg: "audio/ogg",
+  oga: "audio/ogg",
+  opus: "audio/ogg",
+  mp3: "audio/mpeg",
+  m4a: "audio/mp4",
+  aac: "audio/aac",
+  amr: "audio/amr",
+  wav: "audio/wav",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls: "application/vnd.ms-excel",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ppt: "application/vnd.ms-powerpoint",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  csv: "text/csv",
+  txt: "text/plain",
+  zip: "application/zip",
+};
 
-/** Media url / mime / filename from a WATI message payload, when it carries an attachment. */
+/**
+ * Whether a WATI `data` string is a media storage path rather than some other payload.
+ *
+ * `data` is overloaded: for a media message it holds `data/documents/<uuid>.pdf`, but once WATI
+ * transcribes a voice note it replaces the same field with a JSON array of transcript segments.
+ * Storing that as the attachment reference makes the message undownloadable, so require the shape
+ * of a path — slash-separated segments ending in a file extension.
+ */
+export function isWatiMediaPath(value: string | null): boolean {
+  if (!value) return false;
+  const path = value.trim();
+  if (!path || path.length > 512) return false;
+  return /^[\w.-]+(?:\/[\w.-]+)+\.[a-z0-9]{2,5}$/i.test(path);
+}
+
+export function watiMediaMimeFromPath(path: string | null): string | null {
+  if (!path) return null;
+  const match = /\.([a-z0-9]{2,5})(?:$|[?#])/i.exec(path);
+  return match ? (MEDIA_MIME_BY_EXTENSION[match[1]!.toLowerCase()] ?? null) : null;
+}
+
+/**
+ * Media reference / mime / filename from a WATI message payload.
+ *
+ * WATI does not send a fetchable URL for inbound attachments. `data` is a **string** holding its
+ * own storage path — `data/documents/<uuid>.pdf` — which only resolves through the tenant's
+ * `GET /{tenantId}/api/v1/getMedia?fileName=<path>` endpoint. The human filename arrives
+ * separately, on `text`.
+ *
+ * This previously read `data` as if it were an object. Because it is a string, `data?.link` did not
+ * evaluate to undefined — it picked up the legacy `String.prototype.link` method, and `String()`
+ * stored the literal text `function link() { [native code] }` as every attachment's media_url.
+ * Nothing could then be opened or downloaded. Hence the explicit typeof checks below: a string
+ * `data` is the path, and only a real object is read for fields.
+ */
 function parseWatiMediaFields(payload: Record<string, unknown>): {
   media_url: string | null;
   media_mime_type: string | null;
   media_filename: string | null;
 } {
-  const data = (payload.data ?? null) as Record<string, unknown> | null;
+  const raw = payload.data;
+  const data =
+    raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null;
+  const dataPath = typeof raw === "string" && isWatiMediaPath(raw) ? raw.trim() : null;
   const str = (value: unknown): string | null => {
-    const s = value == null ? "" : String(value).trim();
+    if (value == null || typeof value === "function" || typeof value === "object") return null;
+    const s = String(value).trim();
     return s || null;
   };
 
+  const type = String(payload.type ?? "")
+    .trim()
+    .toLowerCase();
+  const isMediaType = ["image", "video", "audio", "voice", "document", "sticker"].includes(type);
+
+  const media_url =
+    str(payload.sourceUrl ?? payload.source_url ?? data?.url ?? data?.link) ??
+    // Only a media message's `data` is a storage path; for text it is unrelated.
+    (isMediaType ? dataPath : null);
+
+  const media_filename =
+    str(data?.fileName ?? data?.file_name ?? data?.filename) ??
+    str(payload.fileName ?? payload.file_name ?? payload.filename) ??
+    // WATI puts the sender's own filename on `text` for documents. For an image
+    // or video that field is the caption, not a filename, so don't borrow it.
+    (type === "document" ? str(payload.text) : null);
+
   return {
-    media_url: str(payload.sourceUrl ?? payload.source_url ?? data?.url ?? data?.link),
-    media_mime_type: str(data?.mimeType ?? data?.mime_type ?? payload.mimeType),
-    media_filename: str(data?.fileName ?? data?.file_name ?? data?.filename),
+    media_url,
+    media_mime_type:
+      str(data?.mimeType ?? data?.mime_type ?? payload.mimeType) ??
+      watiMediaMimeFromPath(media_filename) ??
+      watiMediaMimeFromPath(media_url) ??
+      (type === "voice" || type === "audio" ? "audio/ogg" : null),
+    media_filename,
   };
 }
 

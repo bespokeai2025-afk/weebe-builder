@@ -11,6 +11,7 @@ import {
   X,
   Paperclip,
   FileText,
+  Download,
   Copy,
   ChevronLeft,
   ExternalLink,
@@ -187,7 +188,16 @@ export function WhatsAppInbox() {
       inboxScope: inboxScope === "all" ? undefined : inboxScope,
       limit: visibleCount,
     }),
-    [search, assigneeFilter, tagFilter, queueFilter, campaignFilter, areaFilter, inboxScope, visibleCount],
+    [
+      search,
+      assigneeFilter,
+      tagFilter,
+      queueFilter,
+      campaignFilter,
+      areaFilter,
+      inboxScope,
+      visibleCount,
+    ],
   );
 
   useEffect(() => {
@@ -247,13 +257,20 @@ export function WhatsAppInbox() {
     throwOnError: false,
   });
 
+  // The media route authenticates with the user's access token, which expires
+  // after an hour. Reading it once on mount meant every attachment silently
+  // 401'd in a tab left open, so follow the session instead of snapshotting it.
   useEffect(() => {
     let active = true;
     supabase.auth.getSession().then(({ data }) => {
       if (active) setMediaToken(data.session?.access_token ?? null);
     });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (active) setMediaToken(session?.access_token ?? null);
+    });
     return () => {
       active = false;
+      sub.subscription.unsubscribe();
     };
   }, []);
 
@@ -432,9 +449,11 @@ export function WhatsAppInbox() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const mediaSrc = (message: InboxMessage): string | null => {
+  const mediaSrc = (message: InboxMessage, download = false): string | null => {
     if (!message.media_url || !mediaToken) return null;
-    return `/api/whatsapp/media?messageId=${encodeURIComponent(message.id)}&token=${encodeURIComponent(mediaToken)}`;
+    const query = `messageId=${encodeURIComponent(message.id)}&token=${encodeURIComponent(mediaToken)}`;
+    // Inline for players and thumbnails; `download=1` makes the browser save it.
+    return `/api/whatsapp/media?${query}${download ? "&download=1" : ""}`;
   };
 
   const assigneeName = (userId: string | null | undefined): string => {
@@ -451,7 +470,10 @@ export function WhatsAppInbox() {
     inboxScope !== "all";
   const hasFilters = extraFilters || queueFilter !== DEFAULT_INBOX_QUEUE_FILTER;
   const blankInbox =
-    !isLoading && queued.length === 0 && queueFilter === DEFAULT_INBOX_QUEUE_FILTER && !extraFilters;
+    !isLoading &&
+    queued.length === 0 &&
+    queueFilter === DEFAULT_INBOX_QUEUE_FILTER &&
+    !extraFilters;
 
   const campaigns = meta?.campaigns ?? [];
   const activeCampaigns = campaigns.filter((c) => !c.archived);
@@ -630,7 +652,9 @@ export function WhatsAppInbox() {
                   queueFilter === "working" || queueFilter === "all" ? "__default__" : queueFilter
                 }
                 onValueChange={(v) =>
-                  setQueueFilter(v === "__default__" ? DEFAULT_INBOX_QUEUE_FILTER : (v as InboxQueueFilter))
+                  setQueueFilter(
+                    v === "__default__" ? DEFAULT_INBOX_QUEUE_FILTER : (v as InboxQueueFilter),
+                  )
                 }
               >
                 <SelectTrigger className={cn(BUZZ_SELECT, "w-full")}>
@@ -638,11 +662,13 @@ export function WhatsAppInbox() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__default__">Use Inbox / All above</SelectItem>
-                  {INBOX_QUEUE_FILTERS.filter((f) => f.id !== "working" && f.id !== "all").map((f) => (
-                    <SelectItem key={f.id} value={f.id}>
-                      {f.label}
-                    </SelectItem>
-                  ))}
+                  {INBOX_QUEUE_FILTERS.filter((f) => f.id !== "working" && f.id !== "all").map(
+                    (f) => (
+                      <SelectItem key={f.id} value={f.id}>
+                        {f.label}
+                      </SelectItem>
+                    ),
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -723,72 +749,75 @@ export function WhatsAppInbox() {
               }
             />
           ) : (
-          <ul className="min-h-0 flex-1 divide-y divide-border/60 overflow-y-auto">
-            {queued.map((t) => {
-              const waiting = Boolean(t.needsReply);
-              const selected = active?.phone === t.phone;
-              const expired =
-                resolveWatiChatStatus({
-                  watiChatStatus: t.watiChatStatus,
-                  lastInboundAt: t.lastInboundAt,
-                }) === "expired";
-              return (
-                <li key={t.phone}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActivePhone(t.phone);
-                      setMobileShowChat(true);
-                    }}
-                    className={cn(
-                      "w-full px-3 py-3 text-left transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-                      selected && "border-l-2 border-l-primary bg-primary/10",
-                    )}
-                  >
-                    <div className="flex min-w-0 items-baseline justify-between gap-2">
-                      <p className="min-w-0 truncate text-sm font-medium">
-                        {waiting && (
-                          <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-success align-middle" title="Needs reply" />
-                        )}
-                        {t.name ?? t.phone}
-                      </p>
-                      <span className="shrink-0 text-[10px] text-muted-foreground">
-                        <RelativeTime date={t.lastAt} short />
-                      </span>
-                    </div>
-                    <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                      {t.lastMessage ?? "—"}
-                    </p>
-                    <div className="mt-1 flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                      <span className="min-w-0 truncate">
-                        {[t.lastCampaignName, t.area].filter(Boolean).join(" · ") || t.phone}
-                      </span>
-                      {expired && <span className="shrink-0">Expired</span>}
-                      {t.unread > 0 && (
-                        <Badge variant="default" className="ml-auto h-4 min-w-4 px-1 text-[9px]">
-                          {t.unread}
-                        </Badge>
+            <ul className="min-h-0 flex-1 divide-y divide-border/60 overflow-y-auto">
+              {queued.map((t) => {
+                const waiting = Boolean(t.needsReply);
+                const selected = active?.phone === t.phone;
+                const expired =
+                  resolveWatiChatStatus({
+                    watiChatStatus: t.watiChatStatus,
+                    lastInboundAt: t.lastInboundAt,
+                  }) === "expired";
+                return (
+                  <li key={t.phone}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActivePhone(t.phone);
+                        setMobileShowChat(true);
+                      }}
+                      className={cn(
+                        "w-full px-3 py-3 text-left transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                        selected && "border-l-2 border-l-primary bg-primary/10",
                       )}
-                    </div>
-                  </button>
+                    >
+                      <div className="flex min-w-0 items-baseline justify-between gap-2">
+                        <p className="min-w-0 truncate text-sm font-medium">
+                          {waiting && (
+                            <span
+                              className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-success align-middle"
+                              title="Needs reply"
+                            />
+                          )}
+                          {t.name ?? t.phone}
+                        </p>
+                        <span className="shrink-0 text-[10px] text-muted-foreground">
+                          <RelativeTime date={t.lastAt} short />
+                        </span>
+                      </div>
+                      <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                        {t.lastMessage ?? "—"}
+                      </p>
+                      <div className="mt-1 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                        <span className="min-w-0 truncate">
+                          {[t.lastCampaignName, t.area].filter(Boolean).join(" · ") || t.phone}
+                        </span>
+                        {expired && <span className="shrink-0">Expired</span>}
+                        {t.unread > 0 && (
+                          <Badge variant="default" className="ml-auto h-4 min-w-4 px-1 text-[9px]">
+                            {t.unread}
+                          </Badge>
+                        )}
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
+              {canLoadMore && (
+                <li className="p-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 w-full text-[10px]"
+                    disabled={isFetching}
+                    onClick={() => setVisibleCount((n) => n + THREAD_PAGE_SIZE)}
+                  >
+                    {isFetching ? "Loading…" : "Load more"}
+                  </Button>
                 </li>
-              );
-            })}
-            {canLoadMore && (
-              <li className="p-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-7 w-full text-[10px]"
-                  disabled={isFetching}
-                  onClick={() => setVisibleCount((n) => n + THREAD_PAGE_SIZE)}
-                >
-                  {isFetching ? "Loading…" : "Load more"}
-                </Button>
-              </li>
-            )}
-          </ul>
+              )}
+            </ul>
           )}
         </div>
 
@@ -1002,6 +1031,7 @@ export function WhatsAppInbox() {
               <div className="flex flex-col gap-2">
                 {msgs.map((m) => {
                   const src = mediaSrc(m);
+                  const downloadSrc = mediaSrc(m, true);
                   const mime = m.media_mime_type ?? "";
                   const isImage = mime.startsWith("image/");
                   // WhatsApp voice notes arrive as audio/ogg (opus). Without a
@@ -1029,60 +1059,108 @@ export function WhatsAppInbox() {
                         </p>
                       )}
                       {src && isImage && (
-                        <a href={src} target="_blank" rel="noreferrer">
-                          <img
-                            src={src}
-                            alt={m.media_filename ?? "Attachment"}
-                            className="mb-1 max-h-64 rounded-lg object-cover"
-                            loading="lazy"
-                          />
-                        </a>
-                      )}
-                      {src && isAudio && (
-                        <div className="mb-1 flex flex-col gap-1">
-                          <audio
-                            controls
-                            preload="metadata"
-                            src={src}
-                            className="w-60 max-w-full"
-                          >
-                            <a href={src} target="_blank" rel="noreferrer">
-                              Download voice note
-                            </a>
-                          </audio>
+                        <div className="mb-1 flex flex-col items-start gap-1">
+                          <a href={src} target="_blank" rel="noreferrer">
+                            <img
+                              src={src}
+                              alt={m.media_filename ?? "Attachment"}
+                              className="max-h-64 rounded-lg object-cover"
+                              loading="lazy"
+                            />
+                          </a>
                           <a
-                            href={src}
-                            target="_blank"
-                            rel="noreferrer"
+                            href={downloadSrc ?? src}
+                            download={m.media_filename ?? ""}
                             className={cn(
-                              "text-[10px] underline underline-offset-2",
+                              "inline-flex items-center gap-1 text-[10px] underline underline-offset-2",
                               m.direction === "outbound"
                                 ? "text-primary-foreground/70"
                                 : "text-muted-foreground",
                             )}
                           >
-                            {m.media_filename ?? "Download"}
+                            <Download className="h-2.5 w-2.5 shrink-0" />
+                            Save image
+                          </a>
+                        </div>
+                      )}
+                      {src && isAudio && (
+                        <div className="mb-1 flex flex-col gap-1">
+                          <audio controls preload="metadata" src={src} className="w-60 max-w-full">
+                            <a href={src} target="_blank" rel="noreferrer">
+                              Download voice note
+                            </a>
+                          </audio>
+                          <a
+                            href={downloadSrc ?? src}
+                            download={m.media_filename ?? ""}
+                            className={cn(
+                              "inline-flex items-center gap-1 text-[10px] underline underline-offset-2",
+                              m.direction === "outbound"
+                                ? "text-primary-foreground/70"
+                                : "text-muted-foreground",
+                            )}
+                          >
+                            <Download className="h-2.5 w-2.5 shrink-0" />
+                            {m.media_filename ?? "Download voice note"}
                           </a>
                         </div>
                       )}
                       {src && isVideo && (
-                        <video
-                          controls
-                          preload="metadata"
-                          src={src}
-                          className="mb-1 max-h-64 w-full rounded-lg"
-                        />
+                        <div className="mb-1 flex flex-col items-start gap-1">
+                          <video
+                            controls
+                            preload="metadata"
+                            src={src}
+                            className="max-h-64 w-full rounded-lg"
+                          />
+                          <a
+                            href={downloadSrc ?? src}
+                            download={m.media_filename ?? ""}
+                            className={cn(
+                              "inline-flex items-center gap-1 text-[10px] underline underline-offset-2",
+                              m.direction === "outbound"
+                                ? "text-primary-foreground/70"
+                                : "text-muted-foreground",
+                            )}
+                          >
+                            <Download className="h-2.5 w-2.5 shrink-0" />
+                            Save video
+                          </a>
+                        </div>
                       )}
                       {src && !isImage && !isAudio && !isVideo && (
-                        <a
-                          href={src}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="mb-1 flex items-center gap-1.5 underline underline-offset-2"
+                        <div
+                          className={cn(
+                            "mb-1 flex items-center gap-2 rounded-lg border px-2 py-1.5",
+                            m.direction === "outbound"
+                              ? "border-primary-foreground/25 bg-primary-foreground/10"
+                              : "border-border bg-muted/40",
+                          )}
                         >
-                          <FileText className="h-3 w-3 shrink-0" />
-                          {m.media_filename ?? "Download attachment"}
-                        </a>
+                          <FileText className="h-4 w-4 shrink-0 opacity-70" />
+                          <span className="min-w-0 flex-1 truncate text-xs">
+                            {m.media_filename ?? "Attachment"}
+                          </span>
+                          <a
+                            href={src}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="shrink-0 text-[10px] underline underline-offset-2 opacity-80 hover:opacity-100"
+                          >
+                            Open
+                          </a>
+                          {/* `download` alone is ignored cross-origin, and this
+                              response is same-origin, so pair it with the route's
+                              own attachment disposition to be certain it saves. */}
+                          <a
+                            href={downloadSrc ?? src}
+                            download={m.media_filename ?? ""}
+                            aria-label="Download attachment"
+                            className="shrink-0 rounded p-0.5 opacity-80 hover:opacity-100"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                          </a>
+                        </div>
                       )}
                       {!src && m.media_url && (
                         <p className="mb-1 flex items-center gap-1.5 opacity-70">

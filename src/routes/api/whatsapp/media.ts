@@ -1,15 +1,22 @@
 /**
  * Streams a WhatsApp message attachment to a workspace member.
  *
- * WATI media URLs need the tenant's Bearer token, which must never reach the browser, so the
- * inbox points <img>/<a> at this route instead of the raw URL. The access token travels as a
- * query param because image and download requests can't carry an Authorization header — the same
+ * WATI never hands out a public URL for an inbound attachment: the webhook carries the tenant's
+ * own storage path and the file only comes back from an endpoint authenticated with that tenant's
+ * Bearer token, which must never reach the browser. So the inbox points <img>/<audio>/<a> at this
+ * route, which resolves the path and streams the bytes. The user's access token travels as a query
+ * param because image and download requests can't carry an Authorization header — the same
  * approach the live-calls SSE route uses.
+ *
+ * `?download=1` serves the file as an attachment rather than inline.
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { normalizeWatiApiHost } from "@/lib/whatsapp/wati-api-base.shared";
-import { getWatiConnectionForWorkspace } from "@/lib/whatsapp/wati-campaign.server";
+import { normalizeWatiApiHost, watiApiV1Base } from "@/lib/whatsapp/wati-api-base.shared";
+import {
+  getWatiConnectionForWorkspace,
+  watiMediaMimeFromPath,
+} from "@/lib/whatsapp/wati-campaign.server";
 
 /**
  * media_url originates from webhook payloads, so treat it as untrusted and only proxy hosts that
@@ -22,6 +29,24 @@ const ALLOWED_MEDIA_HOST_SUFFIXES = [
   ".fbcdn.net",
   "lookaside.fbsbx.com",
 ];
+
+/**
+ * Inbound WATI attachments are stored as that tenant's own storage path — `data/documents/x.pdf`
+ * — not as a URL, because WATI only serves them through an authenticated endpoint. Resolve such a
+ * path against the workspace's own tenant so the attachment can be fetched; reject anything that
+ * tries to climb out of it or name a different host.
+ */
+function watiMediaPathUrl(
+  raw: string,
+  conn: { tenant_id?: string | null; api_host?: string | null } | null,
+): URL | null {
+  if (!conn?.tenant_id) return null;
+  const path = raw.trim().replace(/^\/+/, "");
+  if (!path || path.includes("..") || /^[a-z][a-z0-9+.-]*:/i.test(path)) return null;
+  const url = new URL(`${watiApiV1Base(String(conn.tenant_id), conn.api_host)}/getMedia`);
+  url.searchParams.set("fileName", path);
+  return url;
+}
 
 function isAllowedMediaUrl(raw: string, watiHost: string): URL | null {
   let url: URL;
@@ -95,10 +120,12 @@ export const Route = createFileRoute("/api/whatsapp/media")({
           message.workspace_id,
         );
         const watiHost = normalizeWatiApiHost(conn?.api_host);
-        const target = isAllowedMediaUrl(String(message.media_url), watiHost);
+        const stored = String(message.media_url);
+        const target = isAllowedMediaUrl(stored, watiHost) ?? watiMediaPathUrl(stored, conn);
         if (!target) return fail(400, "Unsupported media host");
 
         const headers: Record<string, string> = {};
+        // Only WATI's own host gets the tenant key — never leak it to a CDN redirect target.
         if (conn?.api_key && target.host.toLowerCase() === watiHost.toLowerCase()) {
           headers.Authorization = `Bearer ${conn.api_key.replace(/^Bearer\s+/i, "")}`;
         }
@@ -122,7 +149,12 @@ export const Route = createFileRoute("/api/whatsapp/media")({
           return fail(502, "Could not load media");
         }
 
-        const filename = safeFilename(message.media_filename);
+        // A document should save to disk when the user clicks "Download", but an
+        // image or a voice note has to stay `inline` or the <img>/<audio> element
+        // cannot render it. The caller says which it wants.
+        const disposition = url.searchParams.get("download") === "1" ? "attachment" : "inline";
+        const filename =
+          safeFilename(message.media_filename) ?? safeFilename(stored.split("/").pop() ?? null);
         const passthrough: Record<string, string> = {};
         for (const header of ["content-range", "content-length", "accept-ranges"]) {
           const value = upstream.headers.get(header);
@@ -136,12 +168,15 @@ export const Route = createFileRoute("/api/whatsapp/media")({
             "Content-Type":
               upstream.headers.get("content-type") ??
               message.media_mime_type ??
+              watiMediaMimeFromPath(filename) ??
               "application/octet-stream",
             "Cache-Control": "private, max-age=300",
             "X-Content-Type-Options": "nosniff",
             "Accept-Ranges": "bytes",
             ...passthrough,
-            ...(filename ? { "Content-Disposition": `inline; filename="${filename}"` } : {}),
+            "Content-Disposition": filename
+              ? `${disposition}; filename="${filename}"`
+              : disposition,
           },
         });
       },
