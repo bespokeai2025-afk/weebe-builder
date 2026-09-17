@@ -2,6 +2,9 @@ import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import {
   ArrowLeft,
   Bell,
@@ -19,6 +22,14 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -715,6 +726,16 @@ function NotificationInboxCard() {
 
 const ASSIGNABLE_ROLES = ROLE_KEYS.filter((r) => r !== "owner");
 
+const inviteFormSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .min(1, "Enter an email address")
+    .email("Enter a valid email address"),
+  roleKey: z.string().min(1, "Select a role"),
+});
+type InviteFormValues = z.infer<typeof inviteFormSchema>;
+
 function TeamAccessTab({ canManage }: { canManage: boolean; myUserId: string | null }) {
   const qc = useQueryClient();
   const membersFn = useServerFn(listTeamMembers);
@@ -750,12 +771,15 @@ function TeamAccessTab({ canManage }: { canManage: boolean; myUserId: string | n
     throwOnError: false,
   });
 
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<string>("manager");
+  const inviteForm = useForm<InviteFormValues>({
+    resolver: zodResolver(inviteFormSchema),
+    defaultValues: { email: "", roleKey: "manager" },
+  });
   const inviteM = useMutation({
-    mutationFn: () => createInviteFn({ data: { email: inviteEmail, roleKey: inviteRole } }),
+    mutationFn: (values: InviteFormValues) =>
+      createInviteFn({ data: { email: values.email, roleKey: values.roleKey } }),
     onSuccess: () => {
-      setInviteEmail("");
+      inviteForm.reset();
       qc.invalidateQueries({ queryKey: ["team-invites"] });
       toast.success("Invite sent");
     },
@@ -862,44 +886,59 @@ function TeamAccessTab({ canManage }: { canManage: boolean; myUserId: string | n
             <CardDescription>They'll receive an email with a link to join this workspace.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex flex-wrap items-end gap-2">
-              <div className="flex-1 min-w-[220px]">
-                <Label htmlFor="invite-email" className="text-xs">Email</Label>
-                <Input
-                  id="invite-email"
-                  type="email"
-                  placeholder="colleague@company.com"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label className="text-xs">Role</Label>
-                <Select value={inviteRole} onValueChange={setInviteRole}>
-                  <SelectTrigger className="w-[190px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ASSIGNABLE_ROLES.map((r) => (
-                      <SelectItem key={r} value={r}>
-                        {ROLE_LABELS[r as RoleKey] ?? r}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button
-                disabled={!inviteEmail || inviteM.isPending}
-                onClick={() => inviteM.mutate()}
+            <Form {...inviteForm}>
+              <form
+                onSubmit={inviteForm.handleSubmit((values) => inviteM.mutate(values))}
+                className="flex flex-wrap items-end gap-2"
+                noValidate
               >
-                {inviteM.isPending ? (
-                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                ) : (
-                  <UserPlus className="mr-1.5 h-4 w-4" />
-                )}
-                Send invite
-              </Button>
-            </div>
+                <FormField
+                  control={inviteForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem className="flex-1 min-w-[220px] space-y-1">
+                      <FormLabel className="text-xs">Email</FormLabel>
+                      <FormControl>
+                        <Input type="email" placeholder="colleague@company.com" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={inviteForm.control}
+                  name="roleKey"
+                  render={({ field }) => (
+                    <FormItem className="space-y-1">
+                      <FormLabel className="text-xs">Role</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger className="w-[190px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {ASSIGNABLE_ROLES.map((r) => (
+                            <SelectItem key={r} value={r}>
+                              {ROLE_LABELS[r as RoleKey] ?? r}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button type="submit" disabled={inviteM.isPending}>
+                  {inviteM.isPending ? (
+                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                  ) : (
+                    <UserPlus className="mr-1.5 h-4 w-4" />
+                  )}
+                  Send invite
+                </Button>
+              </form>
+            </Form>
             {pendingInvites.length > 0 && (
               <div className="space-y-1.5">
                 <div className="text-xs font-medium text-muted-foreground">Pending invites</div>
