@@ -448,7 +448,7 @@ export function GrowthMindOverview() {
                   <p className="text-[10px] text-muted-foreground flex-1">No opportunities detected yet.</p>
                 )}
                 <Button
-                  variant="outline"
+                  variant="default"
                   size="sm"
                   className="w-full text-xs mt-auto"
                   onClick={handleRunOppEngine}

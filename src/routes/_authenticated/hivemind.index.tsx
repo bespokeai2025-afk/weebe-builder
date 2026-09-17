@@ -431,7 +431,7 @@ function HiveMindOverview() {
               <Brain className="h-3.5 w-3.5" />
               Activate HiveMind
             </Link>
-            <Button variant="outline" size="sm" onClick={() => { briefingQ.refetch(); platformQ.refetch(); }} disabled={isFetching}>
+            <Button variant="default" size="sm" onClick={() => { briefingQ.refetch(); platformQ.refetch(); }} disabled={isFetching}>
               <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", isFetching && "animate-spin")} />
               Refresh now
             </Button>

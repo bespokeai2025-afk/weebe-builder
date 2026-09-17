@@ -163,7 +163,7 @@ export function SystemMindOverview() {
                     <Sparkles className="h-4 w-4 text-sky-400" />
                     <span className="text-sm font-semibold">AI Technical Briefing</span>
                   </div>
-                  <Button variant="outline" size="sm" onClick={generateBriefing} disabled={briefingLoading}>
+                  <Button variant="default" size="sm" onClick={generateBriefing} disabled={briefingLoading}>
                     {briefingLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                     Generate
                   </Button>
