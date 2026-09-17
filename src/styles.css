@@ -91,8 +91,11 @@
 
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  --success: #16a34a;
-  --warning: #d97706;
+  /* Darkened from #16a34a/#d97706 — those failed WCAG AA (3.30:1/3.19:1)
+     against white when used as standalone text (WEBEE-UIUX-AUDIT.md F-04).
+     These pass at ~5.0:1 while staying the same hue. */
+  --success: #15803d;
+  --warning: #b45309;
   --highlight: #0a0f1c;
 
   --border: rgba(10, 15, 28, 0.06);
@@ -134,7 +137,10 @@
   --popover-foreground: #e5e7eb;
 
   /* Accents — restrained, used as glow not fill saturation */
-  --primary: #4f8cff;
+  /* Darkened from #4f8cff — that failed WCAG AA for normal text against
+     white button labels (3.22:1, WEBEE-UIUX-AUDIT.md F-04). #2563eb
+     (Tailwind blue-600) passes at ~5.17:1, same hue, moderately darker. */
+  --primary: #2563eb;
   --primary-foreground: #ffffff;
   --secondary: #111827;
   --secondary-foreground: #e5e7eb;
@@ -143,7 +149,10 @@
   --accent: #1b2435;
   --accent-foreground: #e5e7eb;
 
-  --destructive: #ef4444;
+  /* Darkened from #ef4444 — that failed WCAG AA for normal text against
+     white button labels (3.76:1, WEBEE-UIUX-AUDIT.md F-04). #b91c1c
+     (Tailwind red-700) passes at ~6.47:1, same hue, moderately darker. */
+  --destructive: #b91c1c;
   --destructive-foreground: #ffffff;
   --success: #22c55e;
   --warning: #f59e0b;
