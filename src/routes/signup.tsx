@@ -1,10 +1,26 @@
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+
+const signupFormSchema = z.object({
+  email: z.string().trim().min(1, "Enter your email").email("Enter a valid email address"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+});
+type SignupFormValues = z.infer<typeof signupFormSchema>;
 
 export const Route = createFileRoute("/signup")({
   component: SignUpPage,
@@ -12,9 +28,11 @@ export const Route = createFileRoute("/signup")({
 
 function SignUpPage() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const form = useForm<SignupFormValues>({
+    resolver: zodResolver(signupFormSchema),
+    defaultValues: { email: "", password: "" },
+  });
 
   const handleGoogleSignup = async () => {
     setLoading(true);
@@ -32,25 +50,27 @@ function SignUpPage() {
     }
   };
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (values: SignupFormValues) => {
     setLoading(true);
+    const email = values.email.toLowerCase();
     try {
       const { error: signUpError } = await supabase.auth.signUp({
-        email: email.trim().toLowerCase(),
-        password,
+        email,
+        password: values.password,
       });
       if (signUpError) throw signUpError;
 
       const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
-        password,
+        email,
+        password: values.password,
       });
       if (signInError) throw signInError;
 
       navigate({ to: "/dashboard" });
     } catch (err) {
-      toast.error((err as Error).message);
+      const message = (err as Error).message;
+      form.setError("root", { message });
+      toast.error(message);
       setLoading(false);
     }
   };
@@ -100,34 +120,44 @@ function SignUpPage() {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-3 space-y-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="mt-3 space-y-3" noValidate>
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem className="space-y-1.5">
+                  <FormLabel>Email</FormLabel>
+                  <FormControl>
+                    <Input type="email" autoComplete="email" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="password">Password (min 8 chars)</Label>
-            <Input
-              id="password"
-              type="password"
-              autoComplete="new-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              minLength={8}
-              required
+            <FormField
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem className="space-y-1.5">
+                  <FormLabel>Password (min 8 chars)</FormLabel>
+                  <FormControl>
+                    <Input type="password" autoComplete="new-password" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Creating…" : "Create account"}
-          </Button>
-        </form>
+            {form.formState.errors.root && (
+              <p role="alert" className="text-sm font-medium text-destructive">
+                {form.formState.errors.root.message}
+              </p>
+            )}
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Creating…" : "Create account"}
+            </Button>
+          </form>
+        </Form>
 
         <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
           <Link to="/" className="hover:text-foreground">

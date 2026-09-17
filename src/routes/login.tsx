@@ -1,11 +1,27 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Logo } from "@/components/Logo";
+
+const loginFormSchema = z.object({
+  email: z.string().trim().min(1, "Enter your email").email("Enter a valid email address"),
+  password: z.string().min(1, "Enter your password"),
+});
+type LoginFormValues = z.infer<typeof loginFormSchema>;
 
 export const Route = createFileRoute("/login")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -18,6 +34,10 @@ function LoginPage() {
   const navigate = useNavigate();
   const search = Route.useSearch();
   const [loading, setLoading] = useState(false);
+  const form = useForm<LoginFormValues>({
+    resolver: zodResolver(loginFormSchema),
+    defaultValues: { email: "", password: "" },
+  });
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data, error }) => {
@@ -50,23 +70,22 @@ function LoginPage() {
     }
   };
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (values: LoginFormValues) => {
     setLoading(true);
-    const data = new FormData(e.currentTarget as HTMLFormElement);
-    const email = (data.get("email") as string) ?? "";
-    const password = (data.get("password") as string) ?? "";
     const { data: signInData, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+      email: values.email,
+      password: values.password,
     });
     if (error) {
+      form.setError("root", { message: error.message });
       toast.error(error.message);
       setLoading(false);
       return;
     }
     if (!signInData.session) {
-      toast.error("Your account did not return a session. Please verify your email and try again.");
+      const message = "Your account did not return a session. Please verify your email and try again.";
+      form.setError("root", { message });
+      toast.error(message);
       setLoading(false);
       return;
     }
@@ -121,31 +140,44 @@ function LoginPage() {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-3 space-y-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="mt-3 space-y-3" noValidate>
+            <FormField
+              control={form.control}
               name="email"
-              type="email"
-              autoComplete="email"
-              required
+              render={({ field }) => (
+                <FormItem className="space-y-1.5">
+                  <FormLabel>Email</FormLabel>
+                  <FormControl>
+                    <Input type="email" autoComplete="email" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
+            <FormField
+              control={form.control}
               name="password"
-              type="password"
-              autoComplete="current-password"
-              required
+              render={({ field }) => (
+                <FormItem className="space-y-1.5">
+                  <FormLabel>Password</FormLabel>
+                  <FormControl>
+                    <Input type="password" autoComplete="current-password" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Please wait…" : "Sign in"}
-          </Button>
-        </form>
+            {form.formState.errors.root && (
+              <p role="alert" className="text-sm font-medium text-destructive">
+                {form.formState.errors.root.message}
+              </p>
+            )}
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Please wait…" : "Sign in"}
+            </Button>
+          </form>
+        </Form>
 
         <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
           <Link to="/" className="hover:text-foreground">
