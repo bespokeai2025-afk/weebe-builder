@@ -1,24 +1,59 @@
 import { useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Download, Upload, Search, Users, RefreshCw, Loader2, FolderOpen, FileSpreadsheet, ChevronDown, CheckCircle2, MessageCircle, Circle, Ban, Copy, X, Phone, User } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Download,
+  Upload,
+  Search,
+  Users,
+  RefreshCw,
+  Loader2,
+  FolderOpen,
+  FileSpreadsheet,
+  ChevronDown,
+  CheckCircle2,
+  MessageCircle,
+  Circle,
+  Ban,
+  Copy,
+  X,
+  Phone,
+  User,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
 import { Badge } from "@/components/ui/badge";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import {
   DropdownMenu,
@@ -34,6 +69,7 @@ import {
   updateWAContact,
   deleteWAContact,
   deleteAllWAContacts,
+  deleteWAContactsByFilter,
   getWhatsappInboxMeta,
   importWAContactsCsv,
   exportBuzzchatContactsCsv,
@@ -58,7 +94,7 @@ import { getWatiConnection, syncWatiContacts } from "@/lib/whatsapp/wati.functio
 import { toast } from "sonner";
 
 const STATUSES = ["new", "contacted", "qualified", "closed", "lost"];
-const SOURCES  = ["manual", "import", "webhook", "campaign", "referral", "wati"];
+const SOURCES = ["manual", "import", "webhook", "campaign", "referral", "wati"];
 type MessagedFilter = "all" | "messaged" | "not_messaged" | "replied" | "dnc";
 
 /** Radix Select cannot hold an empty value. */
@@ -235,15 +271,11 @@ function ContactPersonPane({
               <span className="truncate">{stats.last_campaign_name ?? "—"}</span>
               <span className="text-muted-foreground">Last sent</span>
               <span>
-                {stats.last_outbound_at
-                  ? new Date(stats.last_outbound_at).toLocaleString()
-                  : "—"}
+                {stats.last_outbound_at ? new Date(stats.last_outbound_at).toLocaleString() : "—"}
               </span>
               <span className="text-muted-foreground">Last reply</span>
               <span>
-                {stats.last_inbound_at
-                  ? new Date(stats.last_inbound_at).toLocaleString()
-                  : "—"}
+                {stats.last_inbound_at ? new Date(stats.last_inbound_at).toLocaleString() : "—"}
               </span>
             </div>
           </section>
@@ -286,9 +318,7 @@ function ContactPersonPane({
           </section>
         )}
 
-        {contact.notes ? (
-          <p className="text-xs text-muted-foreground">{contact.notes}</p>
-        ) : null}
+        {contact.notes ? <p className="text-xs text-muted-foreground">{contact.notes}</p> : null}
       </div>
 
       <div className="grid shrink-0 grid-cols-2 gap-2 border-t border-white/[0.06] bg-card/80 p-3">
@@ -329,7 +359,9 @@ function WADocsDialog({
     staleTime: 0,
     throwOnError: false,
   });
-  const info = docsQ.data as { docs: any[]; contactId: string | null; uploadToken: string | null } | undefined;
+  const info = docsQ.data as
+    | { docs: any[]; contactId: string | null; uploadToken: string | null }
+    | undefined;
 
   return (
     <Dialog open={!!contact} onOpenChange={(o) => !o && onClose()}>
@@ -353,7 +385,8 @@ function WADocsDialog({
           />
         ) : (
           <p className="text-sm text-muted-foreground py-4">
-            No CRM contact found for {contact?.phone}. Import this number as a contact first to enable documents.
+            No CRM contact found for {contact?.phone}. Import this number as a contact first to
+            enable documents.
           </p>
         )}
       </DialogContent>
@@ -363,17 +396,18 @@ function WADocsDialog({
 
 export function WhatsAppContacts() {
   const qc = useQueryClient();
-  const listFn        = useServerFn(listWAContacts);
-  const createFn      = useServerFn(createWAContact);
-  const updateFn      = useServerFn(updateWAContact);
-  const deleteFn      = useServerFn(deleteWAContact);
-  const deleteAllFn   = useServerFn(deleteAllWAContacts);
-  const importCsvFn   = useServerFn(importWAContactsCsv);
+  const listFn = useServerFn(listWAContacts);
+  const createFn = useServerFn(createWAContact);
+  const updateFn = useServerFn(updateWAContact);
+  const deleteFn = useServerFn(deleteWAContact);
+  const deleteAllFn = useServerFn(deleteAllWAContacts);
+  const deleteFilteredFn = useServerFn(deleteWAContactsByFilter);
+  const importCsvFn = useServerFn(importWAContactsCsv);
   const exportBuzzchatFn = useServerFn(exportBuzzchatContactsCsv);
-  const backfillFn    = useServerFn(backfillWhatsappContactedStatus);
-  const csvInputRef   = useRef<HTMLInputElement>(null);
-  const watiConnFn    = useServerFn(getWatiConnection);
-  const watiSyncFn    = useServerFn(syncWatiContacts);
+  const backfillFn = useServerFn(backfillWhatsappContactedStatus);
+  const csvInputRef = useRef<HTMLInputElement>(null);
+  const watiConnFn = useServerFn(getWatiConnection);
+  const watiSyncFn = useServerFn(syncWatiContacts);
 
   const { data: contactsPayload, isLoading } = useQuery({
     queryKey: ["wa-contacts"],
@@ -415,15 +449,16 @@ export function WhatsAppContacts() {
     onError: (e: any) => toast.error(e.message),
   });
 
-  const [search, setSearch]     = useState("");
+  const [search, setSearch] = useState("");
   /** Narrow the table to one import batch (`meta.upload_type`). */
   const [uploadFilter, setUploadFilter] = useState(ALL_UPLOADS);
   const [messagedFilter, setMessagedFilter] = useState<MessagedFilter>("all");
-  const [open, setOpen]         = useState(false);
-  const [editRow, setEditRow]   = useState<any>(null);
+  const [open, setOpen] = useState(false);
+  const [editRow, setEditRow] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [clearAllOpen, setClearAllOpen] = useState(false);
-  const [form, setForm]         = useState(emptyForm());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [form, setForm] = useState(emptyForm());
   const [docsContact, setDocsContact] = useState<any>(null);
   const [detailContact, setDetailContact] = useState<any>(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -447,7 +482,9 @@ export function WhatsAppContacts() {
         ...new Set(
           contacts
             .map((c) =>
-              String(((c.import_meta as Record<string, unknown> | null) ?? {}).upload_type ?? "").trim(),
+              String(
+                ((c.import_meta as Record<string, unknown> | null) ?? {}).upload_type ?? "",
+              ).trim(),
             )
             .filter(Boolean),
         ),
@@ -477,9 +514,12 @@ export function WhatsAppContacts() {
   function openEdit(c: any) {
     setEditRow(c);
     setForm({
-      name: c.name ?? "", phone: c.phone ?? "",
+      name: c.name ?? "",
+      phone: c.phone ?? "",
       tags: (c.tags ?? []).join(", "),
-      source: c.source ?? "", lead_status: c.lead_status ?? "", notes: c.notes ?? "",
+      source: c.source ?? "",
+      lead_status: c.lead_status ?? "",
+      notes: c.notes ?? "",
     });
     setOpen(true);
   }
@@ -489,7 +529,12 @@ export function WhatsAppContacts() {
       const payload = {
         name: form.name || undefined,
         phone: form.phone,
-        tags: form.tags ? form.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
+        tags: form.tags
+          ? form.tags
+              .split(",")
+              .map((t) => t.trim())
+              .filter(Boolean)
+          : [],
         source: form.source || undefined,
         lead_status: form.lead_status || undefined,
         notes: form.notes || undefined,
@@ -517,6 +562,37 @@ export function WhatsAppContacts() {
       toast.success("Contact deleted");
     },
     onError: (e: any) => toast.error(e.message),
+  });
+
+  // Whether the table is showing a subset, and what to call it. Deleting is
+  // irreversible, so the confirm has to name the exact same set the user is
+  // looking at rather than a vague "these contacts".
+  const bulkScope = useMemo(
+    () => ({
+      count: filtered.length,
+      upload: uploadFilter !== ALL_UPLOADS ? uploadFilter : null,
+    }),
+    [uploadFilter, filtered.length],
+  );
+
+  const bulkDelete = useMutation({
+    mutationFn: () =>
+      deleteFilteredFn({
+        data: {
+          filter: messagedFilter,
+          uploadType: bulkScope.upload,
+          // Guards against a reply landing mid-confirm and quietly widening the set.
+          expectedCount: filtered.length,
+        },
+      }),
+    onSuccess: (res: { deleted?: number }) => {
+      qc.invalidateQueries({ queryKey: ["wa-contacts"] });
+      qc.invalidateQueries({ queryKey: ["wa-contacts-meta"] });
+      setBulkDeleteOpen(false);
+      setDetailContact(null);
+      toast.success(`Deleted ${res.deleted ?? 0} contact(s)`);
+    },
+    onError: (e: Error) => toast.error("Could not delete", { description: e.message }),
   });
 
   const clearAll = useMutation({
@@ -578,9 +654,7 @@ export function WhatsAppContacts() {
         c.source,
         c.lead_status,
       ];
-      return values
-        .map((v) => `"${(v ?? "").replace(/"/g, '""')}"`)
-        .join(",");
+      return values.map((v) => `"${(v ?? "").replace(/"/g, '""')}"`).join(",");
     });
     const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv" });
     const a = document.createElement("a");
@@ -589,10 +663,7 @@ export function WhatsAppContacts() {
     a.click();
   }
 
-  async function runContactsCsvImport(
-    rows: Record<string, string>[],
-    mapping: CsvColumnMapping,
-  ) {
+  async function runContactsCsvImport(rows: Record<string, string>[], mapping: CsvColumnMapping) {
     const leads = mapCsvRowsToLeads(rows, mapping, {
       maxLeads: Math.max(1, Math.min(csvImportLimit, 5000)),
       buyersOnly: csvBuyersOnly,
@@ -693,7 +764,9 @@ export function WhatsAppContacts() {
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={() => exportBuzzchat("all")}>All contacts</DropdownMenuItem>
             <DropdownMenuItem onClick={() => exportBuzzchat("messaged")}>Messaged</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => exportBuzzchat("not_messaged")}>Not sent</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => exportBuzzchat("not_messaged")}>
+              Not sent
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => exportBuzzchat("replied")}>Replied</DropdownMenuItem>
             <DropdownMenuItem onClick={exportCsv}>Property CSV</DropdownMenuItem>
           </DropdownMenuContent>
@@ -706,9 +779,11 @@ export function WhatsAppContacts() {
             disabled={syncFromWati.isPending}
             onClick={() => syncFromWati.mutate()}
           >
-            {syncFromWati.isPending
-              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              : <RefreshCw className="h-3.5 w-3.5" />}
+            {syncFromWati.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5" />
+            )}
             From WATI
           </Button>
         )}
@@ -786,11 +861,26 @@ export function WhatsAppContacts() {
                 </SelectContent>
               </Select>
             )}
-            {filtered.length > 0 && (
-              <span className="ml-auto text-xs text-muted-foreground">
-                {filtered.length} shown
-              </span>
-            )}
+            <div className="ml-auto flex items-center gap-2">
+              {filtered.length > 0 && (
+                <span className="text-xs text-muted-foreground">{filtered.length} shown</span>
+              )}
+              {/* Only offered on "Not sent". Clearing an import that was never
+                  messaged is the one bulk delete that is routinely safe, so it
+                  lives with that filter rather than as a mode on the Clear
+                  button, where it would sit next to "delete everything". */}
+              {messagedFilter === "not_messaged" && filtered.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1.5 border-destructive/40 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  onClick={() => setBulkDeleteOpen(true)}
+                >
+                  <Trash2 className="h-3 w-3" />
+                  Delete {filtered.length} not sent
+                </Button>
+              )}
+            </div>
           </div>
 
           {isLoading ? (
@@ -820,8 +910,19 @@ export function WhatsAppContacts() {
               <table className="w-full text-sm">
                 <thead className="sticky top-0 z-10 border-b border-white/[0.06] bg-muted/50">
                   <tr>
-                    {["Owner", "Property", "Requirement", "WhatsApp", "Status", "Last contact", ""].map((h) => (
-                      <th key={h} className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">
+                    {[
+                      "Owner",
+                      "Property",
+                      "Requirement",
+                      "WhatsApp",
+                      "Status",
+                      "Last contact",
+                      "",
+                    ].map((h) => (
+                      <th
+                        key={h}
+                        className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground"
+                      >
                         {h}
                       </th>
                     ))}
@@ -844,88 +945,117 @@ export function WhatsAppContacts() {
                         )}
                         onClick={() => setDetailContact(c)}
                       >
-                    <td className="px-4 py-3">
-                      <p className="font-medium leading-tight">{c.name || "—"}</p>
-                      <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
-                        {phones[0]?.phone ?? c.phone}
-                      </p>
-                      {phones.length > 1 && (
-                        <p className="text-[10px] text-muted-foreground">+{phones.length - 1} more</p>
-                      )}
-                    </td>
-                    <td className="max-w-[240px] px-4 py-3 text-xs leading-snug text-muted-foreground">
-                      {property || "—"}
-                    </td>
-                    <td className="px-4 py-3 text-xs">
-                      {requirement || "—"}
-                      {(c.tags ?? []).length > 0 && (
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {(c.tags ?? []).slice(0, 3).map((tag) => (
-                            <Badge key={tag} variant="secondary" className="px-1.5 py-0 text-[10px]">
-                              {tag}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        {stats?.messaged ? (
-                          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
-                        ) : (
-                          <Circle className="h-4 w-4 shrink-0 text-muted-foreground/40" />
-                        )}
-                        <span className="text-xs tabular-nums text-muted-foreground">
-                          {stats?.outbound_count ?? 0} sent
-                        </span>
-                        {(stats?.inbound_count ?? 0) > 0 && (
-                          <Badge variant="outline" className="border-emerald-500/30 px-1.5 text-[10px] text-emerald-500">
-                            {stats?.inbound_count} replied
-                          </Badge>
-                        )}
-                      </div>
-                      {stats?.last_outbound_status && (
-                        <p className={`mt-0.5 text-[10px] ${outboundStatusBadgeClass(stats.last_outbound_status)}`}>
-                          {stats.last_outbound_status}
-                          {stats.last_campaign_name ? ` · ${stats.last_campaign_name}` : ""}
-                        </p>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap items-center gap-1">
-                        {c.do_not_contact && (
-                          <Badge variant="destructive" className="gap-0.5 text-[10px]">
-                            <Ban className="h-2.5 w-2.5" /> DNC
-                          </Badge>
-                        )}
-                        {c.lead_status ? (
-                          <Badge variant="outline" className="text-[10px] capitalize">{c.lead_status}</Badge>
-                        ) : !c.do_not_contact ? (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        ) : null}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
-                      {lastAt ? <RelativeTime date={lastAt} /> : "—"}
-                    </td>
-                    <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex justify-end gap-0.5">
-                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Documents" onClick={() => setDocsContact(c)}>
-                          <FolderOpen className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(c)}>
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteId(c.id)}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                        <td className="px-4 py-3">
+                          <p className="font-medium leading-tight">{c.name || "—"}</p>
+                          <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+                            {phones[0]?.phone ?? c.phone}
+                          </p>
+                          {phones.length > 1 && (
+                            <p className="text-[10px] text-muted-foreground">
+                              +{phones.length - 1} more
+                            </p>
+                          )}
+                        </td>
+                        <td className="max-w-[240px] px-4 py-3 text-xs leading-snug text-muted-foreground">
+                          {property || "—"}
+                        </td>
+                        <td className="px-4 py-3 text-xs">
+                          {requirement || "—"}
+                          {(c.tags ?? []).length > 0 && (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {(c.tags ?? []).slice(0, 3).map((tag) => (
+                                <Badge
+                                  key={tag}
+                                  variant="secondary"
+                                  className="px-1.5 py-0 text-[10px]"
+                                >
+                                  {tag}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5">
+                            {stats?.messaged ? (
+                              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+                            ) : (
+                              <Circle className="h-4 w-4 shrink-0 text-muted-foreground/40" />
+                            )}
+                            <span className="text-xs tabular-nums text-muted-foreground">
+                              {stats?.outbound_count ?? 0} sent
+                            </span>
+                            {(stats?.inbound_count ?? 0) > 0 && (
+                              <Badge
+                                variant="outline"
+                                className="border-emerald-500/30 px-1.5 text-[10px] text-emerald-500"
+                              >
+                                {stats?.inbound_count} replied
+                              </Badge>
+                            )}
+                          </div>
+                          {stats?.last_outbound_status && (
+                            <p
+                              className={`mt-0.5 text-[10px] ${outboundStatusBadgeClass(stats.last_outbound_status)}`}
+                            >
+                              {stats.last_outbound_status}
+                              {stats.last_campaign_name ? ` · ${stats.last_campaign_name}` : ""}
+                            </p>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap items-center gap-1">
+                            {c.do_not_contact && (
+                              <Badge variant="destructive" className="gap-0.5 text-[10px]">
+                                <Ban className="h-2.5 w-2.5" /> DNC
+                              </Badge>
+                            )}
+                            {c.lead_status ? (
+                              <Badge variant="outline" className="text-[10px] capitalize">
+                                {c.lead_status}
+                              </Badge>
+                            ) : !c.do_not_contact ? (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            ) : null}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                          {lastAt ? <RelativeTime date={lastAt} /> : "—"}
+                        </td>
+                        <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex justify-end gap-0.5">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              title="Documents"
+                              onClick={() => setDocsContact(c)}
+                            >
+                              <FolderOpen className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => openEdit(c)}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive hover:text-destructive"
+                              onClick={() => setDeleteId(c.id)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
@@ -933,9 +1063,9 @@ export function WhatsAppContacts() {
         <div className={cn("h-full min-h-0", detailContact ? "flex" : "hidden lg:flex")}>
           <ContactPersonPane
             contact={
-              (detailContact
-                ? contacts.find((c) => c.id === detailContact.id) ?? detailContact
-                : null)
+              detailContact
+                ? (contacts.find((c) => c.id === detailContact.id) ?? detailContact)
+                : null
             }
             onClose={() => setDetailContact(null)}
             onEdit={() => {
@@ -958,44 +1088,78 @@ export function WhatsAppContacts() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Name</Label>
-                <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Jane Doe" />
+                <Input
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  placeholder="Jane Doe"
+                />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Phone *</Label>
-                <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+447700000000" />
+                <Input
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  placeholder="+447700000000"
+                />
               </div>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Tags (comma-separated)</Label>
-              <Input value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} placeholder="lead, vip, uk" />
+              <Input
+                value={form.tags}
+                onChange={(e) => setForm({ ...form, tags: e.target.value })}
+                placeholder="lead, vip, uk"
+              />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Source</Label>
                 <Select value={form.source} onValueChange={(v) => setForm({ ...form, source: v })}>
-                  <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select…" />
+                  </SelectTrigger>
                   <SelectContent>
-                    {SOURCES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    {SOURCES.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {s}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Status</Label>
-                <Select value={form.lead_status} onValueChange={(v) => setForm({ ...form, lead_status: v })}>
-                  <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                <Select
+                  value={form.lead_status}
+                  onValueChange={(v) => setForm({ ...form, lead_status: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select…" />
+                  </SelectTrigger>
                   <SelectContent>
-                    {STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    {STATUSES.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {s}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Notes</Label>
-              <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} placeholder="Any notes…" />
+              <Textarea
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                rows={3}
+                placeholder="Any notes…"
+              />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
             <Button onClick={() => save.mutate()} disabled={!form.phone || save.isPending}>
               {save.isPending ? "Saving…" : editRow ? "Save Changes" : "Create Contact"}
             </Button>
@@ -1015,7 +1179,10 @@ export function WhatsAppContacts() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => del.mutate()} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogAction
+              onClick={() => del.mutate()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -1027,8 +1194,8 @@ export function WhatsAppContacts() {
           <AlertDialogHeader>
             <AlertDialogTitle>Remove all contacts?</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently deletes all {contacts.length} Buzzchat contacts in this
-              workspace. This cannot be undone.
+              This permanently deletes all {contacts.length} Buzzchat contacts in this workspace.
+              This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1042,6 +1209,48 @@ export function WhatsAppContacts() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {clearAll.isPending ? "Removing…" : "Remove all"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete {bulkScope.count} not-sent contact{bulkScope.count === 1 ? "" : "s"}
+              {bulkScope.upload ? ` in "${bulkScope.upload}"` : ""}?
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>
+                  This permanently deletes the {bulkScope.count} contact
+                  {bulkScope.count === 1 ? "" : "s"} currently shown
+                  {bulkScope.upload ? ` from the "${bulkScope.upload}" upload` : ""}. It cannot be
+                  undone.
+                </p>
+                <p className="text-xs">
+                  Their WhatsApp history stays — only the contact records go. Anyone who has been
+                  messaged, or who has replied, is untouched.
+                </p>
+                <p className="text-xs">
+                  {summary.total - bulkScope.count} contact
+                  {summary.total - bulkScope.count === 1 ? "" : "s"} will remain.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkDelete.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                bulkDelete.mutate();
+              }}
+              disabled={bulkDelete.isPending || bulkScope.count === 0}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {bulkDelete.isPending ? "Deleting…" : `Delete ${bulkScope.count}`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1062,8 +1271,9 @@ export function WhatsAppContacts() {
             <p className="text-xs text-muted-foreground">
               Same columns as campaign CSV: <strong>Owner Name</strong> → name,{" "}
               <strong>Mobile 1 / 2, Phone 1 / 2</strong> → WhatsApp numbers, plus Project, Building,
-              Requirement (Sell / Rent / Both), Asking Price, Rental Price, and Tags. Turn off Buyers
-              only for JVC owner registry files. Re-import to refresh numbers and property fields.
+              Requirement (Sell / Rent / Both), Asking Price, Rental Price, and Tags. Turn off
+              Buyers only for JVC owner registry files. Re-import to refresh numbers and property
+              fields.
             </p>
             <div>
               <Label className="text-xs">Upload type</Label>
