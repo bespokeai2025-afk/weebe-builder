@@ -21,7 +21,12 @@ import {
   FileText,
   ExternalLink,
   Eye,
+  Sparkles,
 } from "lucide-react";
+import {
+  LeadAiAssistantPanel,
+  type AssistantTarget,
+} from "@/components/leads/LeadAiAssistantPanel";
 import { WbahCallSchedulingSection } from "@/components/dashboard/WbahCallSchedulingSection";
 import { WbahTestLeadBadge } from "@/components/dashboard/WbahTestLeadBadge";
 import { WbahNewLeadSubBadge } from "@/components/dashboard/WbahNewLeadSubBadge";
@@ -796,6 +801,7 @@ function DynamicDataTable({
   toggleAll,
   toggleOne,
   onReset,
+  onGenerate,
 }: {
   records: any[];
   agents: any[];
@@ -804,6 +810,7 @@ function DynamicDataTable({
   toggleAll: (v: boolean | "indeterminate") => void;
   toggleOne: (id: string) => void;
   onReset: (id: string) => void;
+  onGenerate: (record: any) => void;
 }) {
   const extraCols = useMemo(
     () => OPTIONAL_COLS.filter((c) => records.some((r) => r[c.key])),
@@ -862,6 +869,7 @@ function DynamicDataTable({
             <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               Updated
             </th>
+            <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground" />
           </tr>
         </thead>
         <tbody>
@@ -910,6 +918,16 @@ function DynamicDataTable({
               </td>
               <td className="whitespace-nowrap px-2.5 py-1 text-muted-foreground text-[11px]">
                 {fmtDate(r.updated_at)}
+              </td>
+              <td className="px-2.5 py-1">
+                <button
+                  onClick={() => onGenerate(r)}
+                  title="AI Sales Assistant"
+                  className="flex items-center gap-1 rounded border border-primary/25 px-1.5 py-1 text-[10px] font-medium text-primary/80 transition-colors hover:border-primary/50 hover:bg-primary/10 hover:text-primary"
+                >
+                  <Sparkles className="h-3 w-3" />
+                  <span>Generate</span>
+                </button>
               </td>
             </tr>
           ))}
@@ -995,6 +1013,7 @@ function DataPage() {
   const [wbahNewLeadSyncOn, setWbahNewLeadSyncOn] = useState<boolean | null>(null);
   const [callingDelayedLeadId, setCallingDelayedLeadId] = useState<string | null>(null);
 
+  const [assistantTarget, setAssistantTarget] = useState<AssistantTarget | null>(null);
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [csvRows, setCsvRows] = useState<Record<string, string>[]>([]);
@@ -2420,6 +2439,14 @@ function DataPage() {
                   toggleAll={toggleAll}
                   toggleOne={toggleOne}
                   onReset={handleReset}
+                  onGenerate={(r: any) =>
+                    setAssistantTarget({
+                      id: r.id,
+                      source: "record",
+                      name: r.name ?? null,
+                      company: r.client_name ?? null,
+                    })
+                  }
                 />
                 <TablePagBar {...recordsPag} />
               </>
@@ -3532,6 +3559,11 @@ function DataPage() {
           )}
         </div>
       )}
+
+      <LeadAiAssistantPanel
+        target={assistantTarget}
+        onOpenChange={(o) => !o && setAssistantTarget(null)}
+      />
 
       <ManualEntryDialog
         open={showManualEntry}

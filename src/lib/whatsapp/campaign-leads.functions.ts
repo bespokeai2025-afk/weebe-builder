@@ -7,7 +7,10 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { assertNotWbahWorkspace } from "@/lib/wbah-exclusion.shared";
 import { resolvePermissions } from "@/lib/permissions/permissions.server";
 import { areaFromPropertyMeta } from "@/lib/whatsapp/inbox-campaign-org.shared";
-import { fetchWorkspaceMessageStatsMaps, lookupWaContactMessageStats } from "@/lib/whatsapp/wa-contact-message-stats.server";
+import {
+  fetchWorkspaceMessageStatsMaps,
+  lookupWaContactMessageStats,
+} from "@/lib/whatsapp/wa-contact-message-stats.server";
 import {
   CAMPAIGN_LEAD_STAGES,
   LISTING_PIPELINE_STAGES,
@@ -21,7 +24,7 @@ import {
   startListingPipeline,
   writeListingPipelineOffer,
   clearListingPipeline,
-  isWhatsappThreadSeen,
+  hasNewInboundReply,
   writeListingPipelineStage,
   writeListingStage,
   writeCampaignFollowUp,
@@ -123,10 +126,7 @@ function csvEscape(value: unknown): string {
   return `"${String(value ?? "").replace(/"/g, '""')}"`;
 }
 
-async function memberNames(
-  sb: any,
-  userIds: string[],
-): Promise<Map<string, string>> {
+async function memberNames(sb: any, userIds: string[]): Promise<Map<string, string>> {
   const unique = [...new Set(userIds.filter(Boolean))];
   if (unique.length === 0) return new Map();
   const { data } = await sb
@@ -155,7 +155,9 @@ async function fetchUnreadRepliesByPhone(
   const out = new Map<string, { lastInboundAt: string | null; unread: boolean }>();
   const { data, error } = await sb
     .from("whatsapp_conversations")
-    .select("contact_phone, last_read_at, last_inbound_at, last_message_at, unread_count")
+    .select(
+      "contact_phone, last_read_at, last_inbound_at, last_message_at, last_direction, unread_count",
+    )
     .eq("workspace_id", workspaceId)
     .limit(5000);
   if (error) return out;
@@ -163,15 +165,14 @@ async function fetchUnreadRepliesByPhone(
     const phone = String(row.contact_phone ?? "").trim();
     if (!phone) continue;
     const lastInboundAt = (row.last_inbound_at as string | null) ?? null;
-    // Unread means the caller wrote something the agent has not opened. A
-    // stored unread_count is honoured too, since WATI sets it directly.
-    const seen = isWhatsappThreadSeen(
-      row.last_read_at as string | null,
-      (row.last_message_at as string | null) ?? lastInboundAt,
-    );
     out.set(phone, {
       lastInboundAt,
-      unread: Boolean(lastInboundAt) && (!seen || Number(row.unread_count ?? 0) > 0),
+      unread: hasNewInboundReply({
+        lastDirection: row.last_direction as string | null,
+        lastReadAt: row.last_read_at as string | null,
+        lastInboundAt,
+        unreadCount: row.unread_count as number | null,
+      }),
     });
   }
   return out;
@@ -188,7 +189,8 @@ function mapRow(
   const meta = (lead.meta as Record<string, unknown> | null) ?? {};
   const qualification = readCampaignQualification(meta);
   const offPlanQualification = campaignType === "off_plan" ? readOffPlanQualification(meta) : null;
-  const secondaryQualification = campaignType === "secondary" ? readSecondaryQualification(meta) : null;
+  const secondaryQualification =
+    campaignType === "secondary" ? readSecondaryQualification(meta) : null;
   const outcomeRecord = readCampaignOutcome(campaignType, meta);
   const outcome = outcomeRecord?.status ?? null;
   const assignedTo = (lead.assigned_to as string | null) ?? null;
@@ -220,12 +222,13 @@ function mapRow(
     off_plan_qualification: offPlanQualification,
     secondary_qualification: secondaryQualification,
     stage: readListingStage(meta, lead.pipeline_stage as string | null),
-    listing_outcome: campaignType === "listing_acquisition" ? (outcome as ListingOutcome | null) : null,
+    listing_outcome:
+      campaignType === "listing_acquisition" ? (outcome as ListingOutcome | null) : null,
     buyer_outcome: campaignType !== "listing_acquisition" ? (outcome as BuyerOutcome | null) : null,
     outcome_reason: outcomeRecord?.reason ?? null,
     follow_up: readCampaignFollowUp(meta),
     assigned_to: assignedTo,
-    assigned_name: assignedTo ? names.get(assignedTo) ?? null : null,
+    assigned_name: assignedTo ? (names.get(assignedTo) ?? null) : null,
     last_contacted_at: (lead.last_contacted_at as string | null) ?? null,
     last_reply_at: (lead.last_buzzchat_reply_at as string | null) ?? null,
     has_buzzchat_reply: Boolean(lead.has_buzzchat_reply),
@@ -339,10 +342,7 @@ export const updateCampaignLeadStage = createServerFn({ method: "POST" })
     if (loadErr) throw new Error(loadErr.message);
     if (!lead) throw new Error("Lead not found");
 
-    let meta = writeListingStage(
-      (lead.meta as Record<string, unknown> | null) ?? {},
-      data.stage,
-    );
+    let meta = writeListingStage((lead.meta as Record<string, unknown> | null) ?? {}, data.stage);
     const patch: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
     };
@@ -352,7 +352,10 @@ export const updateCampaignLeadStage = createServerFn({ method: "POST" })
       // Listing Pipeline board (Agreed → ... → Closed), same as the
       // "Converted" remark used to do before the remark list was simplified.
       meta = startListingPipeline(meta);
-    } else if (readListingStage(lead.meta as Record<string, unknown> | null, lead.pipeline_stage) === "converted") {
+    } else if (
+      readListingStage(lead.meta as Record<string, unknown> | null, lead.pipeline_stage) ===
+      "converted"
+    ) {
       patch.pipeline_stage = null;
     }
     patch.meta = meta;
@@ -397,7 +400,11 @@ export const updateListingOutcome = createServerFn({ method: "POST" })
     if (!lead) throw new Error("Lead not found");
 
     const { byExact, byTail } = await fetchWorkspaceMessageStatsMaps(sb, workspaceId);
-    const campaignType = lookupWaContactMessageStats(lead.phone, byExact, byTail).last_campaign_type;
+    const campaignType = lookupWaContactMessageStats(
+      lead.phone,
+      byExact,
+      byTail,
+    ).last_campaign_type;
     if (!isValidOutcomeForCampaignType(campaignType, data.outcome)) {
       throw new Error(
         `"${data.outcome}" is not a valid outcome for a ${campaignType} campaign lead.`,
@@ -472,7 +479,11 @@ export const updateCampaignQualification = createServerFn({ method: "POST" })
     if (!lead) throw new Error("Lead not found");
 
     const { byExact, byTail } = await fetchWorkspaceMessageStatsMaps(sb, workspaceId);
-    const campaignType = lookupWaContactMessageStats(lead.phone, byExact, byTail).last_campaign_type;
+    const campaignType = lookupWaContactMessageStats(
+      lead.phone,
+      byExact,
+      byTail,
+    ).last_campaign_type;
     const existingMeta = (lead.meta as Record<string, unknown> | null) ?? {};
 
     let meta: Record<string, unknown>;
@@ -527,7 +538,10 @@ export const updateCampaignFollowUp = createServerFn({ method: "POST" })
     if (!lead) throw new Error("Lead not found");
 
     const followUp: CampaignFollowUp = { date: data.date, nextAction: data.nextAction };
-    const meta = writeCampaignFollowUp((lead.meta as Record<string, unknown> | null) ?? {}, followUp);
+    const meta = writeCampaignFollowUp(
+      (lead.meta as Record<string, unknown> | null) ?? {},
+      followUp,
+    );
 
     const { error } = await sb
       .from("leads")
@@ -583,7 +597,7 @@ function mapListingPipelineRow(
     daysInStage: daysInListingPipelineStage(pipeline.enteredAt),
     offerAmount: pipeline.offerAmount,
     assigned_to: assignedTo,
-    assigned_name: assignedTo ? names.get(assignedTo) ?? null : null,
+    assigned_name: assignedTo ? (names.get(assignedTo) ?? null) : null,
     last_contacted_at: (lead.last_contacted_at as string | null) ?? null,
     nextAction: followUp.nextAction,
     followUpDate: followUp.date,
@@ -637,7 +651,11 @@ export const removeFromListingPipeline = createServerFn({ method: "POST" })
     const sb = supabase as any;
     const perms = await resolvePermissions(workspaceId, userId);
 
-    let sel = sb.from("leads").select("id, meta").eq("id", data.leadId).eq("workspace_id", workspaceId);
+    let sel = sb
+      .from("leads")
+      .select("id, meta")
+      .eq("id", data.leadId)
+      .eq("workspace_id", workspaceId);
     if (perms.assignedRecordsOnly) sel = sel.eq("assigned_to", userId);
     const { data: lead, error: loadErr } = await sel.maybeSingle();
     if (loadErr) throw new Error(loadErr.message);
@@ -672,13 +690,20 @@ export const updateListingPipelineStage = createServerFn({ method: "POST" })
     const sb = supabase as any;
     const perms = await resolvePermissions(workspaceId, userId);
 
-    let sel = sb.from("leads").select("id, meta").eq("id", data.leadId).eq("workspace_id", workspaceId);
+    let sel = sb
+      .from("leads")
+      .select("id, meta")
+      .eq("id", data.leadId)
+      .eq("workspace_id", workspaceId);
     if (perms.assignedRecordsOnly) sel = sel.eq("assigned_to", userId);
     const { data: lead, error: loadErr } = await sel.maybeSingle();
     if (loadErr) throw new Error(loadErr.message);
     if (!lead) throw new Error("Lead not found");
 
-    const meta = writeListingPipelineStage((lead.meta as Record<string, unknown> | null) ?? {}, data.stage);
+    const meta = writeListingPipelineStage(
+      (lead.meta as Record<string, unknown> | null) ?? {},
+      data.stage,
+    );
     let q = sb
       .from("leads")
       .update({ meta, updated_at: new Date().toISOString() })
@@ -707,13 +732,20 @@ export const updateListingPipelineOffer = createServerFn({ method: "POST" })
     const sb = supabase as any;
     const perms = await resolvePermissions(workspaceId, userId);
 
-    let sel = sb.from("leads").select("id, meta").eq("id", data.leadId).eq("workspace_id", workspaceId);
+    let sel = sb
+      .from("leads")
+      .select("id, meta")
+      .eq("id", data.leadId)
+      .eq("workspace_id", workspaceId);
     if (perms.assignedRecordsOnly) sel = sel.eq("assigned_to", userId);
     const { data: lead, error: loadErr } = await sel.maybeSingle();
     if (loadErr) throw new Error(loadErr.message);
     if (!lead) throw new Error("Lead not found");
 
-    const meta = writeListingPipelineOffer((lead.meta as Record<string, unknown> | null) ?? {}, data.offerAmount);
+    const meta = writeListingPipelineOffer(
+      (lead.meta as Record<string, unknown> | null) ?? {},
+      data.offerAmount,
+    );
     let q = sb
       .from("leads")
       .update({ meta, updated_at: new Date().toISOString() })

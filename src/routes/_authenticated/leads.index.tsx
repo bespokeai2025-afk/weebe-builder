@@ -30,6 +30,7 @@ import {
   Contact,
   AlertTriangle,
   UserPlus,
+  Sparkles,
 } from "lucide-react";
 import { deriveLeadOrigin, ORIGIN_FILTER_OPTIONS } from "@/lib/leads/lead-origin.shared";
 import { useState, useMemo, useEffect } from "react";
@@ -88,6 +89,10 @@ import {
   buildManualLeadPayload,
   isManualLeadSubmittable,
 } from "@/lib/dashboard/manual-lead.shared";
+import {
+  LeadAiAssistantPanel,
+  type AssistantTarget,
+} from "@/components/leads/LeadAiAssistantPanel";
 import {
   listWbahPositiveNeutralLeads,
   getWbahContactCallHistory,
@@ -574,6 +579,7 @@ function LeadsPage() {
   const leadsLevel = String((myPermsQ.data as any)?.pageAccess?.leads ?? "hidden");
   const canCreateLead = pageLevelRank(leadsLevel) >= pageLevelRank("edit");
 
+  const [assistantTarget, setAssistantTarget] = useState<AssistantTarget | null>(null);
   const [addLeadOpen, setAddLeadOpen] = useState(false);
   const emptyNewLead = { full_name: "", phone: "", email: "", company_name: "", notes: "" };
   const [newLead, setNewLead] = useState(emptyNewLead);
@@ -1849,22 +1855,46 @@ function LeadsPage() {
                           </>
                         )}
                         <td className="px-2 py-0.5">
-                          {isWbah ? (
-                            <WbahNotesButton
-                              lead={lead}
-                              agentColorMap={wbahAgentColorMap}
-                              onClick={() => openLeadPanel(lead)}
-                            />
-                          ) : (
-                            <button
-                              onClick={() => openLeadPanel(lead)}
-                              title="Notes & appointment"
-                              className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-amber-400/80 hover:text-amber-400 hover:bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/40 transition-colors"
-                            >
-                              <StickyNote className="h-3 w-3" />
-                              <span>Notes</span>
-                            </button>
-                          )}
+                          <div className="flex items-center gap-1">
+                            {isWbah ? (
+                              <WbahNotesButton
+                                lead={lead}
+                                agentColorMap={wbahAgentColorMap}
+                                onClick={() => openLeadPanel(lead)}
+                              />
+                            ) : (
+                              <button
+                                onClick={() => openLeadPanel(lead)}
+                                title="Notes & appointment"
+                                className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-amber-400/80 hover:text-amber-400 hover:bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/40 transition-colors"
+                              >
+                                <StickyNote className="h-3 w-3" />
+                                <span>Notes</span>
+                              </button>
+                            )}
+                            {/* Not on WBAH: that tab is derived from wbah_calls, so
+                                `lead.id` there is a Retell call id ("call_…") and
+                                there is no lead record behind the row for the
+                                assistant to read. Every other lead-specific action
+                                on this page is gated the same way. */}
+                            {!isWbah && (
+                              <button
+                                onClick={() =>
+                                  setAssistantTarget({
+                                    id: lead.id,
+                                    source: "lead",
+                                    name: lead.full_name ?? null,
+                                    company: lead.company_name ?? null,
+                                  })
+                                }
+                                title="AI Sales Assistant"
+                                className="flex items-center gap-1 rounded border border-primary/25 px-1.5 py-1 text-[10px] font-medium text-primary/80 transition-colors hover:border-primary/50 hover:bg-primary/10 hover:text-primary"
+                              >
+                                <Sparkles className="h-3 w-3" />
+                                <span>Generate</span>
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -2033,6 +2063,11 @@ function LeadsPage() {
 
       {/* Manual lead entry. upsertLead already handles the insert, the new-lead
           notification and the auto-call trigger, so this is only the form. */}
+      <LeadAiAssistantPanel
+        target={assistantTarget}
+        onOpenChange={(o) => !o && setAssistantTarget(null)}
+      />
+
       <Dialog
         open={addLeadOpen}
         onOpenChange={(o) => {

@@ -266,7 +266,9 @@ export const LISTING_PIPELINE_STAGE_LABELS: Record<ListingPipelineStage, string>
 export const DEFAULT_LISTING_PIPELINE_STAGE: ListingPipelineStage = "agreed";
 
 export function isListingPipelineStage(value: unknown): value is ListingPipelineStage {
-  return typeof value === "string" && (LISTING_PIPELINE_STAGES as readonly string[]).includes(value);
+  return (
+    typeof value === "string" && (LISTING_PIPELINE_STAGES as readonly string[]).includes(value)
+  );
 }
 
 const LISTING_PIPELINE_KEY = "listing_pipeline";
@@ -287,7 +289,8 @@ export function readListingPipeline(
   if (!isListingPipelineStage(r.stage)) return null;
   return {
     stage: r.stage,
-    enteredAt: typeof r.enteredAt === "string" && r.enteredAt ? r.enteredAt : new Date().toISOString(),
+    enteredAt:
+      typeof r.enteredAt === "string" && r.enteredAt ? r.enteredAt : new Date().toISOString(),
     offerAmount: String(r.offerAmount ?? "").trim(),
   };
 }
@@ -298,7 +301,11 @@ export function startListingPipeline(
   now: string = new Date().toISOString(),
 ): Record<string, unknown> {
   if (readListingPipeline(meta)) return meta ?? {};
-  const record: ListingPipelineRecord = { stage: DEFAULT_LISTING_PIPELINE_STAGE, enteredAt: now, offerAmount: "" };
+  const record: ListingPipelineRecord = {
+    stage: DEFAULT_LISTING_PIPELINE_STAGE,
+    enteredAt: now,
+    offerAmount: "",
+  };
   return { ...(meta ?? {}), [LISTING_PIPELINE_KEY]: record };
 }
 
@@ -392,10 +399,7 @@ export function nextRoundRobinAssignee(
 export const DEFAULT_CAMPAIGN_LEAD_STAGE: CampaignLeadStage = "new_response";
 
 export function isCampaignLeadStage(value: unknown): value is CampaignLeadStage {
-  return (
-    typeof value === "string" &&
-    (CAMPAIGN_LEAD_STAGES as readonly string[]).includes(value)
-  );
+  return typeof value === "string" && (CAMPAIGN_LEAD_STAGES as readonly string[]).includes(value);
 }
 
 /**
@@ -534,9 +538,10 @@ export function formatCampaignRequirement(q: CampaignQualification): string {
   if (q.intent === "sell") return q.asking_price ? `Sell · ${q.asking_price}` : "Sell";
   if (q.intent === "rent") return q.rental_price ? `Rent · ${q.rental_price}` : "Rent";
   if (q.intent === "both") {
-    const bits = [q.asking_price && `Sell ${q.asking_price}`, q.rental_price && `Rent ${q.rental_price}`].filter(
-      Boolean,
-    );
+    const bits = [
+      q.asking_price && `Sell ${q.asking_price}`,
+      q.rental_price && `Rent ${q.rental_price}`,
+    ].filter(Boolean);
     return bits.length ? `Both · ${bits.join(" · ")}` : "Sell & rent";
   }
   return "";
@@ -547,7 +552,9 @@ export function nextStageOnOutbound(current: string | null | undefined): Campaig
   return null;
 }
 
-export function nextStageOnInboundReply(current: string | null | undefined): CampaignLeadStage | null {
+export function nextStageOnInboundReply(
+  current: string | null | undefined,
+): CampaignLeadStage | null {
   if (current === "contacted") return "engaged";
   return null;
 }
@@ -584,8 +591,40 @@ export function isWhatsappThreadSeen(
   return read >= last;
 }
 
+/**
+ * Whether a thread shows the "new reply" tag in Listing Leads.
+ *
+ * Two things went wrong here. The rule compared `last_read_at` against `last_message_at`, which is
+ * the newest message in EITHER direction — so sending a reply made the thread look unread again,
+ * and the tag appeared on every lead that had ever been answered. And a stale `unread_count` from
+ * WATI was OR'd in, so it could never be cleared locally even once the thread had been opened.
+ *
+ * The inbox already had this right by requiring `last_direction === "inbound"`; Listing Leads only
+ * checked that an inbound existed at some point. Same semantics now live in one place:
+ *
+ *   • their message must be the most recent one — our own reply is not a new reply;
+ *   • once we have a local read time, that is authoritative (reading clears it, replying is not
+ *     required — the two are deliberately separate);
+ *   • with no local read state, fall back to WATI's counter.
+ */
+export function hasNewInboundReply(args: {
+  lastDirection?: string | null;
+  lastReadAt?: string | null;
+  lastInboundAt?: string | null;
+  unreadCount?: number | null;
+}): boolean {
+  if (!args.lastInboundAt) return false;
+  if (String(args.lastDirection ?? "").toLowerCase() !== "inbound") return false;
+  if (args.lastReadAt) return !isWhatsappThreadSeen(args.lastReadAt, args.lastInboundAt);
+  return Number(args.unreadCount ?? 0) > 0;
+}
+
 export const INBOX_QUEUE_FILTERS: Array<{ id: InboxQueueFilter; label: string; hint: string }> = [
-  { id: "working", label: "Inbox", hint: "Open replies that still need a remark — expired and closed stay out" },
+  {
+    id: "working",
+    label: "Inbox",
+    hint: "Open replies that still need a remark — expired and closed stay out",
+  },
   { id: "all", label: "All", hint: "Every conversation, including unreplied sends" },
   { id: "needs_reply", label: "Needs reply", hint: "Client wrote last — reply now" },
   { id: "waiting", label: "Waiting", hint: "You wrote last, window still open" },
@@ -604,7 +643,11 @@ export function threadHasInboundReply(thread: {
   lastDirection?: string | null;
   needsReply?: boolean;
 }): boolean {
-  return Boolean(thread.lastInboundAt) || thread.lastDirection === "inbound" || thread.needsReply === true;
+  return (
+    Boolean(thread.lastInboundAt) ||
+    thread.lastDirection === "inbound" ||
+    thread.needsReply === true
+  );
 }
 
 export function threadMatchesInboxQueue(
@@ -633,7 +676,10 @@ export function threadMatchesInboxQueue(
 }
 
 /** Opens WhatsApp on the agent's personal phone for this number, with an optional pre-filled message. */
-export function whatsappPersonalLink(phone: string | null | undefined, prefilledMessage?: string | null): string | null {
+export function whatsappPersonalLink(
+  phone: string | null | undefined,
+  prefilledMessage?: string | null,
+): string | null {
   const digits = String(phone ?? "").replace(/\D/g, "");
   if (digits.length < 8) return null;
   const base = `https://wa.me/${digits}`;
@@ -678,11 +724,14 @@ export function propertyLabelFromMeta(meta: Record<string, unknown> | null | und
 }
 
 export function parseCampaignIntent(raw: string | null | undefined): CampaignIntent {
-  const s = String(raw ?? "").toLowerCase().trim();
+  const s = String(raw ?? "")
+    .toLowerCase()
+    .trim();
   if (!s) return "";
   if (s === "both" || (s.includes("sell") && s.includes("rent"))) return "both";
   if (s === "sell" || s === "selling" || s === "sale" || s === "to sell") return "sell";
-  if (s === "rent" || s === "rental" || s === "lease" || s === "to rent" || s === "to let") return "rent";
+  if (s === "rent" || s === "rental" || s === "lease" || s === "to rent" || s === "to let")
+    return "rent";
   return "";
 }
 
