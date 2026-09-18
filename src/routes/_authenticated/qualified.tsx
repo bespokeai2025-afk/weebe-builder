@@ -42,6 +42,7 @@ import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { toast } from "sonner";
 import { listQualifiedLeads, getQualificationStats } from "@/lib/dashboard/qualified.functions";
+import { callStatusBadge, bookingStatusBadge } from "@/lib/leads/lead-status-badges.shared";
 import { setLeadStatus, startQualificationCallsForLeads, scheduleQualificationCalls } from "@/lib/dashboard/leads.functions";
 import { StartCallsDialog } from "@/components/dashboard/StartCallsDialog";
 import { AssignLeadsDialog } from "@/components/leads/AssignLeadsDialog";
@@ -179,39 +180,6 @@ function fmtDuration(ms: number | null): string {
   const m = Math.floor(totalSec / 60);
   const s = totalSec % 60;
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
-}
-
-function callStatusBadge(status: string | null) {
-  if (!status) return <span className="text-muted-foreground text-[11px]">—</span>;
-  const map: Record<string, string> = {
-    completed:   "bg-emerald-500/15 text-emerald-400",
-    failed:      "bg-red-500/15 text-red-400",
-    no_answer:   "bg-orange-500/15 text-orange-400",
-    initiated:   "bg-blue-500/15 text-blue-400",
-    in_progress: "bg-blue-500/15 text-blue-400",
-  };
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize whitespace-nowrap ${map[status] ?? "bg-muted text-muted-foreground"}`}>
-      {status.replace(/_/g, " ")}
-    </span>
-  );
-}
-
-function bookingStatusBadge(status: string | null) {
-  if (!status) return <span className="text-muted-foreground text-[11px]">—</span>;
-  const lower = status.toLowerCase();
-  const map: Record<string, string> = {
-    booked:    "bg-emerald-500/15 text-emerald-400",
-    confirmed: "bg-emerald-500/15 text-emerald-400",
-    success:   "bg-emerald-500/15 text-emerald-400",
-    pending:   "bg-amber-500/15 text-amber-400",
-    cancelled: "bg-red-500/15 text-red-400",
-  };
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize whitespace-nowrap ${map[lower] ?? "bg-muted text-muted-foreground"}`}>
-      {status.replace(/_/g, " ")}
-    </span>
-  );
 }
 
 const STATUS_ACTIONS = [

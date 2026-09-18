@@ -651,21 +651,6 @@ function ConfirmDialog({
 
 // ── WeeBespoke Campaigns tab (only shown for webuyanyhouse workspace) ──────────
 
-function wbahStatusBadge(s: string) {
-  const map: Record<string, string> = {
-    active:    "bg-emerald-500/15 text-emerald-400",
-    paused:    "bg-amber-500/15 text-amber-400",
-    completed: "bg-primary/15 text-primary",
-    draft:     "bg-muted text-muted-foreground",
-    cancelled: "bg-destructive/15 text-destructive",
-  };
-  return (
-    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium capitalize ${map[s] ?? "bg-muted text-muted-foreground"}`}>
-      {s ?? "unknown"}
-    </span>
-  );
-}
-
 function WbahCampaignsTab() {
   const qc = useQueryClient();
   const getFn    = useServerFn(getWbahCampaigns);
@@ -753,7 +738,7 @@ function WbahCampaignsTab() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="font-semibold truncate">{c.name ?? c.campaign_name ?? `Campaign ${c.id}`}</h3>
                   {isTestLeadStatus(c.lead_status) && <WbahTestLeadBadge />}
-                  {wbahStatusBadge(c.status ?? c.campaign_status ?? "unknown")}
+                  {statusBadge(c.status ?? c.campaign_status ?? "unknown")}
                   {isTestLeadStatus(c.lead_status) &&
                     (c.status === "active" || c.campaign_status === "active") &&
                     isLikelyProductionFrontend() && (
