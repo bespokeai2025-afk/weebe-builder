@@ -186,6 +186,16 @@ const inboxFiltersSchema = z.object({
   campaignId: z.string().uuid().optional(),
   area: z.string().trim().max(120).optional(),
   inboxScope: z.enum(["all", "active", "archive"]).optional(),
+  /**
+   * Only threads the contact has actually written in, ordered by THEIR last message.
+   *
+   * The Inbox queue is about replies, but the query ordered by `last_message_at`, which counts our
+   * own sends. After a campaign blast, hundreds of outbound-only threads outranked every genuine
+   * reply: replies sat at rank ~230 of 847 while only the top 60 were fetched, so the Inbox looked
+   * empty and the replies were unreachable. Set by the reply-oriented queues so the page returned
+   * is 60 candidates rather than 60 mostly-irrelevant rows.
+   */
+  repliedOnly: z.boolean().optional(),
   limit: z.number().int().min(1).max(1000).optional(),
 });
 
@@ -486,6 +496,7 @@ export const listWhatsappThreads = createServerFn({ method: "GET" })
       data.tag ||
       data.unreadOnly ||
       data.chatStatus ||
+      data.repliedOnly ||
       hasOrgFilter,
     );
 
@@ -536,9 +547,14 @@ export const listWhatsappThreads = createServerFn({ method: "GET" })
       .from("whatsapp_conversations")
       .select(WHATSAPP_CONVERSATION_COLUMNS)
       .eq("workspace_id", workspaceId)
-      .order("last_message_at", { ascending: false, nullsFirst: false })
+      // Reply queues rank by when THEY last wrote; everything else by any activity.
+      .order(data.repliedOnly ? "last_inbound_at" : "last_message_at", {
+        ascending: false,
+        nullsFirst: false,
+      })
       .limit(limit);
 
+    if (data.repliedOnly) convQuery = convQuery.not("last_inbound_at", "is", null);
     if (data.status) convQuery = convQuery.eq("status", data.status);
     if (data.unassigned) convQuery = convQuery.is("assignee_id", null);
     else if (data.assigneeId) convQuery = convQuery.eq("assignee_id", data.assigneeId);

@@ -40,6 +40,23 @@ export function phoneTail(phone: string | null | undefined): string | null {
 }
 
 /**
+ * Looser identity key for matching a reply back to a lead: the last 9 digits.
+ *
+ * `phoneTail` needs 10+ digits, so a UAE mobile imported in national format ("561169769", 9
+ * digits) produced no key at all and could never be matched — the reply arrived from
+ * "971561169769", the exact comparison failed, and the lead was left looking like it had never
+ * replied while a duplicate lead was created alongside it.
+ *
+ * Deliberately NOT used for deduplication, where over-matching would merge two different people.
+ * This is only for finding the lead a known reply belongs to, where a near miss is the failure.
+ */
+export function phoneMatchKey(phone: string | null | undefined): string | null {
+  const d = digitsOnly(phone);
+  if (d.length < 8) return null;
+  return d.slice(-9);
+}
+
+/**
  * Meta keys come from whatever the customer's spreadsheet column was called, so the same field
  * arrives as "UNIT NUMBER", "Unit Number", "unit_number" or "UnitNumber" depending on the import.
  * The template field picker offers one fixed spelling ("meta.UnitNumber"), so matching on case
@@ -638,7 +655,23 @@ export async function findLeadByPhone(
       .limit(5);
     const list = (rows ?? []) as Array<{ id: string; full_name: string | null; phone: string }>;
     const match = list.find((r) => phoneTail(r.phone) === tail) ?? list[0] ?? null;
-    return match;
+    if (match) return match;
+  }
+
+  // Last resort: the 9-digit key, which catches a lead stored in national
+  // format ("561169769") when the reply arrives in full international form
+  // ("971561169769"), and the trunk-zero variants ("0501004005" / "501004005")
+  // that the same import produced twice.
+  const key = phoneMatchKey(normalized || phone);
+  if (key) {
+    const { data: rows } = await sb
+      .from("leads")
+      .select("id, full_name, phone")
+      .eq("workspace_id", workspaceId)
+      .ilike("phone", `%${key}`)
+      .limit(5);
+    const list = (rows ?? []) as Array<{ id: string; full_name: string | null; phone: string }>;
+    return list.find((r) => phoneMatchKey(r.phone) === key) ?? list[0] ?? null;
   }
 
   return null;

@@ -183,6 +183,10 @@ export function WhatsAppInbox() {
           : assigneeFilter,
       tag: tagFilter === TAG_ALL ? undefined : tagFilter,
       chatStatus: queueFilter === "expired" ? ("expired" as const) : undefined,
+      // Reply-oriented queues must be narrowed in the query, not after it: the
+      // page is capped at 60 conversations and a campaign blast fills it with
+      // outbound-only threads, burying real replies past the cut.
+      repliedOnly: queueFilter === "working" || queueFilter === "needs_reply" ? true : undefined,
       campaignId: campaignFilter === CAMPAIGN_ALL ? undefined : campaignFilter,
       area: areaFilter === AREA_ALL ? undefined : areaFilter,
       inboxScope: inboxScope === "all" ? undefined : inboxScope,
