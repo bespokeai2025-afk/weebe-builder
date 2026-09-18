@@ -19,6 +19,17 @@ export const Route = createFileRoute("/_authenticated")({
   component: AuthenticatedLayout,
 });
 
+/**
+ * LOCAL DEV ONLY — never set this anywhere except a developer's own local
+ * .env. When true, skips the real Supabase session check entirely so the
+ * app shell (sidebar, layout, routes) can be reviewed without a working
+ * Supabase backend. This does NOT fake a working backend: every page's own
+ * data queries still hit the real (possibly unconfigured) Supabase project
+ * and will still fail/show empty states — this only gets past the login
+ * gate, it does not simulate real data.
+ */
+const LOCAL_DEV_BYPASS_AUTH = import.meta.env.VITE_LOCAL_DEV_BYPASS_AUTH === "true";
+
 // Tracks the authenticated user whose data currently populates the React Query
 // cache. Module-level so it persists across route remounts but resets on a full
 // page reload (same lifetime as the QueryClient in router.tsx). Acts as a
@@ -59,6 +70,12 @@ function AuthenticatedLayout() {
   const [authed, setAuthed] = useState(false);
 
   useEffect(() => {
+    if (LOCAL_DEV_BYPASS_AUTH) {
+      setAuthed(true);
+      setChecked(true);
+      return;
+    }
+
     let active = true;
     let sessionEstablished = false;
 
