@@ -72,6 +72,11 @@ import {
   BuzzchatFilterChip,
   BuzzchatThreadSkeleton,
 } from "@/components/whatsapp/buzzchat-ui";
+import {
+  WhatsAppMessageMedia,
+  mediaHref,
+  useMediaToken,
+} from "@/components/whatsapp/WhatsAppMessageMedia";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
@@ -149,7 +154,7 @@ export function WhatsAppInbox() {
   const [mobileShowChat, setMobileShowChat] = useState(false);
   const [reply, setReply] = useState("");
   const [newTag, setNewTag] = useState("");
-  const [mediaToken, setMediaToken] = useState<string | null>(null);
+  const mediaToken = useMediaToken();
   const messagesRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -260,23 +265,6 @@ export function WhatsAppInbox() {
     refetchInterval: 30_000,
     throwOnError: false,
   });
-
-  // The media route authenticates with the user's access token, which expires
-  // after an hour. Reading it once on mount meant every attachment silently
-  // 401'd in a tab left open, so follow the session instead of snapshotting it.
-  useEffect(() => {
-    let active = true;
-    supabase.auth.getSession().then(({ data }) => {
-      if (active) setMediaToken(data.session?.access_token ?? null);
-    });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (active) setMediaToken(session?.access_token ?? null);
-    });
-    return () => {
-      active = false;
-      sub.subscription.unsubscribe();
-    };
-  }, []);
 
   const sorted = sortWhatsappInboxThreads(threads as InboxThread[], sortMode);
   const queued = sorted.filter((t) => {
@@ -452,13 +440,6 @@ export function WhatsAppInbox() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
-
-  const mediaSrc = (message: InboxMessage, download = false): string | null => {
-    if (!message.media_url || !mediaToken) return null;
-    const query = `messageId=${encodeURIComponent(message.id)}&token=${encodeURIComponent(mediaToken)}`;
-    // Inline for players and thumbnails; `download=1` makes the browser save it.
-    return `/api/whatsapp/media?${query}${download ? "&download=1" : ""}`;
-  };
 
   const assigneeName = (userId: string | null | undefined): string => {
     if (!userId) return "Unassigned";
@@ -1034,15 +1015,7 @@ export function WhatsAppInbox() {
             >
               <div className="flex flex-col gap-2">
                 {msgs.map((m) => {
-                  const src = mediaSrc(m);
-                  const downloadSrc = mediaSrc(m, true);
-                  const mime = m.media_mime_type ?? "";
-                  const isImage = mime.startsWith("image/");
-                  // WhatsApp voice notes arrive as audio/ogg (opus). Without a
-                  // player they rendered as a "Download attachment" link, so a
-                  // voice note could not be listened to in the inbox at all.
-                  const isAudio = mime.startsWith("audio/");
-                  const isVideo = mime.startsWith("video/");
+                  const src = mediaHref(m, mediaToken);
                   return (
                     <div
                       key={m.id}
@@ -1062,116 +1035,11 @@ export function WhatsAppInbox() {
                               : "WATI"}
                         </p>
                       )}
-                      {src && isImage && (
-                        <div className="mb-1 flex flex-col items-start gap-1">
-                          <a href={src} target="_blank" rel="noreferrer">
-                            <img
-                              src={src}
-                              alt={m.media_filename ?? "Attachment"}
-                              className="max-h-64 rounded-lg object-cover"
-                              loading="lazy"
-                            />
-                          </a>
-                          <a
-                            href={downloadSrc ?? src}
-                            download={m.media_filename ?? ""}
-                            className={cn(
-                              "inline-flex items-center gap-1 text-[10px] underline underline-offset-2",
-                              m.direction === "outbound"
-                                ? "text-primary-foreground/70"
-                                : "text-muted-foreground",
-                            )}
-                          >
-                            <Download className="h-2.5 w-2.5 shrink-0" />
-                            Save image
-                          </a>
-                        </div>
-                      )}
-                      {src && isAudio && (
-                        <div className="mb-1 flex flex-col gap-1">
-                          <audio controls preload="metadata" src={src} className="w-60 max-w-full">
-                            <a href={src} target="_blank" rel="noreferrer">
-                              Download voice note
-                            </a>
-                          </audio>
-                          <a
-                            href={downloadSrc ?? src}
-                            download={m.media_filename ?? ""}
-                            className={cn(
-                              "inline-flex items-center gap-1 text-[10px] underline underline-offset-2",
-                              m.direction === "outbound"
-                                ? "text-primary-foreground/70"
-                                : "text-muted-foreground",
-                            )}
-                          >
-                            <Download className="h-2.5 w-2.5 shrink-0" />
-                            {m.media_filename ?? "Download voice note"}
-                          </a>
-                        </div>
-                      )}
-                      {src && isVideo && (
-                        <div className="mb-1 flex flex-col items-start gap-1">
-                          <video
-                            controls
-                            preload="metadata"
-                            src={src}
-                            className="max-h-64 w-full rounded-lg"
-                          />
-                          <a
-                            href={downloadSrc ?? src}
-                            download={m.media_filename ?? ""}
-                            className={cn(
-                              "inline-flex items-center gap-1 text-[10px] underline underline-offset-2",
-                              m.direction === "outbound"
-                                ? "text-primary-foreground/70"
-                                : "text-muted-foreground",
-                            )}
-                          >
-                            <Download className="h-2.5 w-2.5 shrink-0" />
-                            Save video
-                          </a>
-                        </div>
-                      )}
-                      {src && !isImage && !isAudio && !isVideo && (
-                        <div
-                          className={cn(
-                            "mb-1 flex items-center gap-2 rounded-lg border px-2 py-1.5",
-                            m.direction === "outbound"
-                              ? "border-primary-foreground/25 bg-primary-foreground/10"
-                              : "border-border bg-muted/40",
-                          )}
-                        >
-                          <FileText className="h-4 w-4 shrink-0 opacity-70" />
-                          <span className="min-w-0 flex-1 truncate text-xs">
-                            {m.media_filename ?? "Attachment"}
-                          </span>
-                          <a
-                            href={src}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="shrink-0 text-[10px] underline underline-offset-2 opacity-80 hover:opacity-100"
-                          >
-                            Open
-                          </a>
-                          {/* `download` alone is ignored cross-origin, and this
-                              response is same-origin, so pair it with the route's
-                              own attachment disposition to be certain it saves. */}
-                          <a
-                            href={downloadSrc ?? src}
-                            download={m.media_filename ?? ""}
-                            aria-label="Download attachment"
-                            className="shrink-0 rounded p-0.5 opacity-80 hover:opacity-100"
-                          >
-                            <Download className="h-3.5 w-3.5" />
-                          </a>
-                        </div>
-                      )}
-                      {!src && m.media_url && (
-                        <p className="mb-1 flex items-center gap-1.5 opacity-70">
-                          <Paperclip className="h-3 w-3 shrink-0" />
-                          Attachment
-                        </p>
-                      )}
+                      <WhatsAppMessageMedia
+                        message={m}
+                        token={mediaToken}
+                        tone={m.direction === "outbound" ? "onPrimary" : "light"}
+                      />
                       {/* A player or thumbnail already shows what this is —
                           only fall back to a label when nothing rendered. */}
                       {(m.body ?? "").trim() ? (

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RelativeTime } from "@/components/ui/relative-time";
+import { WhatsAppMessageMedia, useMediaToken } from "@/components/whatsapp/WhatsAppMessageMedia";
 import {
   Select,
   SelectContent,
@@ -53,6 +54,8 @@ export interface LeadWhatsAppPanelProps {
 
 export function LeadWhatsAppPanel({ leadId, phone, contactName }: LeadWhatsAppPanelProps) {
   const qc = useQueryClient();
+  // Attachments are served through /api/whatsapp/media, which needs the viewer's token.
+  const mediaToken = useMediaToken();
   const listFn = useServerFn(listLeadWhatsappMessages);
   const sendFn = useServerFn(sendLeadWhatsappTemplate);
   const sendSessionFn = useServerFn(sendWhatsappMessage);
@@ -226,7 +229,7 @@ export function LeadWhatsAppPanel({ leadId, phone, contactName }: LeadWhatsAppPa
           <span className="truncate text-[10px] text-muted-foreground">
             {[
               listingOutcome
-                ? LISTING_OUTCOME_LABELS[listingOutcome as ListingOutcome] ?? listingOutcome
+                ? (LISTING_OUTCOME_LABELS[listingOutcome as ListingOutcome] ?? listingOutcome)
                 : null,
               campaignName,
               area,
@@ -273,7 +276,18 @@ export function LeadWhatsAppPanel({ leadId, phone, contactName }: LeadWhatsAppPa
                 </span>
                 <RelativeTime date={m.sent_at} className="text-[10px] text-muted-foreground" />
               </div>
-              <p className="text-xs text-foreground/90 whitespace-pre-wrap leading-relaxed">{m.body}</p>
+              <WhatsAppMessageMedia message={m} token={mediaToken} />
+              {/* A thumbnail or player already says what this is — only fall
+                  back to the stored text when nothing rendered above it. */}
+              {String(m.body ?? "").trim() ? (
+                <p className="text-xs text-foreground/90 whitespace-pre-wrap leading-relaxed">
+                  {m.body}
+                </p>
+              ) : m.media_url ? null : (
+                <p className="text-xs text-foreground/60 whitespace-pre-wrap leading-relaxed">
+                  (no text)
+                </p>
+              )}
             </div>
           ))
         )}
@@ -338,45 +352,45 @@ export function LeadWhatsAppPanel({ leadId, phone, contactName }: LeadWhatsAppPa
           const isFixed = isLiteralTemplateField(mapped);
           const selectValue = isFixed ? "__fixed__" : mapped;
           return (
-          <div key={slot} className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] text-muted-foreground w-8 shrink-0">{`{{${slot}}}`}</span>
-              <Select
-                value={selectValue || undefined}
-                onValueChange={(v) =>
-                  setParamMapping({
-                    ...paramMapping,
-                    [slot]: v === "__fixed__" ? encodeLiteralTemplateField("") : v,
-                  })
-                }
-              >
-                <SelectTrigger className="h-7 text-xs flex-1">
-                  <SelectValue placeholder="Map to field…" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__fixed__">Fixed text</SelectItem>
-                  {LEAD_PARAM_FIELDS.map((f) => (
-                    <SelectItem key={f.value} value={f.value}>
-                      {f.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div key={slot} className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-muted-foreground w-8 shrink-0">{`{{${slot}}}`}</span>
+                <Select
+                  value={selectValue || undefined}
+                  onValueChange={(v) =>
+                    setParamMapping({
+                      ...paramMapping,
+                      [slot]: v === "__fixed__" ? encodeLiteralTemplateField("") : v,
+                    })
+                  }
+                >
+                  <SelectTrigger className="h-7 text-xs flex-1">
+                    <SelectValue placeholder="Map to field…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__fixed__">Fixed text</SelectItem>
+                    {LEAD_PARAM_FIELDS.map((f) => (
+                      <SelectItem key={f.value} value={f.value}>
+                        {f.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {isFixed && (
+                <Input
+                  className="h-7 text-xs ml-10"
+                  placeholder="Fixed value"
+                  value={literalTemplateFieldText(mapped)}
+                  onChange={(e) =>
+                    setParamMapping({
+                      ...paramMapping,
+                      [slot]: encodeLiteralTemplateField(e.target.value),
+                    })
+                  }
+                />
+              )}
             </div>
-            {isFixed && (
-              <Input
-                className="h-7 text-xs ml-10"
-                placeholder="Fixed value"
-                value={literalTemplateFieldText(mapped)}
-                onChange={(e) =>
-                  setParamMapping({
-                    ...paramMapping,
-                    [slot]: encodeLiteralTemplateField(e.target.value),
-                  })
-                }
-              />
-            )}
-          </div>
           );
         })}
 
