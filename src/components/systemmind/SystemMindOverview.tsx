@@ -23,7 +23,7 @@ const SEVERITY_COLOR: Record<string, string> = {
 };
 
 function ScoreRing({ score }: { score: number }) {
-  const color = score >= 75 ? "text-sky-400" : score >= 50 ? "text-amber-400" : "text-red-400";
+  const color = score >= 75 ? "text-success" : score >= 50 ? "text-amber-400" : "text-red-400";
   return (
     <div className="relative flex h-24 w-24 items-center justify-center">
       <svg className="absolute inset-0 -rotate-90" viewBox="0 0 100 100">
@@ -108,8 +108,8 @@ export function SystemMindOverview() {
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-500/20 ring-1 ring-sky-500/30">
-              <Server className="h-5 w-5 text-sky-400" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand/15 ring-1 ring-brand/25">
+              <Server className="h-5 w-5 text-brand" />
             </div>
             <div>
               <h1 className="text-xl font-bold">SystemMind</h1>
@@ -148,11 +148,11 @@ export function SystemMindOverview() {
           <div className="mt-6 space-y-6">
             {/* Reliability + AI briefing */}
             <div className="grid gap-4 md:grid-cols-3">
-              <div className="rounded-xl border border-sky-500/20 bg-sky-500/[0.04] p-5 flex items-center gap-5">
+              <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 flex items-center gap-5">
                 <ScoreRing score={summary.reliabilityScore} />
                 <div>
                   <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Reliability</p>
-                  <p className="text-lg font-bold text-sky-300">Grade {summary.grade}</p>
+                  <p className="text-lg font-bold text-foreground">Grade {summary.grade}</p>
                   <p className="text-xs text-muted-foreground">{summary.label}</p>
                 </div>
               </div>
@@ -160,7 +160,7 @@ export function SystemMindOverview() {
               <div className="md:col-span-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-sky-400" />
+                    <Sparkles className="h-4 w-4 text-brand" />
                     <span className="text-sm font-semibold">AI Technical Briefing</span>
                   </div>
                   <Button variant="default" size="sm" onClick={generateBriefing} disabled={briefingLoading}>
@@ -187,11 +187,11 @@ export function SystemMindOverview() {
               <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-sm font-semibold flex items-center gap-2">
-                    <GitBranch className="h-4 w-4 text-sky-400" /> Workflow Health
+                    <GitBranch className="h-4 w-4 text-brand" /> Workflow Health
                   </h2>
                   <Link
                     to="/systemmind/workflows"
-                    className="text-[11px] text-sky-400 hover:text-sky-300 flex items-center gap-1"
+                    className="text-[11px] text-brand hover:opacity-80 flex items-center gap-1"
                   >
                     View all <ArrowRight className="h-3 w-3" />
                   </Link>
@@ -232,12 +232,12 @@ export function SystemMindOverview() {
               <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-sm font-semibold flex items-center gap-2">
-                    <GitBranch className="h-4 w-4 text-sky-400" /> Workflow Health
+                    <GitBranch className="h-4 w-4 text-brand" /> Workflow Health
                   </h2>
                 </div>
                 <p className="text-[12px] text-muted-foreground">
                   No workflows scanned yet.{" "}
-                  <Link to="/systemmind/workflows" className="text-sky-400 hover:text-sky-300 underline underline-offset-2">
+                  <Link to="/systemmind/workflows" className="text-brand hover:opacity-80 underline underline-offset-2">
                     Go to Workflows → Library
                   </Link>{" "}
                   and run a scan to see health scores here.
@@ -294,7 +294,7 @@ export function SystemMindOverview() {
                         <p className="text-[11px] text-muted-foreground mt-0.5">{a.fix}</p>
                       </div>
                       {a.actionHref && (
-                        <Link to={a.actionHref} className="shrink-0 text-sky-400 hover:text-sky-300">
+                        <Link to={a.actionHref} className="shrink-0 text-brand hover:opacity-80">
                           <ArrowRight className="h-3.5 w-3.5" />
                         </Link>
                       )}

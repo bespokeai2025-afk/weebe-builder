@@ -72,23 +72,23 @@ function NavItem({ label, href, icon: Icon, highlight, active, badge }: {
       className={cn(
         "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors",
         active
-          ? "bg-emerald-500/15 text-emerald-300"
+          ? "bg-brand/15 text-brand"
           : highlight
-            ? "text-emerald-400/80 hover:bg-emerald-500/[0.08] hover:text-emerald-300"
+            ? "text-brand/80 hover:bg-brand/[0.08] hover:text-brand"
             : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
       )}
     >
-      <Icon className={cn("h-3.5 w-3.5 shrink-0", (active || highlight) && "text-emerald-400")} />
+      <Icon className={cn("h-3.5 w-3.5 shrink-0", (active || highlight) && "text-brand")} />
       {label}
       {highlight && !active && !badge && (
-        <span className="ml-auto rounded-full bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-400 leading-none">AI</span>
+        <span className="ml-auto rounded-full bg-brand/20 px-1.5 py-0.5 text-[9px] font-semibold text-brand leading-none">AI</span>
       )}
       {badge != null && badge > 0 && (
         <span className={cn(
           "ml-auto rounded-full px-1.5 py-0.5 text-[9px] font-semibold leading-none",
           active
-            ? "bg-emerald-500/30 text-emerald-300"
-            : "bg-emerald-500/20 text-emerald-400",
+            ? "bg-brand/30 text-brand"
+            : "bg-brand/20 text-brand",
         )}>{badge}</span>
       )}
     </Link>
@@ -119,8 +119,8 @@ export function GrowthMindShell({ children }: { children: React.ReactNode }) {
         {/* Brand */}
         <div className="px-4 mb-5">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-500/20 ring-1 ring-emerald-500/30">
-              <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
+            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-brand/15 ring-1 ring-brand/25">
+              <TrendingUp className="h-3.5 w-3.5 text-brand" />
             </div>
             <div>
               <p className="text-xs font-semibold">GrowthMind</p>
@@ -168,14 +168,14 @@ export function GrowthMindShell({ children }: { children: React.ReactNode }) {
             className={cn(
               "flex items-center gap-2 rounded-lg border px-2.5 py-2 transition-all",
               path.startsWith("/growthmind/chat")
-                ? "border-emerald-500/30 bg-emerald-500/15"
-                : "border-emerald-500/20 bg-emerald-500/[0.06] hover:bg-emerald-500/15",
+                ? "border-brand/30 bg-brand/15"
+                : "border-brand/20 bg-brand/[0.06] hover:bg-brand/15",
             )}
           >
-            <TrendingUp className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+            <TrendingUp className="h-3.5 w-3.5 text-brand shrink-0" />
             <div className="min-w-0">
-              <p className="text-[10px] text-emerald-300 font-semibold leading-none">Ask GrowthMind</p>
-              <p className="text-[10px] text-emerald-400/60 mt-0.5 leading-tight truncate">AI marketing advisor</p>
+              <p className="text-[10px] text-brand font-semibold leading-none">Ask GrowthMind</p>
+              <p className="text-[10px] text-brand/60 mt-0.5 leading-tight truncate">AI marketing advisor</p>
             </div>
           </Link>
         </div>
@@ -190,12 +190,12 @@ export function GrowthMindShell({ children }: { children: React.ReactNode }) {
             <Link key={href} to={href}
               className={cn(
                 "flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium whitespace-nowrap border-b-2 -mb-px transition-colors shrink-0",
-                active ? "border-emerald-400 text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+                active ? "border-brand text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
               )}>
               <Icon className="h-3 w-3" />
               {label}
               {isProposals && approvedCount > 0 && (
-                <span className="ml-0.5 rounded-full bg-emerald-500/20 px-1.5 py-0.5 text-[8px] font-bold text-emerald-400 leading-none">
+                <span className="ml-0.5 rounded-full bg-brand/20 px-1.5 py-0.5 text-[8px] font-bold text-brand leading-none">
                   {approvedCount}
                 </span>
               )}

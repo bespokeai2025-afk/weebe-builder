@@ -271,7 +271,7 @@ export function GrowthMindOverview() {
         <div className="mb-6 flex items-center justify-between gap-3">
           <div>
             <h1 className="text-lg font-semibold flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-emerald-400" />
+              <TrendingUp className="h-5 w-5 text-brand" />
               GrowthMind Overview
             </h1>
             <p className="text-xs text-muted-foreground mt-0.5">Your AI Chief Marketing Officer — marketing readiness &amp; growth strategy</p>
