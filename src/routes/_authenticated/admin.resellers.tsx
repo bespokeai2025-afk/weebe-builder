@@ -1,11 +1,21 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Ban, Building2, CheckCircle2, ChevronDown, ChevronRight, History, Network } from "lucide-react";
+import {
+  Ban,
+  Building2,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  History,
+  Network,
+  Search,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
@@ -14,6 +24,7 @@ import {
   adminListChildWorkspaces,
   adminListResellers,
   adminSetFeatureOverride,
+  adminSearchWorkspaces,
   adminSetResellerAccess,
   adminSetWorkspacePackage,
   adminSetWorkspaceSuspended,
@@ -27,7 +38,11 @@ export const Route = createFileRoute("/_authenticated/admin/resellers")({
 function statusBadge(status: string | null) {
   const s = status ?? "none";
   const variant =
-    s === "active" ? "default" : s === "suspended" || s === "cancelled" ? "destructive" : "secondary";
+    s === "active"
+      ? "default"
+      : s === "suspended" || s === "cancelled"
+        ? "destructive"
+        : "secondary";
   return <Badge variant={variant as any}>{s}</Badge>;
 }
 
@@ -41,9 +56,18 @@ function AdminResellersPage() {
   const setPackageFn = useServerFn(adminSetWorkspacePackage);
   const setSuspendedFn = useServerFn(adminSetWorkspaceSuspended);
   const setOverrideFn = useServerFn(adminSetFeatureOverride);
+  const searchWsFn = useServerFn(adminSearchWorkspaces);
 
   const [tab, setTab] = useState<"resellers" | "children">("resellers");
   const [drillWs, setDrillWs] = useState<string | null>(null);
+  const [wsQuery, setWsQuery] = useState("");
+  const [wsSearchTerm, setWsSearchTerm] = useState("");
+
+  // Debounced so typing a workspace name does not fire a query per keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setWsSearchTerm(wsQuery.trim()), 300);
+    return () => clearTimeout(t);
+  }, [wsQuery]);
 
   const { data: resellers = [], isLoading: rLoading } = useQuery({
     queryKey: ["admin-resellers"],
@@ -78,25 +102,47 @@ function AdminResellersPage() {
   };
 
   const resellerMut = useMutation({
-    mutationFn: async (v: { workspaceId: string; enabled: boolean | null }) => setResellerFn({ data: v }),
-    onSuccess: () => { toast.success("Reseller access updated"); invalidateAll(); },
+    mutationFn: async (v: { workspaceId: string; enabled: boolean | null }) =>
+      setResellerFn({ data: v }),
+    onSuccess: () => {
+      toast.success("Reseller access updated");
+      invalidateAll();
+    },
     onError: (e: Error) => toast.error(e.message),
   });
   const packageMut = useMutation({
     mutationFn: async (v: { workspaceId: string; packageKey: string }) => setPackageFn({ data: v }),
-    onSuccess: () => { toast.success("Package changed"); invalidateAll(); },
+    onSuccess: () => {
+      toast.success("Package changed");
+      invalidateAll();
+    },
     onError: (e: Error) => toast.error(e.message),
   });
   const suspendMut = useMutation({
-    mutationFn: async (v: { workspaceId: string; suspended: boolean }) => setSuspendedFn({ data: v }),
-    onSuccess: (r: any) => { toast.success(`Workspace ${r.status}`); invalidateAll(); },
+    mutationFn: async (v: { workspaceId: string; suspended: boolean }) =>
+      setSuspendedFn({ data: v }),
+    onSuccess: (r: any) => {
+      toast.success(`Workspace ${r.status}`);
+      invalidateAll();
+    },
     onError: (e: Error) => toast.error(e.message),
   });
   const overrideMut = useMutation({
     mutationFn: async (v: { workspaceId: string; featureKey: string; enabled: boolean | null }) =>
       setOverrideFn({ data: v }),
-    onSuccess: () => { toast.success("Override updated"); invalidateAll(); },
+    onSuccess: () => {
+      toast.success("Override updated");
+      invalidateAll();
+    },
     onError: (e: Error) => toast.error(e.message),
+  });
+
+  const { data: wsResults = [], isFetching: wsSearching } = useQuery({
+    queryKey: ["admin-ws-search", wsSearchTerm],
+    queryFn: () => searchWsFn({ data: { query: wsSearchTerm, limit: 25 } }),
+    enabled: wsSearchTerm.length >= 2,
+    staleTime: 15_000,
+    throwOnError: false,
   });
 
   const packageOptions = (matrix?.packages ?? []).filter((p: any) => p.isActive);
@@ -109,21 +155,93 @@ function AdminResellersPage() {
             <Network className="h-5 w-5 text-primary" /> Resellers &amp; Child Workspaces
           </h1>
           <p className="text-sm text-muted-foreground">
-            Platform-level oversight of reseller access, child accounts, packages and suspensions. All actions are audited.
+            Platform-level oversight of reseller access, child accounts, packages and suspensions.
+            All actions are audited.
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant={tab === "resellers" ? "default" : "outline"} size="sm" onClick={() => setTab("resellers")}>
+          <Button
+            variant={tab === "resellers" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setTab("resellers")}
+          >
             Resellers ({resellers.length})
           </Button>
-          <Button variant={tab === "children" ? "default" : "outline"} size="sm" onClick={() => setTab("children")}>
+          <Button
+            variant={tab === "children" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setTab("children")}
+          >
             Child workspaces ({children.length})
           </Button>
         </div>
       </div>
 
-      {tab === "resellers" && (
-        rLoading ? (
+      {/* Reach ANY workspace, not just resellers and their children. Without
+          this, unblocking one ordinary account meant editing the global package
+          — which governs every unsubscribed workspace on the platform. */}
+      <div className="rounded-lg border p-3 space-y-2">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={wsQuery}
+            onChange={(e) => setWsQuery(e.target.value)}
+            placeholder="Find any workspace by name or slug — to set its package or per-feature overrides"
+            className="h-9 pl-8 text-sm"
+          />
+        </div>
+        {wsSearchTerm.length >= 2 && (
+          <div className="max-h-56 overflow-y-auto rounded-md border divide-y">
+            {wsSearching && wsResults.length === 0 ? (
+              <p className="px-3 py-2 text-xs text-muted-foreground">Searching…</p>
+            ) : wsResults.length === 0 ? (
+              <p className="px-3 py-2 text-xs text-muted-foreground">
+                No workspace matches “{wsSearchTerm}”.
+              </p>
+            ) : (
+              wsResults.map((w: any) => (
+                <button
+                  key={w.workspaceId}
+                  type="button"
+                  onClick={() => setDrillWs(drillWs === w.workspaceId ? null : w.workspaceId)}
+                  className={cn(
+                    "flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-muted/50",
+                    drillWs === w.workspaceId && "bg-muted/60",
+                  )}
+                >
+                  <Building2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0 flex-1 truncate font-medium">{w.name}</span>
+                  <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
+                    {w.slug}
+                  </span>
+                  {/* An unsubscribed workspace is not "unassigned" — it is
+                      silently governed by the default package. */}
+                  {w.inheritsDefaultPackage ? (
+                    <Badge variant="outline" className="shrink-0 text-[10px]">
+                      no subscription → {w.defaultPackageKey}
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary" className="shrink-0 text-[10px]">
+                      {w.packageKey}
+                      {w.subscriptionStatus && w.subscriptionStatus !== "active"
+                        ? ` · ${w.subscriptionStatus}`
+                        : ""}
+                    </Badge>
+                  )}
+                  {w.overrideCount > 0 && (
+                    <Badge className="shrink-0 text-[10px]">
+                      {w.overrideCount} override{w.overrideCount === 1 ? "" : "s"}
+                    </Badge>
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+
+      {tab === "resellers" &&
+        (rLoading ? (
           <Skeleton className="h-48 w-full" />
         ) : resellers.length === 0 ? (
           <div className="border rounded-lg p-8 text-center text-sm text-muted-foreground">
@@ -153,19 +271,24 @@ function AdminResellersPage() {
                     packageOptions={packageOptions}
                     onDrill={() => setDrillWs(drillWs === r.workspaceId ? null : r.workspaceId)}
                     drilled={drillWs === r.workspaceId}
-                    onSetReseller={(enabled) => resellerMut.mutate({ workspaceId: r.workspaceId, enabled })}
-                    onSetPackage={(packageKey) => packageMut.mutate({ workspaceId: r.workspaceId, packageKey })}
-                    onSuspend={(suspended) => suspendMut.mutate({ workspaceId: r.workspaceId, suspended })}
+                    onSetReseller={(enabled) =>
+                      resellerMut.mutate({ workspaceId: r.workspaceId, enabled })
+                    }
+                    onSetPackage={(packageKey) =>
+                      packageMut.mutate({ workspaceId: r.workspaceId, packageKey })
+                    }
+                    onSuspend={(suspended) =>
+                      suspendMut.mutate({ workspaceId: r.workspaceId, suspended })
+                    }
                   />
                 ))}
               </tbody>
             </table>
           </div>
-        )
-      )}
+        ))}
 
-      {tab === "children" && (
-        cLoading ? (
+      {tab === "children" &&
+        (cLoading ? (
           <Skeleton className="h-48 w-full" />
         ) : children.length === 0 ? (
           <div className="border rounded-lg p-8 text-center text-sm text-muted-foreground">
@@ -190,7 +313,9 @@ function AdminResellersPage() {
                   <tr key={c.clientId} className="border-b last:border-0">
                     <td className="p-3">
                       <div className="font-medium">{c.childName}</div>
-                      <div className="text-xs text-muted-foreground">{c.ownerEmail ?? c.clientEmail}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {c.ownerEmail ?? c.clientEmail}
+                      </div>
                       <div className="text-xs text-muted-foreground">
                         created {c.createdAt ? new Date(c.createdAt).toLocaleDateString() : "—"}
                       </div>
@@ -202,15 +327,19 @@ function AdminResellersPage() {
                           className="bg-transparent border rounded px-2 py-1 text-xs"
                           value={c.packageKey ?? ""}
                           onChange={(e) =>
-                            packageMut.mutate({ workspaceId: c.childWorkspaceId, packageKey: e.target.value })
+                            packageMut.mutate({
+                              workspaceId: c.childWorkspaceId,
+                              packageKey: e.target.value,
+                            })
                           }
                         >
                           {packageOptions.map((p: any) => (
-                            <option key={p.packageKey} value={p.packageKey}>{p.packageName}</option>
+                            <option key={p.packageKey} value={p.packageKey}>
+                              {p.packageName}
+                            </option>
                           ))}
-                          {!packageOptions.some((p: any) => p.packageKey === c.packageKey) && c.packageKey && (
-                            <option value={c.packageKey}>{c.packageName}</option>
-                          )}
+                          {!packageOptions.some((p: any) => p.packageKey === c.packageKey) &&
+                            c.packageKey && <option value={c.packageKey}>{c.packageName}</option>}
                         </select>
                       ) : (
                         <span className="text-xs">{c.packageName}</span>
@@ -218,7 +347,9 @@ function AdminResellersPage() {
                     </td>
                     <td className="p-3 space-x-1">
                       {statusBadge(c.status)}
-                      {c.subscriptionStatus === "suspended" && <Badge variant="destructive">suspended</Badge>}
+                      {c.subscriptionStatus === "suspended" && (
+                        <Badge variant="destructive">suspended</Badge>
+                      )}
                       {c.upgradeRequestedPackageKey && (
                         <Badge variant="outline">upgrade → {c.upgradeRequestedPackageKey}</Badge>
                       )}
@@ -244,16 +375,22 @@ function AdminResellersPage() {
                             disabled={suspendMut.isPending}
                           >
                             {c.subscriptionStatus === "suspended" ? (
-                              <><CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Reactivate</>
+                              <>
+                                <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Reactivate
+                              </>
                             ) : (
-                              <><Ban className="h-3.5 w-3.5 mr-1" /> Suspend</>
+                              <>
+                                <Ban className="h-3.5 w-3.5 mr-1" /> Suspend
+                              </>
                             )}
                           </Button>
                           <Button
                             size="sm"
                             variant="ghost"
                             title="Audit & overrides"
-                            onClick={() => setDrillWs(drillWs === c.childWorkspaceId ? null : c.childWorkspaceId)}
+                            onClick={() =>
+                              setDrillWs(drillWs === c.childWorkspaceId ? null : c.childWorkspaceId)
+                            }
                           >
                             <History className="h-4 w-4" />
                           </Button>
@@ -265,8 +402,7 @@ function AdminResellersPage() {
               </tbody>
             </table>
           </div>
-        )
-      )}
+        ))}
 
       {drillWs && (
         <div className="border rounded-lg p-5 space-y-4 bg-muted/20">
@@ -275,7 +411,9 @@ function AdminResellersPage() {
               <Building2 className="h-4 w-4" />
               {oversight?.workspace?.name ?? "Workspace"} — overrides &amp; audit
             </h2>
-            <Button size="sm" variant="ghost" onClick={() => setDrillWs(null)}>Close</Button>
+            <Button size="sm" variant="ghost" onClick={() => setDrillWs(null)}>
+              Close
+            </Button>
           </div>
           {oLoading || !oversight ? (
             <Skeleton className="h-32 w-full" />
@@ -299,7 +437,11 @@ function AdminResellersPage() {
                       className="cursor-pointer"
                       title="Click to remove this override"
                       onClick={() =>
-                        overrideMut.mutate({ workspaceId: drillWs, featureKey: o.feature_key, enabled: null })
+                        overrideMut.mutate({
+                          workspaceId: drillWs,
+                          featureKey: o.feature_key,
+                          enabled: null,
+                        })
                       }
                     >
                       {o.feature_key}: {o.enabled ? "granted" : "denied"} ✕
@@ -309,7 +451,9 @@ function AdminResellersPage() {
                 <AddOverride
                   featureKeys={(matrix?.featureKeys ?? []) as string[]}
                   labels={(matrix?.featureLabels ?? {}) as Record<string, string>}
-                  onAdd={(featureKey, enabled) => overrideMut.mutate({ workspaceId: drillWs, featureKey, enabled })}
+                  onAdd={(featureKey, enabled) =>
+                    overrideMut.mutate({ workspaceId: drillWs, featureKey, enabled })
+                  }
                 />
               </div>
               <div>
@@ -319,14 +463,24 @@ function AdminResellersPage() {
                     <div className="px-3 py-2 text-xs text-muted-foreground">No audit entries.</div>
                   )}
                   {(oversight.audit ?? []).map((a: any) => (
-                    <div key={a.id} className="px-3 py-2 text-xs flex items-center justify-between gap-3">
+                    <div
+                      key={a.id}
+                      className="px-3 py-2 text-xs flex items-center justify-between gap-3"
+                    >
                       <div>
                         <span className="font-medium">{a.action_type}</span>{" "}
-                        <span className="text-muted-foreground">{a.object_type}{a.object_id ? ` · ${a.object_id}` : ""}</span>
+                        <span className="text-muted-foreground">
+                          {a.object_type}
+                          {a.object_id ? ` · ${a.object_id}` : ""}
+                        </span>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        <Badge variant={a.risk_level === "high" ? "destructive" : "secondary"}>{a.risk_level}</Badge>
-                        <span className="text-muted-foreground">{new Date(a.created_at).toLocaleString()}</span>
+                        <Badge variant={a.risk_level === "high" ? "destructive" : "secondary"}>
+                          {a.risk_level}
+                        </Badge>
+                        <span className="text-muted-foreground">
+                          {new Date(a.created_at).toLocaleString()}
+                        </span>
                       </div>
                     </div>
                   ))}
@@ -341,7 +495,13 @@ function AdminResellersPage() {
 }
 
 function ResellerRow({
-  r, packageOptions, onDrill, drilled, onSetReseller, onSetPackage, onSuspend,
+  r,
+  packageOptions,
+  onDrill,
+  drilled,
+  onSetReseller,
+  onSetPackage,
+  onSuspend,
 }: {
   r: any;
   packageOptions: any[];
@@ -375,7 +535,9 @@ function ResellerRow({
         >
           {!r.packageKey && <option value="">— none —</option>}
           {packageOptions.map((p: any) => (
-            <option key={p.packageKey} value={p.packageKey}>{p.packageName}</option>
+            <option key={p.packageKey} value={p.packageKey}>
+              {p.packageName}
+            </option>
           ))}
           {r.packageKey && !packageOptions.some((p: any) => p.packageKey === r.packageKey) && (
             <option value={r.packageKey}>{r.packageName}</option>
@@ -385,11 +547,17 @@ function ResellerRow({
       <td className="p-3">{statusBadge(r.subscriptionStatus)}</td>
       <td className="p-3 text-xs">
         {r.childCount} / {r.childLimit ?? 0}
-        <span className="text-muted-foreground"> ({r.activeChildren} active{r.suspendedChildren ? `, ${r.suspendedChildren} susp.` : ""})</span>
+        <span className="text-muted-foreground">
+          {" "}
+          ({r.activeChildren} active{r.suspendedChildren ? `, ${r.suspendedChildren} susp.` : ""})
+        </span>
       </td>
       <td className="p-3 text-xs">
         {r.whiteLabel ? (
-          <span>{r.whiteLabel.brandName ?? "custom"}{r.whiteLabel.customDomain ? ` · ${r.whiteLabel.customDomain}` : ""}</span>
+          <span>
+            {r.whiteLabel.brandName ?? "custom"}
+            {r.whiteLabel.customDomain ? ` · ${r.whiteLabel.customDomain}` : ""}
+          </span>
         ) : (
           <span className="text-muted-foreground">—</span>
         )}
@@ -414,8 +582,20 @@ function ResellerRow({
       </td>
       <td className="p-3">
         <div className="flex justify-end gap-1.5">
-          <Button size="sm" variant={suspended ? "default" : "outline"} onClick={() => onSuspend(!suspended)}>
-            {suspended ? <><CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Reactivate</> : <><Ban className="h-3.5 w-3.5 mr-1" /> Suspend</>}
+          <Button
+            size="sm"
+            variant={suspended ? "default" : "outline"}
+            onClick={() => onSuspend(!suspended)}
+          >
+            {suspended ? (
+              <>
+                <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Reactivate
+              </>
+            ) : (
+              <>
+                <Ban className="h-3.5 w-3.5 mr-1" /> Suspend
+              </>
+            )}
           </Button>
           <Button size="sm" variant="ghost" onClick={onDrill}>
             {drilled ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -427,7 +607,9 @@ function ResellerRow({
 }
 
 function AddOverride({
-  featureKeys, labels, onAdd,
+  featureKeys,
+  labels,
+  onAdd,
 }: {
   featureKeys: string[];
   labels: Record<string, string>;
@@ -437,16 +619,30 @@ function AddOverride({
   const [enabled, setEnabled] = useState(true);
   return (
     <div className="flex items-center gap-2 text-xs">
-      <select className="bg-transparent border rounded px-2 py-1" value={key} onChange={(e) => setKey(e.target.value)}>
+      <select
+        className="bg-transparent border rounded px-2 py-1"
+        value={key}
+        onChange={(e) => setKey(e.target.value)}
+      >
         <option value="">Add override…</option>
         {featureKeys.map((k) => (
-          <option key={k} value={k}>{labels[k] ?? k}</option>
+          <option key={k} value={k}>
+            {labels[k] ?? k}
+          </option>
         ))}
       </select>
       <label className="flex items-center gap-1.5">
         <Switch checked={enabled} onCheckedChange={setEnabled} /> {enabled ? "grant" : "deny"}
       </label>
-      <Button size="sm" variant="outline" disabled={!key} onClick={() => { onAdd(key, enabled); setKey(""); }}>
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={!key}
+        onClick={() => {
+          onAdd(key, enabled);
+          setKey("");
+        }}
+      >
         Add
       </Button>
     </div>

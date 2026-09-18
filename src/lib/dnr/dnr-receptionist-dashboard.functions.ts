@@ -39,12 +39,35 @@ export type ReceptionistToolEventRow = {
   created_at: string;
 };
 
+export type ReceptionistAgentRow = {
+  id: string;
+  name: string;
+  retell_agent_id: string | null;
+  agent_type: string;
+  settings: Record<string, unknown> | null;
+};
+
+/**
+ * Named so the page gets a real type. The handler's return was being inferred as `{}`, which left
+ * every field access on the page an implicit-any error and hid this kind of bug from tsc.
+ */
+export type ReceptionistDashboard = {
+  brand: string | null;
+  location: string | null;
+  retellAgentId: string | null;
+  agents: ReceptionistAgentRow[];
+  calls: ReceptionistCallRow[];
+  bookings: ReceptionistBookingRow[];
+  toolEvents: ReceptionistToolEventRow[];
+  toolEventsAvailable: boolean;
+};
+
 export const getReceptionistDashboard = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input) =>
     z.object({ limit: z.number().int().min(1).max(100).default(30) }).parse(input ?? {}),
   )
-  .handler(async ({ context, data }) => {
+  .handler(async ({ context, data }): Promise<ReceptionistDashboard> => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
 
@@ -56,13 +79,7 @@ export const getReceptionistDashboard = createServerFn({ method: "POST" })
       .eq("workspace_id", workspaceId)
       .eq("agent_type", "receptionist");
 
-    const receptionistAgents = (agents ?? []) as Array<{
-      id: string;
-      name: string;
-      retell_agent_id: string | null;
-      agent_type: string;
-      settings: Record<string, unknown> | null;
-    }>;
+    const receptionistAgents = (agents ?? []) as ReceptionistAgentRow[];
 
     const retellIds = new Set<string>();
     for (const a of receptionistAgents) {
@@ -70,7 +87,9 @@ export const getReceptionistDashboard = createServerFn({ method: "POST" })
       const deployed = a.settings?.deployedRetellAgentId;
       if (typeof deployed === "string") retellIds.add(deployed.replace(/^agents\//, ""));
     }
-    retellIds.add(DNR_RETELL_AGENT_ID);
+    // Deliberately NOT seeded with DNR_RETELL_AGENT_ID. That agent belongs to one
+    // workspace, whose own `agents` row already carries the id, so seeding it here
+    // only ever matched calls in workspaces it has nothing to do with.
 
     const agentNames = receptionistAgents.map((a) => a.name).filter(Boolean);
 
@@ -90,8 +109,10 @@ export const getReceptionistDashboard = createServerFn({ method: "POST" })
       (c) => {
         const aid = (c as { agent_id?: string }).agent_id?.replace(/^agents\//, "");
         if (aid && retellIds.has(aid)) return true;
+        // Matched on this workspace's own agent names only. Matching the literal
+        // strings "Dr Nyla" and "Cheshire" put one client's calls into the filter
+        // for every tenant that happened to name an agent the same way.
         if (c.agent_name && agentNames.includes(c.agent_name)) return true;
-        if (c.agent_name?.includes("Dr Nyla") || c.agent_name?.includes("Cheshire")) return true;
         return false;
       },
     );
@@ -106,9 +127,26 @@ export const getReceptionistDashboard = createServerFn({ method: "POST" })
 
     if (bookingsErr) throw new Error(bookingsErr.message);
 
-    const pabauBookings = ((bookingRows ?? []) as ReceptionistBookingRow[]).filter(
-      (b) => b.source === "pabau" || b.title.includes("Cheshire") || b.notes?.includes("Pabau"),
+    // Bookings this receptionist actually made: the practice-management
+    // integration's own rows, or a voice booking from a caller whose call the
+    // filter above already attributed to a receptionist agent.
+    //
+    // The previous rule fell back to EVERY pabau/retell booking in the workspace
+    // whenever no pabau row matched, so ordinary outbound-campaign bookings were
+    // listed as receptionist bookings. Matching on the caller's number rather
+    // than on notes, because voice bookings are written with notes = null.
+    const tail = (phone: string | null | undefined): string =>
+      String(phone ?? "")
+        .replace(/\D/g, "")
+        .slice(-9);
+    const receptionistCallerPhones = new Set(
+      calls.map((c) => tail(c.from_number)).filter((p) => p.length >= 7),
     );
+    const receptionistBookings = ((bookingRows ?? []) as ReceptionistBookingRow[]).filter((b) => {
+      if (b.source === "pabau" || b.notes?.includes("Pabau")) return true;
+      const phone = tail(b.attendee_phone);
+      return phone.length >= 7 && receptionistCallerPhones.has(phone);
+    });
 
     let toolEvents: ReceptionistToolEventRow[] = [];
     const { data: toolRows, error: toolsErr } = await sb
@@ -122,13 +160,23 @@ export const getReceptionistDashboard = createServerFn({ method: "POST" })
       toolEvents = (toolRows ?? []) as ReceptionistToolEventRow[];
     }
 
+    // The DNR brand copy belongs to the workspace that owns that agent, nobody else.
+    const isDnrWorkspace = retellIds.has(DNR_RETELL_AGENT_ID);
+    const primaryRetellAgentId =
+      receptionistAgents
+        .find((a) => a.retell_agent_id)
+        ?.retell_agent_id?.replace(/^agents\//, "") ?? null;
+
     return {
-      brand: DNR_VOICE.brand,
-      location: DNR_VOICE.location.name,
-      retellAgentId: DNR_RETELL_AGENT_ID,
+      // Identity comes from the workspace being viewed. These were the DNR
+      // constants, so every tenant's Receptionist tab was titled with, and
+      // linked to, one particular client's brand and Retell agent.
+      brand: isDnrWorkspace ? DNR_VOICE.brand : null,
+      location: isDnrWorkspace ? DNR_VOICE.location.name : null,
+      retellAgentId: primaryRetellAgentId,
       agents: receptionistAgents,
       calls,
-      bookings: pabauBookings.length ? pabauBookings : ((bookingRows ?? []) as ReceptionistBookingRow[]),
+      bookings: receptionistBookings,
       toolEvents,
       toolEventsAvailable: !toolsErr,
     };

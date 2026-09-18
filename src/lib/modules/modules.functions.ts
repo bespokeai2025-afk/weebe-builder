@@ -139,7 +139,8 @@ export const adminListWorkspacesWithModules = createServerFn({ method: "GET" })
     await assertAdmin(context.userId);
     const { data, error } = await supabaseAdmin
       .from("workspaces")
-      .select(`
+      .select(
+        `
         id,
         name,
         workspace_settings (
@@ -148,7 +149,8 @@ export const adminListWorkspacesWithModules = createServerFn({ method: "GET" })
           modules_updated_at
         ),
         workspace_members (count)
-      `)
+      `,
+      )
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
     return data ?? [];
@@ -161,14 +163,15 @@ export const adminSetWorkspaceModules = createServerFn({ method: "POST" })
   .validator((d: { workspaceId: string; modules: string[]; planTier: string }) => d)
   .handler(async ({ context, data }) => {
     await assertAdmin(context.userId);
-    const { error } = await supabaseAdmin
-      .from("workspace_settings")
-      .upsert({
+    const { error } = await supabaseAdmin.from("workspace_settings").upsert(
+      {
         workspace_id: data.workspaceId,
         active_modules: data.modules,
         plan_tier: data.planTier,
         modules_updated_at: new Date().toISOString(),
-      }, { onConflict: "workspace_id" });
+      },
+      { onConflict: "workspace_id" },
+    );
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -179,14 +182,16 @@ export const requestModuleUpgrade = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((d: { moduleId: string; moduleName: string; notes?: string }) => d)
   .handler(async ({ context, data }) => {
-    const { supabase, userId } = context;
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("default_workspace_id")
-      .eq("user_id", userId)
-      .maybeSingle();
-    const workspaceId = profile?.default_workspace_id;
-    if (!workspaceId) throw new Error("No workspace found");
+    // The ACTIVE workspace, not profiles.default_workspace_id.
+    //
+    // The sidebar locks a module for the workspace the user is looking at, so the request has to
+    // be filed against that same workspace. Reading the profile's default instead meant someone
+    // with more than one workspace filed against whichever one happened to be their default: the
+    // admin then approved the module for a workspace that never asked, and the workspace they
+    // were actually in stayed locked — so the request looked broken and got re-sent. It also
+    // threw "No workspace found" outright for any profile whose default was never set.
+    const { supabase, userId, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
 
     // Deduplicate: don't create duplicate pending request
     const { data: existing } = await supabase
@@ -198,15 +203,13 @@ export const requestModuleUpgrade = createServerFn({ method: "POST" })
       .maybeSingle();
     if (existing) return { ok: true, alreadyPending: true };
 
-    const { error } = await supabase
-      .from("module_upgrade_requests")
-      .insert({
-        workspace_id: workspaceId,
-        requested_by: userId,
-        module_id: data.moduleId,
-        module_name: data.moduleName,
-        notes: data.notes ?? null,
-      });
+    const { error } = await supabase.from("module_upgrade_requests").insert({
+      workspace_id: workspaceId,
+      requested_by: userId,
+      module_id: data.moduleId,
+      module_name: data.moduleName,
+      notes: data.notes ?? null,
+    });
     if (error) throw new Error(error.message);
     return { ok: true, alreadyPending: false };
   });
@@ -219,11 +222,13 @@ export const adminListModuleRequests = createServerFn({ method: "GET" })
     await assertAdmin(context.userId);
     const { data, error } = await supabaseAdmin
       .from("module_upgrade_requests")
-      .select(`
+      .select(
+        `
         id, module_id, module_name, status, notes, created_at, reviewed_at,
         workspace_id,
         workspaces!inner ( name )
-      `)
+      `,
+      )
       .order("created_at", { ascending: false })
       .limit(200);
     if (error) throw new Error(error.message);
@@ -263,13 +268,14 @@ export const adminDecideModuleRequest = createServerFn({ method: "POST" })
         .maybeSingle();
       const current = (settings?.active_modules as string[]) ?? [];
       if (!current.includes(req.module_id)) {
-        await supabaseAdmin
-          .from("workspace_settings")
-          .upsert({
+        await supabaseAdmin.from("workspace_settings").upsert(
+          {
             workspace_id: req.workspace_id,
             active_modules: [...current, req.module_id],
             modules_updated_at: new Date().toISOString(),
-          }, { onConflict: "workspace_id" });
+          },
+          { onConflict: "workspace_id" },
+        );
       }
     }
 

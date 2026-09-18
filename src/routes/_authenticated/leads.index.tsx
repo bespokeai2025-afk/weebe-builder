@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import {
@@ -42,7 +42,14 @@ import {
 } from "@/lib/dashboard/wbah-appointment-display";
 import { Button } from "@/components/ui/button";
 import { SavedFiltersSection } from "@/components/people-views/SavedFiltersSection";
-import { DashboardPage, KpiCard, MiniKpiCard, SummaryTooltip, stickyCell, stickyHead } from "@/components/dashboard/PageShell";
+import {
+  DashboardPage,
+  KpiCard,
+  MiniKpiCard,
+  SummaryTooltip,
+  stickyCell,
+  stickyHead,
+} from "@/components/dashboard/PageShell";
 import { cn } from "@/lib/utils";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { AssignLeadsDialog } from "@/components/leads/AssignLeadsDialog";
@@ -74,8 +81,18 @@ import {
   scheduleQualificationCalls,
   fireScheduledCalls,
   removeLeads,
+  upsertLead,
 } from "@/lib/dashboard/leads.functions";
-import { listWbahPositiveNeutralLeads, getWbahContactCallHistory, getWbahCallDetail } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { pageLevelRank } from "@/lib/permissions/permissions.shared";
+import {
+  buildManualLeadPayload,
+  isManualLeadSubmittable,
+} from "@/lib/dashboard/manual-lead.shared";
+import {
+  listWbahPositiveNeutralLeads,
+  getWbahContactCallHistory,
+  getWbahCallDetail,
+} from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import {
   LEAD_STATUS_CATEGORIES,
   leadMatchesStatusCategory,
@@ -85,20 +102,28 @@ import {
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import { LeadEmailDialog } from "@/components/dashboard/LeadEmailDialog";
 import { PlayRecordingButton } from "@/components/RecordingPlayerDialog";
-import { WbahNotesButton, WbahBookedStickyBadge, WbahCallCountBadge, WbahCalendlyLink, wbahAgentColorMapFromLeads } from "@/components/dashboard/WbahNotesButton";
+import {
+  WbahNotesButton,
+  WbahBookedStickyBadge,
+  WbahCallCountBadge,
+  WbahCalendlyLink,
+  wbahAgentColorMapFromLeads,
+} from "@/components/dashboard/WbahNotesButton";
 import { WbahContactCallHistoryTable } from "@/components/dashboard/WbahContactCallHistoryTable";
 import type { WbahContactCallHistoryItem } from "@/lib/dashboard/wbah-call-history.types";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 import { DialogDescription } from "@/components/ui/dialog";
-import {
-  getCampaignStats,
-} from "@/lib/dashboard/campaigns.functions";
+import { getCampaignStats } from "@/lib/dashboard/campaigns.functions";
 import { getDashboardLiveAgents } from "@/lib/agents/agents.functions";
 import { CallSchedulingSection } from "@/components/dashboard/CallSchedulingSection";
 import { StartCallsDialog } from "@/components/dashboard/StartCallsDialog";
 import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
-import { useWorkspaceAgentOptions, rowMatchesAgent, agentTypeLabel } from "@/components/shared/AgentFilterSelect";
+import {
+  useWorkspaceAgentOptions,
+  rowMatchesAgent,
+  agentTypeLabel,
+} from "@/components/shared/AgentFilterSelect";
 import { wbahDateTimeOptions } from "@/lib/dashboard/wbah-timezone";
 
 export const Route = createFileRoute("/_authenticated/leads/")({
@@ -121,11 +146,19 @@ function fmtDate(d: string | null, isWbah = false) {
 function fmtCallDate(iso: string | null | undefined, isWbah = false) {
   if (!iso) return "Not called yet";
   try {
-    return new Date(iso).toLocaleString(undefined, wbahDateTimeOptions(isWbah, {
-      day: "2-digit", month: "short", year: "numeric",
-      hour: "2-digit", minute: "2-digit",
-    }));
-  } catch { return iso; }
+    return new Date(iso).toLocaleString(
+      undefined,
+      wbahDateTimeOptions(isWbah, {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    );
+  } catch {
+    return iso;
+  }
 }
 
 function sentimentBadge(s: string | null) {
@@ -136,7 +169,9 @@ function sentimentBadge(s: string | null) {
     negative: "bg-red-500/15 text-red-400",
   };
   return (
-    <span className={`rounded-full px-2 py-0.5 text-[11px] ${map[s] ?? "bg-muted text-muted-foreground"}`}>
+    <span
+      className={`rounded-full px-2 py-0.5 text-[11px] ${map[s] ?? "bg-muted text-muted-foreground"}`}
+    >
       {s}
     </span>
   );
@@ -144,12 +179,7 @@ function sentimentBadge(s: string | null) {
 
 function scoreBadge(score: number | null) {
   if (score == null) return <span className="text-muted-foreground">—</span>;
-  const color =
-    score >= 70
-      ? "text-emerald-400"
-      : score >= 40
-        ? "text-amber-400"
-        : "text-red-400";
+  const color = score >= 70 ? "text-emerald-400" : score >= 40 ? "text-amber-400" : "text-red-400";
   return <span className={`font-semibold ${color}`}>{score}</span>;
 }
 
@@ -161,7 +191,9 @@ function interestBadge(level: string | null) {
     low: "bg-red-500/15 text-red-400",
   };
   return (
-    <span className={`rounded-full px-2 py-0.5 text-[11px] ${map[level] ?? "bg-muted text-muted-foreground"}`}>
+    <span
+      className={`rounded-full px-2 py-0.5 text-[11px] ${map[level] ?? "bg-muted text-muted-foreground"}`}
+    >
       {level}
     </span>
   );
@@ -178,14 +210,16 @@ function fmtDuration(ms: number | null): string {
 function callStatusBadge(status: string | null) {
   if (!status) return <span className="text-muted-foreground text-[11px]">—</span>;
   const map: Record<string, string> = {
-    completed:   "bg-emerald-500/15 text-emerald-400",
-    failed:      "bg-red-500/15 text-red-400",
-    no_answer:   "bg-orange-500/15 text-orange-400",
-    initiated:   "bg-blue-500/15 text-blue-400",
+    completed: "bg-emerald-500/15 text-emerald-400",
+    failed: "bg-red-500/15 text-red-400",
+    no_answer: "bg-orange-500/15 text-orange-400",
+    initiated: "bg-blue-500/15 text-blue-400",
     in_progress: "bg-blue-500/15 text-blue-400",
   };
   return (
-    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize whitespace-nowrap ${map[status] ?? "bg-muted text-muted-foreground"}`}>
+    <span
+      className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize whitespace-nowrap ${map[status] ?? "bg-muted text-muted-foreground"}`}
+    >
       {status.replace(/_/g, " ")}
     </span>
   );
@@ -195,14 +229,16 @@ function bookingStatusBadge(status: string | null) {
   if (!status) return <span className="text-muted-foreground text-[11px]">—</span>;
   const lower = status.toLowerCase();
   const map: Record<string, string> = {
-    booked:    "bg-emerald-500/15 text-emerald-400",
+    booked: "bg-emerald-500/15 text-emerald-400",
     confirmed: "bg-emerald-500/15 text-emerald-400",
-    success:   "bg-emerald-500/15 text-emerald-400",
-    pending:   "bg-amber-500/15 text-amber-400",
+    success: "bg-emerald-500/15 text-emerald-400",
+    pending: "bg-amber-500/15 text-amber-400",
     cancelled: "bg-red-500/15 text-red-400",
   };
   return (
-    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize whitespace-nowrap ${map[lower] ?? "bg-muted text-muted-foreground"}`}>
+    <span
+      className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize whitespace-nowrap ${map[lower] ?? "bg-muted text-muted-foreground"}`}
+    >
       {status.replace(/_/g, " ")}
     </span>
   );
@@ -214,50 +250,50 @@ function bookingStatusBadge(status: string | null) {
 type LeadBadgeSpec = { Icon: typeof Globe; label: string; tone: string; tooltip: string };
 
 const ORIGIN_ICON_MAP: Record<string, typeof Globe> = {
-  whatsapp:   MessageCircle,
+  whatsapp: MessageCircle,
   voice_call: Phone,
-  web_form:   Globe,
-  crm:        Building2,
+  web_form: Globe,
+  crm: Building2,
   csv_import: Upload,
-  manual:     UserCog,
-  api:        Plug,
-  email:      Mail,
-  sms:        MessageSquareText,
-  campaign:   BarChart3,
-  unknown:    Contact,
+  manual: UserCog,
+  api: Plug,
+  email: Mail,
+  sms: MessageSquareText,
+  campaign: BarChart3,
+  unknown: Contact,
 };
 
 function leadOriginBadgeSpec(lead: any): LeadBadgeSpec | null {
   const origin = deriveLeadOrigin(lead);
-  if (origin === "unknown") return null;          // hide badge for unknown
+  if (origin === "unknown") return null; // hide badge for unknown
 
   const Icon = ORIGIN_ICON_MAP[origin] ?? Contact;
   const LABELS: Record<string, string> = {
-    whatsapp:   "WhatsApp",
+    whatsapp: "WhatsApp",
     voice_call: "Voice",
-    web_form:   "Web Form",
-    crm:        "CRM",
+    web_form: "Web Form",
+    crm: "CRM",
     csv_import: "CSV / Import",
-    manual:     "Manual",
-    api:        "API",
-    email:      "Email",
-    sms:        "SMS",
-    campaign:   "Campaign",
+    manual: "Manual",
+    api: "API",
+    email: "Email",
+    sms: "SMS",
+    campaign: "Campaign",
   };
   const TONES: Record<string, string> = {
-    whatsapp:   "text-emerald-400 bg-emerald-500/10",
+    whatsapp: "text-emerald-400 bg-emerald-500/10",
     voice_call: "text-blue-400 bg-blue-500/10",
-    web_form:   "text-sky-400 bg-sky-500/10",
-    crm:        "text-violet-400 bg-violet-500/10",
+    web_form: "text-sky-400 bg-sky-500/10",
+    crm: "text-violet-400 bg-violet-500/10",
     csv_import: "text-amber-400 bg-amber-500/10",
-    manual:     "text-slate-400 bg-slate-500/10",
-    api:        "text-emerald-400 bg-emerald-500/10",
-    email:      "text-orange-400 bg-orange-500/10",
-    sms:        "text-fuchsia-400 bg-fuchsia-500/10",
-    campaign:   "text-pink-400 bg-pink-500/10",
+    manual: "text-slate-400 bg-slate-500/10",
+    api: "text-emerald-400 bg-emerald-500/10",
+    email: "text-orange-400 bg-orange-500/10",
+    sms: "text-fuchsia-400 bg-fuchsia-500/10",
+    campaign: "text-pink-400 bg-pink-500/10",
   };
-  const label  = LABELS[origin]  ?? origin;
-  const tone   = TONES[origin]   ?? "text-muted-foreground bg-muted/40";
+  const label = LABELS[origin] ?? origin;
+  const tone = TONES[origin] ?? "text-muted-foreground bg-muted/40";
   const provider = lead.origin_provider ?? null;
   const tooltip = provider ? `${label}\nvia ${provider}` : label;
   return { Icon, label, tone, tooltip };
@@ -280,38 +316,68 @@ function LeadSourceBadge({ lead }: { lead: any }) {
 function preferredContactBadgeSpec(lead: any): LeadBadgeSpec | null {
   const raw = String(
     lead?.preferred_contact ??
-    lead?.preferred_contact_method ??
-    lead?.meta?.preferred_contact ??
-    lead?.meta?.preferred_contact_method ??
-    "",
-  ).toLowerCase().trim();
+      lead?.preferred_contact_method ??
+      lead?.meta?.preferred_contact ??
+      lead?.meta?.preferred_contact_method ??
+      "",
+  )
+    .toLowerCase()
+    .trim();
   if (!raw) return null;
-  if (raw === "phone" || raw === "call") return { Icon: Phone, label: "Prefers phone", tone: "text-blue-400 bg-blue-500/10" };
-  if (raw === "email") return { Icon: Mail, label: "Prefers email", tone: "text-orange-400 bg-orange-500/10" };
-  if (raw === "whatsapp") return { Icon: MessageCircle, label: "Prefers WhatsApp", tone: "text-emerald-400 bg-emerald-500/10" };
-  if (raw === "sms" || raw === "text") return { Icon: MessageSquareText, label: "Prefers SMS", tone: "text-fuchsia-400 bg-fuchsia-500/10" };
-  if (raw === "any" || raw === "no_preference") return { Icon: Contact, label: "No contact preference", tone: "text-slate-400 bg-slate-500/10" };
+  if (raw === "phone" || raw === "call")
+    return { Icon: Phone, label: "Prefers phone", tone: "text-blue-400 bg-blue-500/10" };
+  if (raw === "email")
+    return { Icon: Mail, label: "Prefers email", tone: "text-orange-400 bg-orange-500/10" };
+  if (raw === "whatsapp")
+    return {
+      Icon: MessageCircle,
+      label: "Prefers WhatsApp",
+      tone: "text-emerald-400 bg-emerald-500/10",
+    };
+  if (raw === "sms" || raw === "text")
+    return {
+      Icon: MessageSquareText,
+      label: "Prefers SMS",
+      tone: "text-fuchsia-400 bg-fuchsia-500/10",
+    };
+  if (raw === "any" || raw === "no_preference")
+    return {
+      Icon: Contact,
+      label: "No contact preference",
+      tone: "text-slate-400 bg-slate-500/10",
+    };
   return null;
 }
 
-function PreferredContactBadge({ lead, onEmailClick }: { lead: any; onEmailClick?: (lead: any) => void }) {
+function PreferredContactBadge({
+  lead,
+  onEmailClick,
+}: {
+  lead: any;
+  onEmailClick?: (lead: any) => void;
+}) {
   const spec = preferredContactBadgeSpec(lead);
   if (!spec) return null;
   const { Icon, label, tone } = spec;
   const raw = String(
     lead?.preferred_contact ??
-    lead?.preferred_contact_method ??
-    lead?.meta?.preferred_contact ??
-    lead?.meta?.preferred_contact_method ??
-    "",
-  ).toLowerCase().trim();
+      lead?.preferred_contact_method ??
+      lead?.meta?.preferred_contact ??
+      lead?.meta?.preferred_contact_method ??
+      "",
+  )
+    .toLowerCase()
+    .trim();
 
   if (raw === "email" && onEmailClick && lead?.email) {
     return (
       <button
         type="button"
         title={`${label} — click to email ${lead.email}`}
-        onClick={(e) => { e.stopPropagation(); onEmailClick(lead); }}
+        onClick={(e) => {
+          e.stopPropagation();
+          onEmailClick(lead);
+        }}
         className={cn(
           "inline-flex shrink-0 items-center justify-center rounded p-0.5 transition hover:ring-1 hover:ring-orange-400/60",
           tone,
@@ -336,9 +402,10 @@ function PreferredContactBadge({ lead, onEmailClick }: { lead: any; onEmailClick
 // Flag written by ava-web-call.server.ts: meta.booking_failed / booking_error.
 function BookingFailedBadge({ lead, detailed = false }: { lead: any; detailed?: boolean }) {
   if (!lead?.meta?.booking_failed) return null;
-  const err = typeof lead?.meta?.booking_error === "string" && lead.meta.booking_error.trim()
-    ? lead.meta.booking_error.trim()
-    : null;
+  const err =
+    typeof lead?.meta?.booking_error === "string" && lead.meta.booking_error.trim()
+      ? lead.meta.booking_error.trim()
+      : null;
   return (
     <span
       title={err ? `Booking failed — follow up. Error: ${err}` : "Booking failed — follow up"}
@@ -351,34 +418,70 @@ function BookingFailedBadge({ lead, detailed = false }: { lead: any; detailed?: 
 }
 
 const STATUS_OPTIONS = [
-  { value: "interested", label: "Open", color: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30" },
-  { value: "qualified", label: "Qualified", color: "bg-violet-500/15 text-violet-400 ring-violet-500/30" },
-  { value: "callback_requested", label: "Callback Requested", color: "bg-amber-500/15 text-amber-400 ring-amber-500/30" },
-  { value: "need_to_call", label: "Needs to Call", color: "bg-sky-500/15 text-sky-400 ring-sky-500/30" },
+  {
+    value: "interested",
+    label: "Open",
+    color: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30",
+  },
+  {
+    value: "qualified",
+    label: "Qualified",
+    color: "bg-violet-500/15 text-violet-400 ring-violet-500/30",
+  },
+  {
+    value: "callback_requested",
+    label: "Callback Requested",
+    color: "bg-amber-500/15 text-amber-400 ring-amber-500/30",
+  },
+  {
+    value: "need_to_call",
+    label: "Needs to Call",
+    color: "bg-sky-500/15 text-sky-400 ring-sky-500/30",
+  },
   { value: "not_interested", label: "Closed", color: "bg-red-500/15 text-red-400 ring-red-500/30" },
-  { value: "completed", label: "Completed", color: "bg-blue-500/15 text-blue-400 ring-blue-500/30" },
-  { value: "no_answer", label: "No Answer", color: "bg-orange-500/15 text-orange-400 ring-orange-500/30" },
-  { value: "scheduled", label: "Scheduled", color: "bg-purple-500/15 text-purple-400 ring-purple-500/30" },
+  {
+    value: "completed",
+    label: "Completed",
+    color: "bg-blue-500/15 text-blue-400 ring-blue-500/30",
+  },
+  {
+    value: "no_answer",
+    label: "No Answer",
+    color: "bg-orange-500/15 text-orange-400 ring-orange-500/30",
+  },
+  {
+    value: "scheduled",
+    label: "Scheduled",
+    color: "bg-purple-500/15 text-purple-400 ring-purple-500/30",
+  },
 ] as const;
 
 function statusDisplay(status: string | null) {
   const opt = STATUS_OPTIONS.find((o) => o.value === status);
   if (opt) return opt;
-  return { value: status ?? "", label: status?.replace(/_/g, " ") ?? "—", color: "bg-muted text-muted-foreground ring-border" };
+  return {
+    value: status ?? "",
+    label: status?.replace(/_/g, " ") ?? "—",
+    color: "bg-muted text-muted-foreground ring-border",
+  };
 }
 
 function filterToDates(filter: string): { dateFrom?: string; dateTo?: string } {
   if (filter === "all") return {};
   if (filter === "today") {
     const d = new Date();
-    const from = new Date(d); from.setUTCHours(0, 0, 0, 0);
-    const to   = new Date(d); to.setUTCHours(23, 59, 59, 999);
+    const from = new Date(d);
+    from.setUTCHours(0, 0, 0, 0);
+    const to = new Date(d);
+    to.setUTCHours(23, 59, 59, 999);
     return { dateFrom: from.toISOString(), dateTo: to.toISOString() };
   }
   if (filter === "yesterday") {
     const d = new Date(Date.now() - 86_400_000);
-    const from = new Date(d); from.setUTCHours(0, 0, 0, 0);
-    const to   = new Date(d); to.setUTCHours(23, 59, 59, 999);
+    const from = new Date(d);
+    from.setUTCHours(0, 0, 0, 0);
+    const to = new Date(d);
+    to.setUTCHours(23, 59, 59, 999);
     return { dateFrom: from.toISOString(), dateTo: to.toISOString() };
   }
   const days = parseInt(filter, 10);
@@ -408,29 +511,31 @@ function LeadsPage() {
   const [quickFilter, setQuickFilter] = useState("");
   const [wbahDaysFilter, setWbahDaysFilter] = useState("30");
   // Call duration threshold, outcome, and custom date range filters.
-  const [leadsDuration, setLeadsDuration] = useState("");  // min seconds ("" = any)
-  const [leadsOutcome, setLeadsOutcome]   = useState("");  // "" | "successful" | "unsuccessful"
-  const [leadsFrom, setLeadsFrom]         = useState("");  // yyyy-mm-dd
-  const [leadsTo, setLeadsTo]             = useState("");
+  const [leadsDuration, setLeadsDuration] = useState(""); // min seconds ("" = any)
+  const [leadsOutcome, setLeadsOutcome] = useState(""); // "" | "successful" | "unsuccessful"
+  const [leadsFrom, setLeadsFrom] = useState(""); // yyyy-mm-dd
+  const [leadsTo, setLeadsTo] = useState("");
   const [wbahAgentFilter, setWbahAgentFilter] = useState("all");
   const [agentFilter, setAgentFilter] = useState("all");
   const [originFilter, setOriginFilter] = useState("");
   const workspaceAgents = useWorkspaceAgentOptions();
-  const selectedAgent = agentFilter !== "all" ? workspaceAgents.find((a) => a.id === agentFilter) ?? null : null;
+  const selectedAgent =
+    agentFilter !== "all" ? (workspaceAgents.find((a) => a.id === agentFilter) ?? null) : null;
 
   // Effective {dateFrom,dateTo}: "custom" uses the Between inputs, else a preset.
   const leadsDateRange = useMemo<{ dateFrom?: string; dateTo?: string }>(() => {
     if (wbahDaysFilter === "custom") {
       const r: { dateFrom?: string; dateTo?: string } = {};
       if (leadsFrom) r.dateFrom = new Date(`${leadsFrom}T00:00:00`).toISOString();
-      if (leadsTo)   r.dateTo   = new Date(`${leadsTo}T23:59:59.999`).toISOString();
+      if (leadsTo) r.dateTo = new Date(`${leadsTo}T23:59:59.999`).toISOString();
       return r;
     }
     return filterToDates(wbahDaysFilter);
   }, [wbahDaysFilter, leadsFrom, leadsTo]);
 
   function leadDurationSeconds(l: any): number {
-    if (l?.retell_call?.duration_seconds != null) return Number(l.retell_call.duration_seconds) || 0;
+    if (l?.retell_call?.duration_seconds != null)
+      return Number(l.retell_call.duration_seconds) || 0;
     if (l?.meta?.duration_ms != null) return (Number(l.meta.duration_ms) || 0) / 1000;
     return 0;
   }
@@ -464,6 +569,15 @@ function LeadsPage() {
     throwOnError: false,
   });
   const canAssign = (myPermsQ.data as any)?.actionAccess?.lead_assignment === true;
+  // Creating a lead is an edit of the Leads page; there is no separate action
+  // key for it, so gate on the page level the same way the rest of the app does.
+  const leadsLevel = String((myPermsQ.data as any)?.pageAccess?.leads ?? "hidden");
+  const canCreateLead = pageLevelRank(leadsLevel) >= pageLevelRank("edit");
+
+  const [addLeadOpen, setAddLeadOpen] = useState(false);
+  const emptyNewLead = { full_name: "", phone: "", email: "", company_name: "", notes: "" };
+  const [newLead, setNewLead] = useState(emptyNewLead);
+  const upsertLeadFn = useServerFn(upsertLead);
   const [firingScheduled, setFiringScheduled] = useState(false);
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
@@ -499,7 +613,8 @@ function LeadsPage() {
         name: lead.full_name ?? "Contact",
         phone,
         loading: false,
-        calls: ((res as { calls?: WbahContactCallHistoryItem[] })?.calls ?? []) as WbahContactCallHistoryItem[],
+        calls: ((res as { calls?: WbahContactCallHistoryItem[] })?.calls ??
+          []) as WbahContactCallHistoryItem[],
       });
     } catch {
       setCallHistory({ name: lead.full_name ?? "Contact", phone, loading: false, calls: [] });
@@ -571,19 +686,35 @@ function LeadsPage() {
   });
 
   const statsQ = useQuery({
-    queryKey:             ["campaign-stats"],
-    queryFn:              () => getCampaignStatsFn({ data: {} }),
-    staleTime:            5 * 60_000,
+    queryKey: ["campaign-stats"],
+    queryFn: () => getCampaignStatsFn({ data: {} }),
+    staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
-    throwOnError:         false,
+    throwOnError: false,
+  });
+
+  // Declared after leadsQ/statsQ because onSuccess refetches both.
+  const createLead = useMutation({
+    mutationFn: () =>
+      // Status is deliberately unset so the table default applies rather than
+      // this dialog inventing one.
+      upsertLeadFn({ data: buildManualLeadPayload(newLead) }),
+    onSuccess: () => {
+      toast.success("Lead added");
+      setNewLead(emptyNewLead);
+      setAddLeadOpen(false);
+      leadsQ.refetch();
+      statsQ.refetch();
+    },
+    onError: (e: Error) => toast.error("Could not add lead", { description: e.message }),
   });
 
   const agentsQ = useQuery({
-    queryKey:             ["dashboard-live-agents"],
-    queryFn:              () => getAgentsFn(),
-    staleTime:            5 * 60_000,
+    queryKey: ["dashboard-live-agents"],
+    queryFn: () => getAgentsFn(),
+    staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
-    throwOnError:         false,
+    throwOnError: false,
   });
 
   const leads = (leadsQ.data ?? []) as any[];
@@ -626,38 +757,51 @@ function LeadsPage() {
             if (active && ws?.slug === "webuyanyhouse") setIsWbah(true);
           }
         }
-      } catch {}
-      finally { if (active) setWsResolved(true); }
+      } catch {
+      } finally {
+        if (active) setWsResolved(true);
+      }
     })();
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const isRetell = useMemo(() =>
-    !isWbah && leads.some((l: any) => l.retell_call != null),
+  const isRetell = useMemo(
+    () => !isWbah && leads.some((l: any) => l.retell_call != null),
     [leads, isWbah],
   );
 
   const filtered = leads.filter((l: any) => {
     if (search.trim()) {
       const q = search.toLowerCase();
-      if (!(
-        (l.full_name ?? "").toLowerCase().includes(q) ||
-        (l.phone ?? "").includes(q) ||
-        (l.email ?? "").toLowerCase().includes(q) ||
-        (l.company_name ?? "").toLowerCase().includes(q)
-      )) return false;
+      if (
+        !(
+          (l.full_name ?? "").toLowerCase().includes(q) ||
+          (l.phone ?? "").includes(q) ||
+          (l.email ?? "").toLowerCase().includes(q) ||
+          (l.company_name ?? "").toLowerCase().includes(q)
+        )
+      )
+        return false;
     }
     if (statusFilter && l.status !== statusFilter) return false;
     if (!leadMatchesStatusCategory(l.status, leadStatusCat)) return false;
     if (sentimentFilter && normalizeSentiment(l.sentiment) !== sentimentFilter) return false;
     if (callStatusFilter) {
-      const cs = isRetell
-        ? l.retell_call?.call_status
-        : (isWbah ? l.meta?.call_status : null);
+      const cs = isRetell ? l.retell_call?.call_status : isWbah ? l.meta?.call_status : null;
       if (cs !== callStatusFilter) return false;
     }
     if (wbahAgentFilter !== "all" && (l.meta?.agent_name ?? "") !== wbahAgentFilter) return false;
-    if (!isWbah && selectedAgent && !rowMatchesAgent(selectedAgent, { agentId: l.agent_id ?? l.meta?.agent_id, agentName: l.meta?.agent_name })) return false;
+    if (
+      !isWbah &&
+      selectedAgent &&
+      !rowMatchesAgent(selectedAgent, {
+        agentId: l.agent_id ?? l.meta?.agent_id,
+        agentName: l.meta?.agent_name,
+      })
+    )
+      return false;
     // Call duration greater than N minutes.
     if (leadsDuration) {
       const minDur = parseInt(leadsDuration, 10);
@@ -671,7 +815,9 @@ function LeadsPage() {
     }
     if (leadsOutcome === "unsuccessful") {
       const cs = leadCallStatus(l);
-      const bad = ["failed", "no_answer", "busy", "not_connected"].includes(cs) || normalizeSentiment(l.sentiment) === "negative";
+      const bad =
+        ["failed", "no_answer", "busy", "not_connected"].includes(cs) ||
+        normalizeSentiment(l.sentiment) === "negative";
       if (!bad) return false;
     }
     // Date range (applies to all leads; "custom" = Between).
@@ -691,15 +837,33 @@ function LeadsPage() {
       const ns = normalizeSentiment(l.sentiment);
       const st = l.status;
       switch (quickFilter) {
-        case "before_call":  if (st !== "need_to_call") return false; break;
-        case "after_call":   if (st === "need_to_call") return false; break;
-        case "positive":     if (ns !== "positive") return false; break;
-        case "neutral":      if (ns !== "neutral") return false; break;
-        case "partial_qualified": if (!l.meta?.partial_qualified) return false; break;
-        case "disqualified": if (st !== "not_interested") return false; break;
-        case "callback":     if (!(l.callback_date || st === "callback_requested")) return false; break;
-        case "not_called":   if (st !== "not_connected") return false; break;
-        case "buzzchat_replied": if (!l.has_buzzchat_reply) return false; break;
+        case "before_call":
+          if (st !== "need_to_call") return false;
+          break;
+        case "after_call":
+          if (st === "need_to_call") return false;
+          break;
+        case "positive":
+          if (ns !== "positive") return false;
+          break;
+        case "neutral":
+          if (ns !== "neutral") return false;
+          break;
+        case "partial_qualified":
+          if (!l.meta?.partial_qualified) return false;
+          break;
+        case "disqualified":
+          if (st !== "not_interested") return false;
+          break;
+        case "callback":
+          if (!(l.callback_date || st === "callback_requested")) return false;
+          break;
+        case "not_called":
+          if (st !== "not_connected") return false;
+          break;
+        case "buzzchat_replied":
+          if (!l.has_buzzchat_reply) return false;
+          break;
       }
     }
     return true;
@@ -728,11 +892,29 @@ function LeadsPage() {
     const neu = leads.filter((l: any) => normalizeSentiment(l.sentiment) === "neutral").length;
     const neg = leads.filter((l: any) => normalizeSentiment(l.sentiment) === "negative").length;
     const unk = leads.filter((l: any) => normalizeSentiment(l.sentiment) === "unknown").length;
-    console.log("[WBAH Leads] total=%d positive=%d neutral=%d negative=%d unknown=%d",
-      leads.length, pos, neu, neg, unk);
+    console.log(
+      "[WBAH Leads] total=%d positive=%d neutral=%d negative=%d unknown=%d",
+      leads.length,
+      pos,
+      neu,
+      neg,
+      unk,
+    );
   }, [isWbah, leads]);
 
-  const hasLeadFilters = search.trim() || statusFilter || leadStatusCat !== "all" || sentimentFilter || callStatusFilter || quickFilter || leadsDuration || leadsOutcome || wbahDaysFilter === "custom" || wbahAgentFilter !== "all" || agentFilter !== "all" || originFilter;
+  const hasLeadFilters =
+    search.trim() ||
+    statusFilter ||
+    leadStatusCat !== "all" ||
+    sentimentFilter ||
+    callStatusFilter ||
+    quickFilter ||
+    leadsDuration ||
+    leadsOutcome ||
+    wbahDaysFilter === "custom" ||
+    wbahAgentFilter !== "all" ||
+    agentFilter !== "all" ||
+    originFilter;
 
   const positive = leads.filter((l: any) => normalizeSentiment(l.sentiment) === "positive").length;
   const withScore = leads.filter((l: any) => l.lead_score != null);
@@ -759,7 +941,7 @@ function LeadsPage() {
     }
   }
 
-  async function handleSetStatus(id: string, status: typeof STATUS_OPTIONS[number]["value"]) {
+  async function handleSetStatus(id: string, status: (typeof STATUS_OPTIONS)[number]["value"]) {
     try {
       await setStatusFn({ data: { id, status } });
       qc.invalidateQueries({ queryKey: ["leads-all"] });
@@ -774,7 +956,13 @@ function LeadsPage() {
     }
   }
 
-  async function handleStartQualification({ agentId, fromNumber }: { agentId: string; fromNumber: string | null }) {
+  async function handleStartQualification({
+    agentId,
+    fromNumber,
+  }: {
+    agentId: string;
+    fromNumber: string | null;
+  }) {
     try {
       const result = await startQualFn({
         data: {
@@ -783,13 +971,13 @@ function LeadsPage() {
           fromNumber,
         },
       });
-      const limitMsg = (result as any).limitReached > 0
-        ? ` · ${(result as any).limitReached} at daily limit`
-        : "";
+      const limitMsg =
+        (result as any).limitReached > 0 ? ` · ${(result as any).limitReached} at daily limit` : "";
       const firstError = (result as any).errors?.[0]?.message as string | undefined;
-      const failMsg = result.failed > 0
-        ? `${result.failed} failed${firstError ? ` — ${firstError}` : ""}${limitMsg}`
-        : limitMsg || undefined;
+      const failMsg =
+        result.failed > 0
+          ? `${result.failed} failed${firstError ? ` — ${firstError}` : ""}${limitMsg}`
+          : limitMsg || undefined;
       if (result.placed === 0 && result.failed > 0) {
         toast.error("Qualification calls failed", { description: failMsg });
       } else {
@@ -809,7 +997,11 @@ function LeadsPage() {
     agentId,
     fromNumber,
     scheduledAtIso,
-  }: { agentId: string; fromNumber: string | null; scheduledAtIso: string }) {
+  }: {
+    agentId: string;
+    fromNumber: string | null;
+    scheduledAtIso: string;
+  }) {
     try {
       const result = await scheduleCallsFn({
         data: {
@@ -915,27 +1107,53 @@ function LeadsPage() {
             </Button>
           )}
           {tab === "leads" && !isWbah && selectedIds.size > 0 && (
-            <Button size="sm" variant="outline" className="border-blue-500/30 text-blue-400 hover:text-blue-300" onClick={openQualDialog}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-blue-500/30 text-blue-400 hover:text-blue-300"
+              onClick={openQualDialog}
+            >
               <ShieldCheck className="mr-1 h-4 w-4" />
               Qualify {selectedIds.size} Lead{selectedIds.size !== 1 ? "s" : ""}
             </Button>
           )}
           {tab === "leads" && !isWbah && selectedIds.size > 0 && canAssign && (
-            <Button size="sm" variant="outline" className="border-emerald-500/30 text-emerald-400 hover:text-emerald-300" onClick={() => setAssignDialogOpen(true)}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-emerald-500/30 text-emerald-400 hover:text-emerald-300"
+              onClick={() => setAssignDialogOpen(true)}
+            >
               <UserPlus className="mr-1 h-4 w-4" />
               Assign {selectedIds.size}
             </Button>
           )}
           {tab === "leads" && !isWbah && selectedIds.size > 0 && (
-            <Button size="sm" variant="outline" className="border-red-500/30 text-red-400 hover:text-red-300" onClick={openRemoveDialog}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-red-500/30 text-red-400 hover:text-red-300"
+              onClick={openRemoveDialog}
+            >
               <Trash2 className="mr-1 h-4 w-4" />
               Remove {selectedIds.size} Lead{selectedIds.size !== 1 ? "s" : ""}
             </Button>
           )}
-          <Button variant="outline" size="sm" className="h-7 px-2.5 text-xs" onClick={() => {
-            leadsQ.refetch();
-            statsQ.refetch();
-          }}>
+          {tab === "leads" && !isWbah && canCreateLead && (
+            <Button size="sm" className="h-7 px-2.5 text-xs" onClick={() => setAddLeadOpen(true)}>
+              <Plus className="mr-1 h-3.5 w-3.5" />
+              Add Lead
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 px-2.5 text-xs"
+            onClick={() => {
+              leadsQ.refetch();
+              statsQ.refetch();
+            }}
+          >
             <RefreshCw className="mr-1 h-3.5 w-3.5" />
             Refresh
           </Button>
@@ -944,7 +1162,13 @@ function LeadsPage() {
 
       {/* KPI strip */}
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-        <KpiCard label="Total Leads" value={leads.length} icon={Users} iconBg="bg-blue-500/15" iconColor="text-blue-400" />
+        <KpiCard
+          label="Total Leads"
+          value={leads.length}
+          icon={Users}
+          iconBg="bg-blue-500/15"
+          iconColor="text-blue-400"
+        />
         <KpiCard
           label="Positive Sentiment"
           value={positive}
@@ -960,14 +1184,24 @@ function LeadsPage() {
           iconBg="bg-violet-500/15"
           iconColor="text-violet-400"
         />
-        <KpiCard label="Meetings Req." value={meetingsReq} icon={CalendarCheck} iconBg="bg-amber-500/15" iconColor="text-amber-400" />
+        <KpiCard
+          label="Meetings Req."
+          value={meetingsReq}
+          icon={CalendarCheck}
+          iconBg="bg-amber-500/15"
+          iconColor="text-amber-400"
+        />
       </div>
 
       {/* Campaign stats mini strip */}
       {stats && (
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
           <MiniKpiCard label="Calls Made" value={stats.called} hint={`of ${stats.total} records`} />
-          <MiniKpiCard label="Contacts Reached" value={stats.reached} hint={`${stats.conversionRate}% connect rate`} />
+          <MiniKpiCard
+            label="Contacts Reached"
+            value={stats.reached}
+            hint={`${stats.conversionRate}% connect rate`}
+          />
           <MiniKpiCard label="Positive Sentiment" value={`${stats.positivePct}%`} />
           <MiniKpiCard label="Meetings Booked" value={stats.meetingsBooked} />
         </div>
@@ -1010,7 +1244,9 @@ function LeadsPage() {
                 </span>
               )}
               {selectedIds.size > 0 && (
-                <span className="ml-2 normal-case text-xs font-normal text-blue-400 tracking-normal">{selectedIds.size} selected</span>
+                <span className="ml-2 normal-case text-xs font-normal text-blue-400 tracking-normal">
+                  {selectedIds.size} selected
+                </span>
               )}
             </p>
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
@@ -1049,7 +1285,9 @@ function LeadsPage() {
               >
                 <option value="">All Statuses</option>
                 {STATUS_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
                 ))}
               </select>
               <select
@@ -1069,7 +1307,9 @@ function LeadsPage() {
                 title="Lead source / origin"
               >
                 {ORIGIN_FILTER_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
                 ))}
               </select>
               {(isRetell || isWbah) && (
@@ -1152,7 +1392,9 @@ function LeadsPage() {
                 >
                   <option value="all">All agents</option>
                   {wbahAgentOptions.map((a) => (
-                    <option key={a} value={a}>{a}</option>
+                    <option key={a} value={a}>
+                      {a}
+                    </option>
                   ))}
                 </select>
               )}
@@ -1165,7 +1407,9 @@ function LeadsPage() {
                 >
                   <option value="all">All agents</option>
                   {workspaceAgents.map((a) => (
-                    <option key={a.id} value={a.id}>{a.name} · {agentTypeLabel(a.agentType)}</option>
+                    <option key={a.id} value={a.id}>
+                      {a.name} · {agentTypeLabel(a.agentType)}
+                    </option>
                   ))}
                 </select>
               )}
@@ -1174,7 +1418,18 @@ function LeadsPage() {
                   size="sm"
                   variant="ghost"
                   className="h-7 text-xs text-muted-foreground hover:text-foreground"
-                  onClick={() => { setSearch(""); setStatusFilter(""); setLeadStatusCat("all"); setSentimentFilter(""); setCallStatusFilter(""); setQuickFilter(""); setLeadsDuration(""); setLeadsOutcome(""); setWbahAgentFilter("all"); setAgentFilter("all"); }}
+                  onClick={() => {
+                    setSearch("");
+                    setStatusFilter("");
+                    setLeadStatusCat("all");
+                    setSentimentFilter("");
+                    setCallStatusFilter("");
+                    setQuickFilter("");
+                    setLeadsDuration("");
+                    setLeadsOutcome("");
+                    setWbahAgentFilter("all");
+                    setAgentFilter("all");
+                  }}
                 >
                   Clear filters
                 </Button>
@@ -1182,39 +1437,44 @@ function LeadsPage() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-1.5 border-b border-white/[0.06] px-2.5 py-1.5 sm:px-3">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mr-1">Quick filter</span>
-              {[
-                { value: "positive", label: "Positive" },
-                { value: "neutral",  label: "Neutral" },
-                ...(isWbah ? [{ value: "partial_qualified", label: "Partial Qualified" }] : []),
-                ...(!isWbah ? [{ value: "buzzchat_replied", label: "BuzzChat Replied" }] : []),
-              ].map((c) => {
-                const active = quickFilter === c.value;
-                return (
-                  <button
-                    key={c.value}
-                    onClick={() => setQuickFilter(active ? "" : c.value)}
-                    className={`rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 transition-colors ${
-                      active
-                        ? "bg-primary/15 text-primary ring-primary/30"
-                        : "bg-card/80 text-muted-foreground ring-white/[0.08] hover:text-foreground hover:ring-white/20"
-                    }`}
-                  >
-                    {c.label}
-                  </button>
-                );
-              })}
-              <span className="ml-auto text-[11px] text-muted-foreground">{filtered.length} shown</span>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mr-1">
+              Quick filter
+            </span>
+            {[
+              { value: "positive", label: "Positive" },
+              { value: "neutral", label: "Neutral" },
+              ...(isWbah ? [{ value: "partial_qualified", label: "Partial Qualified" }] : []),
+              ...(!isWbah ? [{ value: "buzzchat_replied", label: "BuzzChat Replied" }] : []),
+            ].map((c) => {
+              const active = quickFilter === c.value;
+              return (
+                <button
+                  key={c.value}
+                  onClick={() => setQuickFilter(active ? "" : c.value)}
+                  className={`rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 transition-colors ${
+                    active
+                      ? "bg-primary/15 text-primary ring-primary/30"
+                      : "bg-card/80 text-muted-foreground ring-white/[0.08] hover:text-foreground hover:ring-white/20"
+                  }`}
+                >
+                  {c.label}
+                </button>
+              );
+            })}
+            <span className="ml-auto text-[11px] text-muted-foreground">
+              {filtered.length} shown
+            </span>
           </div>
           <div className="p-0">
-            {(leadsQ.isLoading || !wsResolved) ? (
+            {leadsQ.isLoading || !wsResolved ? (
               <LoadingProgress label="Loading leads" estimatedMs={8000} />
             ) : filtered.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-10 text-center">
                 <Users className="h-8 w-8 text-muted-foreground" />
                 <p className="text-sm font-medium">No leads yet</p>
                 <p className="text-sm text-muted-foreground max-w-xs">
-                  Once a Lead Generation agent completes a call, lead intelligence will appear here automatically.
+                  Once a Lead Generation agent completes a call, lead intelligence will appear here
+                  automatically.
                 </p>
               </div>
             ) : (
@@ -1228,35 +1488,94 @@ function LeadsPage() {
                           onCheckedChange={toggleSelectAll}
                         />
                       </th>
-                      <th className={cn("px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground", isWbah && cn(stickyHead, "left-8 w-44"))}>Name</th>
-                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Phone</th>
-                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Status</th>
-                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Sentiment</th>
-                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Score</th>
-                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Interest</th>
-                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Summary</th>
-                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Next Action</th>
-                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Last Contact</th>
-                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Last Called At</th>
-                      {isRetell && <>
-                        <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Call Status</th>
-                        <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Duration</th>
-                        <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Recording</th>
-                        <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Transcript</th>
-                        <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">End Reason</th>
-                      </>}
-                      {isWbah && <>
-                        <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Call Status</th>
-                        <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Duration</th>
-                        <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Recording</th>
-                        <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Transcript</th>
-                        <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Appt Date</th>
-                        <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Appt Time</th>
-                        <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Booking</th>
-                        <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Calendly</th>
-                        <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">End Reason</th>
-                        <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Disconnection</th>
-                      </>}
+                      <th
+                        className={cn(
+                          "px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground",
+                          isWbah && cn(stickyHead, "left-8 w-44"),
+                        )}
+                      >
+                        Name
+                      </th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                        Phone
+                      </th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                        Status
+                      </th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                        Sentiment
+                      </th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                        Score
+                      </th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                        Interest
+                      </th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                        Summary
+                      </th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                        Next Action
+                      </th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">
+                        Last Contact
+                      </th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">
+                        Last Called At
+                      </th>
+                      {isRetell && (
+                        <>
+                          <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">
+                            Call Status
+                          </th>
+                          <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">
+                            Duration
+                          </th>
+                          <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                            Recording
+                          </th>
+                          <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                            Transcript
+                          </th>
+                          <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">
+                            End Reason
+                          </th>
+                        </>
+                      )}
+                      {isWbah && (
+                        <>
+                          <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">
+                            Call Status
+                          </th>
+                          <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">
+                            Duration
+                          </th>
+                          <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                            Recording
+                          </th>
+                          <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                            Transcript
+                          </th>
+                          <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">
+                            Appt Date
+                          </th>
+                          <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">
+                            Appt Time
+                          </th>
+                          <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">
+                            Booking
+                          </th>
+                          <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">
+                            Calendly
+                          </th>
+                          <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">
+                            End Reason
+                          </th>
+                          <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">
+                            Disconnection
+                          </th>
+                        </>
+                      )}
                       <th className="px-2 py-1 w-8"></th>
                     </tr>
                   </thead>
@@ -1272,15 +1591,26 @@ function LeadsPage() {
                             onCheckedChange={() => toggleSelect(lead.id)}
                           />
                         </td>
-                        <td className={cn("px-2 py-0.5", isWbah && cn(stickyCell, "left-8 w-44 overflow-hidden"))}>
+                        <td
+                          className={cn(
+                            "px-2 py-0.5",
+                            isWbah && cn(stickyCell, "left-8 w-44 overflow-hidden"),
+                          )}
+                        >
                           <div className="min-w-0">
                             <div className="flex items-center gap-1 min-w-0">
-                              <span className="truncate text-[11px] font-medium min-w-0">{lead.full_name ?? "—"}</span>
+                              <span className="truncate text-[11px] font-medium min-w-0">
+                                {lead.full_name ?? "—"}
+                              </span>
                               <LeadSourceBadge lead={lead} />
                               <BookingFailedBadge lead={lead} />
                               {!isWbah && lead.has_buzzchat_reply && (
-                                <span title="BuzzChat reply received" className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-semibold bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/30 whitespace-nowrap">
-                                  <MessageCircle className="h-2.5 w-2.5" />BuzzChat
+                                <span
+                                  title="BuzzChat reply received"
+                                  className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-semibold bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/30 whitespace-nowrap"
+                                >
+                                  <MessageCircle className="h-2.5 w-2.5" />
+                                  BuzzChat
                                 </span>
                               )}
                               {isWbah && (
@@ -1290,12 +1620,17 @@ function LeadsPage() {
                                 />
                               )}
                               {isWbah && (
-                                <WbahBookedStickyBadge lead={lead} agentColorMap={wbahAgentColorMap} />
+                                <WbahBookedStickyBadge
+                                  lead={lead}
+                                  agentColorMap={wbahAgentColorMap}
+                                />
                               )}
                             </div>
                           </div>
                           {lead.company_name && (
-                            <div className="truncate text-[10px] text-muted-foreground font-normal">{lead.company_name}</div>
+                            <div className="truncate text-[10px] text-muted-foreground font-normal">
+                              {lead.company_name}
+                            </div>
                           )}
                         </td>
                         <td className="px-2 py-0.5 text-muted-foreground whitespace-nowrap text-[10px] font-mono">
@@ -1305,20 +1640,23 @@ function LeadsPage() {
                           </span>
                           {String(
                             lead?.preferred_contact ??
-                            lead?.preferred_contact_method ??
-                            lead?.meta?.preferred_contact ??
-                            lead?.meta?.preferred_contact_method ??
-                            "",
-                          ).toLowerCase().trim() === "email" && lead.email && (
-                            <button
-                              type="button"
-                              title={`Email ${lead.email}`}
-                              onClick={() => setEmailDialogLead(lead)}
-                              className="block truncate max-w-[140px] text-left text-orange-400 hover:underline"
-                            >
-                              {lead.email}
-                            </button>
-                          )}
+                              lead?.preferred_contact_method ??
+                              lead?.meta?.preferred_contact ??
+                              lead?.meta?.preferred_contact_method ??
+                              "",
+                          )
+                            .toLowerCase()
+                            .trim() === "email" &&
+                            lead.email && (
+                              <button
+                                type="button"
+                                title={`Email ${lead.email}`}
+                                onClick={() => setEmailDialogLead(lead)}
+                                className="block truncate max-w-[140px] text-left text-orange-400 hover:underline"
+                              >
+                                {lead.email}
+                              </button>
+                            )}
                         </td>
                         {/* Status picker */}
                         <td className="px-2 py-0.5">
@@ -1329,20 +1667,47 @@ function LeadsPage() {
                                 // Neutral + >5min call = "Partial Qualified" (distinct sky badge);
                                 // shorter neutral calls are just "Neutral".
                                 if (ns === "neutral") {
-                                  return lead.meta?.partial_qualified
-                                    ? <span className="rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 bg-sky-500/15 text-sky-400 ring-sky-500/20">Partial Qualified</span>
-                                    : <span className="rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 bg-amber-500/15 text-amber-400 ring-amber-500/20">Neutral</span>;
+                                  return lead.meta?.partial_qualified ? (
+                                    <span className="rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 bg-sky-500/15 text-sky-400 ring-sky-500/20">
+                                      Partial Qualified
+                                    </span>
+                                  ) : (
+                                    <span className="rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 bg-amber-500/15 text-amber-400 ring-amber-500/20">
+                                      Neutral
+                                    </span>
+                                  );
                                 }
                                 const cfg: Record<string, { label: string; cls: string }> = {
-                                  positive: { label: "Qualified",     cls: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/20" },
-                                  negative: { label: "Not Qualified", cls: "bg-red-500/15     text-red-400     ring-red-500/20"     },
-                                  unknown:  { label: "Unknown",       cls: "bg-muted text-muted-foreground ring-border"            },
+                                  positive: {
+                                    label: "Qualified",
+                                    cls: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/20",
+                                  },
+                                  negative: {
+                                    label: "Not Qualified",
+                                    cls: "bg-red-500/15     text-red-400     ring-red-500/20",
+                                  },
+                                  unknown: {
+                                    label: "Unknown",
+                                    cls: "bg-muted text-muted-foreground ring-border",
+                                  },
                                 };
                                 const { label, cls } = cfg[ns] ?? cfg.unknown;
-                                return <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ${cls}`}>{label}</span>;
+                                return (
+                                  <span
+                                    className={`rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ${cls}`}
+                                  >
+                                    {label}
+                                  </span>
+                                );
                               }
                               const sd = statusDisplay(lead.status);
-                              return <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ${sd.color}`}>{sd.label}</span>;
+                              return (
+                                <span
+                                  className={`rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ${sd.color}`}
+                                >
+                                  {sd.label}
+                                </span>
+                              );
                             })()}
                             {!isWbah && (
                               <div className="flex gap-1 mt-0.5">
@@ -1375,53 +1740,114 @@ function LeadsPage() {
                         </td>
                         <td className="px-2 py-0.5 text-muted-foreground whitespace-nowrap text-[11px]">
                           {fmtCallDate(
-                            isWbah ? lead.meta?.last_called_at
-                            : isRetell ? lead.retell_call?.started_at
-                            : lead.last_contacted_at,
                             isWbah
+                              ? lead.meta?.last_called_at
+                              : isRetell
+                                ? lead.retell_call?.started_at
+                                : lead.last_contacted_at,
+                            isWbah,
                           )}
                         </td>
-                        {isRetell && <>
-                          <td className="px-2 py-0.5">{callStatusBadge(lead.retell_call?.call_status)}</td>
-                          <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{fmtDuration((lead.retell_call?.duration_seconds ?? 0) * 1000)}</td>
-                          <td className="px-2 py-0.5">
-                            {lead.retell_call?.recording_url
-                              ? <PlayRecordingButton url={lead.retell_call.recording_url} contact={lead.name ?? lead.phone ?? "Lead"} className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-blue-400/80 hover:text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 transition-colors whitespace-nowrap" />
-                              : <span className="text-muted-foreground text-[11px]">—</span>}
-                          </td>
-                          <td className="px-2 py-0.5">
-                            {lead.retell_call?.transcript
-                              ? <button onClick={() => setWbahTranscript(lead.retell_call.transcript)} className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-violet-400/80 hover:text-violet-400 hover:bg-violet-500/10 border border-violet-500/20 transition-colors whitespace-nowrap"><span>Transcript</span></button>
-                              : <span className="text-muted-foreground text-[11px]">—</span>}
-                          </td>
-                          <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">
-                            {lead.retell_call?.disconnection_reason ? String(lead.retell_call.disconnection_reason).replace(/_/g, " ") : "—"}
-                          </td>
-                        </>}
-                        {isWbah && <>
-                          <td className="px-2 py-0.5">{callStatusBadge(lead.meta?.call_status)}</td>
-                          <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{fmtDuration(lead.meta?.duration_ms)}</td>
-                          <td className="px-2 py-0.5">
-                            {lead.meta?.recording_url
-                              ? <PlayRecordingButton url={lead.meta.recording_url} contact={lead.name ?? lead.phone ?? "Lead"} className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-blue-400/80 hover:text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 transition-colors whitespace-nowrap" />
-                              : <span className="text-muted-foreground text-[11px]">—</span>}
-                          </td>
-                          <td className="px-2 py-0.5">
-                            {isWbah
-                              ? (lead.meta?.has_transcript
-                                ? <button onClick={() => openWbahTranscriptFromLead(lead)} className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-violet-400/80 hover:text-violet-400 hover:bg-violet-500/10 border border-violet-500/20 transition-colors whitespace-nowrap"><span>Transcript</span></button>
-                                : <span className="text-muted-foreground text-[11px]">—</span>)
-                              : lead.call_summary
-                              ? <button onClick={() => setWbahTranscript(lead.call_summary)} className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-violet-400/80 hover:text-violet-400 hover:bg-violet-500/10 border border-violet-500/20 transition-colors whitespace-nowrap"><span>Transcript</span></button>
-                              : <span className="text-muted-foreground text-[11px]">—</span>}
-                          </td>
-                          <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{wbahAppointmentDate(lead) ?? "—"}</td>
-                          <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{wbahAppointmentTime(lead) ?? "—"}</td>
-                          <td className="px-2 py-0.5">{bookingStatusBadge(wbahBookingStatus(lead))}</td>
-                          <td className="px-2 py-0.5"><WbahCalendlyLink lead={lead} /></td>
-                          <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.end_reason ?? "—"}</td>
-                          <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.disconnection_reason ?? "—"}</td>
-                        </>}
+                        {isRetell && (
+                          <>
+                            <td className="px-2 py-0.5">
+                              {callStatusBadge(lead.retell_call?.call_status)}
+                            </td>
+                            <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">
+                              {fmtDuration((lead.retell_call?.duration_seconds ?? 0) * 1000)}
+                            </td>
+                            <td className="px-2 py-0.5">
+                              {lead.retell_call?.recording_url ? (
+                                <PlayRecordingButton
+                                  url={lead.retell_call.recording_url}
+                                  contact={lead.name ?? lead.phone ?? "Lead"}
+                                  className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-blue-400/80 hover:text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 transition-colors whitespace-nowrap"
+                                />
+                              ) : (
+                                <span className="text-muted-foreground text-[11px]">—</span>
+                              )}
+                            </td>
+                            <td className="px-2 py-0.5">
+                              {lead.retell_call?.transcript ? (
+                                <button
+                                  onClick={() => setWbahTranscript(lead.retell_call.transcript)}
+                                  className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-violet-400/80 hover:text-violet-400 hover:bg-violet-500/10 border border-violet-500/20 transition-colors whitespace-nowrap"
+                                >
+                                  <span>Transcript</span>
+                                </button>
+                              ) : (
+                                <span className="text-muted-foreground text-[11px]">—</span>
+                              )}
+                            </td>
+                            <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">
+                              {lead.retell_call?.disconnection_reason
+                                ? String(lead.retell_call.disconnection_reason).replace(/_/g, " ")
+                                : "—"}
+                            </td>
+                          </>
+                        )}
+                        {isWbah && (
+                          <>
+                            <td className="px-2 py-0.5">
+                              {callStatusBadge(lead.meta?.call_status)}
+                            </td>
+                            <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">
+                              {fmtDuration(lead.meta?.duration_ms)}
+                            </td>
+                            <td className="px-2 py-0.5">
+                              {lead.meta?.recording_url ? (
+                                <PlayRecordingButton
+                                  url={lead.meta.recording_url}
+                                  contact={lead.name ?? lead.phone ?? "Lead"}
+                                  className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-blue-400/80 hover:text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 transition-colors whitespace-nowrap"
+                                />
+                              ) : (
+                                <span className="text-muted-foreground text-[11px]">—</span>
+                              )}
+                            </td>
+                            <td className="px-2 py-0.5">
+                              {isWbah ? (
+                                lead.meta?.has_transcript ? (
+                                  <button
+                                    onClick={() => openWbahTranscriptFromLead(lead)}
+                                    className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-violet-400/80 hover:text-violet-400 hover:bg-violet-500/10 border border-violet-500/20 transition-colors whitespace-nowrap"
+                                  >
+                                    <span>Transcript</span>
+                                  </button>
+                                ) : (
+                                  <span className="text-muted-foreground text-[11px]">—</span>
+                                )
+                              ) : lead.call_summary ? (
+                                <button
+                                  onClick={() => setWbahTranscript(lead.call_summary)}
+                                  className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-violet-400/80 hover:text-violet-400 hover:bg-violet-500/10 border border-violet-500/20 transition-colors whitespace-nowrap"
+                                >
+                                  <span>Transcript</span>
+                                </button>
+                              ) : (
+                                <span className="text-muted-foreground text-[11px]">—</span>
+                              )}
+                            </td>
+                            <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">
+                              {wbahAppointmentDate(lead) ?? "—"}
+                            </td>
+                            <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">
+                              {wbahAppointmentTime(lead) ?? "—"}
+                            </td>
+                            <td className="px-2 py-0.5">
+                              {bookingStatusBadge(wbahBookingStatus(lead))}
+                            </td>
+                            <td className="px-2 py-0.5">
+                              <WbahCalendlyLink lead={lead} />
+                            </td>
+                            <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">
+                              {lead.meta?.end_reason ?? "—"}
+                            </td>
+                            <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">
+                              {lead.meta?.disconnection_reason ?? "—"}
+                            </td>
+                          </>
+                        )}
                         <td className="px-2 py-0.5">
                           {isWbah ? (
                             <WbahNotesButton
@@ -1430,14 +1856,14 @@ function LeadsPage() {
                               onClick={() => openLeadPanel(lead)}
                             />
                           ) : (
-                          <button
-                            onClick={() => openLeadPanel(lead)}
-                            title="Notes & appointment"
-                            className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-amber-400/80 hover:text-amber-400 hover:bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/40 transition-colors"
-                          >
-                            <StickyNote className="h-3 w-3" />
-                            <span>Notes</span>
-                          </button>
+                            <button
+                              onClick={() => openLeadPanel(lead)}
+                              title="Notes & appointment"
+                              className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-amber-400/80 hover:text-amber-400 hover:bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/40 transition-colors"
+                            >
+                              <StickyNote className="h-3 w-3" />
+                              <span>Notes</span>
+                            </button>
                           )}
                         </td>
                       </tr>
@@ -1495,14 +1921,21 @@ function LeadsPage() {
       <Dialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Remove {selectedIds.size} lead{selectedIds.size !== 1 ? "s" : ""}?</DialogTitle>
+            <DialogTitle>
+              Remove {selectedIds.size} lead{selectedIds.size !== 1 ? "s" : ""}?
+            </DialogTitle>
             <DialogDescription>
-              This permanently deletes the selected lead{selectedIds.size !== 1 ? "s" : ""} and cannot be undone. Their
-              call history is not affected.
+              This permanently deletes the selected lead{selectedIds.size !== 1 ? "s" : ""} and
+              cannot be undone. Their call history is not affected.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setRemoveDialogOpen(false)} disabled={isRemoving}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setRemoveDialogOpen(false)}
+              disabled={isRemoving}
+            >
               Cancel
             </Button>
             <Button
@@ -1511,7 +1944,11 @@ function LeadsPage() {
               onClick={handleRemoveLeads}
               disabled={isRemoving}
             >
-              {isRemoving ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Trash2 className="mr-1 h-4 w-4" />}
+              {isRemoving ? (
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="mr-1 h-4 w-4" />
+              )}
               Remove
             </Button>
           </DialogFooter>
@@ -1525,7 +1962,9 @@ function LeadsPage() {
             <DialogHeader>
               <DialogTitle>{callHistory.name} — Call History</DialogTitle>
               <DialogDescription>
-                {callHistory.phone} · {callHistory.calls.length} call{callHistory.calls.length !== 1 ? "s" : ""}. The main lead shows the definitive outcome (a positive call wins); here are all attempts.
+                {callHistory.phone} · {callHistory.calls.length} call
+                {callHistory.calls.length !== 1 ? "s" : ""}. The main lead shows the definitive
+                outcome (a positive call wins); here are all attempts.
               </DialogDescription>
             </DialogHeader>
             {callHistory.loading ? (
@@ -1553,7 +1992,9 @@ function LeadsPage() {
               <DialogTitle>Call Transcript</DialogTitle>
               <DialogDescription>Full transcript of the call recording.</DialogDescription>
             </DialogHeader>
-            <pre className="whitespace-pre-wrap text-xs text-muted-foreground font-sans leading-relaxed">{wbahTranscript}</pre>
+            <pre className="whitespace-pre-wrap text-xs text-muted-foreground font-sans leading-relaxed">
+              {wbahTranscript}
+            </pre>
           </DialogContent>
         </Dialog>
       )}
@@ -1590,6 +2031,120 @@ function LeadsPage() {
         />
       )}
 
+      {/* Manual lead entry. upsertLead already handles the insert, the new-lead
+          notification and the auto-call trigger, so this is only the form. */}
+      <Dialog
+        open={addLeadOpen}
+        onOpenChange={(o) => {
+          setAddLeadOpen(o);
+          if (!o) setNewLead(emptyNewLead);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add a lead</DialogTitle>
+            <DialogDescription>
+              Phone number is required — it is how calls and WhatsApp replies are matched back to
+              this lead.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label htmlFor="nl-phone" className="text-xs">
+                Phone <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="nl-phone"
+                type="tel"
+                value={newLead.phone}
+                onChange={(e) => setNewLead({ ...newLead, phone: e.target.value })}
+                placeholder="+44 7700 900000"
+                className="h-8 text-sm"
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="nl-name" className="text-xs">
+                Full name
+              </Label>
+              <Input
+                id="nl-name"
+                value={newLead.full_name}
+                onChange={(e) => setNewLead({ ...newLead, full_name: e.target.value })}
+                placeholder="Jane Smith"
+                className="h-8 text-sm"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label htmlFor="nl-email" className="text-xs">
+                  Email
+                </Label>
+                <Input
+                  id="nl-email"
+                  type="email"
+                  value={newLead.email}
+                  onChange={(e) => setNewLead({ ...newLead, email: e.target.value })}
+                  placeholder="jane@example.com"
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="nl-company" className="text-xs">
+                  Company
+                </Label>
+                <Input
+                  id="nl-company"
+                  value={newLead.company_name}
+                  onChange={(e) => setNewLead({ ...newLead, company_name: e.target.value })}
+                  placeholder="Acme Ltd"
+                  className="h-8 text-sm"
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="nl-notes" className="text-xs">
+                Notes
+              </Label>
+              <Input
+                id="nl-notes"
+                value={newLead.notes}
+                onChange={(e) => setNewLead({ ...newLead, notes: e.target.value })}
+                placeholder="Where this lead came from, what they asked for…"
+                className="h-8 text-sm"
+              />
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              Saved with source “Manual entry”. If auto-call is enabled for this workspace, adding a
+              lead can start a qualification call straight away.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAddLeadOpen(false)}
+              disabled={createLead.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => createLead.mutate()}
+              disabled={createLead.isPending || !isManualLeadSubmittable(newLead)}
+            >
+              {createLead.isPending ? (
+                <>
+                  <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                  Adding…
+                </>
+              ) : (
+                "Add lead"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardPage>
   );
 }

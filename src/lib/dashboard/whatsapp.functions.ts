@@ -6,6 +6,7 @@ import twilio from "twilio";
 import {
   buildWatiTemplateParams,
   findLeadByPhone,
+  resolveWatiTemplateParamsDetailed,
   formatWatiSendError,
   getWatiConnectionForWorkspace,
   normalizeWhatsAppPhone,
@@ -18,6 +19,7 @@ import {
 import type { CsvLeadRow } from "@/lib/whatsapp/csv-leads.shared";
 import { getContactFieldsMap, parseNotesToMeta } from "@/lib/whatsapp/csv-leads.shared";
 import { batchImportCsvLeads } from "@/lib/whatsapp/csv-import-batch.server";
+import { discoverLeadMetaFields } from "@/lib/whatsapp/lead-meta-fields.shared";
 import type { ContactDeleteCandidate } from "@/lib/whatsapp/contact-bulk-delete.shared";
 import {
   contactDeleteRefusal,
@@ -1438,6 +1440,146 @@ export const importWAContactsCsv = createServerFn({ method: "POST" })
   });
 
 // ── Templates ─────────────────────────────────────────────────────────────────
+
+/**
+ * The property/CSV fields that actually exist in THIS workspace's leads.
+ *
+ * The template field picker previously offered one hardcoded list of ~30 spellings taken from a
+ * different dataset ("meta.UnitNumber", "meta.Building", …). A workspace whose spreadsheet column
+ * imported as "UNIT NUMBER" had no matching option, so the closest-looking one was chosen and
+ * silently resolved to nothing — the send then substituted a generic sample and customers received
+ * "your villa at Customer". Offering the real keys, with how many leads actually have a value,
+ * removes the guesswork.
+ */
+export const listLeadMetaFieldOptions = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) =>
+    z.object({ uploadType: z.string().trim().max(60).nullable().optional() }).parse(input ?? {}),
+  )
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) return { fields: [], leadsSampled: 0 };
+    const sb = supabase as any;
+
+    const { data: rows, error } = await sb
+      .from("leads")
+      .select("meta, notes")
+      .eq("workspace_id", workspaceId)
+      .order("created_at", { ascending: false })
+      .limit(500);
+    if (error) throw new Error(error.message);
+
+    const want = (data.uploadType ?? "").trim();
+    const leads = (rows ?? []).filter((r: { meta?: Record<string, unknown> | null }) =>
+      want ? String((r.meta ?? {}).upload_type ?? "").trim() === want : true,
+    );
+
+    const fields = discoverLeadMetaFields(
+      (leads as Array<{ meta?: Record<string, unknown> | null; notes?: unknown }>).map((row) => ({
+        meta: row.meta ?? null,
+        extra:
+          typeof row.notes === "string" && row.notes.trim() ? parseNotesToMeta(row.notes) : null,
+      })),
+    );
+
+    return { fields, leadsSampled: leads.length };
+  });
+
+/**
+ * Renders the template exactly as it will send, for the first few leads of the chosen audience.
+ *
+ * Reports per-slot whether the mapped field actually held a value. A slot that resolves for none
+ * of the audience is the failure this exists to catch: the send still succeeds, because WATI
+ * rejects blank variables and a generic sample is substituted, so nothing else surfaces it.
+ */
+export const previewWatiTemplateSend = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) =>
+    z
+      .object({
+        templateName: z.string().min(1).max(200),
+        mapping: z.record(z.string(), z.string()).nullable().optional(),
+        leadIds: z.array(z.string().uuid()).max(500).optional(),
+        uploadType: z.string().trim().max(60).nullable().optional(),
+        limit: z.number().int().min(1).max(5).default(3),
+      })
+      .parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    const sb = supabase as any;
+
+    const { data: tpl } = await sb
+      .from("wati_templates")
+      .select("name, components, body_preview")
+      .eq("workspace_id", workspaceId)
+      .eq("name", data.templateName)
+      .maybeSingle();
+    if (!tpl) throw new Error(`Template "${data.templateName}" not found in this workspace.`);
+
+    const slots = extractWatiTemplateParamSlots(tpl);
+    const bodyText = watiTemplateBodyOriginalText(tpl) || (tpl.body_preview as string | null) || "";
+
+    // Same audience the campaign will use, so the preview is not a different set.
+    let q = sb
+      .from("leads")
+      .select("id, full_name, phone, email, company_name, notes, meta, source")
+      .eq("workspace_id", workspaceId);
+    if (data.leadIds?.length) q = q.in("id", data.leadIds);
+    const { data: leadRows, error } = await q
+      .order("created_at", { ascending: false })
+      .limit(Math.max(data.limit * 20, 100));
+    if (error) throw new Error(error.message);
+
+    const want = (data.uploadType ?? "").trim();
+    const scoped = (leadRows ?? []).filter((r: { meta?: Record<string, unknown> | null }) =>
+      want ? String((r.meta ?? {}).upload_type ?? "").trim() === want : true,
+    );
+
+    const samples = scoped.slice(0, data.limit).map((lead: Record<string, unknown>) => {
+      const params = resolveWatiTemplateParamsDetailed(lead, data.mapping ?? {}, slots);
+      return {
+        leadId: String(lead.id),
+        name: (lead.full_name as string | null) ?? null,
+        phone: (lead.phone as string | null) ?? null,
+        body: resolveWatiTemplateMessageBody(bodyText, data.templateName, params),
+        params: params.map((p) => ({
+          name: p.name,
+          value: p.value,
+          fieldKey: p.fieldKey,
+          resolved: p.resolved,
+        })),
+      };
+    });
+
+    // Coverage across a wider slice than the rendered examples, so "resolves for
+    // 2 of 100" is not hidden by the first three happening to be populated.
+    const checked = scoped.slice(0, 100);
+    const perSlot = slots.map((slot) => {
+      const fieldKey = (data.mapping ?? {})[slot] ?? "";
+      let resolvedCount = 0;
+      for (const lead of checked) {
+        const detail = resolveWatiTemplateParamsDetailed(lead, { [slot]: fieldKey }, [slot]);
+        if (detail[0]?.resolved) resolvedCount += 1;
+      }
+      return {
+        slot,
+        fieldKey,
+        mapped: Boolean(fieldKey),
+        resolvedCount,
+        checked: checked.length,
+      };
+    });
+
+    return {
+      templateName: data.templateName,
+      slots,
+      audienceCount: scoped.length,
+      samples,
+      perSlot,
+    };
+  });
 
 export const listWATemplates = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])

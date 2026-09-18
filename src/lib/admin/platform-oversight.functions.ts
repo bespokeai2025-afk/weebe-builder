@@ -16,7 +16,9 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { writeAccessAudit } from "@/lib/permissions/permissions.server";
 import {
   ACTION_FEATURE_MAP,
+  DEFAULT_PACKAGE_KEY,
   FEATURE_KEYS,
+  packageWorkspaceReach,
   FEATURE_LABELS,
   LEGACY_PACKAGE_KEY,
   PACKAGE_CATALOG,
@@ -69,10 +71,36 @@ export const adminGetPackageMatrix = createServerFn({ method: "GET" })
   .handler(async () => {
     invalidatePackageCatalogCache({ broadcast: false }); // read path: fresh locally, no cross-instance bump
     const catalog = await getEffectivePackageCatalog();
-    const { data: rows } = await sb.from("package_definitions").select("package_key, updated_at, updated_by");
+    const { data: rows } = await sb
+      .from("package_definitions")
+      .select("package_key, updated_at, updated_by");
     const meta = new Map<string, any>((rows ?? []).map((r: any) => [r.package_key, r]));
+
+    // How many workspaces each edit actually reaches.
+    //
+    // A workspace with no subscription row is not on "no package" — package
+    // resolution fails closed to DEFAULT_PACKAGE_KEY, so every unsubscribed
+    // workspace on the platform is silently governed by the trial row. Editing
+    // trial to unblock one account therefore changes what all of them get, and
+    // the matrix gave no hint of that.
+    const [{ count: workspaceTotal }, { data: subRows }] = await Promise.all([
+      sb.from("workspaces").select("id", { count: "exact", head: true }),
+      sb.from("workspace_subscriptions").select("package_key"),
+    ]);
+    const subscribed = new Map<string, number>();
+    for (const r of (subRows ?? []) as Array<{ package_key: string | null }>) {
+      const key = r.package_key ?? "";
+      if (key) subscribed.set(key, (subscribed.get(key) ?? 0) + 1);
+    }
+    const unsubscribedCount = Math.max(0, (workspaceTotal ?? 0) - (subRows ?? []).length);
+
     return {
+      workspaceTotal: workspaceTotal ?? 0,
+      unsubscribedCount,
+      defaultPackageKey: DEFAULT_PACKAGE_KEY,
       featureKeys: FEATURE_KEYS,
+      /** Which feature backs each action, so the editor can flag contradictions. */
+      actionFeatureMap: ACTION_FEATURE_MAP,
       featureLabels: FEATURE_LABELS,
       pageKeys: PAGE_KEYS,
       pageLabels: PAGE_LABELS,
@@ -86,7 +114,8 @@ export const adminGetPackageMatrix = createServerFn({ method: "GET" })
         effectivePageCaps: Object.fromEntries(
           PAGE_KEYS.map((k) => [
             k,
-            p.pageAccessCaps?.[k] ?? (p.features.includes(PAGE_FEATURE_MAP[k]) ? "manage" : "hidden"),
+            p.pageAccessCaps?.[k] ??
+              (p.features.includes(PAGE_FEATURE_MAP[k]) ? "manage" : "hidden"),
           ]),
         ),
         effectiveActionCaps: Object.fromEntries(
@@ -97,6 +126,14 @@ export const adminGetPackageMatrix = createServerFn({ method: "GET" })
         ),
         codeDefault: PACKAGE_CATALOG.some((c) => c.packageKey === p.packageKey),
         updatedAt: meta.get(p.packageKey)?.updated_at ?? null,
+        /** Workspaces explicitly subscribed to this package. */
+        subscribedCount: subscribed.get(p.packageKey) ?? 0,
+        /** Total governed by it, including the fail-closed fallback. */
+        ...packageWorkspaceReach({
+          packageKey: p.packageKey,
+          subscribedCount: subscribed.get(p.packageKey) ?? 0,
+          unsubscribedCount,
+        }),
       })),
     };
   });
@@ -115,7 +152,10 @@ export const adminUpsertPackageDefinition = createServerFn({ method: "POST" })
       actionCaps?: Record<string, boolean>;
       aiDepartments?: string[];
       notificationCaps?: { emailAllowed: boolean; customRecipientsAllowed: boolean } | null;
-      notificationDefaults?: Record<string, { enabled?: boolean; emailEnabled?: boolean; inAppEnabled?: boolean; frequency?: string }> | null;
+      notificationDefaults?: Record<
+        string,
+        { enabled?: boolean; emailEnabled?: boolean; inAppEnabled?: boolean; frequency?: string }
+      > | null;
       isActive?: boolean;
     }) => d,
   )
@@ -131,7 +171,8 @@ export const adminUpsertPackageDefinition = createServerFn({ method: "POST" })
     const FREQS = ["immediate", "hourly", "daily", "weekly"];
     let cleanDefaults: Record<string, any> | null | undefined = data.notificationDefaults;
     if (cleanDefaults) {
-      const { NOTIFICATION_EVENT_KEYS } = await import("@/lib/notifications/notification-engine.shared");
+      const { NOTIFICATION_EVENT_KEYS } =
+        await import("@/lib/notifications/notification-engine.shared");
       const out: Record<string, any> = {};
       for (const [k, v] of Object.entries(cleanDefaults)) {
         if (!(NOTIFICATION_EVENT_KEYS as readonly string[]).includes(k)) continue;
@@ -148,7 +189,8 @@ export const adminUpsertPackageDefinition = createServerFn({ method: "POST" })
 
     const features: Record<string, boolean> = {};
     for (const [k, v] of Object.entries(data.features ?? {})) {
-      if ((FEATURE_KEYS as readonly string[]).includes(k) && typeof v === "boolean") features[k] = v;
+      if ((FEATURE_KEYS as readonly string[]).includes(k) && typeof v === "boolean")
+        features[k] = v;
     }
     const aiDepts = (data.aiDepartments ?? []).filter((d) =>
       ["growthmind", "hivemind", "systemmind", "accountsmind"].includes(d),
@@ -166,28 +208,48 @@ export const adminUpsertPackageDefinition = createServerFn({ method: "POST" })
     const actionCaps: Record<string, boolean> = {};
     if (data.actionCaps) {
       for (const [k, v] of Object.entries(data.actionCaps)) {
-        if ((ACTION_KEYS as readonly string[]).includes(k) && typeof v === "boolean") actionCaps[k] = v;
+        if ((ACTION_KEYS as readonly string[]).includes(k) && typeof v === "boolean")
+          actionCaps[k] = v;
       }
     }
     const lim = data.limits ?? {};
 
     const { data: before } = await sb
-      .from("package_definitions").select("*").eq("package_key", packageKey).maybeSingle();
+      .from("package_definitions")
+      .select("*")
+      .eq("package_key", packageKey)
+      .maybeSingle();
 
     const row: Record<string, unknown> = {
       package_key: packageKey,
       package_name: data.packageName?.trim() || before?.package_name || packageKey,
       description: data.description ?? before?.description ?? null,
-      monthly_price: data.monthlyPricePence === undefined ? (before?.monthly_price ?? null) : data.monthlyPricePence,
-      included_voice_minutes: includedVal(lim.includedVoiceMinutes, before?.included_voice_minutes ?? 0),
+      monthly_price:
+        data.monthlyPricePence === undefined
+          ? (before?.monthly_price ?? null)
+          : data.monthlyPricePence,
+      included_voice_minutes: includedVal(
+        lim.includedVoiceMinutes,
+        before?.included_voice_minutes ?? 0,
+      ),
       included_staff_users: includedVal(lim.includedStaffUsers, before?.included_staff_users ?? 1),
       max_agents: "maxAgents" in lim ? limitVal(lim.maxAgents) : (before?.max_agents ?? null),
-      max_workflows: "maxWorkflows" in lim ? limitVal(lim.maxWorkflows) : (before?.max_workflows ?? null),
-      max_campaigns: "maxCampaigns" in lim ? limitVal(lim.maxCampaigns) : (before?.max_campaigns ?? null),
-      max_custom_views: "maxCustomViews" in lim ? limitVal(lim.maxCustomViews) : (before?.max_custom_views ?? null),
-      max_page_filters: "maxPageFilters" in lim ? limitVal(lim.maxPageFilters) : (before?.max_page_filters ?? null),
-      max_campaign_filters: "maxCampaignFilters" in lim ? limitVal(lim.maxCampaignFilters) : (before?.max_campaign_filters ?? null),
-      max_child_accounts: "maxChildAccounts" in lim ? limitVal(lim.maxChildAccounts) : (before?.max_child_accounts ?? null),
+      max_workflows:
+        "maxWorkflows" in lim ? limitVal(lim.maxWorkflows) : (before?.max_workflows ?? null),
+      max_campaigns:
+        "maxCampaigns" in lim ? limitVal(lim.maxCampaigns) : (before?.max_campaigns ?? null),
+      max_custom_views:
+        "maxCustomViews" in lim ? limitVal(lim.maxCustomViews) : (before?.max_custom_views ?? null),
+      max_page_filters:
+        "maxPageFilters" in lim ? limitVal(lim.maxPageFilters) : (before?.max_page_filters ?? null),
+      max_campaign_filters:
+        "maxCampaignFilters" in lim
+          ? limitVal(lim.maxCampaignFilters)
+          : (before?.max_campaign_filters ?? null),
+      max_child_accounts:
+        "maxChildAccounts" in lim
+          ? limitVal(lim.maxChildAccounts)
+          : (before?.max_child_accounts ?? null),
       features_json: Object.keys(features).length > 0 ? features : (before?.features_json ?? {}),
       page_access_json: data.pageAccessCaps ? pageCaps : (before?.page_access_json ?? {}),
       action_access_json: data.actionCaps ? actionCaps : (before?.action_access_json ?? {}),
@@ -236,7 +298,10 @@ export const adminResetPackageDefinition = createServerFn({ method: "POST" })
   .validator((d: { packageKey: string }) => d)
   .handler(async ({ context, data }) => {
     const { data: before } = await sb
-      .from("package_definitions").select("*").eq("package_key", data.packageKey).maybeSingle();
+      .from("package_definitions")
+      .select("*")
+      .eq("package_key", data.packageKey)
+      .maybeSingle();
     if (!before) return { ok: true as const };
     const isCode = PACKAGE_CATALOG.some((c) => c.packageKey === data.packageKey);
     if (!isCode) {
@@ -246,10 +311,15 @@ export const adminResetPackageDefinition = createServerFn({ method: "POST" })
         .select("id", { count: "exact", head: true })
         .eq("package_key", data.packageKey);
       if ((count ?? 0) > 0) {
-        throw new Error(`Cannot remove "${data.packageKey}": ${count} workspace(s) are on this package.`);
+        throw new Error(
+          `Cannot remove "${data.packageKey}": ${count} workspace(s) are on this package.`,
+        );
       }
     }
-    const { error } = await sb.from("package_definitions").delete().eq("package_key", data.packageKey);
+    const { error } = await sb
+      .from("package_definitions")
+      .delete()
+      .eq("package_key", data.packageKey);
     if (error) throw new Error(error.message);
     invalidatePackageCatalogCache();
     invalidateEntitlementsCache();
@@ -273,11 +343,17 @@ export const adminListResellers = createServerFn({ method: "GET" })
     // Resellers = parents of reseller_client relationships ∪ workspaces with
     // the reseller feature (package or admin_override).
     const [{ data: rels }, { data: feats }, { data: subs }] = await Promise.all([
-      sb.from("workspace_relationships").select("parent_workspace_id, child_workspace_id, status")
+      sb
+        .from("workspace_relationships")
+        .select("parent_workspace_id, child_workspace_id, status")
         .eq("relationship_type", "reseller_client"),
-      sb.from("workspace_feature_entitlements").select("workspace_id, source, enabled")
+      sb
+        .from("workspace_feature_entitlements")
+        .select("workspace_id, source, enabled")
         .eq("feature_key", "reseller_client_accounts"),
-      sb.from("workspace_subscriptions").select("workspace_id, package_key, subscription_status, updated_at"),
+      sb
+        .from("workspace_subscriptions")
+        .select("workspace_id, package_key, subscription_status, updated_at"),
     ]);
     const subByWs = new Map<string, any>((subs ?? []).map((s: any) => [s.workspace_id, s]));
     const catalog = await getEffectivePackageCatalog();
@@ -294,15 +370,24 @@ export const adminListResellers = createServerFn({ method: "GET" })
     const ids = [...parentIds];
     if (ids.length === 0) return [];
 
-    const [{ data: wss }, { data: clients }, { data: wl }, { data: emailProviders }] = await Promise.all([
-      sb.from("workspaces").select("id, name, slug, owner_id, created_at").in("id", ids),
-      sb.from("reseller_client_accounts").select("parent_workspace_id, status").in("parent_workspace_id", ids),
-      sb.from("workspace_white_label_settings")
-        .select("workspace_id, brand_name, custom_domain, custom_domain_status, hide_webee_branding")
-        .in("workspace_id", ids),
-      sb.from("workspace_email_provider_settings")
-        .select("workspace_id, provider, is_active, sending_mode").in("workspace_id", ids),
-    ]);
+    const [{ data: wss }, { data: clients }, { data: wl }, { data: emailProviders }] =
+      await Promise.all([
+        sb.from("workspaces").select("id, name, slug, owner_id, created_at").in("id", ids),
+        sb
+          .from("reseller_client_accounts")
+          .select("parent_workspace_id, status")
+          .in("parent_workspace_id", ids),
+        sb
+          .from("workspace_white_label_settings")
+          .select(
+            "workspace_id, brand_name, custom_domain, custom_domain_status, hide_webee_branding",
+          )
+          .in("workspace_id", ids),
+        sb
+          .from("workspace_email_provider_settings")
+          .select("workspace_id, provider, is_active, sending_mode")
+          .in("workspace_id", ids),
+      ]);
     const clientsByParent = new Map<string, any[]>();
     for (const c of clients ?? []) {
       const arr = clientsByParent.get(c.parent_workspace_id) ?? [];
@@ -310,7 +395,9 @@ export const adminListResellers = createServerFn({ method: "GET" })
       clientsByParent.set(c.parent_workspace_id, arr);
     }
     const wlByWs = new Map<string, any>((wl ?? []).map((w: any) => [w.workspace_id, w]));
-    const epByWs = new Map<string, any>((emailProviders ?? []).map((e: any) => [e.workspace_id, e]));
+    const epByWs = new Map<string, any>(
+      (emailProviders ?? []).map((e: any) => [e.workspace_id, e]),
+    );
 
     const ownerIds = [...new Set((wss ?? []).map((w: any) => w.owner_id).filter(Boolean))];
     const { data: owners } = ownerIds.length
@@ -376,10 +463,21 @@ export const adminListChildWorkspaces = createServerFn({ method: "GET" })
     ];
     const childIds = rows.map((c: any) => c.child_workspace_id).filter(Boolean);
     const [{ data: wss }, { data: subs }, { data: members }, { data: agents }] = await Promise.all([
-      wsIds.length ? sb.from("workspaces").select("id, name, owner_id, created_at").in("id", wsIds) : { data: [] },
-      childIds.length ? sb.from("workspace_subscriptions").select("workspace_id, package_key, subscription_status").in("workspace_id", childIds) : { data: [] },
-      childIds.length ? sb.from("workspace_members").select("workspace_id").in("workspace_id", childIds) : { data: [] },
-      childIds.length ? sb.from("agents").select("workspace_id").in("workspace_id", childIds) : { data: [] },
+      wsIds.length
+        ? sb.from("workspaces").select("id, name, owner_id, created_at").in("id", wsIds)
+        : { data: [] },
+      childIds.length
+        ? sb
+            .from("workspace_subscriptions")
+            .select("workspace_id, package_key, subscription_status")
+            .in("workspace_id", childIds)
+        : { data: [] },
+      childIds.length
+        ? sb.from("workspace_members").select("workspace_id").in("workspace_id", childIds)
+        : { data: [] },
+      childIds.length
+        ? sb.from("agents").select("workspace_id").in("workspace_id", childIds)
+        : { data: [] },
     ]);
     const wsById = new Map<string, any>((wss ?? []).map((w: any) => [w.id, w]));
     const subByWs = new Map<string, any>((subs ?? []).map((s: any) => [s.workspace_id, s]));
@@ -425,7 +523,12 @@ export const adminSetResellerAccess = createServerFn({ method: "POST" })
   .middleware([...adminMw])
   .validator((d: { workspaceId: string; enabled: boolean | null }) => d)
   .handler(async ({ context, data }) => {
-    return setFeatureOverride(context.userId, data.workspaceId, "reseller_client_accounts", data.enabled);
+    return setFeatureOverride(
+      context.userId,
+      data.workspaceId,
+      "reseller_client_accounts",
+      data.enabled,
+    );
   });
 
 /** Grant/remove/clear an admin feature override. enabled=null clears the row. */
@@ -445,7 +548,11 @@ async function setFeatureOverride(
   featureKey: string,
   enabled: boolean | null,
 ) {
-  const { data: ws } = await sb.from("workspaces").select("id, name").eq("id", workspaceId).maybeSingle();
+  const { data: ws } = await sb
+    .from("workspaces")
+    .select("id, name")
+    .eq("id", workspaceId)
+    .maybeSingle();
   if (!ws) throw new Error("Workspace not found");
   const { data: before } = await sb
     .from("workspace_feature_entitlements")
@@ -489,6 +596,77 @@ async function setFeatureOverride(
   return { ok: true as const };
 }
 
+/**
+ * Find any workspace by name or slug, so it can be drilled into.
+ *
+ * Feature overrides and package assignment already work for any workspace, but the only UI that
+ * reached them listed resellers and their children. An ordinary workspace could not be selected at
+ * all, which left editing the GLOBAL package as the only way to unblock one account — and the
+ * default package governs every unsubscribed workspace on the platform.
+ */
+export const adminSearchWorkspaces = createServerFn({ method: "POST" })
+  .middleware([...adminMw])
+  .validator((d: { query?: string; limit?: number }) => d ?? {})
+  .handler(async ({ data }) => {
+    const term = (data.query ?? "").trim();
+    const limit = Math.min(Math.max(data.limit ?? 20, 1), 50);
+
+    let q = sb.from("workspaces").select("id, name, slug, created_at");
+    if (term) {
+      // Escape PostgREST's or() delimiters before interpolating the term.
+      const safe = term.replace(/[(),*]/g, " ").trim();
+      if (safe) q = q.or(`name.ilike.*${safe}*,slug.ilike.*${safe}*`);
+    }
+    const { data: rows, error } = await q.order("created_at", { ascending: false }).limit(limit);
+    if (error) throw new Error(error.message);
+
+    const ids = (rows ?? []).map((r: { id: string }) => r.id);
+    const [{ data: subs }, { data: overrides }] = await Promise.all([
+      ids.length
+        ? sb
+            .from("workspace_subscriptions")
+            .select("workspace_id, package_key, subscription_status")
+            .in("workspace_id", ids)
+        : Promise.resolve({ data: [] as any[] }),
+      ids.length
+        ? sb
+            .from("workspace_feature_entitlements")
+            .select("workspace_id")
+            .eq("source", "admin_override")
+            .in("workspace_id", ids)
+        : Promise.resolve({ data: [] as any[] }),
+    ]);
+
+    const subByWs = new Map(
+      (
+        (subs ?? []) as Array<{
+          workspace_id: string;
+          package_key: string;
+          subscription_status: string;
+        }>
+      ).map((r) => [r.workspace_id, r]),
+    );
+    const overrideCount = new Map<string, number>();
+    for (const o of (overrides ?? []) as Array<{ workspace_id: string }>) {
+      overrideCount.set(o.workspace_id, (overrideCount.get(o.workspace_id) ?? 0) + 1);
+    }
+
+    return (rows ?? []).map((w: { id: string; name: string; slug: string }) => {
+      const sub = subByWs.get(w.id);
+      return {
+        workspaceId: w.id,
+        name: w.name,
+        slug: w.slug,
+        packageKey: sub?.package_key ?? null,
+        subscriptionStatus: sub?.subscription_status ?? null,
+        // No row means package resolution falls back to the default package.
+        inheritsDefaultPackage: !sub,
+        defaultPackageKey: DEFAULT_PACKAGE_KEY,
+        overrideCount: overrideCount.get(w.id) ?? 0,
+      };
+    });
+  });
+
 /** Force-set a workspace's package (unlike provisioning, this UPDATES). */
 export const adminSetWorkspacePackage = createServerFn({ method: "POST" })
   .middleware([...adminMw])
@@ -496,9 +674,10 @@ export const adminSetWorkspacePackage = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const catalog = await getEffectivePackageCatalog();
     if (!catalog.has(data.packageKey)) throw new Error("Unknown package key");
-    const status = data.status && (SUB_STATUSES as readonly string[]).includes(data.status)
-      ? data.status
-      : "active";
+    const status =
+      data.status && (SUB_STATUSES as readonly string[]).includes(data.status)
+        ? data.status
+        : "active";
     const { data: before } = await sb
       .from("workspace_subscriptions")
       .select("package_key, subscription_status")
@@ -543,10 +722,13 @@ export const adminSetWorkspaceSuspended = createServerFn({ method: "POST" })
       .eq("workspace_id", data.workspaceId)
       .maybeSingle();
     if (bErr) throw new Error(bErr.message);
-    if (!before) throw new Error("Workspace has no subscription row — run the migration report first.");
+    if (!before)
+      throw new Error("Workspace has no subscription row — run the migration report first.");
     const newStatus = data.suspended
       ? "suspended"
-      : before.package_key === "trial" ? "trial" : "active";
+      : before.package_key === "trial"
+        ? "trial"
+        : "active";
     const { error } = await sb
       .from("workspace_subscriptions")
       .update({ subscription_status: newStatus, updated_at: new Date().toISOString() })
@@ -572,20 +754,37 @@ export const adminGetWorkspaceOversight = createServerFn({ method: "GET" })
   .validator((d: { workspaceId: string }) => d)
   .handler(async ({ data }) => {
     const [{ data: ws }, { data: sub }, { data: overrides }, { data: audit }] = await Promise.all([
-      sb.from("workspaces").select("id, name, slug, owner_id, created_at").eq("id", data.workspaceId).maybeSingle(),
-      sb.from("workspace_subscriptions").select("*").eq("workspace_id", data.workspaceId).maybeSingle(),
-      sb.from("workspace_feature_entitlements")
+      sb
+        .from("workspaces")
+        .select("id, name, slug, owner_id, created_at")
+        .eq("id", data.workspaceId)
+        .maybeSingle(),
+      sb
+        .from("workspace_subscriptions")
+        .select("*")
+        .eq("workspace_id", data.workspaceId)
+        .maybeSingle(),
+      sb
+        .from("workspace_feature_entitlements")
         .select("feature_key, source, enabled, updated_at")
         .eq("workspace_id", data.workspaceId)
         .eq("source", "admin_override"),
-      sb.from("workspace_access_audit_logs")
-        .select("id, acting_user_id, object_type, object_id, action_type, risk_level, created_at, after_state")
+      sb
+        .from("workspace_access_audit_logs")
+        .select(
+          "id, acting_user_id, object_type, object_id, action_type, risk_level, created_at, after_state",
+        )
         .eq("workspace_id", data.workspaceId)
         .order("created_at", { ascending: false })
         .limit(50),
     ]);
     if (!ws) throw new Error("Workspace not found");
-    return { workspace: ws, subscription: sub ?? null, overrides: overrides ?? [], audit: audit ?? [] };
+    return {
+      workspace: ws,
+      subscription: sub ?? null,
+      overrides: overrides ?? [],
+      audit: audit ?? [],
+    };
   });
 
 // ── Migration report ─────────────────────────────────────────────────────────
@@ -601,14 +800,22 @@ export const adminRunPackageMigrationReport = createServerFn({ method: "POST" })
   .validator((d: { apply?: boolean }) => d ?? {})
   .handler(async ({ context, data }) => {
     const apply = data.apply === true;
-    const [{ data: wss, error: wErr }, { data: subs }, { data: rels }, { data: wl }, { data: members }] =
-      await Promise.all([
-        sb.from("workspaces").select("id, name, owner_id, created_at"),
-        sb.from("workspace_subscriptions").select("workspace_id, package_key, subscription_status"),
-        sb.from("workspace_relationships").select("child_workspace_id").eq("relationship_type", "reseller_client"),
-        sb.from("workspace_white_label_settings").select("workspace_id"),
-        sb.from("workspace_members").select("workspace_id, user_id, role").eq("role", "owner"),
-      ]);
+    const [
+      { data: wss, error: wErr },
+      { data: subs },
+      { data: rels },
+      { data: wl },
+      { data: members },
+    ] = await Promise.all([
+      sb.from("workspaces").select("id, name, owner_id, created_at"),
+      sb.from("workspace_subscriptions").select("workspace_id, package_key, subscription_status"),
+      sb
+        .from("workspace_relationships")
+        .select("child_workspace_id")
+        .eq("relationship_type", "reseller_client"),
+      sb.from("workspace_white_label_settings").select("workspace_id"),
+      sb.from("workspace_members").select("workspace_id, user_id, role").eq("role", "owner"),
+    ]);
     if (wErr) throw new Error(wErr.message);
     const subByWs = new Map<string, any>((subs ?? []).map((s: any) => [s.workspace_id, s]));
     const childSet = new Set<string>((rels ?? []).map((r: any) => r.child_workspace_id));
@@ -823,11 +1030,13 @@ export const adminGetPlatformAnalytics = createServerFn({ method: "GET" })
     if (filterResellerParentId) {
       standardRows = standardRows.filter(
         (r: any) =>
-          r.resellerParentId === filterResellerParentId ||
-          r.workspaceId === filterResellerParentId,
+          r.resellerParentId === filterResellerParentId || r.workspaceId === filterResellerParentId,
       );
     }
-    standardRows.sort((a: any, b: any) => b.reportDeliveryFailures - a.reportDeliveryFailures || b.campaignVolume - a.campaignVolume);
+    standardRows.sort(
+      (a: any, b: any) =>
+        b.reportDeliveryFailures - a.reportDeliveryFailures || b.campaignVolume - a.campaignVolume,
+    );
 
     const totals = standardRows.reduce(
       (acc: any, r: any) => {

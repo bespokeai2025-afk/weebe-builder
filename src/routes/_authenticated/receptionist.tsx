@@ -2,25 +2,15 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import {
-  Bot,
-  CalendarCheck,
-  ChevronRight,
-  PhoneCall,
-  Wrench,
-  ExternalLink,
-} from "lucide-react";
+import { Bot, CalendarCheck, ChevronRight, PhoneCall, Wrench, ExternalLink } from "lucide-react";
 import { DashboardPage, KpiCard } from "@/components/dashboard/PageShell";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { getReceptionistDashboard } from "@/lib/dnr/dnr-receptionist-dashboard.functions";
+import type { ReceptionistDashboard } from "@/lib/dnr/dnr-receptionist-dashboard.functions";
+import { getMyContext } from "@/lib/workspace/workspace.functions";
 import { RelativeTime } from "@/components/ui/relative-time";
 
 export const Route = createFileRoute("/_authenticated/receptionist")({
@@ -48,9 +38,22 @@ function fmtWhen(iso: string | null) {
 
 function ReceptionistHubPage() {
   const fn = useServerFn(getReceptionistDashboard);
+  const ctxFn = useServerFn(getMyContext);
+  const { data: ctx } = useQuery({
+    queryKey: ["my-context"],
+    queryFn: () => ctxFn(),
+    staleTime: 60_000,
+    throwOnError: false,
+  });
+  const workspaceId = ctx?.workspaceId ?? null;
+
+  // The workspace id belongs in the key. Without it, the cache served the
+  // previous workspace's receptionist data after switching workspaces — the
+  // whole page is keyed by a generic string, and only sign-out clears the cache.
   const q = useQuery({
-    queryKey: ["receptionist-dashboard"],
+    queryKey: ["receptionist-dashboard", workspaceId],
     queryFn: () => fn({ data: { limit: 40 } }),
+    enabled: !!workspaceId,
     staleTime: 30_000,
     refetchInterval: 60_000,
     throwOnError: false,
@@ -62,24 +65,32 @@ function ReceptionistHubPage() {
     from: string | null;
   } | null>(null);
 
-  if (q.isLoading) {
+  if (q.isLoading || !workspaceId) {
     return (
-      <DashboardPage title="Receptionist" subtitle="Dr Nyla voice receptionist activity">
+      <DashboardPage title="Receptionist" subtitle="Loading receptionist activity">
         <LoadingProgress label="Loading receptionist data" estimatedMs={5000} />
       </DashboardPage>
     );
   }
 
-  const d = q.data;
+  // createServerFn's return does not infer through to the caller here, so the
+  // payload arrives as `{}` and every field read below is an implicit any.
+  // Naming the contract restores it.
+  const d = q.data as ReceptionistDashboard | undefined;
   const calls = d?.calls ?? [];
   const bookings = d?.bookings ?? [];
   const toolEvents = d?.toolEvents ?? [];
-  const successfulBookings = toolEvents.filter((t) => t.tool_name === "book_appointment" && t.ok).length;
+  const successfulBookings = toolEvents.filter(
+    (t) => t.tool_name === "book_appointment" && t.ok,
+  ).length;
 
   return (
     <DashboardPage
       title="Receptionist"
-      subtitle={`${d?.brand ?? "Medispa"} · ${d?.location ?? "Cheshire"} — calls, Pabau bookings, and tool activity`}
+      subtitle={
+        [d?.brand, d?.location].filter(Boolean).join(" · ") ||
+        "Calls, bookings, and tool activity for this workspace's receptionist"
+      }
     >
       <div className="mb-4 flex flex-wrap gap-2">
         <Button variant="outline" size="sm" asChild>
@@ -88,15 +99,18 @@ function ReceptionistHubPage() {
         <Button variant="outline" size="sm" asChild>
           <Link to="/calendar">Calendar</Link>
         </Button>
-        <Button variant="outline" size="sm" asChild>
-          <a
-            href="https://dashboard.retellai.com/agents/agent_b2afcd65c127f79126ea57deb2"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Retell agent <ExternalLink className="ml-1 h-3 w-3" />
-          </a>
-        </Button>
+        {/* This workspace's own agent — it was a hardcoded link to one client's. */}
+        {d?.retellAgentId && (
+          <Button variant="outline" size="sm" asChild>
+            <a
+              href={`https://dashboard.retellai.com/agents/${d.retellAgentId}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Retell agent <ExternalLink className="ml-1 h-3 w-3" />
+            </a>
+          </Button>
+        )}
       </div>
 
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -126,8 +140,8 @@ function ReceptionistHubPage() {
           {calls.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No calls yet. Point the Retell agent webhook at WEBEE{" "}
-              <code className="text-xs">/api/public/voice-webhook</code>. Retell web tests for
-              this agent are stored here; live inbound phone calls appear under All calls too.
+              <code className="text-xs">/api/public/voice-webhook</code>. Retell web tests for this
+              agent are stored here; live inbound phone calls appear under All calls too.
             </p>
           ) : (
             <ul className="space-y-2">
@@ -169,16 +183,13 @@ function ReceptionistHubPage() {
           </div>
           {bookings.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No bookings synced yet. Successful <code className="text-xs">book_appointment</code> tool
-              calls will appear here and in Calendar.
+              No bookings synced yet. Successful <code className="text-xs">book_appointment</code>{" "}
+              tool calls will appear here and in Calendar.
             </p>
           ) : (
             <ul className="space-y-2">
               {bookings.slice(0, 12).map((b) => (
-                <li
-                  key={b.id}
-                  className="rounded-lg border border-border/40 px-3 py-2 text-sm"
-                >
+                <li key={b.id} className="rounded-lg border border-border/40 px-3 py-2 text-sm">
                   <p className="font-medium">{b.title}</p>
                   <p className="text-xs text-muted-foreground">{fmtWhen(b.start_at)}</p>
                   {(b.attendee_name || b.attendee_phone) && (

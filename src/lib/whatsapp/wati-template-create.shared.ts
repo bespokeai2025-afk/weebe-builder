@@ -27,8 +27,16 @@ export function extractTemplateVariablesFromBody(body: string): string[] {
 export function defaultParamSample(paramName: string): string {
   const key = paramName.toLowerCase();
   if (DEFAULT_PARAM_SAMPLES[key]) return DEFAULT_PARAM_SAMPLES[key];
+  // Order matters: "property_name", "building_name" and "project_name" all contain
+  // "name", so the generic person-name check has to come last. It previously ran
+  // first, which made every property variable sample — and, when a mapping
+  // resolved to nothing, actually SEND — the word "Customer".
+  if (key.includes("propert") || key.includes("unit")) return "your property";
+  if (key.includes("building") || key.includes("tower")) return "your building";
+  if (key.includes("project") || key.includes("community") || key.includes("area"))
+    return "your community";
+  if (key.includes("phone") || key.includes("mobile")) return "447000000000";
   if (key.includes("name")) return "Customer";
-  if (key.includes("phone")) return "447000000000";
   return "Sample";
 }
 
@@ -42,9 +50,12 @@ export type WatiCreateTemplateInput = {
 };
 
 /** Request body for WATI create template API. */
-export function buildWatiCreateTemplatePayload(input: WatiCreateTemplateInput): Record<string, unknown> {
+export function buildWatiCreateTemplatePayload(
+  input: WatiCreateTemplateInput,
+): Record<string, unknown> {
   const elementName = normalizeWatiElementName(input.elementName);
-  if (!elementName) throw new Error("Template name is required (use letters, numbers, underscores)");
+  if (!elementName)
+    throw new Error("Template name is required (use letters, numbers, underscores)");
 
   const body = String(input.body ?? "").trim();
   if (!body) throw new Error("Message body is required");
@@ -69,7 +80,9 @@ export function buildWatiCreateTemplatePayload(input: WatiCreateTemplateInput): 
     ...(input.footer?.trim() ? { footer: input.footer.trim() } : {}),
     customParams: vars.map((paramName) => ({
       paramName,
-      paramValue: (samples[paramName] ?? defaultParamSample(paramName)).trim() || defaultParamSample(paramName),
+      paramValue:
+        (samples[paramName] ?? defaultParamSample(paramName)).trim() ||
+        defaultParamSample(paramName),
     })),
     creationMethod: 0,
   };
@@ -110,9 +123,15 @@ export function watiTemplateRowFromCreateResult(
 
   return {
     workspace_id: workspaceId,
-    wati_template_id: String(result.id ?? result.elementName ?? normalizeWatiElementName(String(result.elementName ?? ""))),
+    wati_template_id: String(
+      result.id ?? result.elementName ?? normalizeWatiElementName(String(result.elementName ?? "")),
+    ),
     name: String(result.elementName ?? result.name ?? "Untitled"),
-    status: statusFromCode ?? (result.status != null && typeof result.status !== "object" ? String(result.status) : "DRAFT"),
+    status:
+      statusFromCode ??
+      (result.status != null && typeof result.status !== "object"
+        ? String(result.status)
+        : "DRAFT"),
     status_code: statusCode,
     language: result.language != null ? String(result.language) : "en",
     category: result.category != null ? String(result.category) : null,

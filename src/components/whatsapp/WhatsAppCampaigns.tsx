@@ -60,6 +60,8 @@ import {
   getBuzzchatOpsDashboard,
   checkCampaignAudienceOverlapFn,
   getWhatsappInboxMeta,
+  listLeadMetaFieldOptions,
+  previewWatiTemplateSend,
 } from "@/lib/dashboard/whatsapp.functions";
 import {
   CAMPAIGN_TYPE_LABELS,
@@ -417,6 +419,64 @@ export function WhatsAppCampaigns() {
   );
   const paramSlots = watiTemplateParamSlots(selectedWatiTemplate);
   const paramMappingError = validateWatiTemplateParamMapping(paramSlots, form.template_params);
+
+  // The property fields this workspace's leads actually have. The hardcoded list
+  // is one dataset's column spellings; a workspace whose column imported as
+  // "UNIT NUMBER" had nothing to pick, chose the nearest option and silently
+  // sent filler. These are the real keys, most-populated first.
+  const metaFieldsFn = useServerFn(listLeadMetaFieldOptions);
+  const { data: metaFields } = useQuery({
+    queryKey: ["wa-lead-meta-fields", audienceUploadType || null],
+    queryFn: () => metaFieldsFn({ data: { uploadType: audienceUploadType.trim() || null } }),
+    staleTime: 60_000,
+    throwOnError: false,
+  });
+  const discoveredFields = (metaFields?.fields ?? []) as Array<{
+    value: string;
+    label: string;
+    filled: number;
+    coverage: number;
+    sample: string;
+  }>;
+
+  // Render the template as it will actually send, and report any variable that
+  // resolves for nobody — the failure that otherwise reaches customers.
+  const previewFn = useServerFn(previewWatiTemplateSend);
+  const mappingComplete = paramSlots.length > 0 && !paramMappingError;
+  const {
+    data: sendPreview,
+    isFetching: previewLoading,
+    // Surfaced in the UI: a preview whose own failures are silent is worse than
+    // no preview, because it reads as "everything is fine".
+    error: previewError,
+  } = useQuery({
+    queryKey: [
+      "wa-template-preview",
+      form.wati_template_name,
+      JSON.stringify(form.template_params),
+      audienceUploadType || null,
+    ],
+    queryFn: () =>
+      previewFn({
+        data: {
+          templateName: form.wati_template_name,
+          mapping: form.template_params,
+          uploadType: audienceUploadType.trim() || null,
+          limit: 2,
+        },
+      }),
+    enabled: Boolean(form.wati_template_name) && mappingComplete,
+    staleTime: 15_000,
+    retry: 1,
+  });
+  const deadSlots = (
+    (sendPreview?.perSlot ?? []) as Array<{
+      slot: string;
+      fieldKey: string;
+      resolvedCount: number;
+      checked: number;
+    }>
+  ).filter((p) => p.checked > 0 && p.resolvedCount === 0);
 
   const create = useMutation({
     mutationFn: () => {
@@ -1320,16 +1380,35 @@ export function WhatsAppCampaigns() {
                                     {f.label}
                                   </SelectItem>
                                 ))}
-                                <SelectItem value="__group_property__" disabled>
-                                  — Property / CSV fields —
-                                </SelectItem>
-                                {LEAD_PARAM_FIELDS.filter((f) => f.group === "property").map(
-                                  (f) => (
-                                    <SelectItem key={f.value} value={f.value}>
-                                      {f.label}
+                                {discoveredFields.length > 0 && (
+                                  <>
+                                    <SelectItem value="__group_yours__" disabled>
+                                      — Your imported columns —
                                     </SelectItem>
-                                  ),
+                                    {discoveredFields.map((f) => (
+                                      <SelectItem key={f.value} value={f.value}>
+                                        {f.label}
+                                        <span className="ml-1.5 text-[10px] text-muted-foreground">
+                                          {f.coverage}% · e.g. {f.sample}
+                                        </span>
+                                      </SelectItem>
+                                    ))}
+                                  </>
                                 )}
+                                <SelectItem value="__group_property__" disabled>
+                                  — Standard property fields —
+                                </SelectItem>
+                                {LEAD_PARAM_FIELDS.filter(
+                                  (f) =>
+                                    f.group === "property" &&
+                                    // Hide a generic option when the real column is
+                                    // already offered above under its own name.
+                                    !discoveredFields.some((d) => d.value === f.value),
+                                ).map((f) => (
+                                  <SelectItem key={f.value} value={f.value}>
+                                    {f.label}
+                                  </SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                           </div>
@@ -1362,7 +1441,106 @@ export function WhatsAppCampaigns() {
                       );
                     })}
                     {paramMappingError && (
-                      <p className="text-[11px] text-destructive">{paramMappingError}</p>
+                      <>
+                        <p className="text-[11px] text-destructive">{paramMappingError}</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          The send preview appears once every variable is mapped.
+                        </p>
+                      </>
+                    )}
+
+                    {/* What will actually be sent. A variable that resolves for
+                        nobody still sends — WATI rejects blank variables, so a
+                        generic sample goes out instead — and nothing else in the
+                        product surfaces that before customers receive it. */}
+                    {mappingComplete && (
+                      <div className="space-y-2 border-t border-border/60 pt-2">
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs">Preview</Label>
+                          {previewLoading && (
+                            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                          )}
+                          {sendPreview && (
+                            <span className="text-[10px] text-muted-foreground">
+                              {sendPreview.audienceCount} lead
+                              {sendPreview.audienceCount === 1 ? "" : "s"} in scope
+                            </span>
+                          )}
+                        </div>
+
+                        {previewError && (
+                          <div className="rounded-md border border-destructive/40 bg-destructive/10 px-2.5 py-2">
+                            <p className="text-[11px] text-destructive">
+                              Preview could not load: {(previewError as Error).message}
+                            </p>
+                            <p className="mt-0.5 text-[10px] text-muted-foreground">
+                              The campaign can still be sent — this only affects the preview. If
+                              this persists after a page refresh, the template variables have not
+                              been checked, so verify the mapping before sending.
+                            </p>
+                          </div>
+                        )}
+
+                        {deadSlots.length > 0 && (
+                          <div className="space-y-1 rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-2">
+                            {deadSlots.map((p) => (
+                              <p
+                                key={p.slot}
+                                className="text-[11px] text-amber-600 dark:text-amber-400"
+                              >
+                                <strong>{`{{${p.slot}}}`}</strong> is mapped to{" "}
+                                <code>{p.fieldKey}</code>, which is empty for all {p.checked} leads
+                                checked — every message would show filler text instead. Pick a
+                                column from “Your imported columns”.
+                              </p>
+                            ))}
+                          </div>
+                        )}
+
+                        {(sendPreview?.samples ?? []).map(
+                          (sample: {
+                            leadId: string;
+                            name: string | null;
+                            phone: string | null;
+                            body: string;
+                            params: Array<{ name: string; value: string; resolved: boolean }>;
+                          }) => (
+                            <div
+                              key={sample.leadId}
+                              className="rounded-md border border-border/50 bg-muted/20 px-2.5 py-2"
+                            >
+                              <p className="mb-1 text-[10px] text-muted-foreground">
+                                To {sample.name || "—"} · {sample.phone}
+                              </p>
+                              <p className="whitespace-pre-wrap text-[11px] leading-relaxed">
+                                {sample.body}
+                              </p>
+                              <div className="mt-1.5 flex flex-wrap gap-1">
+                                {sample.params.map((prm) => (
+                                  <span
+                                    key={prm.name}
+                                    className={cn(
+                                      "rounded px-1 py-0.5 text-[9px]",
+                                      prm.resolved
+                                        ? "bg-white/[0.06] text-muted-foreground"
+                                        : "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+                                    )}
+                                  >
+                                    {prm.name}: {prm.value}
+                                    {prm.resolved ? "" : " (filler)"}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          ),
+                        )}
+
+                        {sendPreview && sendPreview.samples.length === 0 && (
+                          <p className="text-[11px] text-muted-foreground">
+                            No leads match this audience yet, so there is nothing to preview.
+                          </p>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}

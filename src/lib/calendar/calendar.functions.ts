@@ -71,16 +71,35 @@ export const saveWorkspaceCalendarSettings = createServerFn({ method: "POST" })
         const origin =
           process.env.PUBLIC_SITE_URL?.trim().replace(/\/$/, "") ||
           process.env.PUBLIC_BASE_URL?.trim().replace(/\/$/, "") ||
-          (process.env.REPLIT_DEV_DOMAIN
-            ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-            : "");
-        const r = await registerCalcomWebhook({
-          workspaceId,
-          subscriberUrl: `${origin}/api/public/calcom-webhook/${workspaceId}`,
-        });
-        calcomWebhook = { ok: r.ok, message: r.message, created: r.created };
+          (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "");
+        if (!origin) {
+          // With no origin the subscriber URL is relative, which Cal.com rejects
+          // with an opaque validation error. Say what is actually missing — the
+          // key still saved, and only the sync-back of cancellations is affected.
+          calcomWebhook = {
+            ok: false,
+            created: false,
+            message:
+              "API key saved, but the booking webhook could not be registered: no public URL is configured " +
+              "(set PUBLIC_SITE_URL). Bookings will still be created; cancellations and reschedules " +
+              "will not sync back until this is set and the key is re-saved.",
+          };
+        } else {
+          const r = await registerCalcomWebhook({
+            workspaceId,
+            subscriberUrl: `${origin}/api/public/calcom-webhook/${workspaceId}`,
+          });
+          calcomWebhook = { ok: r.ok, message: r.message, created: r.created };
+        }
       } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
         console.warn("[saveWorkspaceCalendarSettings] calcom webhook register failed", e);
+        // Surface it instead of returning null, which the UI renders as silence.
+        calcomWebhook = {
+          ok: false,
+          created: false,
+          message: `API key saved, but webhook registration errored: ${message}`,
+        };
       }
     }
     return { ok: true, calcomWebhook };
@@ -186,9 +205,7 @@ export const listCalcomEventTypes = createServerFn({ method: "GET" })
 
 export const setCalendarFlags = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator(
-    (input: { id: string; isAvailability?: boolean; isPrimaryBooking?: boolean }) => input,
-  )
+  .validator((input: { id: string; isAvailability?: boolean; isPrimaryBooking?: boolean }) => input)
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
 

@@ -221,14 +221,7 @@ export const PACKAGE_CATALOG: PackageDef[] = [
       maxCampaignFilters: 0,
       maxChildAccounts: 0,
     },
-    features: [
-      ...CORE_FEATURES,
-      "agent_builder",
-      "calls",
-      "leads",
-      "crm",
-      "analytics",
-    ],
+    features: [...CORE_FEATURES, "agent_builder", "calls", "leads", "crm", "analytics"],
     aiDepartments: [],
     isActive: true,
   },
@@ -470,7 +463,12 @@ export const PACKAGE_CATALOG: PackageDef[] = [
     },
     features: FEATURE_KEYS.filter(
       (k) =>
-        !["white_label_custom_domain", "white_label_hide_webee_branding", "reseller_client_accounts", "custom_email_provider"].includes(k),
+        ![
+          "white_label_custom_domain",
+          "white_label_hide_webee_branding",
+          "reseller_client_accounts",
+          "custom_email_provider",
+        ].includes(k),
     ) as FeatureKey[],
     aiDepartments: ["growthmind", "hivemind", "systemmind", "accountsmind"],
     isActive: true,
@@ -478,6 +476,28 @@ export const PACKAGE_CATALOG: PackageDef[] = [
 ];
 
 export const DEFAULT_PACKAGE_KEY = "trial";
+
+/**
+ * How many workspaces a package edit actually governs.
+ *
+ * A workspace with no subscription row is not on "no package": resolution fails closed to
+ * DEFAULT_PACKAGE_KEY, so the default package silently governs every unsubscribed workspace on the
+ * platform. The admin matrix showed no hint of this, so widening the trial package to unblock one
+ * account changed what all of them get — and reverting it took that away again.
+ */
+export function packageWorkspaceReach(args: {
+  packageKey: string;
+  subscribedCount: number;
+  unsubscribedCount: number;
+}): { workspaceCount: number; inheritsUnsubscribed: boolean } {
+  const inheritsUnsubscribed = args.packageKey === DEFAULT_PACKAGE_KEY;
+  return {
+    inheritsUnsubscribed,
+    workspaceCount:
+      Math.max(0, args.subscribedCount) +
+      (inheritsUnsubscribed ? Math.max(0, args.unsubscribedCount) : 0),
+  };
+}
 export const LEGACY_PACKAGE_KEY = "legacy_full";
 
 export function packageByKey(key: string | null | undefined): PackageDef {
@@ -489,11 +509,16 @@ export function packageByKey(key: string | null | undefined): PackageDef {
 /** Map a Stripe/plans.ts price or tier onto a package key. */
 export function packageKeyForPlanTier(tier: string | null | undefined): string {
   switch (tier) {
-    case "lite": return "receptionist_lite";
-    case "pro": return "receptionist_pro";
-    case "executive_suite": return "executive_suite";
-    case "business_command": return "business_command";
-    case "enterprise": return "enterprise";
+    case "lite":
+      return "receptionist_lite";
+    case "pro":
+      return "receptionist_pro";
+    case "executive_suite":
+      return "executive_suite";
+    case "business_command":
+      return "business_command";
+    case "enterprise":
+      return "enterprise";
     case "free":
     default:
       return DEFAULT_PACKAGE_KEY;
@@ -596,10 +621,7 @@ export const ROUTE_PAGE_MAP: Record<string, PageKey> = {
 };
 
 /** Longest-prefix match of a pathname against a route map (e.g. /systemmind/build). */
-export function matchRouteKey<T>(
-  pathname: string,
-  map: Record<string, T>,
-): T | undefined {
+export function matchRouteKey<T>(pathname: string, map: Record<string, T>): T | undefined {
   let best: string | null = null;
   for (const route of Object.keys(map)) {
     if (pathname === route || pathname.startsWith(route + "/")) {
@@ -635,8 +657,15 @@ const NOTIFICATION_CAPS_BY_PACKAGE: Record<string, NotificationCaps> = {
 };
 
 /** Fail-closed lookup: unknown packages get no email + no custom recipients. */
-export function notificationCapsForPackage(packageKey: string | null | undefined): NotificationCaps {
-  return NOTIFICATION_CAPS_BY_PACKAGE[packageKey ?? ""] ?? { emailAllowed: false, customRecipientsAllowed: false };
+export function notificationCapsForPackage(
+  packageKey: string | null | undefined,
+): NotificationCaps {
+  return (
+    NOTIFICATION_CAPS_BY_PACKAGE[packageKey ?? ""] ?? {
+      emailAllowed: false,
+      customRecipientsAllowed: false,
+    }
+  );
 }
 
 export interface NotificationEventDefault {
@@ -677,8 +706,18 @@ export function notificationDefaultsForPackage(
   }
   // Growth-oriented digests for packages that can email.
   if (caps.emailAllowed) {
-    out["qualified_leads_generated"] = { enabled: true, inAppEnabled: true, emailEnabled: true, frequency: "daily" };
-    out["appointments_booked"] = { enabled: true, inAppEnabled: true, emailEnabled: true, frequency: "daily" };
+    out["qualified_leads_generated"] = {
+      enabled: true,
+      inAppEnabled: true,
+      emailEnabled: true,
+      frequency: "daily",
+    };
+    out["appointments_booked"] = {
+      enabled: true,
+      inAppEnabled: true,
+      emailEnabled: true,
+      frequency: "daily",
+    };
   }
   return out;
 }
@@ -717,7 +756,10 @@ export function buildEntitlements(
   const pageAccessCaps = {} as Record<PageKey, PageLevel>;
   for (const p of PAGE_KEYS) {
     const explicit = pkg.pageAccessCaps?.[p];
-    if (explicit) { pageAccessCaps[p] = explicit; continue; }
+    if (explicit) {
+      pageAccessCaps[p] = explicit;
+      continue;
+    }
     pageAccessCaps[p] = features[PAGE_FEATURE_MAP[p]] ? "manage" : "hidden";
   }
 

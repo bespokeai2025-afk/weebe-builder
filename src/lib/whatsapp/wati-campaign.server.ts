@@ -39,25 +39,41 @@ export function phoneTail(phone: string | null | undefined): string | null {
   return d.length >= 10 ? d.slice(-10) : null;
 }
 
+/**
+ * Meta keys come from whatever the customer's spreadsheet column was called, so the same field
+ * arrives as "UNIT NUMBER", "Unit Number", "unit_number" or "UnitNumber" depending on the import.
+ * The template field picker offers one fixed spelling ("meta.UnitNumber"), so matching on case
+ * alone missed a column that differed only by a space — the mapping silently resolved to nothing
+ * and the send fell back to a sample value.
+ *
+ * Equality after stripping case and separators, never a substring match, so "Size" cannot
+ * accidentally claim "Plot Size".
+ */
+function normalizeMetaKey(key: string): string {
+  return key.toLowerCase().replace(/[\s_\-.]+/g, "");
+}
+
+function lookupMetaKey(source: Record<string, unknown>, metaKey: string): unknown {
+  const direct = source[metaKey];
+  if (direct != null && String(direct).trim() !== "") return direct;
+
+  const want = normalizeMetaKey(metaKey);
+  for (const [k, v] of Object.entries(source)) {
+    if (normalizeMetaKey(k) === want && v != null && String(v).trim() !== "") return v;
+  }
+  return null;
+}
+
 function metaValueFromLead(lead: Record<string, unknown>, metaKey: string): unknown {
   const meta = lead.meta as Record<string, unknown> | null | undefined;
   if (meta && typeof meta === "object") {
-    const direct = meta[metaKey];
-    if (direct != null && String(direct).trim() !== "") return direct;
-    const lower = metaKey.toLowerCase();
-    for (const [k, v] of Object.entries(meta)) {
-      if (k.toLowerCase() === lower && v != null && String(v).trim() !== "") return v;
-    }
+    const hit = lookupMetaKey(meta, metaKey);
+    if (hit != null) return hit;
   }
   const notes = lead.notes;
   if (typeof notes === "string" && notes.trim()) {
-    const parsed = parseNotesToMeta(notes);
-    const direct = parsed[metaKey];
-    if (direct) return direct;
-    const lower = metaKey.toLowerCase();
-    for (const [k, v] of Object.entries(parsed)) {
-      if (k.toLowerCase() === lower && v) return v;
-    }
+    const hit = lookupMetaKey(parseNotesToMeta(notes), metaKey);
+    if (hit != null) return hit;
   }
   return null;
 }
@@ -77,12 +93,28 @@ function leadFieldRaw(lead: Record<string, unknown>, fieldKey: string): unknown 
   return direct;
 }
 
-/** WATI rejects templates when any variable is blank — always substitute a safe default. */
-export function buildWatiTemplateParams(
+export type ResolvedTemplateParam = {
+  name: string;
+  value: string;
+  /** The mapping this slot used, e.g. "meta.UnitNumber" or "literal:Khisha". */
+  fieldKey: string;
+  /**
+   * False when the mapped field held nothing for this lead and `value` is a generic sample
+   * rather than real data. A send still goes out — WATI rejects blank variables — so this is the
+   * only signal that a message will contain filler, and the campaign preview surfaces it.
+   */
+  resolved: boolean;
+};
+
+/**
+ * Per-slot resolution detail. `buildWatiTemplateParams` is the thin wrapper used by the send path;
+ * this is the same logic with the information the preview needs to warn before anyone sends.
+ */
+export function resolveWatiTemplateParamsDetailed(
   lead: Record<string, unknown>,
   mapping: Record<string, string> | null | undefined,
   slotOrder?: string[],
-): Array<{ name: string; value: string }> {
+): ResolvedTemplateParam[] {
   if (!mapping || typeof mapping !== "object") return [];
   const orderedEntries: Array<[string, string]> = slotOrder?.length
     ? slotOrder
@@ -99,14 +131,15 @@ export function buildWatiTemplateParams(
     const raw = leadFieldRaw(lead, fieldKey);
     let value =
       raw == null || raw === "" ? "" : typeof raw === "string" ? raw.trim() : String(raw).trim();
-    if (!value) {
+    const resolved = value !== "";
+    if (!resolved) {
       value = defaultParamSample(paramKey);
     }
     // Use first name when full name is very long (common in property CSVs)
     if (fieldKey === "full_name" && !fieldKey.startsWith("literal:") && value.includes(" ")) {
       value = value.split(/\s+/)[0] || value;
     }
-    return { name: paramKey, value };
+    return { name: paramKey, value, fieldKey, resolved };
   });
 }
 
@@ -212,6 +245,18 @@ export async function getWatiConnectionForWorkspace(
 
 /** WATI V3 allows up to 10,000 recipients per request — use smaller chunks for rate limits. */
 export const WATI_V3_SEND_CHUNK_SIZE = 500;
+
+/** WATI rejects templates when any variable is blank — always substitute a safe default. */
+export function buildWatiTemplateParams(
+  lead: Record<string, unknown>,
+  mapping: Record<string, string> | null | undefined,
+  slotOrder?: string[],
+): Array<{ name: string; value: string }> {
+  return resolveWatiTemplateParamsDetailed(lead, mapping, slotOrder).map(({ name, value }) => ({
+    name,
+    value,
+  }));
+}
 
 export type WatiTemplateSendItem = {
   phone: string;
