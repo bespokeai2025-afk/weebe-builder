@@ -30,6 +30,27 @@ export function resolveTwilioCredentials(override?: Partial<TwilioCredentials>):
   return { accountSid, authToken };
 }
 
+/**
+ * WEBEE's own master Twilio account (the reseller account holder).
+ *
+ * Distinct from `resolveTwilioCredentials()` above, which resolves the
+ * legacy single platform-wide account still used elsewhere (e.g. WhatsApp).
+ * This one is used only for account-holder-level operations: creating a
+ * Twilio Subaccount for a workspace, and Pricing API lookups. It must never
+ * be used to place/receive a customer's calls directly — see
+ * resolveOrCreateWorkspaceSubaccount in twilio-credentials.server.ts.
+ */
+export function resolveMasterTwilioCredentials(): TwilioCredentials {
+  const accountSid = process.env.TWILIO_MASTER_ACCOUNT_SID?.trim() || "";
+  const authToken = process.env.TWILIO_MASTER_AUTH_TOKEN?.trim() || "";
+  if (!accountSid || !authToken) {
+    throw new Error(
+      "WEBEE's master Twilio account is not configured. Add TWILIO_MASTER_ACCOUNT_SID and TWILIO_MASTER_AUTH_TOKEN to the environment.",
+    );
+  }
+  return { accountSid, authToken };
+}
+
 /** Public origin Twilio must call back on. */
 export function resolvePublicHost(): string {
   const host =

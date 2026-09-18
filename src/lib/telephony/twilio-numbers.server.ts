@@ -25,11 +25,7 @@ export {
   type TwilioCredentials,
 };
 
-async function client(workspaceId?: string): Promise<Twilio> {
-  const { accountSid, authToken } = await resolveTwilioCredentialsForWorkspace(
-    supabaseAdmin,
-    workspaceId,
-  );
+async function clientFromCredentials(credentials: TwilioCredentials): Promise<Twilio> {
   // `twilio` is CommonJS (`export =`): at runtime the callable factory arrives on
   // `default`, but its types describe the bare namespace, so the cast is needed
   // to reach it. Calling the namespace directly typechecks and then fails at
@@ -37,7 +33,12 @@ async function client(workspaceId?: string): Promise<Twilio> {
   const mod = (await import("twilio")) as unknown as {
     default: (sid: string, token: string) => Twilio;
   };
-  return mod.default(accountSid, authToken);
+  return mod.default(credentials.accountSid, credentials.authToken);
+}
+
+async function client(workspaceId?: string): Promise<Twilio> {
+  const credentials = await resolveTwilioCredentialsForWorkspace(supabaseAdmin, workspaceId);
+  return clientFromCredentials(credentials);
 }
 
 export interface AvailableNumber {
@@ -113,13 +114,37 @@ export async function findOwnedNumber(
   };
 }
 
-/** Buy a number and point it at our endpoints in one call. */
+/**
+ * Buy a number and point it at our endpoints in one call.
+ *
+ * Pass `credentials` to use an already-resolved Twilio account (e.g. a
+ * workspace's WEBEE-managed subaccount) instead of re-resolving via
+ * `workspaceId` — the reseller purchase flow always does this, since it
+ * must never fall through to BYOK/env credentials.
+ *
+ * When TWILIO_DRY_RUN=true, short-circuits before any Twilio call (or even
+ * credential use) and returns a synthetic result — for exercising the rest
+ * of the purchase pipeline (pricing, markup, DB writes) with zero real
+ * spend, in tests or manual local verification.
+ */
 export async function purchaseNumber(args: {
   phoneNumber: string;
   friendlyName?: string;
   workspaceId?: string;
+  credentials?: TwilioCredentials;
 }): Promise<OwnedNumber> {
-  const twilioClient = await client(args.workspaceId);
+  if (process.env.TWILIO_DRY_RUN === "true") {
+    return {
+      sid: `DRYRUN_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      phoneNumber: args.phoneNumber,
+      friendlyName: args.friendlyName ?? null,
+      voiceUrl: buildNumberWebhooks().voiceUrl,
+    };
+  }
+
+  const twilioClient = args.credentials
+    ? await clientFromCredentials(args.credentials)
+    : await client(args.workspaceId);
   const created = await twilioClient.incomingPhoneNumbers.create({
     phoneNumber: args.phoneNumber,
     friendlyName: args.friendlyName,
@@ -163,6 +188,10 @@ export async function savePhoneNumberRow(args: {
   friendlyName?: string | null;
   agentId?: string | null;
   capabilities?: { voice: boolean; sms: boolean };
+  /** Purchase-time snapshot — never recomputed after the fact. Omitted for imported/BYOK numbers. */
+  twilioSubaccountSid?: string | null;
+  costUsdCentsMonthly?: number | null;
+  priceGbpPenceMonthly?: number | null;
 }): Promise<string> {
   const { data: config } = await supabaseAdmin
     .from("telephony_configs")
@@ -188,6 +217,9 @@ export async function savePhoneNumberRow(args: {
     capabilities: args.capabilities ?? { voice: true, sms: false },
     is_active: true,
     updated_at: new Date().toISOString(),
+    twilio_subaccount_sid: args.twilioSubaccountSid ?? null,
+    cost_usd_cents_monthly: args.costUsdCentsMonthly ?? null,
+    price_gbp_pence_monthly: args.priceGbpPenceMonthly ?? null,
   };
 
   if (existing?.id) {

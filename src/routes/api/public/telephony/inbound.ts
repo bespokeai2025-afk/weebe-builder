@@ -2,25 +2,28 @@
  * Public Twilio inbound-call webhook.
  *
  * Twilio hits this URL when a call comes in to one of our registered numbers.
- * Validates the Twilio signature when TWILIO_AUTH_TOKEN is set.
+ * Signature verification is mandatory and fails closed: if the number's
+ * WEBEE-managed Twilio Subaccount credentials can't be resolved, the request
+ * is rejected outright — it is never accepted unverified.
  *
  * Flow:
- *  1. Verify Twilio signature (when auth token present)
- *  2. Parse To / From / CallSid from form body
- *  3. Look up workspace + agent from phone_numbers table
- *  4. Create telephony_calls row
- *  5. Respond with TwiML  <Connect><Stream …/>  to open the audio bridge
+ *  1. Parse To / From / CallSid from form body
+ *  2. Look up workspace + agent from phone_numbers table
+ *  3. Resolve the number's WEBEE-managed subaccount credentials (reject if unavailable)
+ *  4. Verify the Twilio signature (reject if invalid)
+ *  5. Create telephony_calls row
+ *  6. Respond with TwiML  <Connect><Stream …/>  to open the audio bridge
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { resolveTwilioCredentialsForWorkspace } from "@/lib/telephony/twilio-credentials.server";
+import { resolveOrCreateWorkspaceSubaccount } from "@/lib/telephony/twilio-credentials.server";
 
 /**
  * Verify a Twilio request signature.
  * https://www.twilio.com/docs/usage/webhooks/webhooks-security
  */
-function verifyTwilioSignature(
+export function verifyTwilioSignature(
   authToken: string,
   twilioSignature: string | null,
   url: string,
@@ -34,6 +37,42 @@ function verifyTwilioSignature(
   const b = Buffer.from(expected);
   if (a.length !== b.length) return false;
   try { return timingSafeEqual(a, b); } catch { return false; }
+}
+
+/**
+ * Resolve the inbound number's WEBEE-managed subaccount credentials and
+ * verify Twilio's signature against them — fails closed on either step.
+ * Extracted from the route handler below so it's directly testable without
+ * invoking TanStack Start's route machinery (this codebase has no test
+ * harness for that).
+ */
+export async function resolveAndVerifyInboundSignature(
+  workspaceId: string,
+  request: Request,
+  params: Record<string, string>,
+  resolveSubaccount: typeof resolveOrCreateWorkspaceSubaccount = resolveOrCreateWorkspaceSubaccount,
+): Promise<{ ok: true } | { ok: false; reason: "credentials_unavailable" | "invalid_signature" }> {
+  let twilioAuthToken: string;
+  try {
+    twilioAuthToken = (await resolveSubaccount(supabaseAdmin, workspaceId)).authToken;
+  } catch (err) {
+    console.error(
+      "[telephony/inbound] Could not resolve Twilio subaccount credentials — rejecting call:",
+      err instanceof Error ? err.message : err,
+    );
+    return { ok: false, reason: "credentials_unavailable" };
+  }
+
+  const sigHeader = request.headers.get("X-Twilio-Signature");
+  const proto     = request.headers.get("x-forwarded-proto") ?? "https";
+  const host      = request.headers.get("host") ?? "";
+  const fullUrl   = `${proto}://${host}/api/public/telephony/inbound`;
+  if (!verifyTwilioSignature(twilioAuthToken, sigHeader, fullUrl, params)) {
+    console.warn("[telephony/inbound] Invalid Twilio signature — rejected");
+    return { ok: false, reason: "invalid_signature" };
+  }
+
+  return { ok: true };
 }
 
 function twimlResponse(xml: string) {
@@ -79,28 +118,17 @@ export const Route = createFileRoute("/api/public/telephony/inbound")({
           return rejectTwiml();
         }
 
-        let twilioAuthToken = "";
-        try {
-          twilioAuthToken = (
-            await resolveTwilioCredentialsForWorkspace(
-              supabaseAdmin,
-              numberRow.workspace_id as string,
-            )
-          ).authToken;
-        } catch {
-          twilioAuthToken = process.env.TWILIO_AUTH_TOKEN ?? "";
+        // Fail closed: no fallback to a platform-wide env token, no "skip
+        // verification if credentials are unavailable" branch.
+        const verified = await resolveAndVerifyInboundSignature(
+          numberRow.workspace_id as string,
+          request,
+          params,
+        );
+        if (!verified.ok) {
+          return new Response("Forbidden", { status: 403 });
         }
-
-        if (twilioAuthToken) {
-          const sigHeader  = request.headers.get("X-Twilio-Signature");
-          const proto      = request.headers.get("x-forwarded-proto") ?? "https";
-          const host       = request.headers.get("host") ?? "";
-          const fullUrl    = `${proto}://${host}/api/public/telephony/inbound`;
-          if (!verifyTwilioSignature(twilioAuthToken, sigHeader, fullUrl, params)) {
-            console.warn("[telephony/inbound] Invalid Twilio signature — rejected");
-            return new Response("Forbidden", { status: 403 });
-          }
-        }
+        const host = request.headers.get("host") ?? "";
 
         // Insert telephony_calls row
         const { data: callRow, error: insertErr } = await supabaseAdmin
@@ -131,8 +159,7 @@ export const Route = createFileRoute("/api/public/telephony/inbound")({
           event_data: { from: "initiated", to: "ringing", callSid },
         });
 
-        // Build stream URL for the audio bridge
-        const host = request.headers.get("host") ?? "";
+        // Build stream URL for the audio bridge (host resolved above)
         const streamUrl = `wss://${host}/api/telephony/stream/${callRow.id}`;
 
         const twiml =

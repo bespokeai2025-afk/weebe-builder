@@ -4,6 +4,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { createVoiceProviderWithFallback } from "@/lib/providers/voice/factory";
 import { goLiveAgentService, saveAgentPhoneNumberService } from "@/lib/agents/agent-golive.server";
+import { resolveOrCreateWorkspaceSubaccount } from "@/lib/telephony/twilio-credentials.server";
 
 type Json = Database["public"]["Tables"]["agents"]["Row"]["flow_data"];
 
@@ -667,6 +668,39 @@ export const goLiveAgent = createServerFn({ method: "POST" })
   });
 
 /**
+ * Resolve the WEBEE-managed Twilio Subaccount credentials for a workspace's
+ * OpenAI Realtime number operations — throws with a clear error if
+ * unavailable. Extracted from the three handlers below so it's directly
+ * testable without invoking their surrounding createServerFn/middleware
+ * chain (this codebase has no test harness for that yet).
+ */
+export async function resolveWorkspaceTwilioCredentials(
+  sb: Parameters<typeof resolveOrCreateWorkspaceSubaccount>[0],
+  workspaceId: string | null | undefined,
+): Promise<{ accountSid: string; authToken: string }> {
+  if (!workspaceId) throw new Error("No workspace context available.");
+  return resolveOrCreateWorkspaceSubaccount(sb, workspaceId);
+}
+
+/**
+ * Same as resolveWorkspaceTwilioCredentials, but never throws — returns
+ * { ok: false } instead, for callers (listTwilioPhoneNumbers) that need to
+ * degrade gracefully (e.g. render an empty/"not configured" list) rather
+ * than fail the whole request.
+ */
+export async function tryResolveWorkspaceTwilioCredentials(
+  sb: Parameters<typeof resolveOrCreateWorkspaceSubaccount>[0],
+  workspaceId: string | null | undefined,
+): Promise<{ ok: true; accountSid: string; authToken: string } | { ok: false }> {
+  try {
+    const creds = await resolveWorkspaceTwilioCredentials(sb, workspaceId);
+    return { ok: true, ...creds };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/**
  * Update an agent's voice engine provider and atomically flip the Twilio
  * inbound webhook URL on the attached phone number.
  */
@@ -706,21 +740,12 @@ export const setAgentVoiceProvider = createServerFn({ method: "POST" })
       try {
         const { data: ws } = await sb
           .from("workspace_settings")
-          .select("twilio_auth_token, retell_workspace_id")
+          .select("retell_workspace_id")
           .eq("workspace_id", agent.workspace_id)
           .maybeSingle();
 
-        const twilioSid = process.env.TWILIO_ACCOUNT_SID ?? null;
-        const twilioToken =
-          (ws?.twilio_auth_token as string | null) ??
-          process.env.TWILIO_AUTH_TOKEN ??
-          null;
-
-        if (!twilioSid || !twilioToken) {
-          throw new Error(
-            "Twilio credentials not configured. Add TWILIO_ACCOUNT_SID and auth token in workspace settings.",
-          );
-        }
+        const { accountSid: twilioSid, authToken: twilioToken } =
+          await resolveWorkspaceTwilioCredentials(supabaseAdmin, agent.workspace_id);
 
         const Twilio = (await import("twilio")).default;
         const client = Twilio(twilioSid, twilioToken);
@@ -878,23 +903,8 @@ export const buyTwilioPhoneNumber = createServerFn({ method: "POST" })
     (input: { areaCode?: number; tollFree?: boolean; nickname?: string; countryCode?: string }) => input,
   )
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
-    const { data: ws } = await (supabase as any)
-      .from("workspace_settings")
-      .select("twilio_auth_token")
-      .eq("workspace_id", context.workspaceId)
-      .maybeSingle();
-
-    const sid = process.env.TWILIO_ACCOUNT_SID ?? null;
-    const token =
-      (ws?.twilio_auth_token as string | null) ??
-      process.env.TWILIO_AUTH_TOKEN ??
-      null;
-    if (!sid || !token) {
-      throw new Error(
-        "Twilio not configured. Add TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN (or set twilio_auth_token in workspace settings).",
-      );
-    }
+    const { accountSid: sid, authToken: token } =
+      await resolveWorkspaceTwilioCredentials(supabaseAdmin, context.workspaceId);
 
     const Twilio = (await import("twilio")).default;
     const client = Twilio(sid, token);
@@ -932,24 +942,18 @@ export const listTwilioPhoneNumbers = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: Record<string, never> | undefined) => input ?? {})
   .handler(async ({ context }) => {
-    const { supabase } = context;
-    const { data: ws } = await (supabase as any)
-      .from("workspace_settings")
-      .select("twilio_auth_token")
-      .eq("workspace_id", context.workspaceId)
-      .maybeSingle();
-
-    const sid = process.env.TWILIO_ACCOUNT_SID ?? null;
-    const token =
-      (ws?.twilio_auth_token as string | null) ??
-      process.env.TWILIO_AUTH_TOKEN ??
-      null;
-    if (!sid || !token) {
+    // Preserves the old "not configured" contract: this previously meant no
+    // BYOK credentials were entered; now it means WEBEE-managed subaccount
+    // resolution itself failed (e.g. WEBEE's master Twilio account isn't
+    // configured in this environment) — same non-throwing shape either way.
+    const resolved = await tryResolveWorkspaceTwilioCredentials(supabaseAdmin, context.workspaceId);
+    if (!resolved.ok) {
       return {
         configured: false,
         numbers: [] as Array<{ phoneNumber: string; nickname: string; inboundAgentId: string | null }>,
       };
     }
+    const { accountSid: sid, authToken: token } = resolved;
 
     const Twilio = (await import("twilio")).default;
     const client = Twilio(sid, token);
