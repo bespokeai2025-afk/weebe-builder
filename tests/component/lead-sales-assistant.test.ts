@@ -161,7 +161,7 @@ describe("buildAssistantPrompt", () => {
   it("asks for the sections each mode promises in the UI", () => {
     const pitch = buildAssistantPrompt(SUBJECT, "pitch", null);
     expect(pitch).toContain("## Hook");
-    expect(pitch).toContain("## Opening line");
+    expect(pitch).toContain("## Say this");
     const meeting = buildAssistantPrompt(SUBJECT, "meeting", null);
     expect(meeting).toContain("## Objective");
     expect(meeting).toContain("## Objections and responses");
@@ -177,6 +177,10 @@ describe("buildAssistantPrompt", () => {
 
   it("caps the hook so it stays a line, not a paragraph", () => {
     expect(buildAssistantPrompt(SUBJECT, "pitch", null)).toMatch(/12 words or fewer/i);
+  });
+
+  it("budgets the spoken pitch to about 30 seconds", () => {
+    expect(buildAssistantPrompt(SUBJECT, "pitch", null)).toMatch(/70-85\s*words/);
   });
 
   it("works for a record with no company or email, as CSV imports often are", () => {

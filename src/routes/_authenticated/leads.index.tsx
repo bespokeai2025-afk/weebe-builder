@@ -93,6 +93,7 @@ import {
   LeadAiAssistantPanel,
   type AssistantTarget,
 } from "@/components/leads/LeadAiAssistantPanel";
+import { useSalesAssistantAccess } from "@/hooks/useSalesAssistantAccess";
 import {
   listWbahPositiveNeutralLeads,
   getWbahContactCallHistory,
@@ -579,6 +580,7 @@ function LeadsPage() {
   const leadsLevel = String((myPermsQ.data as any)?.pageAccess?.leads ?? "hidden");
   const canCreateLead = pageLevelRank(leadsLevel) >= pageLevelRank("edit");
 
+  const canUseAssistant = useSalesAssistantAccess();
   const [assistantTarget, setAssistantTarget] = useState<AssistantTarget | null>(null);
   const [addLeadOpen, setAddLeadOpen] = useState(false);
   const emptyNewLead = { full_name: "", phone: "", email: "", company_name: "", notes: "" };
@@ -1877,7 +1879,7 @@ function LeadsPage() {
                                 there is no lead record behind the row for the
                                 assistant to read. Every other lead-specific action
                                 on this page is gated the same way. */}
-                            {!isWbah && (
+                            {!isWbah && canUseAssistant && (
                               <button
                                 onClick={() =>
                                   setAssistantTarget({

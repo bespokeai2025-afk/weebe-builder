@@ -7,6 +7,12 @@
  * "did the objection actually make it into the prompt" is the thing worth pinning down.
  */
 
+import {
+  WEBEE_CORE_POSITIONING,
+  matchWebeeIndustry,
+  webeeIndustryBrief,
+} from "./webee-sales-context.shared";
+
 export type AssistantMode = "pitch" | "meeting" | "demo";
 
 export const ASSISTANT_MODES: Array<{ id: AssistantMode; label: string; blurb: string }> = [
@@ -147,61 +153,94 @@ export function htmlToText(html: string, maxChars = 6000): string {
 }
 
 const MODE_INSTRUCTIONS: Record<AssistantMode, string> = {
-  pitch: `Produce, as markdown with these exact headings:
+  pitch: `A 30-SECOND PITCH. It is spoken out loud, so the whole "Say this" section must read in
+about 30 seconds — roughly 75-85 words. Tight is the point; do not pad it.
+
+Produce, as markdown with these exact headings:
 ## Hook
-One catchy line, 12 words or fewer, that a rep could lead with or use as a subject line. It must be
-about THIS company's world, not about WeBee. No questions, no buzzwords, no "revolutionise".
-## Opening line
-One or two sentences to actually say when they pick up. Earn the next 30 seconds: reference
-something specific and true about them, then state plainly why you called. No flattery, no "I hope
-you are well", no asking permission to talk.
-## Why WeBee fits them
-3-4 bullets. Each names something this company actually does, then the specific consequence of
-doing it without conversational AI. Consequence first, feature second.
-## Selling points
-3-4 bullets. Each is a claim a buyer could test, with a number, a time saving or a named outcome.
+One catchy line, 12 words or fewer, about THIS company's world. Usable as an opener or an email
+subject. No questions, no buzzwords, no "revolutionise".
+## Say this
+The actual 30-second pitch, as continuous spoken words in one short paragraph. Aim for 70-85
+words — that is the 30 seconds. Under 60 words is too short and wastes the slot.
+Structure it: their situation in one line → the cost of it → what WEBEE does about it → a single
+ask for the next step. Plain spoken English. No headings, no bullets, no stage directions.
+## Three points to land
+Exactly 3 bullets, one line each — the points the 30 seconds must get across, so the rep can
+recover if the conversation moves.
+## If they push back
+2-3 bullets, formatted "**What they say** — your reply in one sentence".
 ## Do not say
-2-3 short bullets: the generic lines that would lose this particular buyer, and why.`,
-  meeting: `Produce, as markdown with these exact headings:
+2 short bullets: the generic lines that would lose this particular buyer, and why.`,
+  meeting: `AN IN-DEPTH MEETING PLAN. This is the rep's full working document for the call — assume
+they will have it open in front of them. Be thorough and concrete; length is fine here.
+
+Produce, as markdown with these exact headings:
 ## Objective
-One sentence. A commitment you want from them, not "build rapport".
+One sentence: the commitment you want by the end, not "build rapport".
+## What we know and what we must confirm
+Two short bullet groups, labelled "Known" and "To confirm", drawn from the lead's own record.
+## Agenda
+A timed running order for a 30-minute call, as "0-5 min — …" lines.
 ## Discovery questions
-5-6 questions, ordered so each earns the right to ask the next. Specific to this company. At least
-two must dig into cost or call volume so value can be quantified later.
+6-8 questions grouped under "Current situation", "Cost and volume" and "Decision process".
+Ordered so each earns the right to ask the next. At least two must quantify call volume, missed
+calls or staff time, so value can be costed later.
 ## Likely pain points
-3-4 bullets, each with the business consequence, not just the symptom.
+4-5 bullets, each with the business consequence, mapped to where this sector leaks.
 ## What to demonstrate
-3-4 WeBee capabilities. For each: why THIS lead should care, in one clause.
+4-5 WEBEE capabilities. For each: why THIS lead should care, in one clause.
+## Proof and numbers to use
+3-4 bullets: the pilot metrics this sector measures, and how to frame them honestly. Never invent
+a statistic or a customer name.
 ## Objections and responses
-3-4 pairs, formatted "**Objection** — response". Anything this lead has already raised must come
-first. Answer it directly; never dismiss it or promise something not in evidence.
+4-5 pairs, formatted "**Objection** — response". Anything this lead has already raised comes
+first. Answer it directly; never dismiss it or promise something not in evidence. One pair must
+handle "we are already looking at another AI voice tool" — that is where WEBEE's actual
+differentiator belongs: a standalone builder gives you the voice agent, WEBEE gives you the
+operational journey around it (qualify, book, CRM write-back, follow-up).
+## Commercials to prepare for
+2-3 bullets on pricing, pilot scope or procurement questions likely to come up.
 ## Next step
-One sentence, with a concrete commitment and a date or timeframe.`,
-  demo: `Produce, as markdown with these exact headings:
+One sentence with a concrete commitment and a date or timeframe.
+## Red flags
+2-3 bullets: what would tell you this is not a real opportunity.`,
+  demo: `AN IN-DEPTH DEMO PLAN. Assume the rep is running a live demo for this company and will work
+from this document. Be thorough and specific; length is fine here.
+
+Produce, as markdown with these exact headings:
 ## Demo checklist
-5-7 items, each on its own line in the form "- [ ] item". Concrete preparation actions only —
-things to set up, confirm, load or rehearse before this specific demo. No advice or explanation
-in this section.
-## What to demonstrate
-An ordered list of WeBee features to show, in the order to show them, for this company.
+6-8 items, each on its own line in the form "- [ ] item". Concrete preparation actions only —
+what to set up, confirm, load or rehearse before this specific demo. No advice or explanation.
+## Demo narrative
+A short paragraph: the story the demo tells for this company, start to finish.
+## Run of show
+An ordered list of 5-7 steps, each as "Step — what you show — what you say while showing it".
+Follow this sector's own workflow order.
 ## Suggested scenario
-A short, concrete scenario using this company's own use case — a real call or message this
-business would plausibly receive, with details from their world.
+A concrete scenario in this company's own words: a real call or message this business would
+plausibly receive, with the details a caller would actually give.
 ## Key points to explain
-3-4 bullets.
+4-5 bullets, including where WEBEE ends and their people begin.
 ## Questions to ask during the demo
-3-4 questions that surface buying signals while you have their attention.
+4-5 questions that surface buying signals while you have their attention.
 ## Concerns to expect
-3-4 bullets drawn from this lead's previous interactions where there are any, each with how to
-handle it live.`,
+4-5 bullets drawn from this lead's previous interactions where there are any, each with how to
+handle it live rather than deferring it.
+## What could go wrong
+2-3 bullets: the parts most likely to fail or confuse, and the fallback for each.
+## After the demo
+2-3 bullets: what to send, what to agree, and by when.`,
 };
 
-export const ASSISTANT_SYSTEM_PROMPT = `You are a sales strategist with thirty years of enterprise and SMB selling behind you, briefing a rep before they speak to a specific lead. You sell WeBee: conversational AI — voice agents that answer and place calls, an AI receptionist, WhatsApp campaign automation, lead qualification, and CRM integration.
+export const ASSISTANT_SYSTEM_PROMPT = `You are a sales strategist with thirty years of enterprise and SMB selling behind you, briefing a WeBespoke rep before they speak to a specific lead about WEBEE.
 
 How you work:
 - You are specific or you are useless. Generic sales copy is a failure. Every claim ties to this company's actual business.
 - You use the lead's own history. If they raised a concern, you meet it head on. You never treat a warm lead as a cold one.
 - You sell the consequence, not the feature. "Twelve missed calls a week" beats "24/7 availability".
+- You stay on WEBEE's actual positioning as supplied below. You do not invent product capabilities.
+- You never claim WEBEE replaces human expertise. The message is "both, not either/or": people keep judgement, exceptions, approval and accountability.
 - You are honest about what you do not know, and you say what to confirm rather than inventing it. If research was supplied, you stay inside it.
 - You never write filler: no "I hope this finds you well", no "game-changing", no "revolutionise", no "in today's fast-paced world", no exclamation marks.
 - You write the way a good rep talks: short sentences, plain words, British English.
@@ -250,6 +289,22 @@ export function buildAssistantPrompt(
       "No company website could be researched. Do not invent details about them; rely on what is known above and be explicit about what you would need to confirm.",
     );
   }
+
+  // WEBEE's own story, and the industry deck that matches this lead. Without
+  // these the model invented WEBEE's positioning from the product name and
+  // produced plausible but off-message copy.
+  lines.push("");
+  lines.push("## What WEBEE actually is (use this, do not improvise it)");
+  lines.push(WEBEE_CORE_POSITIONING);
+
+  const haystack = [
+    subject.company ?? "",
+    subject.facts.map((f) => `${f.label} ${f.value}`).join(" "),
+    research?.text ?? "",
+  ].join(" ");
+  lines.push("");
+  lines.push("## Industry playbook");
+  lines.push(webeeIndustryBrief(matchWebeeIndustry(haystack)));
 
   lines.push("");
   lines.push("## Task");

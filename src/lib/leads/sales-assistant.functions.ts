@@ -12,6 +12,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { assertSalesAssistantAccess, canUseSalesAssistant } from "./webespoke-internal.shared";
 import {
   ASSISTANT_SYSTEM_PROMPT,
   buildAssistantPrompt,
@@ -222,6 +223,24 @@ function subjectFromRecord(row: Record<string, unknown>): AssistantSubject {
   };
 }
 
+/** Whether the signed-in user may see the assistant at all, for hiding the button. */
+export const getSalesAssistantAccess = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, workspaceId, userId } = context;
+    const { data: profile } = await (supabase as any)
+      .from("profiles")
+      .select("user_type")
+      .eq("user_id", userId)
+      .maybeSingle();
+    return {
+      allowed: canUseSalesAssistant({
+        workspaceId,
+        userType: profile?.user_type ?? null,
+      }),
+    };
+  });
+
 export const generateLeadSalesAssistant = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input) =>
@@ -239,6 +258,16 @@ export const generateLeadSalesAssistant = createServerFn({ method: "POST" })
     const { supabase, workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No active workspace");
     const sb = supabase as any;
+
+    // WeBespoke-only: this generates pitches for WEBEE itself, so it is
+    // meaningless in a customer workspace. Enforced here as well as hidden in
+    // the UI — the UI check is a courtesy, this is the control.
+    const { data: profile } = await sb
+      .from("profiles")
+      .select("user_type")
+      .eq("user_id", userId)
+      .maybeSingle();
+    assertSalesAssistantAccess({ workspaceId, userType: profile?.user_type ?? null });
 
     const table = data.source === "lead" ? "leads" : "data_records";
     const { data: row, error } = await sb

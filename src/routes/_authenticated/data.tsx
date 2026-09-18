@@ -27,6 +27,7 @@ import {
   LeadAiAssistantPanel,
   type AssistantTarget,
 } from "@/components/leads/LeadAiAssistantPanel";
+import { useSalesAssistantAccess } from "@/hooks/useSalesAssistantAccess";
 import { WbahCallSchedulingSection } from "@/components/dashboard/WbahCallSchedulingSection";
 import { WbahTestLeadBadge } from "@/components/dashboard/WbahTestLeadBadge";
 import { WbahNewLeadSubBadge } from "@/components/dashboard/WbahNewLeadSubBadge";
@@ -802,6 +803,7 @@ function DynamicDataTable({
   toggleOne,
   onReset,
   onGenerate,
+  canGenerate,
 }: {
   records: any[];
   agents: any[];
@@ -811,6 +813,7 @@ function DynamicDataTable({
   toggleOne: (id: string) => void;
   onReset: (id: string) => void;
   onGenerate: (record: any) => void;
+  canGenerate: boolean;
 }) {
   const extraCols = useMemo(
     () => OPTIONAL_COLS.filter((c) => records.some((r) => r[c.key])),
@@ -920,14 +923,16 @@ function DynamicDataTable({
                 {fmtDate(r.updated_at)}
               </td>
               <td className="px-2.5 py-1">
-                <button
-                  onClick={() => onGenerate(r)}
-                  title="AI Sales Assistant"
-                  className="flex items-center gap-1 rounded border border-primary/25 px-1.5 py-1 text-[10px] font-medium text-primary/80 transition-colors hover:border-primary/50 hover:bg-primary/10 hover:text-primary"
-                >
-                  <Sparkles className="h-3 w-3" />
-                  <span>Generate</span>
-                </button>
+                {canGenerate && (
+                  <button
+                    onClick={() => onGenerate(r)}
+                    title="AI Sales Assistant"
+                    className="flex items-center gap-1 rounded border border-primary/25 px-1.5 py-1 text-[10px] font-medium text-primary/80 transition-colors hover:border-primary/50 hover:bg-primary/10 hover:text-primary"
+                  >
+                    <Sparkles className="h-3 w-3" />
+                    <span>Generate</span>
+                  </button>
+                )}
               </td>
             </tr>
           ))}
@@ -1013,6 +1018,7 @@ function DataPage() {
   const [wbahNewLeadSyncOn, setWbahNewLeadSyncOn] = useState<boolean | null>(null);
   const [callingDelayedLeadId, setCallingDelayedLeadId] = useState<string | null>(null);
 
+  const canUseAssistant = useSalesAssistantAccess();
   const [assistantTarget, setAssistantTarget] = useState<AssistantTarget | null>(null);
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
@@ -2439,6 +2445,7 @@ function DataPage() {
                   toggleAll={toggleAll}
                   toggleOne={toggleOne}
                   onReset={handleReset}
+                  canGenerate={canUseAssistant}
                   onGenerate={(r: any) =>
                     setAssistantTarget({
                       id: r.id,
