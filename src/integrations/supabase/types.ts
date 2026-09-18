@@ -12321,42 +12321,51 @@ export type Database = {
         Row: {
           agent_id: string | null
           capabilities: Json
+          cost_usd_cents_monthly: number | null
           created_at: string
           friendly_name: string | null
           id: string
           is_active: boolean
           phone_number: string
+          price_gbp_pence_monthly: number | null
           provider: string
           provider_sid: string | null
           telephony_config_id: string | null
+          twilio_subaccount_sid: string | null
           updated_at: string
           workspace_id: string
         }
         Insert: {
           agent_id?: string | null
           capabilities?: Json
+          cost_usd_cents_monthly?: number | null
           created_at?: string
           friendly_name?: string | null
           id?: string
           is_active?: boolean
           phone_number: string
+          price_gbp_pence_monthly?: number | null
           provider?: string
           provider_sid?: string | null
           telephony_config_id?: string | null
+          twilio_subaccount_sid?: string | null
           updated_at?: string
           workspace_id: string
         }
         Update: {
           agent_id?: string | null
           capabilities?: Json
+          cost_usd_cents_monthly?: number | null
           created_at?: string
           friendly_name?: string | null
           id?: string
           is_active?: boolean
           phone_number?: string
+          price_gbp_pence_monthly?: number | null
           provider?: string
           provider_sid?: string | null
           telephony_config_id?: string | null
+          twilio_subaccount_sid?: string | null
           updated_at?: string
           workspace_id?: string
         }

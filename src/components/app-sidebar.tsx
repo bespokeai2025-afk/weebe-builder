@@ -175,6 +175,7 @@ const DEFAULT_NAV_ITEMS: NavItem[] = [
   { title: "SystemMind",  url: "/systemmind",  icon: Server,     moduleId: "systemmind" },
   { title: "Knowledge Centre", url: "/knowledge-centre", icon: BookOpen },
   { title: "Analytics",   url: "/analytics",   icon: BarChart3 },
+  { title: "Numbers",   url: "/numbers",   icon: PhoneCall },
   { title: "Agents",    url: "/my-agents", icon: LayoutGrid,    tourId: "nav-agents" },
   { title: "Builder",   url: "/builder",   icon: Workflow,       moduleId: "builder" },
   { title: "Templates", url: "/templates", icon: LayoutTemplate, tourId: "nav-templates" },

@@ -6,8 +6,10 @@
  * workspace credentials when present.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Twilio } from "twilio";
 import {
   resolveTwilioCredentials as resolveEnvTwilioCredentials,
+  resolveMasterTwilioCredentials,
   type TwilioCredentials,
 } from "./twilio-env";
 
@@ -56,6 +58,81 @@ export async function resolveTwilioCredentialsForWorkspace(
   throw new Error(
     "Twilio is not configured. Add credentials in Settings → Providers → Telephony, or set TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN in the environment.",
   );
+}
+
+async function masterClient(): Promise<Twilio> {
+  const { accountSid, authToken } = resolveMasterTwilioCredentials();
+  // Same CommonJS-interop workaround as twilio-numbers.server.ts's client().
+  const mod = (await import("twilio")) as unknown as {
+    default: (sid: string, token: string) => Twilio;
+  };
+  return mod.default(accountSid, authToken);
+}
+
+/**
+ * Get (or lazily create) the Twilio Subaccount WEBEE provisions for a
+ * workspace under its own master account.
+ *
+ * Not yet called from any live code path — this is the additive first half
+ * of the Twilio reseller cutover (plan step 1a). `resolveTwilioCredentialsForWorkspace`
+ * below is not yet rewired to use it; that is the gated step 1b.
+ *
+ * A DB unique constraint on workspace_id (the primary key) plus
+ * `ON CONFLICT ... DO NOTHING` + re-select prevents a race between two
+ * concurrent callers from creating two subaccounts for one workspace — only
+ * one insert can ever win, and both callers end up returning the same row.
+ */
+export async function resolveOrCreateWorkspaceSubaccount(
+  sb: DbClient,
+  workspaceId: string,
+): Promise<TwilioCredentials> {
+  const existing = await sb
+    .from("workspace_twilio_subaccounts")
+    .select("twilio_subaccount_sid, twilio_subaccount_auth_token")
+    .eq("workspace_id", workspaceId)
+    .maybeSingle();
+
+  if (existing.data?.twilio_subaccount_sid && existing.data?.twilio_subaccount_auth_token) {
+    return {
+      accountSid: existing.data.twilio_subaccount_sid,
+      authToken: existing.data.twilio_subaccount_auth_token,
+    };
+  }
+
+  const client = await masterClient();
+  const subaccount = await client.api.v2010.accounts.create({
+    friendlyName: `WEBEE workspace ${workspaceId}`,
+  });
+
+  // ignoreDuplicates: if another concurrent call already inserted this
+  // workspace's row first, this upsert becomes a no-op rather than
+  // overwriting it with a second, different subaccount.
+  await sb
+    .from("workspace_twilio_subaccounts")
+    .upsert(
+      {
+        workspace_id: workspaceId,
+        twilio_subaccount_sid: subaccount.sid,
+        twilio_subaccount_auth_token: subaccount.authToken,
+        friendly_name: subaccount.friendlyName,
+      },
+      { onConflict: "workspace_id", ignoreDuplicates: true },
+    );
+
+  const resolved = await sb
+    .from("workspace_twilio_subaccounts")
+    .select("twilio_subaccount_sid, twilio_subaccount_auth_token")
+    .eq("workspace_id", workspaceId)
+    .maybeSingle();
+
+  if (!resolved.data?.twilio_subaccount_sid || !resolved.data?.twilio_subaccount_auth_token) {
+    throw new Error(`Failed to provision or read back a Twilio subaccount for workspace ${workspaceId}.`);
+  }
+
+  return {
+    accountSid: resolved.data.twilio_subaccount_sid,
+    authToken: resolved.data.twilio_subaccount_auth_token,
+  };
 }
 
 export async function getTwilioCredentialStatus(
