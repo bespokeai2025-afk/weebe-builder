@@ -121,14 +121,14 @@ describe("LiveCallsPanel session recovery", () => {
     render(<LiveCallsPanel />);
     await flush();
 
-    // First attempt fails (no token) → "reconnecting…" with a slow retry.
-    expect(screen.getByText("reconnecting…")).toBeTruthy();
+    // First attempt fails (no token) → the toggle reflects "Reconnecting" with a slow retry.
+    expect(screen.getByText("Reconnecting")).toBeTruthy();
 
     // Two more failed attempts exhaust the refresh-failure budget.
     await advance(15_000);
     await advance(15_000);
 
-    expect(screen.getByText("session expired")).toBeTruthy();
+    expect(screen.getByText("Expired")).toBeTruthy();
     expect(
       screen.getByText(/Session expired — please sign in again/),
     ).toBeTruthy();
@@ -138,7 +138,7 @@ describe("LiveCallsPanel session recovery", () => {
     const esCountBefore = MockEventSource.instances.length;
     await advance(60_000);
     expect(MockEventSource.instances.length).toBe(esCountBefore);
-    expect(screen.getByText("session expired")).toBeTruthy();
+    expect(screen.getByText("Expired")).toBeTruthy();
   });
 
   it("auto-reconnects with the resuming banner when the user signs back in after expiry", async () => {
@@ -152,7 +152,7 @@ describe("LiveCallsPanel session recovery", () => {
     await flush();
     await advance(15_000);
     await advance(15_000);
-    expect(screen.getByText("session expired")).toBeTruthy();
+    expect(screen.getByText("Expired")).toBeTruthy();
 
     // User signs back in (e.g. another tab) — session is valid again.
     authState.session = { access_token: "tok-2" };
@@ -209,7 +209,7 @@ describe("LiveCallsPanel session recovery", () => {
       first.onerror?.();
     });
     expect(first.closed).toBe(true);
-    expect(screen.getByText("reconnecting…")).toBeTruthy();
+    expect(screen.getByText("Reconnecting")).toBeTruthy();
 
     // Backoff for the first failure is 3s.
     await advance(2_999);

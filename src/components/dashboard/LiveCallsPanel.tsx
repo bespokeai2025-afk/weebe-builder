@@ -34,7 +34,7 @@ function resolveStatus(call: LiveCall): CallStatus {
 function StatusBadge({ status }: { status: CallStatus }) {
   if (status === "ringing") {
     return (
-      <span className="flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-400">
+      <span className="flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-metadata text-amber-400">
         <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
         RINGING
       </span>
@@ -42,7 +42,7 @@ function StatusBadge({ status }: { status: CallStatus }) {
   }
   if (status === "in_progress") {
     return (
-      <span className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
+      <span className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-metadata text-emerald-400">
         <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
         LIVE
       </span>
@@ -50,14 +50,14 @@ function StatusBadge({ status }: { status: CallStatus }) {
   }
   if (status === "failed") {
     return (
-      <span className="flex items-center gap-1 rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-medium text-rose-400">
+      <span className="flex items-center gap-1 rounded-full bg-rose-500/15 px-2 py-0.5 text-metadata text-rose-400">
         <PhoneOff className="h-2.5 w-2.5" />
         NO ANSWER
       </span>
     );
   }
   return (
-    <span className="flex items-center gap-1 rounded-full bg-slate-500/15 px-2 py-0.5 text-[10px] font-medium text-slate-400">
+    <span className="flex items-center gap-1 rounded-full bg-slate-500/15 px-2 py-0.5 text-metadata text-slate-400">
       <CheckCircle className="h-2.5 w-2.5" />
       ENDED
     </span>
@@ -131,11 +131,11 @@ function CallCard({ call }: { call: LiveCall }) {
           </span>
           <div className="min-w-0">
             <p className="text-xs font-semibold text-foreground truncate">{call.agent_name}</p>
-            <p className="text-[10px] text-muted-foreground truncate">{contactDisplay}</p>
+            <p className="text-metadata text-muted-foreground truncate">{contactDisplay}</p>
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-[10px] tabular-nums text-muted-foreground">{duration}</span>
+          <span className="text-metadata tabular-nums text-muted-foreground">{duration}</span>
           <StatusBadge status={status} />
         </div>
       </div>
@@ -143,7 +143,7 @@ function CallCard({ call }: { call: LiveCall }) {
       {call.current_node_label && (
         <div className="flex items-center gap-1.5 px-4 py-1.5 border-b border-white/[0.04] bg-white/[0.02]">
           <GitBranch className="h-3 w-3 text-violet-400/80 shrink-0" />
-          <span className="text-[10px] text-muted-foreground truncate">
+          <span className="text-metadata text-muted-foreground truncate">
             Step: <span className="text-foreground/80 font-medium">{call.current_node_label}</span>
           </span>
         </div>
@@ -157,7 +157,7 @@ function CallCard({ call }: { call: LiveCall }) {
       >
         {call.transcript.length === 0 ? (
           isCompleted ? (
-            <div className="flex items-center gap-2 py-3 text-[11px] text-muted-foreground/60">
+            <div className="flex items-center gap-2 py-3 text-caption text-muted-foreground/60">
               <Mic className="h-3.5 w-3.5" />
               No transcript recorded
             </div>
@@ -166,7 +166,7 @@ function CallCard({ call }: { call: LiveCall }) {
             // The usual cause is the agent's Retell webhook URL pointing somewhere
             // other than WEBEE (e.g. an external automation), so Retell never
             // delivers the live transcript to this app.
-            <div className="flex items-start gap-2 py-3 text-[11px] text-amber-400/80">
+            <div className="flex items-start gap-2 py-3 text-caption text-amber-400/80">
               <Mic className="h-3.5 w-3.5 shrink-0 mt-0.5" />
               <span>
                 Live transcript unavailable — no live transcript feed received for
@@ -175,7 +175,7 @@ function CallCard({ call }: { call: LiveCall }) {
               </span>
             </div>
           ) : (
-            <div className="flex items-center gap-2 py-3 text-[11px] text-muted-foreground">
+            <div className="flex items-center gap-2 py-3 text-caption text-muted-foreground">
               <span className="flex gap-0.5">
                 <span className="h-3 w-0.5 rounded-full bg-emerald-400/60 animate-[bounce_1s_ease-in-out_0s_infinite]" />
                 <span className="h-3 w-0.5 rounded-full bg-emerald-400/60 animate-[bounce_1s_ease-in-out_0.15s_infinite]" />
@@ -188,11 +188,11 @@ function CallCard({ call }: { call: LiveCall }) {
           call.transcript.map((line, i) => (
             <div
               key={i}
-              className={`flex gap-2 text-[11px] leading-relaxed ${
+              className={`flex gap-2 text-caption leading-relaxed ${
                 line.role === "agent" ? "text-violet-300" : "text-foreground/80"
               }`}
             >
-              <span className="shrink-0 font-semibold uppercase tracking-wide text-[9px] pt-0.5 w-9 text-right">
+              <span className="shrink-0 text-label pt-0.5 w-9 text-right">
                 {line.role === "agent" ? "Agent" : "User"}
               </span>
               <span>{line.content}</span>
@@ -389,44 +389,50 @@ export function LiveCallsPanel() {
         <h2 className="text-sm font-semibold text-foreground">Live Calls</h2>
 
         {enabled && liveCount > 0 && (
-          <span className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+          <span className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-metadata font-semibold text-emerald-400">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
             {liveCount} active
           </span>
         )}
 
-        {enabled && status === "connecting" && (
-          <span className="text-[10px] text-muted-foreground/60">connecting…</span>
-        )}
-
         {enabled && status === "live" && liveCount === 0 && completedCalls.length === 0 && (
-          <span className="text-[10px] text-muted-foreground/60">● streaming</span>
+          <span className="text-metadata text-muted-foreground/60">● streaming</span>
         )}
 
-        {enabled && status === "error" && (
-          <span className="text-[10px] text-amber-400/80">reconnecting…</span>
-        )}
-
-        {enabled && status === "session_expired" && (
-          <span className="text-[10px] text-rose-400/90">session expired</span>
-        )}
-
+        {/* Toggle reflects the ACTUAL connection status, not just whether
+            monitoring is switched on — so it never reads "On" while the
+            session underneath is expired/erroring. Presentational only:
+            `enabled`/`status`/`toggle` are the same pre-existing state. */}
         <button
           onClick={toggle}
           title={enabled ? "Turn off live monitoring" : "Turn on live monitoring"}
-          className={`ml-auto flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-medium transition-colors ${
-            enabled
-              ? "bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25"
-              : "bg-white/5 text-muted-foreground hover:bg-white/10"
+          className={`ml-auto flex items-center gap-1.5 rounded-full px-2.5 py-1 text-metadata transition-colors ${
+            !enabled
+              ? "bg-white/5 text-muted-foreground hover:bg-white/10"
+              : status === "session_expired"
+                ? "bg-rose-500/15 text-rose-400 hover:bg-rose-500/25"
+                : status === "error"
+                  ? "bg-amber-500/15 text-amber-400 hover:bg-amber-500/25"
+                  : status === "connecting"
+                    ? "bg-white/5 text-muted-foreground hover:bg-white/10"
+                    : "bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25"
           }`}
         >
           <Power className="h-3 w-3" />
-          {enabled ? "On" : "Off"}
+          {!enabled
+            ? "Off"
+            : status === "session_expired"
+              ? "Expired"
+              : status === "error"
+                ? "Reconnecting"
+                : status === "connecting"
+                  ? "Connecting"
+                  : "On"}
         </button>
       </div>
 
       {enabled && (
-        <div className="flex items-center gap-1.5 mb-3 text-[10px] text-muted-foreground/60">
+        <div className="flex items-center gap-1.5 mb-3 text-metadata text-muted-foreground/60">
           <Headphones className="h-3 w-3 shrink-0" />
           <span>Transcript monitoring enabled · live audio not enabled in current setup</span>
         </div>
@@ -473,7 +479,7 @@ export function LiveCallsPanel() {
           )}
           {completedCalls.length > 0 && (
             <div>
-              <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wider mb-2 px-0.5">
+              <p className="text-label text-muted-foreground/60 mb-2 px-0.5">
                 Recent calls — last 20 min
               </p>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">

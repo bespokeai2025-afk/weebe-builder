@@ -46,7 +46,7 @@ export function PageHeader({
         )}
         <div>
           <h1 className="text-sm font-semibold tracking-tight text-foreground">{title}</h1>
-          {subtitle && <p className="mt-0.5 text-[10px] text-muted-foreground">{subtitle}</p>}
+          {subtitle && <p className="mt-0.5 text-caption text-muted-foreground">{subtitle}</p>}
         </div>
       </div>
       <div className="flex items-center gap-1.5">
@@ -71,6 +71,8 @@ export function KpiCard({
   iconBg = "bg-blue-500/15",
   iconColor = "text-blue-400",
   hint,
+  sparkline,
+  size = "sm",
 }: {
   label: string;
   value: string | number;
@@ -80,21 +82,55 @@ export function KpiCard({
   iconBg?: string;
   iconColor?: string;
   hint?: string;
+  /** Presentational-only slot for a small trend chart (e.g. a recharts
+   * sparkline built on `ui/chart.tsx`). Renders nothing until a caller
+   * supplies real time-series data — this component does not fetch or
+   * fabricate any. */
+  sparkline?: React.ReactNode;
+  /** "sm" (default, unchanged) is the compact icon-left row used across the
+   * app. "lg" stacks label/value/icon vertically with a dominant value —
+   * for the small number of places (e.g. the dashboard's primary KPI row)
+   * where the metric itself should be the visual anchor, not a list item. */
+  size?: "sm" | "lg";
 }) {
+  if (size === "lg") {
+    return (
+      <div className="flex min-w-0 flex-col gap-3 rounded-xl border border-white/[0.06] bg-card/60 p-4 backdrop-blur">
+        <div className="flex items-center justify-between">
+          <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", iconBg)}>
+            <Icon className={cn("h-4 w-4", iconColor)} />
+          </div>
+          {delta != null && (
+            <span className={cn("text-xs font-semibold shrink-0", deltaUp ? "text-success" : "text-destructive")}>
+              {delta}
+            </span>
+          )}
+        </div>
+        <div className="min-w-0">
+          <p className="text-label text-muted-foreground">{label}</p>
+          <p className="mt-1 text-3xl font-bold leading-none tabular-nums text-foreground">{value}</p>
+          {hint && <p className="mt-1.5 text-caption text-muted-foreground leading-tight">{hint}</p>}
+        </div>
+        {sparkline != null && <div className="h-8 w-full">{sparkline}</div>}
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-w-0 items-center gap-2 rounded-lg border border-white/[0.06] bg-card/60 px-2.5 py-2 backdrop-blur">
       <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-md", iconBg)}>
         <Icon className={cn("h-3 w-3", iconColor)} />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-[9px] font-medium uppercase tracking-[0.1em] text-muted-foreground leading-none">
+        <p className="text-label text-muted-foreground leading-none">
           {label}
         </p>
         <p className="mt-0.5 text-sm font-bold leading-none tabular-nums text-foreground">{value}</p>
-        {hint && <p className="mt-0.5 text-[9px] text-muted-foreground leading-tight">{hint}</p>}
+        {hint && <p className="mt-0.5 text-caption text-muted-foreground leading-tight">{hint}</p>}
       </div>
+      {sparkline != null && <div className="h-7 w-14 shrink-0">{sparkline}</div>}
       {delta != null && (
-        <span className={cn("text-xs font-semibold shrink-0", deltaUp ? "text-emerald-400" : "text-red-400")}>
+        <span className={cn("text-xs font-semibold shrink-0", deltaUp ? "text-success" : "text-destructive")}>
           {delta}
         </span>
       )}
@@ -114,9 +150,9 @@ export function MiniKpiCard({
 }) {
   return (
     <div className="min-w-0 rounded-lg border border-dashed border-white/[0.08] bg-card/30 px-2.5 py-2">
-      <p className="text-[9px] font-medium uppercase tracking-[0.1em] text-muted-foreground">{label}</p>
+      <p className="text-label text-muted-foreground">{label}</p>
       <p className="mt-0.5 text-sm font-bold leading-none tabular-nums">{value}</p>
-      {hint && <p className="text-[9px] text-muted-foreground mt-0.5 leading-tight">{hint}</p>}
+      {hint && <p className="text-caption text-muted-foreground mt-0.5 leading-tight">{hint}</p>}
     </div>
   );
 }
@@ -144,7 +180,7 @@ export function StatCard({
   return (
     <div className={cn("relative min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60 p-3 backdrop-blur", toneStyles[tone].split(" ").slice(2).join(" "))}>
       <div className={cn("absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r", toneStyles[tone].split(" ").slice(0, 2).join(" "))} />
-      <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
+      <p className="text-label text-muted-foreground">{label}</p>
       <p className="mt-0.5 text-xl font-bold tracking-tight text-foreground tabular-nums">{value}</p>
       {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
     </div>
@@ -163,10 +199,14 @@ export function EmptyState({
   icon: Icon,
   title,
   message,
+  action,
 }: {
   icon: React.ElementType;
   title: string;
   message: string;
+  /** Optional CTA slot (e.g. a <Button asChild><Link>…</Link></Button>).
+   * Omitted by default — only render one where a real next action exists. */
+  action?: React.ReactNode;
 }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-white/[0.08] bg-card/30 px-6 py-10 text-center">
@@ -175,6 +215,7 @@ export function EmptyState({
       </div>
       <p className="text-sm font-medium text-foreground">{title}</p>
       <p className="mt-1 max-w-sm text-xs text-muted-foreground">{message}</p>
+      {action && <div className="mt-3">{action}</div>}
     </div>
   );
 }
@@ -192,7 +233,7 @@ export function TableHead({ children }: { children: React.ReactNode }) {
 
 export function Th({ children, className }: { children?: React.ReactNode; className?: string }) {
   return (
-    <th className={cn("px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.1em] text-muted-foreground", className)}>
+    <th className={cn("px-2 py-1 text-left text-label text-muted-foreground", className)}>
       {children}
     </th>
   );

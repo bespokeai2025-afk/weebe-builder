@@ -96,7 +96,14 @@
      These pass at ~5.0:1 while staying the same hue. */
   --success: #15803d;
   --warning: #b45309;
-  --highlight: #0a0f1c;
+  /* WEBEE brand accent (golden yellow), sampled from public/webee-logo-yellow.png
+     (#f5c200). Darkened to #8a6300 for light-theme text/icon use — raw #f5c200
+     is only 1.67:1 against white, failing AA; #8a6300 passes at ~5.4:1 while
+     keeping the same hue. --brand-foreground is the fixed dark text color for
+     content placed ON a solid brand-accent fill (badges/CTAs), not theme-inverted
+     like --foreground, since a yellow fill always wants dark text on top. */
+  --brand: #8a6300;
+  --brand-foreground: #0a0f1c;
 
   --border: rgba(10, 15, 28, 0.06);
   --input: rgba(10, 15, 28, 0.08);
@@ -119,10 +126,14 @@
 
   --gradient-primary: linear-gradient(135deg, #0a0f1c 0%, #52525b 100%);
   --gradient-glow: linear-gradient(135deg, rgba(10, 15, 28, 0.1) 0%, rgba(82, 82, 91, 0.1) 100%);
-  --shadow-elegant: 0 1px 2px rgba(10, 15, 28, 0.04), 0 8px 24px -8px rgba(10, 15, 28, 0.1);
-  --shadow-glow: 0 0 40px rgba(10, 15, 28, 0.06);
-  --shadow-soft: 0 1px 2px rgba(10, 15, 28, 0.03), 0 4px 16px -6px rgba(10, 15, 28, 0.06);
-  --shadow-elevated: 0 2px 4px rgba(10, 15, 28, 0.04), 0 20px 40px -12px rgba(10, 15, 28, 0.14);
+  /* Raw values for the shadow tokens registered as Tailwind utilities below
+     (@theme inline). Named "-value" so the theme key (--shadow-elegant) and
+     the runtime, theme-switchable value it points to aren't the same
+     identifier. */
+  --shadow-elegant-value: 0 1px 2px rgba(10, 15, 28, 0.04), 0 8px 24px -8px rgba(10, 15, 28, 0.1);
+  --shadow-glow-value: 0 0 40px rgba(10, 15, 28, 0.06);
+  --shadow-soft-value: 0 1px 2px rgba(10, 15, 28, 0.03), 0 4px 16px -6px rgba(10, 15, 28, 0.06);
+  --shadow-elevated-value: 0 2px 4px rgba(10, 15, 28, 0.04), 0 20px 40px -12px rgba(10, 15, 28, 0.14);
 }
 
 .dark {
@@ -156,7 +167,12 @@
   --destructive-foreground: #ffffff;
   --success: #22c55e;
   --warning: #f59e0b;
-  --highlight: #4f8cff;
+  /* True brand gold (sampled from public/webee-logo-yellow.png) — 11.5:1
+     against this dark background, so no darkening needed here unlike light
+     theme. Dark theme is explicitly where WEBEE's yellow should read strong
+     and confident (WEBEE-UIUX-AUDIT.md dashboard direction). */
+  --brand: #f5c200;
+  --brand-foreground: #0a0f1c;
 
   --border: rgba(255, 255, 255, 0.06);
   --input: rgba(255, 255, 255, 0.06);
@@ -198,12 +214,12 @@
     rgba(255, 255, 255, 0) 100%
   );
   --gradient-glow: radial-gradient(ellipse at top, rgba(79, 140, 255, 0.12) 0%, transparent 60%);
-  --shadow-elegant:
+  --shadow-elegant-value:
     0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 1px 2px rgba(0, 0, 0, 0.4),
     0 8px 24px -10px rgba(0, 0, 0, 0.6);
-  --shadow-glow: 0 0 0 1px rgba(79, 140, 255, 0.18), 0 8px 24px -8px rgba(79, 140, 255, 0.35);
-  --shadow-soft: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 1px 2px rgba(0, 0, 0, 0.35);
-  --shadow-elevated:
+  --shadow-glow-value: 0 0 0 1px rgba(79, 140, 255, 0.18), 0 8px 24px -8px rgba(79, 140, 255, 0.35);
+  --shadow-soft-value: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-elevated-value:
     0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 2px 4px rgba(0, 0, 0, 0.4),
     0 20px 40px -16px rgba(0, 0, 0, 0.7);
 }
@@ -213,7 +229,16 @@
     "Inter var", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --color-success: var(--success);
   --color-warning: var(--warning);
-  --color-highlight: var(--highlight);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  /* Registers shadow-elegant/glow/soft/elevated as real Tailwind shadow
+     utilities (with variant support: hover:shadow-soft, etc.) instead of the
+     hand-rolled `.shadow-x { box-shadow: var(--shadow-x) }` classes this
+     replaces below. Values still theme-switch via the referenced -value var. */
+  --shadow-elegant: var(--shadow-elegant-value);
+  --shadow-glow: var(--shadow-glow-value);
+  --shadow-soft: var(--shadow-soft-value);
+  --shadow-elevated: var(--shadow-elevated-value);
 }
 
 @layer base {
@@ -316,6 +341,30 @@
     color: var(--color-card-foreground);
   }
 
+  /* Dense-UI typography — dashboard, KPI cards, compact tables. Extends the
+     scale below `small`/`label` (13px) with the two smallest real steps,
+     consolidating what used to be ungoverned text-[9px]/[10px]/[11px]
+     literals (WEBEE-UIUX-AUDIT.md) into three named roles. */
+  .text-caption {
+    font-size: 0.75rem; /* 12px — secondary/hint text, subtitles */
+    line-height: 1.5;
+    font-weight: 500;
+    letter-spacing: -0.005em;
+  }
+  .text-metadata {
+    font-size: 0.6875rem; /* 11px — dense secondary values: timestamps, phone numbers, counts */
+    line-height: 1.4;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+  .text-label {
+    font-size: 0.6875rem; /* 11px — uppercase section/column labels */
+    line-height: 1.4;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
   /* Inputs and textareas — consistent line-height and rendering */
   input,
   textarea,
@@ -404,12 +453,8 @@
     box-shadow: var(--shadow-elevated);
   }
 
-  .shadow-soft {
-    box-shadow: var(--shadow-soft);
-  }
-  .shadow-elevated {
-    box-shadow: var(--shadow-elevated);
-  }
+  /* shadow-soft / shadow-elevated / shadow-elegant / shadow-glow utilities are
+     now generated by Tailwind directly from the @theme inline block above. */
 
   /* Layered background depth (replaces hard boxes) */
   .surface-1 {
@@ -620,12 +665,6 @@
   }
   .gradient-glow {
     background: var(--gradient-glow);
-  }
-  .shadow-elegant {
-    box-shadow: var(--shadow-elegant);
-  }
-  .shadow-glow {
-    box-shadow: var(--shadow-glow);
   }
 }
 
