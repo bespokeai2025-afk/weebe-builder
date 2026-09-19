@@ -48,7 +48,10 @@ function startOfUtcDayMs(ms: number): number {
 // ── Timezone-aware day floor (mirrors startOfDayMsInTz in analytics.tsx) ──────
 // WBAH preset windows floor to Europe/London days so the analytics page uses
 // the SAME day boundaries as every other WBAH page (wbah_calls views).
-function tzOffsetMsAt(ms: number, tz: string): number {
+// Exported so other dashboard aggregations (e.g. leads-created-over-time)
+// can bucket by any resolved IANA timezone without duplicating this DST-safe
+// Intl-based math.
+export function tzOffsetMsAt(ms: number, tz: string): number {
   const dtf = new Intl.DateTimeFormat("en-GB", {
     timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
     hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
@@ -61,7 +64,7 @@ function tzOffsetMsAt(ms: number, tz: string): number {
   return asUtcMs - Math.floor(ms / 1000) * 1000;
 }
 
-function startOfDayMsInTzServer(ms: number, tz: string): number {
+export function startOfDayMsInTzServer(ms: number, tz: string): number {
   // Local calendar date at `ms`, then the UTC instant of that date's local
   // midnight using the offset at the candidate midnight itself (re-derived
   // once) so DST-transition days resolve correctly.

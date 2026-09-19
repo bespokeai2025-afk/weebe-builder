@@ -7,8 +7,21 @@ import { resolveDeploymentMode } from "@/lib/runtime/adapter";
 import { placeNativeOutboundCall } from "@/lib/telephony/native-outbound.server";
 import { cacheWrap, invalidateDashboardCache } from "@/lib/cache/redis.server";
 import { LEAD_STATUS_CATEGORY_MAP } from "@/lib/dashboard/lead-status-categories";
+import { startOfDayMsInTzServer } from "@/lib/dashboard/analytics.functions";
+import { WBAH_TIMEZONE } from "@/lib/dashboard/wbah-timezone";
 
 const OVERVIEW_STATS_TTL = 90; // 90 seconds
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function isValidIanaTimeZone(tz: string): boolean {
+  try {
+    // Throws RangeError for anything that isn't a real IANA identifier.
+    Intl.DateTimeFormat(undefined, { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function overviewStatsKey(workspaceId: string, daysSince?: number) {
   return daysSince
@@ -369,6 +382,126 @@ export const getOverviewStats = createServerFn({ method: "POST" })
       recentLeads: recentLeadsRes.data ?? [],
     };
   }, bust);
+  });
+
+/**
+ * Leads Created Over Time — the one dashboard trend classified READY NOW in
+ * the Phase 2B.1 analytics audit: every lead has an immutable `created_at`.
+ * This counts leads by the calendar day of that timestamp ONLY — never
+ * `updated_at`, current `status`, or `sentiment`. It is not a qualification,
+ * closed-lead, or conversion metric.
+ *
+ * Timezone priority (per the Phase 2B.2 policy): WBAH's existing, proven
+ * Europe/London override first (matches every other WBAH page) → the
+ * workspace's own `workspace_settings.timezone` if it's a valid IANA string
+ * → UTC. That column has no UI anywhere to set it today (checked directly —
+ * no route references it), so in practice this will resolve to UTC for
+ * nearly every non-WBAH workspace. That's an honest, correct fallback, not
+ * a bug — it's not this phase's job to build a timezone settings UI.
+ *
+ * Pure bucketing: given a set of ISO created_at timestamps, produce exactly
+ * `days` zero-filled, chronologically-ascending day buckets. No Supabase
+ * dependency, so this is directly unit-testable. Bucket boundaries are
+ * derived by re-normalizing each candidate instant through the same
+ * DST-safe day-floor function used for each timestamp itself — so bucket
+ * keys and lead timestamps can never disagree, even across a DST
+ * transition inside the selected range.
+ */
+export function bucketLeadsCreatedAt(
+  createdAtIsoTimestamps: string[],
+  days: 7 | 30,
+  tz: string,
+  nowMs: number,
+): Array<{ date: string; count: number }> {
+  const todayStartMs = startOfDayMsInTzServer(nowMs, tz);
+  const dayKeys: number[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    dayKeys.push(startOfDayMsInTzServer(todayStartMs - i * DAY_MS, tz));
+  }
+
+  const counts = new Map<number, number>(dayKeys.map((k) => [k, 0]));
+  for (const iso of createdAtIsoTimestamps) {
+    const dayMs = startOfDayMsInTzServer(new Date(iso).getTime(), tz);
+    if (counts.has(dayMs)) counts.set(dayMs, (counts.get(dayMs) ?? 0) + 1);
+  }
+
+  const fmt = new Intl.DateTimeFormat("en-GB", { timeZone: tz, day: "numeric", month: "short" });
+  return dayKeys.map((dayMs) => ({
+    date: fmt.format(new Date(dayMs)),
+    count: counts.get(dayMs) ?? 0,
+  }));
+}
+
+/** Resolve the earliest instant (ms) a bucket range needs to query from. */
+export function rangeStartMsFor(days: 7 | 30, tz: string, nowMs: number): number {
+  const todayStartMs = startOfDayMsInTzServer(nowMs, tz);
+  return startOfDayMsInTzServer(todayStartMs - (days - 1) * DAY_MS, tz);
+}
+
+/**
+ * Injectable-deps core, directly testable without a real Supabase client —
+ * matches this codebase's established pattern for testable server functions
+ * (e.g. purchaseVoiceNumberCore). `sb` only needs to support the exact
+ * chainable calls used below.
+ */
+export async function getLeadsCreatedTrendCore(
+  days: 7 | 30,
+  deps: {
+    sb: any;
+    workspaceId: string;
+    userId: string;
+    assignedOnly: boolean;
+    now?: number;
+  },
+) {
+  const { sb, workspaceId, userId, assignedOnly, now = Date.now() } = deps;
+
+  const [{ data: wsRow }, { data: settingsRow }] = await Promise.all([
+    sb.from("workspaces").select("slug").eq("id", workspaceId).maybeSingle(),
+    sb.from("workspace_settings").select("timezone").eq("workspace_id", workspaceId).maybeSingle(),
+  ]);
+  const isWbah = wsRow?.slug === "webuyanyhouse";
+  const rawTz = (settingsRow?.timezone as string | null) ?? "UTC";
+  const tz = isWbah ? WBAH_TIMEZONE : (isValidIanaTimeZone(rawTz) ? rawTz : "UTC");
+
+  const rangeStartMs = rangeStartMsFor(days, tz, now);
+
+  let q = sb
+    .from("leads")
+    .select("created_at")
+    .eq("workspace_id", workspaceId)
+    .gte("created_at", new Date(rangeStartMs).toISOString());
+  if (assignedOnly) q = q.eq("assigned_to", userId);
+
+  const { data: rows, error } = await q;
+  if (error) throw new Error(error.message);
+
+  return bucketLeadsCreatedAt(
+    ((rows ?? []) as Array<{ created_at: string }>).map((r) => r.created_at),
+    days,
+    tz,
+    now,
+  );
+}
+
+export const getLeadsCreatedTrend = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) =>
+    z.object({ days: z.union([z.literal(7), z.literal(30)]) }).parse(input ?? { days: 7 }),
+  )
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId, userId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+
+    const { resolvePermissions } = await import("@/lib/permissions/permissions.server");
+    const perms = await resolvePermissions(workspaceId, userId);
+
+    return getLeadsCreatedTrendCore(data.days, {
+      sb: supabase as any,
+      workspaceId,
+      userId,
+      assignedOnly: perms.assignedRecordsOnly === true,
+    });
   });
 
 export const listLeads = createServerFn({ method: "POST" })
