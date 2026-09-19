@@ -296,7 +296,7 @@ export function ImportPDFDialog({
             </Button>
             <a
               href="/api/builder/script-template"
-              className="flex items-center justify-center gap-1.5 w-full rounded-md border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-white/[0.05] hover:border-white/[0.14] transition-colors"
+              className="flex items-center justify-center gap-1.5 w-full rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted hover:border-foreground/20 transition-colors"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
                 <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
@@ -369,7 +369,7 @@ export function ImportPDFDialog({
                           "text-left rounded-lg border p-3 transition-all space-y-2",
                           isSelected
                             ? "border-violet-500/50 bg-violet-500/10 ring-1 ring-violet-500/30"
-                            : "border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12] hover:bg-white/[0.04]",
+                            : "border-border bg-muted/40 hover:border-foreground/20 hover:bg-muted",
                         )}
                       >
                         <div className="flex items-start gap-2.5">
@@ -389,7 +389,7 @@ export function ImportPDFDialog({
                         {agent.keyPhrases?.length > 0 && (
                           <div className="flex flex-wrap gap-1">
                             {agent.keyPhrases.slice(0, 3).map((p) => (
-                              <span key={p} className="rounded px-1.5 py-0.5 text-[9px] bg-white/[0.04] text-muted-foreground border border-white/[0.06] italic">
+                              <span key={p} className="rounded px-1.5 py-0.5 text-[9px] bg-muted text-muted-foreground border border-border italic">
                                 "{p}"
                               </span>
                             ))}
@@ -398,7 +398,7 @@ export function ImportPDFDialog({
                         {agent.expertise?.length > 0 && (
                           <div className="flex flex-wrap gap-1">
                             {agent.expertise.slice(0, 3).map((tag) => (
-                              <span key={tag} className="rounded px-1.5 py-0.5 text-[9px] bg-white/[0.05] text-muted-foreground border border-white/[0.06]">
+                              <span key={tag} className="rounded px-1.5 py-0.5 text-[9px] bg-muted text-muted-foreground border border-border">
                                 {tag}
                               </span>
                             ))}
@@ -418,7 +418,7 @@ export function ImportPDFDialog({
                 <div className="grid grid-cols-2 gap-2">
                   {scanResult.campaigns.map((campaign) => {
                     const isSelected = selectedCampaign?.name === campaign.name;
-                    const typeColor = CAMPAIGN_TYPE_COLORS[campaign.type.toLowerCase()] ?? "bg-white/[0.05] text-muted-foreground border-white/[0.08]";
+                    const typeColor = CAMPAIGN_TYPE_COLORS[campaign.type.toLowerCase()] ?? "bg-muted text-muted-foreground border-border";
                     return (
                       <button
                         key={campaign.name}
@@ -427,7 +427,7 @@ export function ImportPDFDialog({
                           "text-left rounded-lg border p-3 transition-all space-y-2",
                           isSelected
                             ? "border-blue-500/50 bg-blue-500/10 ring-1 ring-blue-500/30"
-                            : "border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12] hover:bg-white/[0.04]",
+                            : "border-border bg-muted/40 hover:border-foreground/20 hover:bg-muted",
                         )}
                       >
                         <div className="flex items-start justify-between gap-2">
@@ -445,7 +445,7 @@ export function ImportPDFDialog({
                             {campaign.keyStages.slice(0, 5).map((stage, i) => (
                               <span key={stage} className="flex items-center gap-0.5 text-[9px] text-muted-foreground">
                                 {i > 0 && <ArrowRight className="h-2 w-2 text-muted-foreground/30" />}
-                                <span className="rounded px-1 py-0 bg-white/[0.05] border border-white/[0.06]">{stage}</span>
+                                <span className="rounded px-1 py-0 bg-muted border border-border">{stage}</span>
                               </span>
                             ))}
                             {campaign.keyStages.length > 5 && (
@@ -551,7 +551,7 @@ export function ImportPDFDialog({
             </div>
 
             {/* Node list */}
-            <div className="rounded-md border border-white/[0.06] bg-white/[0.02] max-h-48 overflow-y-auto divide-y divide-white/[0.04]">
+            <div className="rounded-md border border-border bg-muted/40 max-h-48 overflow-y-auto divide-y divide-white/[0.04]">
               {flowResult.nodes.map((node, idx) => {
                 const data = node.data as { kind: string; label: string; dialogue: string; isStart?: boolean; transitions?: Array<{ condition: string }> };
                 const txCount = data.transitions?.length ?? 0;
@@ -589,7 +589,7 @@ export function ImportPDFDialog({
 
             {/* Agent name + Company name + Begin message */}
             {(flowResult.suggestedAgentName || flowResult.suggestedCompanyName || flowResult.suggestedBeginMessage) && (
-              <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3 space-y-2.5">
+              <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2.5">
                 <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                   Agent Settings
                 </p>

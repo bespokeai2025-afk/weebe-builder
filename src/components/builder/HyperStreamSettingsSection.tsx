@@ -33,7 +33,7 @@ function HSSlider({
   const pct = ((value - min) / (max - min)) * 100;
   return (
     <div className="relative h-5 flex items-center">
-      <div className="absolute inset-x-0 h-[3px] rounded-full bg-white/[0.08]" />
+      <div className="absolute inset-x-0 h-[3px] rounded-full bg-muted" />
       <div
         className="absolute left-0 h-[3px] rounded-full bg-violet-500"
         style={{ width: `${pct}%` }}
@@ -135,7 +135,7 @@ export function HyperStreamSettingsSection() {
 
         {/* Server VAD fields */}
         {isServerVad && (
-          <div className="space-y-3 rounded-md border border-white/[0.06] bg-white/[0.02] p-3">
+          <div className="space-y-3 rounded-md border border-border bg-muted/40 p-3">
             {/* VAD Threshold */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">

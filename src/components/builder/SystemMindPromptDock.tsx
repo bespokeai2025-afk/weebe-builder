@@ -207,7 +207,7 @@ export function useSystemMindBuildLauncher({
   );
 
   const navEntry = hasSession ? (
-    <div className="border-b border-white/[0.04] p-1.5">
+    <div className="border-b border-border/60 p-1.5">
       <button
         onClick={reopen}
         className={cn(

@@ -157,7 +157,7 @@ function RetellTranscriptionSettings() {
         />
         <input
           type="text"
-          className="w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+          className="w-full rounded-md border border-border bg-muted/60 px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
           placeholder="Split by comma. Example: Webespoke, Walmart"
           value={(settings.boostedKeywords ?? []).join(", ")}
           onChange={(e) => csv("boostedKeywords", e.target.value)}
@@ -300,7 +300,7 @@ function WebeeNativeTranscriptionSettings() {
         />
         <input
           type="text"
-          className="w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+          className="w-full rounded-md border border-border bg-muted/60 px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
           placeholder="Split by comma. Example: Webespoke, Dubai Marina"
           value={(settings.boostedKeywords ?? []).join(", ")}
           onChange={(e) => csv("boostedKeywords", e.target.value)}
@@ -322,7 +322,7 @@ export function TranscriptionSettingsSection({
   if (!isRetell && !isHyperStream && !isWebeeNative) return null;
 
   return (
-    <Collapsible className="rounded-lg border border-white/[0.06] bg-white/[0.01]">
+    <Collapsible className="rounded-lg border border-border bg-muted/20">
       <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
         <div className="flex items-center gap-1.5">
           <Mic2 className="h-3 w-3" />

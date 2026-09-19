@@ -130,7 +130,7 @@ export function ImportJsonDialog({
 
         {/* ── Live agents from the workspace's own voice account ── */}
         {(liveQ.isLoading || liveAgents.length > 0) && (
-          <div className="space-y-2 rounded-lg border border-white/[0.08] bg-card/40 p-3">
+          <div className="space-y-2 rounded-lg border border-border bg-card/40 p-3">
             <p className="text-xs font-medium text-foreground">
               Load from your voice workspace
             </p>

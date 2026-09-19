@@ -41,13 +41,13 @@ function DraftRow({
         "w-full text-left rounded-lg border p-3 transition-colors",
         selected
           ? "border-sky-500/50 bg-sky-500/[0.08]"
-          : "border-white/[0.06] bg-white/[0.02] hover:border-white/10 hover:bg-white/[0.04]",
+          : "border-border bg-muted/40 hover:border-foreground/20 hover:bg-muted",
       )}
     >
       <div className="flex items-start gap-2.5">
         <div className={cn(
           "flex h-6 w-6 shrink-0 items-center justify-center rounded mt-0.5",
-          selected ? "bg-sky-500/20" : "bg-white/[0.04]",
+          selected ? "bg-sky-500/20" : "bg-muted",
         )}>
           <GitBranch className={cn("h-3 w-3", selected ? "text-sky-400" : "text-muted-foreground")} />
         </div>

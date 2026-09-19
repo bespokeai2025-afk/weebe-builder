@@ -57,7 +57,7 @@ function SpeechSlider({
   const pct = ((value - min) / (max - min)) * 100;
   return (
     <div className="relative h-5 flex items-center">
-      <div className="absolute inset-x-0 h-[3px] rounded-full bg-white/[0.08]" />
+      <div className="absolute inset-x-0 h-[3px] rounded-full bg-muted" />
       <div
         className="absolute left-0 h-[3px] rounded-full bg-primary"
         style={{ width: `${pct}%` }}
@@ -203,7 +203,7 @@ export function SpeechSettingsSection({ isRetell }: { isRetell: boolean }) {
 
   return (
     <>
-      <Collapsible className="rounded-lg border border-white/[0.06] bg-white/[0.01]">
+      <Collapsible className="rounded-lg border border-border bg-muted/20">
         <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
           <span>Speech Settings</span>
           <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
@@ -335,7 +335,7 @@ export function SpeechSettingsSection({ isRetell }: { isRetell: boolean }) {
             </p>
 
             {settings.enableBackchannel && (
-              <div className="mt-2 space-y-3 rounded-md border border-white/[0.06] bg-white/[0.02] p-3">
+              <div className="mt-2 space-y-3 rounded-md border border-border bg-muted/40 p-3">
                 {/* Backchannel Frequency */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
@@ -361,7 +361,7 @@ export function SpeechSettingsSection({ isRetell }: { isRetell: boolean }) {
                   </p>
                   <textarea
                     rows={2}
-                    className="w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    className="w-full rounded-md border border-border bg-muted/60 px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-1 focus:ring-primary/50"
                     placeholder="yeah, okay, hmmm, uh-huh"
                     value={(settings.backchannelWords ?? []).join(", ")}
                     onChange={(e) => csv("backchannelWords", e.target.value)}
@@ -411,9 +411,9 @@ export function SpeechSettingsSection({ isRetell }: { isRetell: boolean }) {
                 {pronunciationDictionary.map((entry, i) => (
                   <div
                     key={i}
-                    className="flex items-center gap-2 rounded-md border border-white/[0.06] bg-white/[0.02] px-2.5 py-1.5"
+                    className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-2.5 py-1.5"
                   >
-                    <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-white/[0.10] bg-white/[0.04]">
+                    <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-border bg-muted">
                       <Globe className="h-2.5 w-2.5 text-muted-foreground" />
                     </div>
                     <span className="flex-1 text-[11px] text-foreground truncate">{entry.word}</span>
@@ -453,7 +453,7 @@ export function SpeechSettingsSection({ isRetell }: { isRetell: boolean }) {
 
           {/* Advanced ——————————————————————————————————————— */}
           <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
-            <CollapsibleTrigger className="group flex w-full items-center justify-between rounded-md border border-white/[0.06] bg-white/[0.02] px-2.5 py-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors">
+            <CollapsibleTrigger className="group flex w-full items-center justify-between rounded-md border border-border bg-muted/40 px-2.5 py-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors">
               <span>Advanced</span>
               <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
             </CollapsibleTrigger>

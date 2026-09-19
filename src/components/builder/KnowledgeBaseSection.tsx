@@ -203,7 +203,7 @@ export function KnowledgeBaseSection({ isRetell, isHyperStream }: Props) {
 
   return (
     <>
-      <Collapsible className="rounded-lg border border-white/[0.06] bg-white/[0.01]">
+      <Collapsible className="rounded-lg border border-border bg-muted/20">
         <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
           <span className="flex items-center gap-1.5">
             <BookOpen className="h-3 w-3" />

@@ -30,7 +30,7 @@ export function BuilderDebugConsole() {
   const issues = useMemo(() => validateFlow(nodes, edges, variables), [nodes, edges, variables]);
 
   return (
-    <div className="shrink-0 border-t border-white/[0.06] bg-background/80">
+    <div className="shrink-0 border-t border-border bg-background/80">
       <div className="flex items-center gap-2 px-2 py-1">
         <button
           type="button"
@@ -48,7 +48,7 @@ export function BuilderDebugConsole() {
           }}
           className={cn(
             "rounded px-1.5 py-0.5 text-[10px]",
-            tab === "timeline" && open ? "bg-white/[0.06] text-foreground" : "text-muted-foreground",
+            tab === "timeline" && open ? "bg-muted text-foreground" : "text-muted-foreground",
           )}
         >
           Timeline {events.length ? `(${events.length})` : ""}
@@ -61,7 +61,7 @@ export function BuilderDebugConsole() {
           }}
           className={cn(
             "rounded px-1.5 py-0.5 text-[10px]",
-            tab === "validation" && open ? "bg-white/[0.06] text-foreground" : "text-muted-foreground",
+            tab === "validation" && open ? "bg-muted text-foreground" : "text-muted-foreground",
           )}
         >
           Validation {issues.length ? `(${issues.length})` : ""}
@@ -93,7 +93,7 @@ export function BuilderDebugConsole() {
                       type="button"
                       disabled={!ev.nodeId}
                       onClick={() => ev.nodeId && selectNode(ev.nodeId)}
-                      className="flex w-full items-start gap-2 rounded px-1 py-0.5 text-left text-[11px] hover:bg-white/[0.04] disabled:hover:bg-transparent"
+                      className="flex w-full items-start gap-2 rounded px-1 py-0.5 text-left text-[11px] hover:bg-muted disabled:hover:bg-transparent"
                     >
                       <span className="w-14 shrink-0 tabular-nums text-muted-foreground/70">
                         {new Date(ev.ts).toLocaleTimeString([], { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" })}
@@ -118,7 +118,7 @@ export function BuilderDebugConsole() {
                     disabled={!issue.nodeId}
                     onClick={() => issue.nodeId && selectNode(issue.nodeId)}
                     className={cn(
-                      "flex w-full items-start gap-2 rounded px-1 py-0.5 text-left text-[11px] hover:bg-white/[0.04]",
+                      "flex w-full items-start gap-2 rounded px-1 py-0.5 text-left text-[11px] hover:bg-muted",
                       issue.level === "error" ? "text-rose-300" : "text-amber-200",
                     )}
                   >

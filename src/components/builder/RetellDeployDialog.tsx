@@ -2931,7 +2931,7 @@ export function RetellDeployDialog({
                     issue.level === "error"
                       ? "bg-destructive/10 text-destructive"
                       : "bg-amber-500/10 text-amber-400",
-                    issue.nodeId && "hover:bg-white/[0.06]",
+                    issue.nodeId && "hover:bg-muted",
                   )}
                 >
                   {issue.level === "error" ? (

@@ -238,7 +238,7 @@ export function NodeEditorDialog() {
 
   return (
     <div className="webee-node-settings flex h-full min-h-0 flex-col">
-      <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] pb-3 mb-3">
+      <div className="flex items-center justify-between gap-2 border-b border-border pb-3 mb-3">
         <div className="flex min-w-0 items-center gap-2">
           <p className="truncate text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             {d.kind.replace(/_/g, " ")}
@@ -252,7 +252,7 @@ export function NodeEditorDialog() {
         <button
           type="button"
           onClick={() => selectNode(null)}
-          className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-white/[0.06]"
+          className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted"
           aria-label="Close node editor"
         >
           <X className="h-3.5 w-3.5" />
@@ -1737,7 +1737,7 @@ export function NodeEditorDialog() {
                 return (
                   <div
                     key={t.id}
-                    className="space-y-2 rounded-lg border border-white/[0.08] bg-white/[0.02] p-2"
+                    className="space-y-2 rounded-lg border border-border bg-muted/40 p-2"
                   >
                     <div className="flex items-start gap-2">
                       <button
