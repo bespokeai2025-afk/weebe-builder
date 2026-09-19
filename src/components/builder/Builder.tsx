@@ -896,23 +896,25 @@ export function Builder({
       <div
         role="toolbar"
         aria-label="Builder toolbar"
-        className="flex flex-nowrap items-center gap-1.5 border-b border-white/[0.04] bg-background/60 px-2 py-1 backdrop-blur-sm [&_button]:h-7 [&_button]:px-2 [&_button]:text-[11px] [&_button]:gap-1 [&_button_svg]:h-3.5 [&_button_svg]:w-3.5"
+        className="flex flex-nowrap items-center gap-1.5 overflow-x-auto border-b border-border bg-background/60 px-2 py-1 backdrop-blur-sm [&_button]:h-7 [&_button]:px-2 [&_button]:text-[11px] [&_button]:gap-1 [&_button_svg]:h-3.5 [&_button_svg]:w-3.5"
       >
         {/* Left: panel toggle + agent name + status */}
         <div className="flex flex-1 items-center gap-1 min-w-0">
           {toolbarStart}
           {/* Page identity — the global app header is hidden on this route
               (see hideHeader in _authenticated.tsx), so this is the only
-              "you are here" anchor on the whole screen. */}
-          <span className="shrink-0 px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">
+              "you are here" anchor on the whole screen. Hidden below sm:
+              on narrow viewports the agent-name input and save action need
+              the room more than this label does. */}
+          <span className="hidden shrink-0 px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50 sm:inline">
             Builder
           </span>
-          <div className="h-3.5 w-px shrink-0 bg-white/[0.06]" />
+          <div className="hidden h-3.5 w-px shrink-0 bg-border sm:block" />
           <Input
             data-tour="agent-name-input"
             value={settings.agentName}
             onChange={(e) => setSettings({ agentName: e.target.value })}
-            className="h-7 max-w-[180px] border-transparent bg-transparent px-1.5 text-[11px] font-semibold text-foreground hover:border-white/[0.06] focus-visible:border-white/[0.1]"
+            className="h-7 max-w-[180px] border-transparent bg-transparent px-1.5 text-[11px] font-semibold text-foreground hover:border-border focus-visible:border-brand/40"
             placeholder="Agent name"
           />
           {settings.voiceProvider === "OPENAI_REALTIME" && (
@@ -925,13 +927,13 @@ export function Builder({
             </Badge>
           )}
           {/* Channel switcher */}
-          <div className="flex items-center rounded-md border border-white/[0.06] bg-white/[0.02] p-0.5 gap-0.5 shrink-0">
+          <div className="flex items-center rounded-md border border-border bg-muted/60 p-0.5 gap-0.5 shrink-0">
             <button
               onClick={() => setSettings({ channelType: "voice" })}
               className={cn(
                 "flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium transition-colors",
                 (settings.channelType ?? "voice") === "voice"
-                  ? "bg-white/[0.08] text-foreground"
+                  ? "bg-card text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
@@ -959,7 +961,7 @@ export function Builder({
             role="group"
             aria-label="Canvas tools"
             title="Canvas tools"
-            className="flex items-center gap-0.5 rounded-md border border-white/[0.05] bg-white/[0.02] px-1 py-0.5"
+            className="hidden items-center gap-0.5 rounded-md border border-border bg-muted/40 px-1 py-0.5 lg:flex"
           >
             <Button
               size="sm"
@@ -1054,7 +1056,7 @@ export function Builder({
               </DropdownMenuContent>
             </DropdownMenu>
             {/* Divider */}
-            <div className="h-3.5 w-px bg-white/[0.07] mx-0.5" />
+            <div className="h-3.5 w-px bg-border mx-0.5" />
             {/* Clear canvas (trash) — reveals destructive color on hover only */}
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -1159,7 +1161,7 @@ export function Builder({
               role="group"
               aria-label="Copilot"
               title="Copilot"
-              className="flex items-center rounded-md bg-white/[0.03] border border-white/[0.05] px-0.5 gap-0.5"
+              className="flex items-center rounded-md bg-muted/60 border border-border px-0.5 gap-0.5"
             >
               <VoiceCopilotButton
                 onModeChange={(m) => setGuideOpen(m === "PLATFORM_HELP")}
@@ -1168,7 +1170,7 @@ export function Builder({
           )}
 
           {/* Separator */}
-          <div className="h-4 w-px bg-white/[0.06]" />
+          <div className="h-4 w-px bg-border" />
 
           {/* Deploy / utility cluster + trailing save actions */}
           <div data-tour="deploy-btn" role="group" aria-label="Deploy" className="inline-flex items-center">

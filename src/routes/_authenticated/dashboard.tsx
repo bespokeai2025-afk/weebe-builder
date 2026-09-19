@@ -4,12 +4,14 @@ import { useQuery } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import {
   Phone, Users, Calendar, TrendingUp, ArrowUpRight, ArrowRight,
-  Radio, PhoneCall, PhoneMissed, Bot, CheckCircle2, Circle, Voicemail, Hexagon, Plus,
+  Radio, PhoneCall, PhoneMissed, Bot, CheckCircle2, Circle, Voicemail, Plus,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { KpiCard, PanelCard } from "@/components/dashboard/PageShell";
 import { LiveCallsPanel } from "@/components/dashboard/LiveCallsPanel";
+import { GeometryAccent } from "@/components/dashboard/GeometryAccent";
+import { LeadsTrendChart } from "@/components/dashboard/LeadsTrendChart";
 import {
   Tooltip,
   TooltipContent,
@@ -81,42 +83,35 @@ function DashboardPage() {
   // shown rather than faked.
   const callsFailed = data?.totals.callsFailed ?? 0;
 
+  // Primary KPI icons use the uniform WEBEE brand-gold treatment (Phase
+  // 2A.3) via KpiCard's iconTone="brand" — no per-metric decorative color
+  // needed here anymore. This is identity/decoration, not semantic status.
   const kpis = [
     {
-      title:     "Total Leads",
-      value:     isLoading ? "—" : (data?.totals.leads ?? 0),
-      icon:      Users,
-      iconBg:    "bg-blue-500/15",
-      iconColor: "text-blue-400",
+      title: "Total Leads",
+      value: isLoading ? "—" : (data?.totals.leads ?? 0),
+      icon:  Users,
     },
     {
-      title:     "Qualified",
-      value:     isLoading ? "—" : (data?.totals.qualified ?? 0),
-      icon:      TrendingUp,
-      iconBg:    "bg-emerald-500/15",
-      iconColor: "text-emerald-400",
+      title: "Qualified",
+      value: isLoading ? "—" : (data?.totals.qualified ?? 0),
+      icon:  TrendingUp,
     },
     {
-      title:     "Calls Completed",
-      value:     isLoading ? "—" : (data?.totals.callsCompleted ?? 0),
-      icon:      Phone,
-      iconBg:    "bg-violet-500/15",
-      iconColor: "text-violet-400",
+      title: "Calls Completed",
+      value: isLoading ? "—" : (data?.totals.callsCompleted ?? 0),
+      icon:  Phone,
     },
     {
-      title:     "Bookings",
-      value:     isLoading ? "—" : (data?.totals.bookings ?? 0),
-      icon:      Calendar,
-      iconBg:    "bg-amber-500/15",
-      iconColor: "text-amber-400",
+      title: "Bookings",
+      value: isLoading ? "—" : (data?.totals.bookings ?? 0),
+      icon:  Calendar,
     },
     {
-      title:     "Closed Leads Reached",
-      value:     isLoading ? "—" : `${closedReached} / ${closedTotal}`,
-      hint:      isLoading ? undefined : `${closedPct}% contacted`,
-      icon:      PhoneMissed,
-      iconBg:    "bg-rose-500/15",
-      iconColor: "text-rose-400",
+      title: "Closed Leads Reached",
+      value: isLoading ? "—" : `${closedReached} / ${closedTotal}`,
+      hint:  isLoading ? undefined : `${closedPct}% contacted`,
+      icon:  PhoneMissed,
     },
   ];
 
@@ -131,9 +126,17 @@ function DashboardPage() {
   const flowMax = Math.max(1, ...flowStages.map((s) => s.value));
 
   return (
-    <div className="mx-auto w-full max-w-[1600px] px-8 py-6">
-      {/* Page header */}
-      <div className="mb-4">
+    <div className="mx-auto w-full max-w-[1600px] px-8 py-6 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300">
+      {/* Page header — the low-content zone the Phase 2A.3 audit identified
+          as the right home for the quiet brand-accent geometry (replacing
+          the old oversized Hexagon watermark that used to sit inside the
+          Conversion Snapshot card, competing with its data). Hidden below
+          md: a low-content header still shouldn't consume mobile height. */}
+      <div className="relative mb-4">
+        <GeometryAccent
+          variant="quiet"
+          className="absolute -right-2 -top-6 hidden h-20 w-28 md:block"
+        />
         <h1 className="text-base font-semibold tracking-tight">Dashboard</h1>
         <p className="text-caption text-muted-foreground mt-0.5">Overview of your receptionist activity</p>
       </div>
@@ -162,18 +165,30 @@ function DashboardPage() {
           </div>
         )}
 
-        {/* Live call banner — only visible when agents are actively on calls */}
+        {/* Live call banner — only visible when agents are actively on calls.
+            Capped + truncated (Phase: motion/polish pass): with many live
+            agents and long real-world names, an unbounded flex-wrap list
+            became a cramped multi-row cluster. Each pill truncates its own
+            name instead of growing, and anything past 6 collapses to a
+            plain count rather than wrapping further. */}
         {liveAgents.length > 0 && (
-          <div className="lg:col-span-12 flex flex-wrap gap-2">
-            {liveAgents.map((agent) => (
-              <div
-                key={agent.id}
-                className="flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/5 px-3 py-1"
-              >
-                <Radio className="h-3 w-3 text-emerald-400 animate-pulse" />
-                <span className="text-xs font-medium text-emerald-400">{agent.name} — Live</span>
-              </div>
-            ))}
+          <div className="lg:col-span-12">
+            <div className="flex flex-wrap items-center gap-2">
+              {liveAgents.slice(0, 6).map((agent) => (
+                <div
+                  key={agent.id}
+                  className="flex max-w-[200px] items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 transition-colors hover:bg-emerald-500/15"
+                >
+                  <Radio className="h-3 w-3 shrink-0 text-emerald-600 animate-pulse dark:text-emerald-400" />
+                  <span className="truncate text-xs font-medium text-emerald-700 dark:text-emerald-400">{agent.name}</span>
+                </div>
+              ))}
+              {liveAgents.length > 6 && (
+                <span className="text-caption text-muted-foreground px-1">
+                  +{liveAgents.length - 6} more live
+                </span>
+              )}
+            </div>
           </div>
         )}
 
@@ -191,21 +206,19 @@ function DashboardPage() {
               <KpiCard
                 key={kpi.title}
                 size="sm"
+                iconTone="brand"
                 label={kpi.title}
                 value={kpi.value}
                 icon={kpi.icon}
-                iconBg={kpi.iconBg}
-                iconColor={kpi.iconColor}
               />
             ))}
             <div className="col-span-2">
               <KpiCard
                 size="sm"
+                iconTone="brand"
                 label={kpis[4].title}
                 value={kpis[4].value}
                 icon={kpis[4].icon}
-                iconBg={kpis[4].iconBg}
-                iconColor={kpis[4].iconColor}
                 hint={(kpis[4] as any).hint}
               />
             </div>
@@ -217,11 +230,10 @@ function DashboardPage() {
               <KpiCard
                 key={kpi.title}
                 size="lg"
+                iconTone="brand"
                 label={kpi.title}
                 value={kpi.value}
                 icon={kpi.icon}
-                iconBg={kpi.iconBg}
-                iconColor={kpi.iconColor}
                 hint={(kpi as any).hint}
               />
             ))}
@@ -286,57 +298,13 @@ function DashboardPage() {
         )}
 
         {/* Primary business insight area — the dashboard's visual anchor.
-            This is a CURRENT-STATE snapshot (today's real totals at each
-            stage), not a time-series trend: getOverviewStats has no history
-            to trend from, so nothing here is fabricated or simulated. Once
-            a historical data layer exists (separately approved), this is
-            the slot a real trend chart replaces. */}
+            Leads Created Over Time (Phase 2B.2): the one trend classified
+            READY NOW in the Phase 2B.1 analytics audit, since every lead
+            has a real, immutable created_at. Not a qualification, closed,
+            or conversion metric — see getLeadsCreatedTrend's own doc comment. */}
         <div className="lg:col-span-8">
           <PanelCard className="relative h-full overflow-hidden border-t-2 border-t-brand">
-            <Hexagon
-              className="pointer-events-none absolute -right-10 -top-10 h-44 w-44 text-brand/[0.05]"
-              strokeWidth={1}
-            />
-            <div className="relative">
-              <div className="mb-5 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-foreground">Conversion Snapshot</p>
-                  <p className="text-caption text-muted-foreground mt-0.5">Current totals across the lead journey</p>
-                </div>
-              </div>
-
-              {isLoading ? (
-                <div className="h-32 animate-pulse rounded-xl bg-muted" />
-              ) : (
-                <div className="flex flex-col gap-1">
-                  {flowStages.map((stage, i) => {
-                    const pct = Math.max(4, Math.round((stage.value / flowMax) * 100));
-                    return (
-                      <div key={stage.label} className="flex items-center gap-3">
-                        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${stage.iconBg}`}>
-                          <stage.icon className={`h-4 w-4 ${stage.iconColor}`} />
-                        </div>
-                        <div className="min-w-0 flex-1 py-1.5">
-                          <div className="flex items-baseline justify-between gap-2 mb-1">
-                            <span className="text-caption text-muted-foreground">{stage.label}</span>
-                            <span className="text-sm font-bold tabular-nums text-foreground">{stage.value}</span>
-                          </div>
-                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                            <div
-                              className={`h-full rounded-full ${stage.barColor}`}
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
-                        </div>
-                        {i < flowStages.length - 1 && (
-                          <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/30 hidden sm:block" />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+            <LeadsTrendChart />
           </PanelCard>
         </div>
 
@@ -355,12 +323,17 @@ function DashboardPage() {
             </div>
 
             {agentsQ.isLoading ? (
-              <div className="h-[52px] animate-pulse rounded-xl bg-muted" />
+              <div className="h-[52px] rounded-xl skeleton-shimmer" />
             ) : agents.length === 0 ? (
               // Agents are a core WEBEE object, not a generic empty list — this
               // gets a stronger, dedicated treatment rather than the standard
-              // dashed-border EmptyState primitive used elsewhere.
-              <div className="flex flex-col items-center gap-3 rounded-xl border border-brand/20 bg-brand/[0.04] px-5 py-8 text-center">
+              // dashed-border EmptyState primitive used elsewhere. Centered
+              // within the panel's own h-full height (Phase 2A.4) so it reads
+              // as a deliberate, balanced composition beside Lead Activity
+              // rather than a short block sitting at the top with dead space
+              // below — this only affects the empty state; the populated
+              // agent list below fills height naturally with its own rows.
+              <div className="flex h-full min-h-[220px] flex-col items-center justify-center gap-3 rounded-xl border border-brand/20 bg-brand/[0.04] px-5 py-8 text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand/15 text-brand">
                   <Bot className="h-7 w-7" />
                 </div>
@@ -370,7 +343,7 @@ function DashboardPage() {
                     Create your first AI receptionist agent to start handling calls automatically.
                   </p>
                 </div>
-                <Button asChild size="sm" className="w-full gap-1.5">
+                <Button asChild size="sm" className="gap-1.5">
                   <Link to="/agents/new">
                     <Plus className="h-3.5 w-3.5" /> Create your first agent
                   </Link>
@@ -383,22 +356,22 @@ function DashboardPage() {
                       key={agent.id}
                       className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors ${
                         agent.isLive
-                          ? "border-emerald-500/20 bg-emerald-500/5"
-                          : "border-white/[0.06] bg-card/60"
+                          ? "border-emerald-500/25 bg-emerald-500/10"
+                          : "border-border bg-card/60"
                       }`}
                     >
                       <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
                         agent.isLive ? "bg-emerald-500/15" : "bg-muted"
                       }`}>
                         {agent.isLive
-                          ? <Radio className="h-3.5 w-3.5 text-emerald-400 animate-pulse" />
+                          ? <Radio className="h-3.5 w-3.5 text-emerald-600 animate-pulse dark:text-emerald-400" />
                           : <Bot className="h-3.5 w-3.5 text-muted-foreground" />}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <p className="text-sm font-semibold truncate">{agent.name}</p>
                           {agent.isLive && (
-                            <span className="text-metadata text-emerald-500 font-medium shrink-0">Live</span>
+                            <span className="text-metadata text-emerald-700 font-medium shrink-0 dark:text-emerald-500">Live</span>
                           )}
                         </div>
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
@@ -406,7 +379,7 @@ function DashboardPage() {
                             {FLOW_LABELS[agent.agentType] ?? agent.agentType}
                           </Badge>
                           {agent.isDeployed ? (
-                            <span className="flex items-center gap-1 text-metadata text-emerald-500/70 font-medium">
+                            <span className="flex items-center gap-1 text-metadata text-emerald-700/80 font-medium dark:text-emerald-500/70">
                               <CheckCircle2 className="h-2.5 w-2.5" />Deployed
                             </span>
                           ) : (
@@ -428,6 +401,56 @@ function DashboardPage() {
           </PanelCard>
         </div>
 
+        {/* Conversion Snapshot — unchanged calculations, relocated below the
+            new Lead Activity chart per Phase 2B.2 layout. Still a CURRENT-
+            STATE snapshot (today's real totals at each stage), not a trend. */}
+        <div className="lg:col-span-12">
+          {/* Tightened density (Phase 2A.4) — this is a SECONDARY business
+              summary beside Lead Activity, not a second hero section: smaller
+              icon chips, less row padding, less header margin. Calculations
+              and real counts/bars are byte-for-byte unchanged. */}
+          <PanelCard className="relative overflow-hidden">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Conversion Snapshot</p>
+                <p className="text-caption text-muted-foreground mt-0.5">Current totals across the lead journey</p>
+              </div>
+            </div>
+
+            {isLoading ? (
+              <div className="h-24 rounded-xl skeleton-shimmer" />
+            ) : (
+              <div className="flex flex-col gap-0.5">
+                {flowStages.map((stage, i) => {
+                  const pct = Math.max(4, Math.round((stage.value / flowMax) * 100));
+                  return (
+                    <div key={stage.label} className="flex items-center gap-3">
+                      <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${stage.iconBg}`}>
+                        <stage.icon className={`h-3.5 w-3.5 ${stage.iconColor}`} />
+                      </div>
+                      <div className="min-w-0 flex-1 py-1">
+                        <div className="flex items-baseline justify-between gap-2 mb-1">
+                          <span className="text-caption text-muted-foreground">{stage.label}</span>
+                          <span className="text-sm font-bold tabular-nums text-foreground">{stage.value}</span>
+                        </div>
+                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                          <div
+                            className={`h-full rounded-full ${stage.barColor}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+                      {i < flowStages.length - 1 && (
+                        <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/30 hidden sm:block" />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </PanelCard>
+        </div>
+
         {/* Live call monitoring — SSE architecture and behavior untouched */}
         <div className="lg:col-span-12">
           <LiveCallsPanel />
@@ -436,8 +459,8 @@ function DashboardPage() {
         {/* Recent leads — hidden for WBAH (summaries managed separately) */}
         {!data?.isWbah && data?.recentLeads && data.recentLeads.length > 0 && (
           <div className="lg:col-span-12">
-            <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06]">
+            <div className="rounded-xl border border-border bg-card/60 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
                 <p className="text-label text-muted-foreground">
                   Recent Leads
                 </p>
@@ -451,7 +474,7 @@ function DashboardPage() {
                 <table className="w-full min-w-[480px] text-sm">
                   <caption className="sr-only">Most recent leads for this workspace</caption>
                   <thead>
-                    <tr className="border-b border-white/[0.04]">
+                    <tr className="border-b border-border/60">
                       <th scope="col" className="px-4 py-2 text-left text-label text-muted-foreground">Name</th>
                       <th scope="col" className="px-4 py-2 text-left text-label text-muted-foreground">Phone</th>
                       <th scope="col" className="px-4 py-2 text-left text-label text-muted-foreground">Status</th>
@@ -459,7 +482,7 @@ function DashboardPage() {
                   </thead>
                   <tbody>
                     {data.recentLeads.map((lead: any) => (
-                      <tr key={lead.id} className="h-11 border-b border-white/[0.03] last:border-0 hover:bg-white/[0.02] transition-colors">
+                      <tr key={lead.id} className="h-11 border-b border-border/50 last:border-0 hover:bg-muted/40 transition-colors">
                         <td className="px-4 py-2.5 font-medium text-sm">{lead.full_name?.trim() || "—"}</td>
                         <td className="px-4 py-2.5 text-xs text-muted-foreground font-mono">{lead.phone || "—"}</td>
                         <td className="px-4 py-2.5">

@@ -146,18 +146,24 @@ function shortHourSlot(key: string): string {
   return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" });
 }
 
+// Premium, restrained categorical palette — desaturated instead of the old
+// bright violet/cyan/pink/orange "candy" set. Semantic slots (success/
+// warning/danger) reuse the app's own AA-contrast-checked design tokens
+// instead of a second, disconnected color scale. grid/axis reference theme
+// vars so chart chrome isn't invisible in light mode (the old hardcoded
+// rgba(255,255,255,...) values were dark-mode-only).
 const CHART = {
-  primary:     "#8B5CF6",
-  primaryGlow: "#A78BFA",
-  accent:      "#22D3EE",
-  success:     "#22C55E",
-  warning:     "#F59E0B",
-  danger:      "#EF4444",
+  primary:     "#5B5FC7",
+  primaryGlow: "#8B8FDE",
+  accent:      "#3D8A8C",
+  success:     "var(--success)",
+  warning:     "var(--warning)",
+  danger:      "var(--destructive)",
   neutral:     "#64748B",
-  pink:        "#EC4899",
-  orange:      "#F97316",
-  grid:        "rgba(255,255,255,0.06)",
-  axis:        "rgba(255,255,255,0.40)",
+  pink:        "#B0567E",
+  orange:      "#BD6B3A",
+  grid:        "var(--border)",
+  axis:        "var(--muted-foreground)",
 };
 
 const SENTIMENT_COLORS  = [CHART.success, CHART.warning, CHART.danger, CHART.neutral];
@@ -795,7 +801,7 @@ function AnalyticsPage() {
   const activeLocked = activeTabMeta ? !has(activeTabMeta.feature) : false;
 
   return (
-    <div className="pb-8">
+    <div className="pb-8 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300">
       <PageHeader
         title="Analytics Centre"
         subtitle="Executive BI hub — campaigns, agents, sentiment, bookings, financials & reports"
@@ -810,7 +816,7 @@ function AnalyticsPage() {
       )}
 
       {/* ── Top-level section bar: Analytics | Sales | Marketing ── */}
-      <div className="flex gap-1 px-6 mt-4 overflow-x-auto border-b border-white/[0.06]">
+      <div className="flex gap-1 px-6 mt-4 overflow-x-auto border-b border-border">
         {TAB_GROUPS.map(({ key, label, icon: Icon }) => {
           const firstTab = visibleTabs.find((t) => GROUP_OF[t.key] === key);
           if (!firstTab) return null;
@@ -843,7 +849,7 @@ function AnalyticsPage() {
                   "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors",
                   mainTab === key
                     ? "border-primary/60 bg-primary/15 text-foreground"
-                    : "border-white/[0.08] bg-card/40 text-muted-foreground hover:text-foreground hover:bg-card/70",
+                    : "border-border bg-card/40 text-muted-foreground hover:text-foreground hover:bg-card/70",
                 )}
               >
                 <Icon className="h-3.5 w-3.5" />
@@ -953,7 +959,7 @@ function AnalyticsPage() {
                 Updating…
               </span>
             )}
-            <div className="flex gap-1 rounded-lg border border-white/[0.06] bg-card/40 p-1">
+            <div className="flex gap-1 rounded-lg border border-border bg-card/40 p-1">
               {RANGES.map((r) => (
                 <Button
                   key={r.key}
@@ -976,7 +982,7 @@ function AnalyticsPage() {
           </div>
 
           {rangeKey === "custom" && (
-            <div className="mx-6 mt-3 flex flex-wrap items-end gap-3 rounded-xl border border-white/[0.06] bg-card/40 px-4 py-3">
+            <div className="mx-6 mt-3 flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card/40 px-4 py-3">
               <div className="space-y-1.5">
                 <Label htmlFor="analytics-start" className="text-xs text-muted-foreground">From</Label>
                 <Input
@@ -1239,7 +1245,7 @@ function AnalyticsPage() {
                           </TableHead>
                           <tbody>
                             {Object.entries(analytics.byAgent).sort(([, a], [, b]) => b.count - a.count).map(([id, v]) => (
-                              <tr key={id} className="h-11 border-b border-white/[0.04] transition-colors hover:bg-white/[0.02]">
+                              <tr key={id} className="h-11 border-b border-border/60 transition-colors hover:bg-muted/40">
                                 <td className="px-3 py-2.5 text-sm font-medium">{agentNames[id] ?? agentList.find((a) => a.id === id)?.name ?? <span className="font-mono text-xs text-muted-foreground">{id}</span>}</td>
                                 <td className="px-3 py-2.5 tabular-nums">{v.count}</td>
                                 <td className="px-3 py-2.5 tabular-nums">{fmtDuration(v.durationSec)}</td>
@@ -1267,7 +1273,7 @@ function AnalyticsPage() {
       {mainTab === "marketing" && (
         <div className="px-6 pt-5 space-y-5">
           {/* Inner marketing sub-tab bar */}
-          <div className="flex gap-1 border-b border-white/[0.06]">
+          <div className="flex gap-1 border-b border-border">
             {MKTG_TABS.map(({ key, label, icon: Icon }) => (
               <button
                 key={key}
@@ -1303,7 +1309,7 @@ function AnalyticsPage() {
 // ── Call analytics shared chart components ─────────────────────────────────────
 function ChartCard({ title, icon: Icon, color, children }: { title: string; icon: React.ElementType; color: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-white/[0.06] bg-card/50 p-4 backdrop-blur-sm">
+    <div className="rounded-2xl border border-border bg-card/50 p-4 backdrop-blur-sm">
       <div className="mb-3 flex items-center gap-2">
         <Icon className="h-3.5 w-3.5" style={{ color }} />
         <h3 className="text-xs font-semibold uppercase tracking-[0.10em] text-muted-foreground">{title}</h3>
@@ -1371,7 +1377,7 @@ function HBarChart({ data, color = CHART.primary }: { data: { name: string; valu
 
 function LatencyTile({ label, value, color }: { label: string; value: string; color: string }) {
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-card/40 px-3 py-3">
+    <div className="rounded-xl border border-border bg-card/40 px-3 py-3">
       <p className="text-[10px] font-medium uppercase tracking-[0.12em]" style={{ color }}>{label}</p>
       <p className="mt-1.5 text-xl font-bold tabular-nums text-foreground">{value}</p>
     </div>
@@ -1393,7 +1399,7 @@ function fmtCreditDate(iso: string | null | undefined): string {
 
 function CreditCardTile({ label, value, sub, color, icon: Icon }: { label: string; value: string; sub: string; color: string; icon: React.ElementType }) {
   return (
-    <div className="rounded-2xl border border-white/[0.06] bg-card/50 p-4 backdrop-blur-sm">
+    <div className="rounded-2xl border border-border bg-card/50 p-4 backdrop-blur-sm">
       <div className="mb-2 flex items-center gap-2">
         <Icon className="h-3.5 w-3.5" style={{ color }} />
         <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
@@ -1438,13 +1444,13 @@ function CreditsTab({ q }: { q: any }) {
         <CreditCardTile label="Total Allocated"   value={`${fmtMins(allocated)} mins`} sub={allocSub}          color={CHART.primaryGlow} icon={Wallet} />
         <CreditCardTile label="Minutes Used"      value={`${fmtMins(used)} mins`}      sub="This cycle"        color={CHART.warning}     icon={Activity} />
         <CreditCardTile label="Remaining Balance" value={`${fmtMins(remaining)} mins`} sub="Available to use"  color={CHART.success}     icon={CheckCircle2} />
-        <div className="rounded-2xl border border-white/[0.06] bg-card/50 p-4 backdrop-blur-sm">
+        <div className="rounded-2xl border border-border bg-card/50 p-4 backdrop-blur-sm">
           <div className="mb-2 flex items-center gap-2">
             <TrendingUp className="h-3.5 w-3.5" style={{ color: usageColor }} />
             <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Usage</p>
           </div>
           <p className="text-2xl font-bold tabular-nums" style={{ color: usageColor }}>{pct}%</p>
-          <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-white/[0.06]">
+          <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted">
             <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, Math.max(0, pct))}%`, backgroundColor: usageColor }} />
           </div>
         </div>
@@ -1478,7 +1484,7 @@ function CreditsTab({ q }: { q: any }) {
               </TableHead>
               <tbody>
                 {history.map((h: any, i: number) => (
-                  <tr key={h.id ?? i} className="h-11 border-b border-white/[0.04] transition-colors hover:bg-white/[0.02]">
+                  <tr key={h.id ?? i} className="h-11 border-b border-border/60 transition-colors hover:bg-muted/40">
                     <td className="px-3 py-2.5">{fmtCreditDate(h.createdAt ?? h.allocated_at)}</td>
                     <td className="px-3 py-2.5"><Badge className="border-emerald-500/20 bg-emerald-500/15 text-emerald-300">+{fmtMins(h.allocated_minutes)} min</Badge></td>
                     <td className="px-3 py-2.5 text-muted-foreground">{h.notes ?? "—"}</td>
@@ -1554,13 +1560,13 @@ function AdsTab({ data }: { data: AdsData }) {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-white/[0.06]">
+                <tr className="border-b border-border">
                   <MTh>Campaign</MTh><MTh>Platform</MTh><MTh>Status</MTh><MTh align="right">Spend</MTh><MTh align="right">Impressions</MTh><MTh align="right">Clicks</MTh><MTh align="right">ROAS</MTh>
                 </tr>
               </thead>
               <tbody>
                 {data.topCampaigns.map((c, i) => (
-                  <tr key={i} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
+                  <tr key={i} className="border-b border-border/60 hover:bg-muted/40">
                     <td className="py-2 pr-4 max-w-[200px] truncate font-medium">{c.name}</td>
                     <td className="py-2 pr-4"><Badge variant="outline" className="text-[10px]" style={{ borderColor: PLATFORM_COLORS[c.platform] ?? "#7c3aed", color: PLATFORM_COLORS[c.platform] ?? "inherit" }}>{PLATFORM_LABELS[c.platform] ?? c.platform}</Badge></td>
                     <td className="py-2 pr-4"><span className="text-xs capitalize text-muted-foreground">{c.status ?? "—"}</span></td>
@@ -1638,7 +1644,7 @@ function EmailTab({ data }: { data: EmailData }) {
             {data.recentCampaigns.map((c) => {
               const Icon = EMAIL_STATUS_ICONS[c.status] ?? Mail;
               return (
-                <div key={c.id} className="flex items-center justify-between py-1.5 border-b border-white/[0.04] last:border-0">
+                <div key={c.id} className="flex items-center justify-between py-1.5 border-b border-border/60 last:border-0">
                   <div className="flex items-center gap-2 min-w-0"><Icon className="h-3.5 w-3.5 shrink-0" style={{ color: STATUS_COLORS[c.status] ?? "#94a3b8" }} /><span className="text-sm truncate">{c.name}</span></div>
                   <div className="flex items-center gap-3 shrink-0">
                     <span className="text-xs text-muted-foreground">{fmtDateShort(c.createdAt)}</span>
@@ -1682,7 +1688,7 @@ function WhatsAppTab({ data }: { data: WhatsAppData }) {
         <MktPanel title="Recent campaigns">
           <div className="space-y-2">
             {data.recentCampaigns.map((c) => (
-              <div key={c.id} className="border-b border-white/[0.04] last:border-0 pb-2 last:pb-0">
+              <div key={c.id} className="border-b border-border/60 last:border-0 pb-2 last:pb-0">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-sm font-medium truncate max-w-[160px]">{c.name}</span>
                   <div className="flex items-center gap-2 shrink-0">

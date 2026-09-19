@@ -73,6 +73,7 @@ export function KpiCard({
   hint,
   sparkline,
   size = "sm",
+  iconTone = "custom",
 }: {
   label: string;
   value: string | number;
@@ -92,13 +93,26 @@ export function KpiCard({
    * for the small number of places (e.g. the dashboard's primary KPI row)
    * where the metric itself should be the visual anchor, not a list item. */
   size?: "sm" | "lg";
+  /** "custom" (default, unchanged) uses the passed iconBg/iconColor as-is —
+   * every existing consumer keeps its current per-metric decorative colors.
+   * "brand" overrides to the shared WEBEE gold icon treatment (Phase 2A.3),
+   * for the small set of places where the icon is identity/decoration, not
+   * a semantic signal — currently only the dashboard's primary KPI row. */
+  iconTone?: "custom" | "brand";
 }) {
+  const effectiveIconBg    = iconTone === "brand" ? "bg-brand/15" : iconBg;
+  const effectiveIconColor = iconTone === "brand" ? "text-brand"  : iconColor;
+
   if (size === "lg") {
+    // Hierarchy is reinforced with SPACING here (Phase 2A.4), not larger
+    // type: more breathing room around the value (mt-2 vs mt-1) and between
+    // the icon row and the value block (gap-4 vs gap-3) so the number reads
+    // as clearly dominant without bumping any font size.
     return (
-      <div className="flex min-w-0 flex-col gap-3 rounded-xl border border-white/[0.06] bg-card/60 p-4 backdrop-blur">
+      <div className="hover-elevate flex min-w-0 flex-col gap-4 rounded-xl border border-border bg-card/60 p-5 backdrop-blur">
         <div className="flex items-center justify-between">
-          <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", iconBg)}>
-            <Icon className={cn("h-4 w-4", iconColor)} />
+          <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", effectiveIconBg)}>
+            <Icon className={cn("h-4 w-4", effectiveIconColor)} />
           </div>
           {delta != null && (
             <span className={cn("text-xs font-semibold shrink-0", deltaUp ? "text-success" : "text-destructive")}>
@@ -108,7 +122,7 @@ export function KpiCard({
         </div>
         <div className="min-w-0">
           <p className="text-label text-muted-foreground">{label}</p>
-          <p className="mt-1 text-3xl font-bold leading-none tabular-nums text-foreground">{value}</p>
+          <p className="mt-2 text-3xl font-bold leading-none tabular-nums text-foreground">{value}</p>
           {hint && <p className="mt-1.5 text-caption text-muted-foreground leading-tight">{hint}</p>}
         </div>
         {sparkline != null && <div className="h-8 w-full">{sparkline}</div>}
@@ -117,9 +131,9 @@ export function KpiCard({
   }
 
   return (
-    <div className="flex min-w-0 items-center gap-2 rounded-lg border border-white/[0.06] bg-card/60 px-2.5 py-2 backdrop-blur">
-      <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-md", iconBg)}>
-        <Icon className={cn("h-3 w-3", iconColor)} />
+    <div className="flex min-w-0 items-center gap-2 rounded-lg border border-border bg-card/60 px-2.5 py-2 backdrop-blur">
+      <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-md", effectiveIconBg)}>
+        <Icon className={cn("h-3 w-3", effectiveIconColor)} />
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-label text-muted-foreground leading-none">
@@ -189,7 +203,7 @@ export function StatCard({
 
 export function PanelCard({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={cn("min-w-0 rounded-xl border border-white/[0.06] bg-card/50 p-3 backdrop-blur sm:p-4", className)}>
+    <div className={cn("hover-elevate min-w-0 rounded-xl border border-border bg-card/50 p-3 backdrop-blur sm:p-4", className)}>
       {children}
     </div>
   );

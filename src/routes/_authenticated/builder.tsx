@@ -138,7 +138,7 @@ function BuilderPage() {
     <div className="flex items-center gap-2 pl-1">
       <span
         className={cn(
-          "inline-flex items-center gap-1 rounded-full border border-white/[0.06] bg-white/[0.03] px-1.5 py-0.5 text-[10px] font-medium",
+          "inline-flex items-center gap-1 rounded-full border border-border bg-muted/60 px-1.5 py-0.5 text-[10px] font-medium",
           statusTone,
         )}
       >
@@ -162,17 +162,17 @@ function BuilderPage() {
   );
 
   const trailing = (
-    <div className="flex items-center gap-0.5 rounded-md border border-white/[0.05] bg-white/[0.02] px-1 py-0.5">
+    <div className="flex items-center gap-0.5 rounded-md border border-border bg-muted/40 px-1 py-0.5">
       <Button
         size="sm"
         variant="ghost"
         onClick={() => { restartTour(); }}
         title="Start walkthrough tour"
-        className="!h-8 !w-8 !p-0 text-muted-foreground/60 hover:text-foreground"
+        className="!hidden !h-8 !w-8 !p-0 text-muted-foreground/60 hover:text-foreground md:!flex"
       >
         <MapPin className="h-3.5 w-3.5" />
       </Button>
-      <div className="h-3.5 w-px bg-white/[0.07] mx-0.5" />
+      <div className="hidden h-3.5 w-px bg-border mx-0.5 md:block" />
       <Button
         size="sm"
         variant="ghost"
@@ -184,7 +184,7 @@ function BuilderPage() {
       </Button>
       {currentAgentRowId && (
         <>
-          <div className="h-3.5 w-px bg-white/[0.07] mx-0.5" />
+          <div className="h-3.5 w-px bg-border mx-0.5" />
           <Button
             size="sm"
             variant="ghost"
@@ -197,9 +197,9 @@ function BuilderPage() {
           </Button>
         </>
       )}
-      <div className="h-3.5 w-px bg-white/[0.07] mx-0.5" />
+      <div className="h-3.5 w-px bg-border mx-0.5" />
       <BuilderVersionMenu />
-      <div className="h-3.5 w-px bg-white/[0.07] mx-0.5" />
+      <div className="h-3.5 w-px bg-border mx-0.5" />
       <div data-tour="save-btn" style={{ display: "inline-flex" }}>
         {channelType === "whatsapp" ? (
           <Button
@@ -224,7 +224,7 @@ function BuilderPage() {
             disabled={saving}
             title="Save agent (⌘S)"
             className={cn(
-              "!h-8 gap-1 px-2.5 text-[11px] font-medium hover:bg-white/[0.06]",
+              "!h-8 gap-1 px-2.5 text-[11px] font-medium hover:bg-muted",
               isDirty
                 ? "text-amber-300 hover:text-amber-200"
                 : "text-muted-foreground/70 hover:text-foreground",

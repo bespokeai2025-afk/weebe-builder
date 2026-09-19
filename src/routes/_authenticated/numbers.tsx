@@ -109,15 +109,20 @@ function NumbersPage() {
       : null;
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
-      <div>
-        <h1 className="text-xl font-semibold">Phone Numbers</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Get a WEBEE-managed phone number and connect it to an agent — no Twilio account needed.
-        </p>
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300">
+      <div className="flex items-center gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand/15 text-brand">
+          <Phone className="h-4 w-4" />
+        </div>
+        <div>
+          <h1 className="text-xl font-semibold">Phone Numbers</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Get a WEBEE-managed phone number and connect it to an agent — no Twilio account needed.
+          </p>
+        </div>
       </div>
 
-      <Card>
+      <Card className="border-t-2 border-t-brand">
         <CardHeader>
           <CardTitle className="text-base">Get a number</CardTitle>
           <CardDescription>Search for an available number, then confirm to purchase it.</CardDescription>
@@ -142,7 +147,7 @@ function NumbersPage() {
                   value={country}
                   onChange={(e) => setCountry(e.target.value.toUpperCase().slice(0, 2))}
                   maxLength={2}
-                  className="w-full rounded-md border border-border bg-muted/30 px-3 py-2 text-sm uppercase focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded-md border border-border bg-muted/30 px-3 py-2 text-sm uppercase focus:outline-none focus:ring-1 focus:ring-brand"
                 />
               </div>
               <div>
@@ -154,7 +159,7 @@ function NumbersPage() {
                   value={areaCode}
                   onChange={(e) => setAreaCode(e.target.value.replace(/\D/g, "").slice(0, 5))}
                   placeholder="Optional"
-                  className="w-full rounded-md border border-border bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded-md border border-border bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand"
                 />
               </div>
               <label className="flex items-center gap-2 self-end pb-2 text-sm text-muted-foreground">
@@ -172,7 +177,7 @@ function NumbersPage() {
                 id="numbers-agent"
                 value={agentId}
                 onChange={(e) => setAgentId(e.target.value)}
-                className="w-full rounded-md border border-border bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary sm:max-w-xs"
+                className="w-full rounded-md border border-border bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand sm:max-w-xs"
               >
                 <option value="">— Assign later —</option>
                 {agents.map((a: { id: string; name: string }) => (
@@ -181,7 +186,11 @@ function NumbersPage() {
               </select>
             </div>
 
-            <Button type="submit" disabled={searchMut.isPending} className="self-start gap-1.5">
+            <Button
+              type="submit"
+              disabled={searchMut.isPending}
+              className="self-start gap-1.5 bg-brand text-brand-foreground shadow-none hover:bg-brand/90 hover:brightness-100"
+            >
               <Search className="h-3.5 w-3.5" />
               {searchMut.isPending ? "Searching…" : "Search numbers"}
             </Button>

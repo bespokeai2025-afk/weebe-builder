@@ -174,11 +174,10 @@ export function AgentCard({ agent, loading, onOpen, onDeploy, onGuidedDeploy, on
     <div
       className={cn(
         "group/card relative isolate flex flex-col rounded-2xl bg-card/80 backdrop-blur-sm",
-        "ring-1 ring-white/[0.06] transition-all duration-200",
+        "ring-1 ring-border transition-all duration-200",
         "p-6 md:p-7",
-        "hover:-translate-y-0.5 hover:ring-white/[0.12]",
-        "shadow-[0_1px_0_rgba(255,255,255,0.04)_inset,0_1px_2px_rgba(0,0,0,0.35)]",
-        "hover:shadow-[0_1px_0_rgba(255,255,255,0.06)_inset,0_8px_28px_-12px_rgba(0,0,0,0.7)]",
+        "hover:-translate-y-0.5 hover:ring-brand/25",
+        "shadow-soft hover:shadow-elevated",
       )}
     >
       {/* Active-agent glow */}
@@ -216,14 +215,14 @@ export function AgentCard({ agent, loading, onOpen, onDeploy, onGuidedDeploy, on
               <Badge
                 key={t}
                 variant="secondary"
-                className="h-5 rounded-full bg-white/[0.04] px-2 text-[10px] font-normal text-muted-foreground ring-1 ring-white/[0.06] hover:bg-white/[0.06]"
+                className="h-5 rounded-full bg-muted px-2 text-[10px] font-normal text-muted-foreground ring-1 ring-border hover:bg-muted/70"
               >
                 {t}
               </Badge>
             ))}
             <Badge
               variant="secondary"
-              className="h-5 gap-1 rounded-full bg-white/[0.04] px-2 text-[10px] font-normal ring-1 ring-white/[0.06] hover:bg-white/[0.06]"
+              className="h-5 gap-1 rounded-full bg-muted px-2 text-[10px] font-normal ring-1 ring-border hover:bg-muted/70"
               title={voiceProvider === "OPENAI_REALTIME" ? "HyperStream Engine (Instant Response)" : "OmniVoice Engine (Premium Catalog)"}
             >
               {voiceProvider === "OPENAI_REALTIME" ? (
