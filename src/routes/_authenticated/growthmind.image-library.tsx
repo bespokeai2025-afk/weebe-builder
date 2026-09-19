@@ -277,25 +277,25 @@ function LibraryCard({
           <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
             <div className="flex gap-2">
               <a href={asset.image_url} target="_blank" rel="noopener noreferrer" download
-                className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 hover:bg-white/25 transition-colors" title="Download">
+                className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted hover:bg-muted transition-colors" title="Download">
                 <Download className="h-3.5 w-3.5" />
               </a>
               <a href={asset.image_url} target="_blank" rel="noopener noreferrer"
-                className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 hover:bg-white/25 transition-colors" title="Full size">
+                className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted hover:bg-muted transition-colors" title="Full size">
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
               <button onClick={() => { navigator.clipboard.writeText(asset.image_url); toast.success("URL copied"); }}
-                className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 hover:bg-white/25 transition-colors" title="Copy URL">
+                className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted hover:bg-muted transition-colors" title="Copy URL">
                 <Copy className="h-3.5 w-3.5" />
               </button>
             </div>
             <div className="flex gap-1.5">
               <button onClick={onEdit}
-                className="rounded border border-white/20 bg-white/10 px-2 py-1 text-[9px] hover:bg-white/20 transition-colors">
+                className="rounded border border-border bg-muted px-2 py-1 text-[9px] hover:bg-muted transition-colors">
                 Edit
               </button>
               <button onClick={onVariation} disabled={working}
-                className="rounded border border-white/20 bg-white/10 px-2 py-1 text-[9px] hover:bg-white/20 transition-colors">
+                className="rounded border border-border bg-muted px-2 py-1 text-[9px] hover:bg-muted transition-colors">
                 {working ? <Loader2 className="h-3 w-3 animate-spin" /> : "Variant"}
               </button>
             </div>
@@ -325,7 +325,7 @@ function LibraryCard({
                 Attach
               </button>
               {attachOpen && (
-                <div className="absolute bottom-full mb-1 left-0 z-30 w-52 rounded-lg border border-white/10 bg-popover shadow-xl overflow-hidden">
+                <div className="absolute bottom-full mb-1 left-0 z-30 w-52 rounded-lg border border-border bg-popover shadow-xl overflow-hidden">
                   <p className="px-3 py-2 text-[10px] font-semibold text-muted-foreground border-b border-border">Attach to campaign</p>
                   {drafts.length === 0 ? (
                     <p className="px-3 py-2 text-[10px] text-muted-foreground">No drafts found</p>

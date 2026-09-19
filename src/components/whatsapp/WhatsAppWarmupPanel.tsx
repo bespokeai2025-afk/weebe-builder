@@ -116,23 +116,23 @@ export function WhatsAppWarmupPanel() {
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <div className="rounded-lg border border-white/10 bg-muted/30 p-3">
+          <div className="rounded-lg border border-border bg-muted/30 p-3">
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Warm-up day</p>
             <p className="text-2xl font-semibold tabular-nums">{warmupDay}</p>
           </div>
-          <div className="rounded-lg border border-white/10 bg-muted/30 p-3">
+          <div className="rounded-lg border border-border bg-muted/30 p-3">
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Today&apos;s cap</p>
             <p className="text-2xl font-semibold tabular-nums">{dailyCap}</p>
           </div>
-          <div className="rounded-lg border border-white/10 bg-muted/30 p-3">
+          <div className="rounded-lg border border-border bg-muted/30 p-3">
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Sent today</p>
             <p className="text-2xl font-semibold tabular-nums">{sentToday}</p>
           </div>
-          <div className="rounded-lg border border-white/10 bg-muted/30 p-3">
+          <div className="rounded-lg border border-border bg-muted/30 p-3">
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Remaining</p>
             <p className="text-2xl font-semibold tabular-nums text-emerald-400">{remaining}</p>
           </div>
-          <div className="rounded-lg border border-white/10 bg-muted/30 p-3">
+          <div className="rounded-lg border border-border bg-muted/30 p-3">
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Numbers active</p>
             <p className="text-2xl font-semibold tabular-nums">{numberCount}</p>
           </div>
@@ -152,7 +152,7 @@ export function WhatsAppWarmupPanel() {
                 return (
                   <div
                     key={phone}
-                    className={`rounded-lg border p-3 ${enabled ? "border-emerald-500/30 bg-emerald-500/5" : "border-white/10 bg-muted/20 opacity-70"}`}
+                    className={`rounded-lg border p-3 ${enabled ? "border-emerald-500/30 bg-emerald-500/5" : "border-border bg-muted/20 opacity-70"}`}
                   >
                     <label className="flex items-center gap-2 text-sm font-medium">
                       <Checkbox
@@ -224,7 +224,7 @@ export function WhatsAppWarmupPanel() {
               return (
                 <div
                   key={`${step.fromDay}-${step.toDay ?? "plus"}`}
-                  className={`rounded-lg border px-3 py-2 ${inTier ? "border-amber-500/40 bg-amber-500/10" : "border-white/10 bg-muted/20"}`}
+                  className={`rounded-lg border px-3 py-2 ${inTier ? "border-amber-500/40 bg-amber-500/10" : "border-border bg-muted/20"}`}
                 >
                   <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
                     {formatWarmupScheduleDayRange(step)}

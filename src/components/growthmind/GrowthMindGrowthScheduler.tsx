@@ -655,7 +655,7 @@ export function GrowthMindGrowthScheduler() {
                   >
                     <tab.icon className="h-3 w-3" />
                     {tab.label}
-                    {count > 0 && <span className={cn("text-[10px] px-1 rounded", activeTab === tab.id ? "bg-white/20" : "bg-muted")}>{count}</span>}
+                    {count > 0 && <span className={cn("text-[10px] px-1 rounded", activeTab === tab.id ? "bg-muted" : "bg-muted")}>{count}</span>}
                   </button>
                 );
               })}

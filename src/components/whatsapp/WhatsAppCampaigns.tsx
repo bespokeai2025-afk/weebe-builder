@@ -743,7 +743,7 @@ export function WhatsAppCampaigns() {
       )}
 
       {isLoading ? (
-        <div className="overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
+        <div className="overflow-hidden rounded-xl border border-border bg-card/60">
           <div className="divide-y divide-border/60">
             {[...Array(4)].map((_, i) => (
               <div key={i} className="flex items-center gap-4 px-4 py-3.5 animate-pulse">
@@ -777,7 +777,7 @@ export function WhatsAppCampaigns() {
           No campaigns match these filters.
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
+        <div className="overflow-hidden rounded-xl border border-border bg-card/60">
           <table className="w-full text-sm">
             <thead className="bg-muted/50 border-b border-border">
               <tr>

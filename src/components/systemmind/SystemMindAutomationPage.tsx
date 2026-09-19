@@ -35,7 +35,7 @@ import { approveHiveMindAction } from "@/lib/hivemind/hivemind.actions";
 
 // ── Meta ──────────────────────────────────────────────────────────────────────
 const STATUS_META: Record<string, { label: string; color: string }> = {
-  draft:            { label: "Draft",            color: "text-muted-foreground border-white/10" },
+  draft:            { label: "Draft",            color: "text-muted-foreground border-border" },
   pending_approval: { label: "Pending Approval", color: "text-amber-400 border-amber-500/30"    },
   approved:         { label: "Approved",         color: "text-sky-400 border-sky-500/30"        },
   active:           { label: "Active",           color: "text-emerald-400 border-emerald-500/30"},
@@ -248,7 +248,7 @@ function N8nBlueprintDetail({ payload }: { payload: Record<string, any> }) {
           </Badge>
           <Badge variant="outline" className={cn(
             "text-[10px]",
-            unconvertible.length > 0 ? "border-red-500/30 text-red-400" : "border-white/10 text-muted-foreground",
+            unconvertible.length > 0 ? "border-red-500/30 text-red-400" : "border-border text-muted-foreground",
           )}>
             {unconvertible.length} unconvertible
           </Badge>
@@ -368,7 +368,7 @@ function DraftCard({
   onShowAudit: (d: AutomationDraft) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const sMeta = STATUS_META[draft.status] ?? { label: draft.status, color: "text-muted-foreground border-white/10" };
+  const sMeta = STATUS_META[draft.status] ?? { label: draft.status, color: "text-muted-foreground border-border" };
   const rMeta = RISK_META[draft.risk_level] ?? RISK_META.low;
   const RiskIcon = rMeta.icon;
   const kMeta = KIND_META[draft.action_kind] ?? KIND_META.workspace_workflow;
@@ -747,7 +747,7 @@ export function SystemMindAutomationPage({ embedded = false }: { embedded?: bool
                     "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition-colors",
                     active
                       ? "border-cyan-500/40 bg-cyan-500/10 text-cyan-300"
-                      : "border-border bg-muted/40 text-muted-foreground hover:text-foreground hover:border-white/20",
+                      : "border-border bg-muted/40 text-muted-foreground hover:text-foreground hover:border-foreground/20",
                   )}
                 >
                   <TabIcon className="h-3 w-3" /> {t.label}

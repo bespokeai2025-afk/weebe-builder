@@ -573,7 +573,7 @@ function DeploymentsTab() {
 
   if (rows.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-white/[0.08] p-10 text-center">
+      <div className="rounded-xl border border-dashed border-border p-10 text-center">
         <Rocket className="h-8 w-8 mx-auto text-muted-foreground/40 mb-3" />
         <p className="text-sm text-muted-foreground">
           No guided deployments yet. Start one from the Agents page ("Guided deployment"), the

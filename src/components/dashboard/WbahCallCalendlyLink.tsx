@@ -20,7 +20,7 @@ function bookingStatusBadge(status: string | null | undefined) {
       ? "bg-green-500/15 text-green-400 border-green-500/30"
       : lower === "failed"
         ? "bg-red-500/15 text-red-400 border-red-500/30"
-        : "bg-muted text-muted-foreground border-white/[0.06]";
+        : "bg-muted text-muted-foreground border-border";
   return (
     <Badge variant="outline" className={cn("text-[10px] capitalize", tone)}>
       {label}

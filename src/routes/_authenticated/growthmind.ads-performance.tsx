@@ -1356,7 +1356,7 @@ function BudgetUtilizationBar({
         />
         {alertPct < 100 && (
           <div
-            className="absolute top-0 bottom-0 w-px bg-white/20"
+            className="absolute top-0 bottom-0 w-px bg-muted"
             style={{ left: `${alertPct}%` }}
             title={`Alert threshold: ${alertPct}%`}
           />
@@ -1652,7 +1652,7 @@ function AdsPerformancePage() {
                   </span>
                   {h.lastSyncedAt && (
                     <>
-                      <span className="h-2.5 w-px bg-white/10 shrink-0" />
+                      <span className="h-2.5 w-px bg-muted shrink-0" />
                       <Clock className="h-2.5 w-2.5 text-muted-foreground/40 shrink-0" />
                       <span className="text-[10px] text-muted-foreground/60">{timeAgo(h.lastSyncedAt)}</span>
                     </>

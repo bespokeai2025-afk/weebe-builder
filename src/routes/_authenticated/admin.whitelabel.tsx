@@ -123,7 +123,7 @@ function PartnerForm({
                 type="color"
                 value={(form[key] as string) ?? "#ffffff"}
                 onChange={(e) => set(key, e.target.value)}
-                className="h-8 w-8 cursor-pointer rounded border border-white/10 bg-transparent p-0.5"
+                className="h-8 w-8 cursor-pointer rounded border border-border bg-transparent p-0.5"
               />
               <span className="text-xs text-muted-foreground">{label}</span>
             </div>
@@ -143,7 +143,7 @@ function PartnerForm({
                 onClick={() => set("partner_tier", t.id)}
                 className={cn(
                   "px-3 py-1.5 rounded-lg text-xs font-medium border transition-all",
-                  form.partner_tier === t.id ? "border-current" : "border-white/[0.08] text-muted-foreground"
+                  form.partner_tier === t.id ? "border-current" : "border-border text-muted-foreground"
                 )}
                 style={form.partner_tier === t.id ? { borderColor: t.color, color: t.color, background: `${t.color}18` } : {}}
               >
@@ -181,7 +181,7 @@ function PartnerForm({
         <label className="flex items-center gap-2 cursor-pointer">
           <div
             onClick={() => set("hide_powered_by", !form.hide_powered_by)}
-            className={cn("h-5 w-5 rounded border flex items-center justify-center transition-colors", form.hide_powered_by ? "bg-primary border-primary" : "border-white/20")}
+            className={cn("h-5 w-5 rounded border flex items-center justify-center transition-colors", form.hide_powered_by ? "bg-primary border-primary" : "border-border")}
           >
             {form.hide_powered_by && <Check className="h-3.5 w-3.5 text-black" />}
           </div>
@@ -190,7 +190,7 @@ function PartnerForm({
         <label className="flex items-center gap-2 cursor-pointer">
           <div
             onClick={() => set("active", !form.active)}
-            className={cn("h-5 w-5 rounded border flex items-center justify-center transition-colors", form.active ? "bg-primary border-primary" : "border-white/20")}
+            className={cn("h-5 w-5 rounded border flex items-center justify-center transition-colors", form.active ? "bg-primary border-primary" : "border-border")}
           >
             {form.active && <Check className="h-3.5 w-3.5 text-black" />}
           </div>
@@ -211,7 +211,7 @@ function PartnerForm({
                 onClick={() => toggleModule(mod.id)}
                 className={cn(
                   "flex items-center gap-2 rounded-lg border p-2.5 text-left text-xs transition-all",
-                  active ? "border-primary/30 bg-card" : "border-white/[0.06] hover:border-white/15"
+                  active ? "border-primary/30 bg-card" : "border-border hover:border-foreground/20"
                 )}
               >
                 <div
@@ -234,12 +234,12 @@ function PartnerForm({
           value={form.notes ?? ""}
           onChange={(e) => set("notes", e.target.value)}
           rows={2}
-          className="w-full rounded-md border border-white/[0.06] bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 resize-none"
+          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 resize-none"
           placeholder="Partner context, agreements, special requirements…"
         />
       </div>
 
-      <div className="flex justify-end gap-2 pt-2 border-t border-white/[0.06]">
+      <div className="flex justify-end gap-2 pt-2 border-t border-border">
         <Button variant="outline" onClick={onCancel} disabled={isBusy}>Cancel</Button>
         <Button onClick={() => onSave(form)} disabled={isBusy || !form.partner_name || !form.slug || !form.brand_name}>
           Save Partner
@@ -318,7 +318,7 @@ function AdminWhitelabelPage() {
             { label: "Revenue",        value: `£${((partners as any[]).reduce((s: number, p: any) => s + (p.monthly_fee_pence ?? 0), 0) / 100).toLocaleString("en-GB")}/mo`, icon: DollarSign },
             { label: "Modules Offered",value: new Set((partners as any[]).flatMap((p: any) => p.allowed_modules ?? [])).size, icon: Package },
           ].map((stat) => (
-            <div key={stat.label} className="rounded-xl border border-white/[0.06] bg-card/40 p-3">
+            <div key={stat.label} className="rounded-xl border border-border bg-card/40 p-3">
               <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
                 <stat.icon className="h-3.5 w-3.5" />
                 {stat.label}
@@ -347,7 +347,7 @@ function AdminWhitelabelPage() {
               key={p.id}
               className={cn(
                 "relative rounded-2xl border p-5 flex flex-col gap-4 overflow-hidden",
-                p.active ? "border-white/[0.08] bg-card/40" : "border-white/[0.04] bg-card/20 opacity-60"
+                p.active ? "border-border bg-card/40" : "border-border/60 bg-card/20 opacity-60"
               )}
             >
               {/* Color stripe */}
@@ -411,12 +411,12 @@ function AdminWhitelabelPage() {
               <div className="flex items-center gap-1.5">
                 <Palette className="h-3 w-3 text-muted-foreground" />
                 {[p.primary_color, p.secondary_color, p.accent_color].map((c, i) => (
-                  <div key={i} className="h-4 w-4 rounded-full border border-white/10" style={{ background: c }} title={c} />
+                  <div key={i} className="h-4 w-4 rounded-full border border-border" style={{ background: c }} title={c} />
                 ))}
                 {p.hide_powered_by && <span className="ml-1 text-[10px] text-muted-foreground">· White labelled</span>}
               </div>
 
-              <div className="flex gap-2 mt-auto pt-2 border-t border-white/[0.06]">
+              <div className="flex gap-2 mt-auto pt-2 border-t border-border">
                 <Button
                   variant="outline"
                   size="sm"

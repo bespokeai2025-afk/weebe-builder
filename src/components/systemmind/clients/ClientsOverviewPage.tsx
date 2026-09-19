@@ -18,7 +18,7 @@ function StatCard({ label, value, icon: Icon, accent = "sky" }: {
     : accent === "amber"   ? "text-amber-400 bg-amber-500/10 border-amber-500/20"
     : "text-sky-400 bg-sky-500/10 border-sky-500/20";
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-gray-900/40 p-4">
+    <div className="rounded-xl border border-border bg-gray-900/40 p-4">
       <div className={cn("inline-flex h-8 w-8 items-center justify-center rounded-lg border mb-3", cls)}>
         <Icon className="h-4 w-4" />
       </div>
@@ -80,7 +80,7 @@ export function ClientsOverviewPage() {
       <div className="grid sm:grid-cols-2 gap-3">
         <Link
           to="/systemmind/clients/setup"
-          className="group rounded-xl border border-white/[0.06] bg-gray-900/40 hover:border-sky-500/30 hover:bg-sky-500/[0.04] transition-all p-5 flex items-start gap-4"
+          className="group rounded-xl border border-border bg-gray-900/40 hover:border-sky-500/30 hover:bg-sky-500/[0.04] transition-all p-5 flex items-start gap-4"
         >
           <div className="h-10 w-10 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center shrink-0">
             <Settings className="h-5 w-5 text-sky-400" />
@@ -101,7 +101,7 @@ export function ClientsOverviewPage() {
 
         <Link
           to="/systemmind/clients/api-probe"
-          className="group rounded-xl border border-white/[0.06] bg-gray-900/40 hover:border-violet-500/30 hover:bg-violet-500/[0.04] transition-all p-5 flex items-start gap-4"
+          className="group rounded-xl border border-border bg-gray-900/40 hover:border-violet-500/30 hover:bg-violet-500/[0.04] transition-all p-5 flex items-start gap-4"
         >
           <div className="h-10 w-10 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center shrink-0">
             <Activity className="h-5 w-5 text-violet-400" />
@@ -135,7 +135,7 @@ export function ClientsOverviewPage() {
           <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-600 mb-2">API Connections</p>
           <div className="space-y-1.5">
             {conns.map((c: any) => (
-              <div key={c.id} className="flex items-center gap-3 rounded-lg border border-white/[0.06] bg-gray-900/40 px-4 py-2.5">
+              <div key={c.id} className="flex items-center gap-3 rounded-lg border border-border bg-gray-900/40 px-4 py-2.5">
                 <div className="h-7 w-7 rounded-md bg-violet-500/10 border border-violet-500/20 flex items-center justify-center shrink-0">
                   <Database className="h-3.5 w-3.5 text-violet-400" />
                 </div>

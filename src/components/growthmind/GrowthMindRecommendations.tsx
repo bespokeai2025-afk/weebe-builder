@@ -157,7 +157,7 @@ export function GrowthMindRecommendations() {
                   onClick={() => setFilterPriority(p)}
                   className={cn(
                     "rounded-full px-3 py-1 text-xs font-medium border transition-all capitalize",
-                    colors[p], filterPriority === p && "ring-1 ring-white/20",
+                    colors[p], filterPriority === p && "ring-1 ring-border",
                   )}
                 >
                   {p === "all" ? "All" : p} ({cnt})

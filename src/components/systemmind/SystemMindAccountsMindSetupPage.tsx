@@ -24,7 +24,7 @@ import {
 const STATUS_COLORS: Record<string, string> = {
   active: "text-emerald-400 border-emerald-500/30",
   paused: "text-orange-400 border-orange-500/30",
-  hidden: "text-muted-foreground border-white/10",
+  hidden: "text-muted-foreground border-border",
 };
 
 function formatMetric(value: number | null | undefined, format: string): string {
@@ -62,7 +62,7 @@ function ConfigItemRow({
         </span>
       )}
       {item.field_type && <span className="text-[10px] text-muted-foreground">{item.field_type} · {item.entity_type}</span>}
-      <Badge variant="outline" className={cn("text-[9px]", STATUS_COLORS[item.status] ?? "text-muted-foreground border-white/10")}>
+      <Badge variant="outline" className={cn("text-[9px]", STATUS_COLORS[item.status] ?? "text-muted-foreground border-border")}>
         {item.status}{item.version > 1 ? ` · v${item.version}` : ""}
       </Badge>
       {item.client_visible && (

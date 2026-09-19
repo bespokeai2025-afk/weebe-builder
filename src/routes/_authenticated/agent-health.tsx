@@ -44,7 +44,7 @@ const STATUS_META: Record<
   not_configured: {
     label: "Not configured",
     icon: MinusCircle,
-    className: "border-white/[0.10] text-muted-foreground bg-white/[0.02]",
+    className: "border-border text-muted-foreground bg-muted/40",
   },
   test_required: {
     label: "Test required",
@@ -66,7 +66,7 @@ function StatusBadge({ status }: { status: HealthStatus }) {
 
 function AgentHealthCard({ report }: { report: AgentHealthReport }) {
   return (
-    <Card className="border-white/[0.06] bg-white/[0.02]">
+    <Card className="border-border bg-muted/40">
       <CardHeader className="pb-3">
         <CardTitle className="text-sm">{report.agentName}</CardTitle>
         <CardDescription className="text-[11px]">
@@ -81,7 +81,7 @@ function AgentHealthCard({ report }: { report: AgentHealthReport }) {
           {report.items.map((it) => (
             <div
               key={it.key}
-              className="flex items-start justify-between gap-3 rounded-lg border border-white/[0.05] bg-white/[0.02] px-3 py-2.5"
+              className="flex items-start justify-between gap-3 rounded-lg border border-border bg-muted/40 px-3 py-2.5"
             >
               <div className="min-w-0">
                 <div className="text-[12px] font-medium text-foreground">{it.label}</div>
@@ -146,7 +146,7 @@ function AgentHealthPage() {
             </CardContent>
           </Card>
         ) : !data || data.length === 0 ? (
-          <Card className="border-white/[0.06] bg-white/[0.02]">
+          <Card className="border-border bg-muted/40">
             <CardContent className="py-10 text-center text-sm text-muted-foreground">
               No live agents found in this workspace. Deploy an agent to see its health here.
             </CardContent>

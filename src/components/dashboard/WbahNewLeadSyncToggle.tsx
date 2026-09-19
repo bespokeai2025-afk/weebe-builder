@@ -73,7 +73,7 @@ export function WbahNewLeadSyncToggle({ active, className, onStateChange }: Prop
   return (
     <div
       className={cn(
-        "flex min-w-0 flex-col gap-0.5 rounded-lg border border-white/[0.08] bg-white/[0.02] px-2.5 py-1.5 sm:flex-row sm:items-center sm:gap-3",
+        "flex min-w-0 flex-col gap-0.5 rounded-lg border border-border bg-muted/40 px-2.5 py-1.5 sm:flex-row sm:items-center sm:gap-3",
         className,
       )}
     >

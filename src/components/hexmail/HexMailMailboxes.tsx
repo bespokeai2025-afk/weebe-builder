@@ -9,10 +9,10 @@ import { Label } from "@/components/ui/label";
 import { getSenderDomains, getMailboxes, addMailbox, updateMailbox, deleteMailbox } from "@/lib/hexmail/deliverability.server";
 
 const STATUS_STYLES: Record<string, string> = {
-  pending:   "border-white/10 text-muted-foreground/50",
+  pending:   "border-border text-muted-foreground/50",
   warming:   "border-amber-500/20 text-amber-400",
   active:    "border-emerald-500/20 text-emerald-400",
-  paused:    "border-white/10 text-muted-foreground/40",
+  paused:    "border-border text-muted-foreground/40",
   suspended: "border-red-500/20 text-red-400",
 };
 

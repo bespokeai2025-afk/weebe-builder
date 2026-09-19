@@ -34,7 +34,7 @@ function platformIcon(slug: string): React.ElementType {
   return KB_ICON[slug.replace("platform_", "")] ?? Library;
 }
 function platformAccent(slug: string): string {
-  return KB_ACCENT[slug.replace("platform_", "")] ?? "text-muted-foreground bg-white/[0.04] ring-white/[0.08]";
+  return KB_ACCENT[slug.replace("platform_", "")] ?? "text-muted-foreground bg-muted ring-border";
 }
 
 const MIND_LABEL: Record<string, string> = {
@@ -62,7 +62,7 @@ function Stat({
   icon: React.ElementType;
 }) {
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+    <div className="rounded-xl border border-border bg-muted/40 p-4">
       <div className="flex items-center gap-2 text-muted-foreground">
         <Icon className="h-3.5 w-3.5" />
         <span className="text-[11px] font-medium uppercase tracking-wide">{label}</span>
@@ -136,7 +136,7 @@ export function KnowledgeCentreDashboard() {
     <div className="mx-auto max-w-5xl px-4 py-6 md:px-8 space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/[0.04] ring-1 ring-white/[0.08]">
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted ring-1 ring-border">
           <Library className="h-5 w-5 text-foreground" />
         </div>
         <div>
@@ -193,7 +193,7 @@ export function KnowledgeCentreDashboard() {
 
           {/* ── Stats row 2: usage totals ─────────────────────────────── */}
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+            <div className="rounded-xl border border-border bg-muted/40 p-4">
               <div className="flex items-center gap-2 text-muted-foreground mb-3">
                 <Search className="h-3.5 w-3.5" />
                 <span className="text-[11px] font-medium uppercase tracking-wide">Total Retrievals</span>
@@ -203,7 +203,7 @@ export function KnowledgeCentreDashboard() {
             </div>
 
             {/* Per-mind usage breakdown */}
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+            <div className="rounded-xl border border-border bg-muted/40 p-4">
               <div className="flex items-center gap-2 text-muted-foreground mb-3">
                 <BarChart3 className="h-3.5 w-3.5" />
                 <span className="text-[11px] font-medium uppercase tracking-wide">Usage by Executive</span>
@@ -224,7 +224,7 @@ export function KnowledgeCentreDashboard() {
                           </span>
                           <span className="text-[10px] text-muted-foreground">{count}</span>
                         </div>
-                        <div className="h-1 rounded-full bg-white/[0.06] overflow-hidden">
+                        <div className="h-1 rounded-full bg-muted overflow-hidden">
                           <div
                             className={cn("h-full rounded-full", mind === "hivemind" ? "bg-violet-500/60" : mind === "growthmind" ? "bg-emerald-500/60" : mind === "systemmind" ? "bg-sky-500/60" : "bg-amber-500/60")}
                             style={{ width: `${pct}%` }}
@@ -252,7 +252,7 @@ export function KnowledgeCentreDashboard() {
                     key={kb.slug}
                     to="/knowledge-centre/$slug"
                     params={{ slug: kb.slug }}
-                    className="group rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 transition-colors hover:border-white/[0.12] hover:bg-white/[0.04]"
+                    className="group rounded-xl border border-border bg-muted/40 p-5 transition-colors hover:border-foreground/20 hover:bg-muted"
                   >
                     <div className="flex items-start justify-between">
                       <div className={cn("flex h-9 w-9 items-center justify-center rounded-lg ring-1", KB_ACCENT[kb.slug])}>
@@ -341,7 +341,7 @@ export function KnowledgeCentreDashboard() {
 
           {/* ── Recent retrievals ─────────────────────────────────────── */}
           {(data?.recentQueries?.length ?? 0) > 0 && (
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+            <div className="rounded-xl border border-border bg-muted/40 p-5">
               <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
                 <FileText className="h-3.5 w-3.5 text-muted-foreground" />
                 Recent Retrievals
@@ -349,7 +349,7 @@ export function KnowledgeCentreDashboard() {
               <div className="space-y-1.5">
                 {data!.recentQueries.map((q: any) => (
                   <div key={q.id} className="flex items-center gap-3 text-[11px]">
-                    <span className={cn("shrink-0 rounded px-1.5 py-0.5 font-medium capitalize", MIND_COLOR[q.mind_type] ?? "text-foreground", "bg-white/[0.04]")}>
+                    <span className={cn("shrink-0 rounded px-1.5 py-0.5 font-medium capitalize", MIND_COLOR[q.mind_type] ?? "text-foreground", "bg-muted")}>
                       {MIND_LABEL[q.mind_type] ?? q.mind_type}
                     </span>
                     <span className="truncate text-muted-foreground">{q.query}</span>

@@ -488,8 +488,8 @@ function WbahLeadsSection() {
                   <label key={s} className="flex items-center gap-2 cursor-pointer select-none group">
                     <input type="checkbox" className="sr-only" checked={statusFilters.has(s)} onChange={() => toggleStatus(s)} />
                     <span className={cn(
-                      "flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border border-white/20 transition-colors",
-                      statusFilters.has(s) ? "bg-primary border-primary" : "bg-transparent group-hover:border-white/40",
+                      "flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border border-border transition-colors",
+                      statusFilters.has(s) ? "bg-primary border-primary" : "bg-transparent group-hover:border-foreground/30",
                     )}>
                       {statusFilters.has(s) && <span className="block h-1.5 w-1.5 rounded-sm bg-primary-foreground" />}
                     </span>
@@ -513,8 +513,8 @@ function WbahLeadsSection() {
                     onChange={() => toggleSent(s)}
                   />
                   <span className={cn(
-                    "flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border border-white/20 transition-colors",
-                    sentFilters.has(s) ? "bg-primary border-primary" : "bg-transparent group-hover:border-white/40",
+                    "flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border border-border transition-colors",
+                    sentFilters.has(s) ? "bg-primary border-primary" : "bg-transparent group-hover:border-foreground/30",
                   )}>
                     {sentFilters.has(s) && <span className="block h-1.5 w-1.5 rounded-sm bg-primary-foreground" />}
                   </span>
@@ -534,8 +534,8 @@ function WbahLeadsSection() {
                   <label key={agent} className="flex items-center gap-2 cursor-pointer select-none group">
                     <input type="checkbox" className="sr-only" checked={agentFilters.has(agent)} onChange={() => toggleAgent(agent)} />
                     <span className={cn(
-                      "flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border border-white/20 transition-colors",
-                      agentFilters.has(agent) ? "bg-primary border-primary" : "bg-transparent group-hover:border-white/40",
+                      "flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border border-border transition-colors",
+                      agentFilters.has(agent) ? "bg-primary border-primary" : "bg-transparent group-hover:border-foreground/30",
                     )}>
                       {agentFilters.has(agent) && <span className="block h-1.5 w-1.5 rounded-sm bg-primary-foreground" />}
                     </span>
@@ -632,7 +632,7 @@ function WbahLeadsSection() {
                       ) : <span className="text-[11px] text-muted-foreground">N/A</span>}
                     </td>
                     <td className="px-3 py-1.5">
-                      <button onClick={() => setViewRecord(r)} className="inline-flex items-center gap-1 text-[11px] rounded border border-white/20 px-2 py-0.5 text-muted-foreground hover:text-foreground hover:border-white/40 whitespace-nowrap transition-colors">
+                      <button onClick={() => setViewRecord(r)} className="inline-flex items-center gap-1 text-[11px] rounded border border-border px-2 py-0.5 text-muted-foreground hover:text-foreground hover:border-foreground/30 whitespace-nowrap transition-colors">
                         View
                       </button>
                     </td>

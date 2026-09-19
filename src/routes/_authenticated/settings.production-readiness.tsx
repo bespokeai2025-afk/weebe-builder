@@ -96,7 +96,7 @@ function EnvRow({ k, present, required }: { k: string; present: boolean; require
               ? "border-emerald-500/30 text-emerald-400 bg-emerald-500/5"
               : required
               ? "border-red-500/30 text-red-400 bg-red-500/5"
-              : "border-white/10 text-muted-foreground",
+              : "border-border text-muted-foreground",
           )}
         >
           {present ? <Check className="h-2.5 w-2.5" /> : <XCircle className="h-2.5 w-2.5" />}

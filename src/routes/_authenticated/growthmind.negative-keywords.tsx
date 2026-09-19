@@ -60,7 +60,7 @@ function NegativeKeywordLogPage() {
             <Loader2 className="h-4 w-4 animate-spin" /> Loading decision log…
           </div>
         ) : entries.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-white/10 p-10 text-center text-sm text-muted-foreground">
+          <div className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
             No decisions logged yet. Entries appear when a Google Ads deep analysis classifies search terms or a
             negative-keyword recommendation is approved.
           </div>

@@ -150,7 +150,7 @@ function AccountModal({ initial, defaultPlatform = "google", onClose, onSave, sa
                     "flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-all text-left",
                     platform === pl.id
                       ? `${pl.bg} ${pl.activeBorder} ${pl.color}`
-                      : "border-border text-muted-foreground hover:text-foreground hover:border-white/20",
+                      : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/20",
                   )}
                 >
                   <span className={cn("h-2 w-2 rounded-full shrink-0", pl.bg, "ring-1", pl.border)} />
@@ -793,12 +793,12 @@ function SyncHealthBar({
           <span className={cn("h-2 w-2 rounded-full shrink-0", dotCls)} />
           {statusLabel}
         </span>
-        <span className="mx-2 h-3 w-px bg-white/10 shrink-0" />
+        <span className="mx-2 h-3 w-px bg-muted shrink-0" />
         <Clock className="h-3 w-3 text-muted-foreground/40 shrink-0" />
         <span className="text-[11px] text-muted-foreground/70">{lastSyncedLabel()}</span>
         {minutesSinceSync !== null && minutesSinceSync <= 30 && overallStatus === "success" && (
           <>
-            <span className="mx-2 h-3 w-px bg-white/10 shrink-0" />
+            <span className="mx-2 h-3 w-px bg-muted shrink-0" />
             <span className="text-[10px] text-muted-foreground/40">Next sync ~{15 - (minutesSinceSync % 15)}m</span>
           </>
         )}

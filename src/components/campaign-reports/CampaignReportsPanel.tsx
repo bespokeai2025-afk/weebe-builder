@@ -89,7 +89,7 @@ export function CampaignReportsPanel({ campaignId }: { campaignId?: string | nul
   }
   if (reports.length === 0) {
     return (
-      <div className="rounded-xl border border-white/[0.06] bg-card/60 p-6 text-center">
+      <div className="rounded-xl border border-border bg-card/60 p-6 text-center">
         <FileText className="mx-auto h-6 w-6 text-muted-foreground/50" />
         <p className="mt-2 text-sm text-muted-foreground">No campaign reports yet.</p>
         <p className="mt-1 text-xs text-muted-foreground/70">
@@ -100,7 +100,7 @@ export function CampaignReportsPanel({ campaignId }: { campaignId?: string | nul
   }
 
   return (
-    <div className="divide-y divide-white/[0.04] rounded-xl border border-white/[0.06] bg-card/60">
+    <div className="divide-y divide-white/[0.04] rounded-xl border border-border bg-card/60">
       {reports.map((r) => {
         const open = openId === r.id;
         const kpis = (r.kpi_json ?? {}) as Record<string, unknown>;
@@ -123,7 +123,7 @@ export function CampaignReportsPanel({ campaignId }: { campaignId?: string | nul
               </div>
             </button>
             {open && (
-              <div className="space-y-2 border-t border-white/[0.04] bg-black/10 px-4 py-3 text-xs">
+              <div className="space-y-2 border-t border-border/60 bg-black/10 px-4 py-3 text-xs">
                 <p>{r.report_summary}</p>
                 {r.failure_reason && (
                   <p className="text-red-300">Reason: {r.failure_reason}{r.failure_stage ? ` (stage: ${r.failure_stage})` : ""}</p>

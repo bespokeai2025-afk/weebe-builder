@@ -187,7 +187,7 @@ export function WbahCallbacksPanel({
   return (
     <div className="min-w-0">
       {/* Sub-tabs + search */}
-      <div className="flex flex-col gap-2 border-b border-white/[0.06] px-2.5 py-2 sm:px-3">
+      <div className="flex flex-col gap-2 border-b border-border px-2.5 py-2 sm:px-3">
         <div className="flex flex-wrap items-center gap-1.5">
           {CALLBACK_TABS.map((tab) => {
             const count = summary[tab.countKey];
@@ -201,7 +201,7 @@ export function WbahCallbacksPanel({
                   "rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
                   active
                     ? "border-sky-500/40 bg-sky-500/10 text-sky-300"
-                    : "border-white/[0.06] bg-muted/20 text-muted-foreground hover:text-foreground",
+                    : "border-border bg-muted/20 text-muted-foreground hover:text-foreground",
                 )}
               >
                 {tab.label}
@@ -225,7 +225,7 @@ export function WbahCallbacksPanel({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search name, phone, lead ID…"
-                className="h-7 w-full min-w-[160px] max-w-[220px] rounded-md border border-white/[0.08] bg-muted/40 pl-7 pr-7 text-[11px] placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40 sm:w-52"
+                className="h-7 w-full min-w-[160px] max-w-[220px] rounded-md border border-border bg-muted/40 pl-7 pr-7 text-[11px] placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40 sm:w-52"
               />
               {search && (
                 <button
@@ -290,7 +290,7 @@ export function WbahCallbacksPanel({
           <div className="min-w-0 overflow-x-auto">
             <table className="w-full text-[11px]">
               <thead>
-                <tr className="border-b border-white/[0.06] bg-card/30">
+                <tr className="border-b border-border bg-card/30">
                   <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Name</th>
                   <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Phone</th>
                   <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">
@@ -305,7 +305,7 @@ export function WbahCallbacksPanel({
                 {rows.map((row) => (
                   <tr
                     key={row.id}
-                    className="border-b border-white/[0.04] hover:bg-white/[0.02]"
+                    className="border-b border-border/60 hover:bg-muted/40"
                   >
                     <td className="px-2 py-1.5">
                       <div className="font-medium text-foreground">{row.name || "—"}</div>

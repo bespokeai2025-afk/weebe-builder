@@ -14,7 +14,7 @@ import {
 const STATUS_COLORS: Record<string, string> = {
   active:    "text-emerald-400 border-emerald-500/20",
   paused:    "text-amber-400 border-amber-500/20",
-  completed: "text-muted-foreground/50 border-white/10",
+  completed: "text-muted-foreground/50 border-border",
   cancelled: "text-red-400/60 border-red-500/20",
 };
 

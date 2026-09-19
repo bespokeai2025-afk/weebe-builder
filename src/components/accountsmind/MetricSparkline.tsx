@@ -37,7 +37,7 @@ export function MetricSparkline({
               if (!active || !payload?.length) return null;
               const p = payload[0].payload as SparkPoint;
               return (
-                <div className="rounded-md border border-white/10 bg-gray-900 px-2 py-1 text-[10px] shadow-lg">
+                <div className="rounded-md border border-border bg-gray-900 px-2 py-1 text-[10px] shadow-lg">
                   <span className="text-gray-400">{formatShortDate(p.date)}: </span>
                   <span className="font-semibold text-emerald-300">
                     {formatValue ? formatValue(p.value) : p.value.toLocaleString()}

@@ -128,7 +128,7 @@ export function GrowthMindLeadOpportunities() {
                     u === "high"     ? "bg-orange-500/10 text-orange-400 border-orange-500/20" :
                     u === "medium"   ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
                                        "bg-slate-500/10 text-slate-400 border-slate-500/20",
-                    urgencyFilter === u && "ring-1 ring-white/20",
+                    urgencyFilter === u && "ring-1 ring-border",
                   )}
                 >
                   {u === "all" ? "All urgency" : u} ({cnt})

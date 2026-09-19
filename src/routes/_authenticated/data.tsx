@@ -859,7 +859,7 @@ function DynamicDataTable({
           {records.map((r: any) => (
             <tr
               key={r.id}
-              className={`group h-9 border-b border-white/4 align-middle hover:bg-muted/40 transition-colors ${selected.has(r.id) ? "bg-blue-500/5" : ""}`}
+              className={`group h-9 border-b border-border/60 align-middle hover:bg-muted/40 transition-colors ${selected.has(r.id) ? "bg-blue-500/5" : ""}`}
             >
               <td className="px-2.5 py-1">
                 <Checkbox checked={selected.has(r.id)} onCheckedChange={() => toggleOne(r.id)} />
@@ -3426,7 +3426,7 @@ function DataPage() {
                   {crmPag.sliced.map((p) => (
                     <tr
                       key={p.external_id}
-                      className={`group h-9 border-b border-white/4 align-middle hover:bg-muted/40 transition-colors ${crmPeopleSelected.has(p.external_id) ? "bg-blue-500/5" : ""}`}
+                      className={`group h-9 border-b border-border/60 align-middle hover:bg-muted/40 transition-colors ${crmPeopleSelected.has(p.external_id) ? "bg-blue-500/5" : ""}`}
                     >
                       <td className="px-2 py-0.5">
                         <Checkbox

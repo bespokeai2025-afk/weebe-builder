@@ -20,16 +20,16 @@ import {
 import type { WorkflowDraftFull } from "@/lib/systemmind/systemmind-workflow-generator.server";
 
 const STATUS_META: Record<string, { label: string; color: string }> = {
-  draft:            { label: "Draft",            color: "text-muted-foreground border-white/10"  },
+  draft:            { label: "Draft",            color: "text-muted-foreground border-border"  },
   needs_review:     { label: "Needs Review",     color: "text-amber-400 border-amber-500/30"     },
   approved:         { label: "Approved",          color: "text-green-400 border-green-500/30"     },
   sent_to_builder:  { label: "Sent to Builder",  color: "text-sky-400 border-sky-500/30"         },
   rejected:         { label: "Rejected",          color: "text-red-400 border-red-500/30"         },
-  archived:         { label: "Archived",          color: "text-muted-foreground border-white/10"  },
+  archived:         { label: "Archived",          color: "text-muted-foreground border-border"  },
 };
 
 function StatusBadge({ status }: { status: string }) {
-  const meta = STATUS_META[status] ?? { label: status, color: "text-muted-foreground border-white/10" };
+  const meta = STATUS_META[status] ?? { label: status, color: "text-muted-foreground border-border" };
   return (
     <Badge variant="outline" className={cn("text-[10px] font-semibold", meta.color)}>
       {meta.label}

@@ -137,7 +137,7 @@ function AiDraftModal({
                     "rounded-lg border px-3 py-1.5 text-xs capitalize transition-colors",
                     tone === t
                       ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
-                      : "border-border text-muted-foreground hover:border-white/20",
+                      : "border-border text-muted-foreground hover:border-foreground/20",
                   )}
                 >
                   {t}
@@ -366,7 +366,7 @@ function CampaignEditor({
                           "flex items-center justify-between rounded-lg border px-3 py-2.5 text-xs text-left transition-colors",
                           audience.type === "all"
                             ? "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-300"
-                            : "border-border text-muted-foreground hover:border-white/20",
+                            : "border-border text-muted-foreground hover:border-foreground/20",
                         )}
                       >
                         <span>{opt.label}</span>
@@ -388,7 +388,7 @@ function CampaignEditor({
                             "flex items-center justify-between rounded-lg border px-2.5 py-2 text-xs transition-colors",
                             audience.type === "status" && (audience as any).status === s.status
                               ? "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-300"
-                              : "border-border text-muted-foreground hover:border-white/20",
+                              : "border-border text-muted-foreground hover:border-foreground/20",
                           )}
                         >
                           <span className="capitalize">{s.status.replace(/_/g, " ")}</span>
@@ -411,7 +411,7 @@ function CampaignEditor({
                             "rounded-full border px-2 py-0.5 text-[10px] transition-colors",
                             audience.type === "tag" && (audience as any).tag === t.tag
                               ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
-                              : "border-border text-muted-foreground hover:border-white/20",
+                              : "border-border text-muted-foreground hover:border-foreground/20",
                           )}
                         >
                           {t.tag} ({t.count})
@@ -712,7 +712,7 @@ function AddWarmupModal({ onClose, onAdded }: { onClose: () => void; onAdded: (w
                     "flex-1 rounded-lg border py-1.5 text-xs font-medium transition-colors",
                     totalDays === d
                       ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
-                      : "border-border text-muted-foreground hover:border-white/20",
+                      : "border-border text-muted-foreground hover:border-foreground/20",
                   )}
                 >
                   {d}d

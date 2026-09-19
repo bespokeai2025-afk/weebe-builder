@@ -420,7 +420,7 @@ function HiveMindSettings() {
                             "absolute top-1.5 right-1.5 flex h-5 w-5 items-center justify-center rounded-full transition-all",
                             isPlaying
                               ? "bg-violet-500 text-white opacity-100"
-                              : "opacity-0 group-hover:opacity-100 bg-white/10 text-muted-foreground hover:bg-white/20 hover:text-foreground",
+                              : "opacity-0 group-hover:opacity-100 bg-muted text-muted-foreground hover:bg-muted hover:text-foreground",
                           )}
                         >
                           {isLoading
@@ -473,7 +473,7 @@ function HiveMindSettings() {
                       "h-3.5 w-3.5 rounded-full border-2 shrink-0 mt-0.5",
                       voiceSettings.personality === p.key
                         ? "border-violet-400 bg-violet-400"
-                        : "border-white/20",
+                        : "border-border",
                     )} />
                     <div>
                       <p className="text-xs font-medium">{p.label}</p>

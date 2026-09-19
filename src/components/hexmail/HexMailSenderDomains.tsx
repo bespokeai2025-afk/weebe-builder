@@ -30,7 +30,7 @@ function StatusBadge({ status, label }: { status: DnsStatus; label: string }) {
     fail:    "border-red-500/20 bg-red-500/5 text-red-400",
     warning: "border-amber-500/20 bg-amber-500/5 text-amber-400",
     missing: "border-red-500/20 bg-red-500/5 text-red-400/80",
-    unknown: "border-white/10 bg-muted/40 text-muted-foreground/50",
+    unknown: "border-border bg-muted/40 text-muted-foreground/50",
   };
   return (
     <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium", styles[status])}>

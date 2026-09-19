@@ -63,7 +63,7 @@ function IndustrySetupCard() {
   };
 
   return (
-    <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 space-y-3">
+    <div className="rounded-xl border border-border bg-muted/40 p-4 space-y-3">
       <div className="flex items-center gap-2">
         <Factory className="h-4 w-4 text-emerald-400" />
         <p className="text-sm font-medium">Industry setup</p>
@@ -138,7 +138,7 @@ export function ClientAccountsView() {
           <Loader2 className="h-4 w-4 animate-spin" /> Loading your dashboard…
         </div>
       ) : widgets.length === 0 && stats.length === 0 ? (
-        <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-6">
+        <div className="rounded-xl border border-border bg-muted/40 p-6">
           <p className="text-sm">Your account dashboard hasn't been set up yet.</p>
           <p className="text-xs text-muted-foreground mt-1">
             Pick your industry above to set it up instantly, or ask your account manager to
@@ -153,7 +153,7 @@ export function ClientAccountsView() {
                 const isTrend = w.widget_type === "trend" || w.widget_type === "progress";
                 const points = isTrend ? (series[w.metric_key] ?? []) : [];
                 return (
-                  <div key={w.id} className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
+                  <div key={w.id} className="rounded-xl border border-border bg-muted/40 p-4">
                     <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                       {isTrend && <TrendingUp className="h-3 w-3 text-emerald-400" />}
                       {w.title}
@@ -176,7 +176,7 @@ export function ClientAccountsView() {
             </div>
           )}
           {stats.length > 0 && (
-            <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] divide-y divide-white/[0.05]">
+            <div className="rounded-xl border border-border bg-muted/40 divide-y divide-white/[0.05]">
               {stats.map((s: any) => (
                 <div key={s.id} className="flex items-center justify-between px-4 py-3">
                   <div>

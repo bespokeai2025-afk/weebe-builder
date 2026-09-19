@@ -113,7 +113,7 @@ function StarRating({ score }: { score: number | null | undefined }) {
 function TypeBadge({ type }: { type: string }) {
   const label = PROMPT_TYPES.find(t => t.value === type)?.label ?? type;
   return (
-    <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-semibold leading-none", TYPE_COLORS[type] ?? "bg-white/10 text-muted-foreground")}>
+    <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-semibold leading-none", TYPE_COLORS[type] ?? "bg-muted text-muted-foreground")}>
       {label}
     </span>
   );
@@ -597,7 +597,7 @@ function ChainBuilderEditor({
                         Auto-inject sections as variables
                         <span className={cn(
                           "ml-1 rounded-full h-3.5 w-6 relative transition-colors shrink-0",
-                          step.autoInjectSections ? "bg-amber-500/60" : "bg-white/10"
+                          step.autoInjectSections ? "bg-amber-500/60" : "bg-muted"
                         )}>
                           <span className={cn(
                             "absolute top-0.5 h-2.5 w-2.5 rounded-full bg-white transition-transform",

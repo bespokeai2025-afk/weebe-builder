@@ -265,7 +265,7 @@ export function OnboardingWelcome() {
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <div className="relative w-full max-w-2xl rounded-2xl border border-white/[0.10] bg-[#0d0d12] shadow-2xl shadow-black/60 overflow-hidden">
+      <div className="relative w-full max-w-2xl rounded-2xl border border-border bg-[#0d0d12] shadow-2xl shadow-black/60 overflow-hidden">
 
         {/* Progress strip */}
         <StepProgress step={step} path={selectedPath} />
@@ -273,7 +273,7 @@ export function OnboardingWelcome() {
         {/* Dismiss button */}
         <button
           onClick={handleDismiss}
-          className="absolute top-4 right-4 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-white/[0.05] text-muted-foreground hover:bg-white/[0.10] hover:text-foreground transition-colors">
+          className="absolute top-4 right-4 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-muted text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
           <X className="h-3.5 w-3.5" />
         </button>
 
@@ -340,7 +340,7 @@ function StepProgress({ step, path }: { step: ModalStep; path: OnboardingPath | 
   const pct = current <= 0 ? 0 : Math.round((current / (stepOrder.length - 1)) * 100);
 
   return (
-    <div className="h-1 w-full bg-white/[0.04]">
+    <div className="h-1 w-full bg-muted">
       <div
         className="h-1 bg-gradient-to-r from-violet-500 to-emerald-500 transition-all duration-500"
         style={{ width: `${pct}%` }}
@@ -356,7 +356,7 @@ function WelcomeStep({ onNext }: { onNext(): void }) {
     <div className="space-y-7 text-center">
       <div className="space-y-2">
         <div className="flex justify-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500/30 to-emerald-500/30 ring-1 ring-white/10">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500/30 to-emerald-500/30 ring-1 ring-border">
             <Zap className="h-7 w-7 text-white" />
           </div>
         </div>
@@ -368,7 +368,7 @@ function WelcomeStep({ onNext }: { onNext(): void }) {
 
       <div className="grid grid-cols-2 gap-3">
         {PILLARS.map(p => (
-          <div key={p.label} className="flex items-start gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 text-left">
+          <div key={p.label} className="flex items-start gap-3 rounded-xl border border-border bg-muted/40 p-4 text-left">
             <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ring-1", p.bg, p.ring)}>
               <p.icon className={cn("h-4 w-4", p.color)} />
             </div>
@@ -405,7 +405,7 @@ function PathStep({ onSelect, saving }: { onSelect(p: OnboardingPath): void; sav
             key={p.value}
             onClick={() => !saving && onSelect(p.value)}
             disabled={saving}
-            className="w-full flex items-center gap-4 rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 text-left hover:border-white/[0.15] hover:bg-white/[0.05] transition-all group disabled:opacity-50">
+            className="w-full flex items-center gap-4 rounded-xl border border-border bg-muted/40 p-5 text-left hover:border-foreground/20 hover:bg-muted transition-all group disabled:opacity-50">
             <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", p.bg)}>
               <p.icon className={cn("h-5 w-5", p.color)} />
             </div>
@@ -478,7 +478,7 @@ function DnaStep({
           value={dna.targetCustomers}
           onChange={e => onChange({ ...dna, targetCustomers: e.target.value })}
           placeholder="Describe your ideal customer — who they are, their role, size of company…"
-          className="w-full resize-none rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-white/20 focus:outline-none transition-colors"
+          className="w-full resize-none rounded-lg border border-border bg-muted/60 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-border focus:outline-none transition-colors"
         />
       </div>
 
@@ -532,8 +532,8 @@ function CrmStep({
             key={opt.value}
             onClick={() => !saving && onSelect(opt.value)}
             disabled={saving}
-            className="w-full flex items-center gap-4 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 text-left hover:border-white/[0.15] hover:bg-white/[0.05] transition-all group disabled:opacity-50">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/[0.04]">
+            className="w-full flex items-center gap-4 rounded-xl border border-border bg-muted/40 p-4 text-left hover:border-foreground/20 hover:bg-muted transition-all group disabled:opacity-50">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
               <opt.icon className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
             </div>
             <div className="flex-1">
@@ -607,7 +607,7 @@ function SummaryAgentStep({ onDone, onSetupAssistant, saving }: { onDone(): void
         </p>
       </div>
 
-      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-3 text-left">
+      <div className="rounded-xl border border-border bg-muted/40 p-4 space-y-3 text-left">
         <ChecklistItem done={false} label="Create your first Knowledge Base" />
         <ChecklistItem done={false} label="Build and configure your AI Agent" />
         <ChecklistItem done={false} label="Set up telephony (Twilio / SIP trunk)" />
@@ -642,7 +642,7 @@ function SummaryGrowStep({ crmChoice, onDone, onSetupAssistant, saving }: { crmC
         </p>
       </div>
 
-      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-3 text-left">
+      <div className="rounded-xl border border-border bg-muted/40 p-4 space-y-3 text-left">
         <ChecklistItem done={true}  label="Platform knowledge bases created" />
         <ChecklistItem done={true}  label="Business DNA started" />
         <ChecklistItem done={crmChoice !== "skip"} label={crmChoice === "smart_dash" ? "Using WEBEE Smart Dash as CRM" : crmChoice === "external" ? "CRM connection noted (set up in Settings)" : "CRM — set up later"} />
@@ -679,7 +679,7 @@ function SummaryBothStep({ crmChoice, onDone, onSetupAssistant, saving }: { crmC
         </p>
       </div>
 
-      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-3 text-left">
+      <div className="rounded-xl border border-border bg-muted/40 p-4 space-y-3 text-left">
         <ChecklistItem done={true}  label="Platform knowledge bases created" />
         <ChecklistItem done={true}  label="Business DNA started" />
         <ChecklistItem done={crmChoice !== "skip"} label="CRM / Smart Dash configured" />

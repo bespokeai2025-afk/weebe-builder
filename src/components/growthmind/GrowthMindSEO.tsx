@@ -1478,7 +1478,7 @@ function ContentGapSection() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-sm font-medium">{gap.topic}</p>
-                        <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize", INTENT_COLORS[gap.intent] ?? "border-white/10 text-muted-foreground")}>
+                        <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize", INTENT_COLORS[gap.intent] ?? "border-border text-muted-foreground")}>
                           {gap.intent}
                         </span>
                       </div>

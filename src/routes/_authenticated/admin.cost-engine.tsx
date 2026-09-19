@@ -201,7 +201,7 @@ function CostEnginePage() {
     <div className="flex h-full min-h-0 w-full">
 
       {/* ── Left sidebar ── */}
-      <aside className="hidden md:flex w-56 shrink-0 flex-col border-r border-white/[0.06] bg-[hsl(var(--sidebar-background))] py-4 overflow-y-auto">
+      <aside className="hidden md:flex w-56 shrink-0 flex-col border-r border-border bg-[hsl(var(--sidebar-background))] py-4 overflow-y-auto">
 
         {/* Brand */}
         <div className="px-4 mb-5">
@@ -231,7 +231,7 @@ function CostEnginePage() {
                     "w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors text-left",
                     activeTab === item.id
                       ? "bg-violet-500/15 text-violet-300"
-                      : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
                   )}
                 >
                   <item.icon className={cn("h-3.5 w-3.5 shrink-0", activeTab === item.id && "text-violet-400")} />
@@ -247,7 +247,7 @@ function CostEnginePage() {
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
 
         {/* Top bar */}
-        <div className="border-b border-white/[0.06] px-6 py-3.5 flex items-center justify-between shrink-0">
+        <div className="border-b border-border px-6 py-3.5 flex items-center justify-between shrink-0">
           <div>
             <h1 className="text-sm font-semibold">{activeLabel}</h1>
             <p className="text-[11px] text-muted-foreground">Platform-wide pricing, profit, and margin management</p>

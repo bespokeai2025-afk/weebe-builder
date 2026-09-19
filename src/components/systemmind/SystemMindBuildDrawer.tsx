@@ -72,7 +72,7 @@ export function SystemMindBuildDrawer({
                 variant="outline"
                 className={cn(
                   "gap-1 text-[9px]",
-                  agentContext.isLive ? "border-emerald-500/50 text-emerald-300" : "border-white/20 text-muted-foreground",
+                  agentContext.isLive ? "border-emerald-500/50 text-emerald-300" : "border-border text-muted-foreground",
                 )}
               >
                 <Radio className="h-2.5 w-2.5" /> {agentContext.isLive ? "live" : "draft"}

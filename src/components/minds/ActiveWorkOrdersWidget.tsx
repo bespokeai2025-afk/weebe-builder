@@ -42,7 +42,7 @@ function MiniWorkOrderRow({ wo }: { wo: WorkOrderSummary }) {
     <Link
       to="/hivemind/work-orders/$id"
       params={{ id: wo.id }}
-      className="flex items-start gap-3 px-4 py-3 hover:bg-white/[0.015] transition-colors group"
+      className="flex items-start gap-3 px-4 py-3 hover:bg-muted/25 transition-colors group"
     >
       <div className={cn(
         "h-8 w-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5",
@@ -65,7 +65,7 @@ function MiniWorkOrderRow({ wo }: { wo: WorkOrderSummary }) {
         <div className="flex items-center gap-2.5 mt-1 flex-wrap">
           {wo.stage_count > 0 && (
             <div className="flex items-center gap-1.5">
-              <div className="h-1 w-14 rounded-full bg-white/[0.06] overflow-hidden">
+              <div className="h-1 w-14 rounded-full bg-muted overflow-hidden">
                 <div
                   className="h-full rounded-full bg-violet-500/50"
                   style={{ width: `${pct}%` }}
@@ -138,8 +138,8 @@ export function ActiveWorkOrdersWidget({
   const rest = active.length - shown.length;
 
   return (
-    <div className={cn("rounded-xl border border-white/[0.06] bg-card/40 overflow-hidden", className)}>
-      <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between">
+    <div className={cn("rounded-xl border border-border bg-card/40 overflow-hidden", className)}>
+      <div className="px-4 py-3 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-2">
           <GitBranch className="h-4 w-4 text-violet-400" />
           <p className="text-sm font-semibold">{title}</p>

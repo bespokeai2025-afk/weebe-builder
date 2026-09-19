@@ -474,28 +474,28 @@ function AssetCard({
             {/* Top row: actions */}
             <div className="flex gap-2">
               <a href={asset.image_url} target="_blank" rel="noopener noreferrer" download
-                className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 hover:bg-white/25 transition-colors" title="Download">
+                className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted hover:bg-muted transition-colors" title="Download">
                 <Download className="h-3.5 w-3.5" />
               </a>
               <a href={asset.image_url} target="_blank" rel="noopener noreferrer"
-                className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 hover:bg-white/25 transition-colors" title="Open full size">
+                className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted hover:bg-muted transition-colors" title="Open full size">
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
               <button
                 onClick={() => { navigator.clipboard.writeText(asset.image_url); toast.success("URL copied!"); }}
-                className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 hover:bg-white/25 transition-colors" title="Copy URL">
+                className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted hover:bg-muted transition-colors" title="Copy URL">
                 <Copy className="h-3.5 w-3.5" />
               </button>
             </div>
             {/* Bottom row: smart actions */}
             <div className="flex gap-1.5">
               <button onClick={onVariation} disabled={working}
-                className="flex items-center gap-1 rounded border border-white/20 bg-white/10 px-2 py-1 text-[9px] hover:bg-white/20 transition-colors disabled:opacity-50">
+                className="flex items-center gap-1 rounded border border-border bg-muted px-2 py-1 text-[9px] hover:bg-muted transition-colors disabled:opacity-50">
                 {working ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
                 Variation
               </button>
               <button onClick={onUsePrompt}
-                className="flex items-center gap-1 rounded border border-white/20 bg-white/10 px-2 py-1 text-[9px] hover:bg-white/20 transition-colors">
+                className="flex items-center gap-1 rounded border border-border bg-muted px-2 py-1 text-[9px] hover:bg-muted transition-colors">
                 <Wand2 className="h-3 w-3" />
                 Edit prompt
               </button>

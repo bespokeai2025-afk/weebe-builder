@@ -180,7 +180,7 @@ function CampaignsPage() {
       </div>
 
       {/* Tab bar */}
-      <div className="flex gap-1 rounded-xl border border-white/[0.06] bg-muted/20 p-1 w-fit">
+      <div className="flex gap-1 rounded-xl border border-border bg-muted/20 p-1 w-fit">
         {tabs.map((t) => (
           <button
             key={t.key}
@@ -412,7 +412,7 @@ function ScheduledCampaignsTab() {
         return (
           <div
             key={c.id}
-            className="rounded-xl border border-white/[0.06] bg-card/60 p-4 flex flex-col gap-3"
+            className="rounded-xl border border-border bg-card/60 p-4 flex flex-col gap-3"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1 min-w-0">

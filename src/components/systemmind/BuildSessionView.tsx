@@ -155,20 +155,20 @@ export function RiskBadge({ risk }: { risk?: string | null }) {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  draft:            "border-white/20 text-muted-foreground",
+  draft:            "border-border text-muted-foreground",
   testing:          "border-sky-500/40 text-sky-400",
-  revised:          "border-white/15 text-muted-foreground/70",
+  revised:          "border-border text-muted-foreground/70",
   pending_approval: "border-amber-500/40 text-amber-400",
   applied:          "border-green-500/40 text-green-400",
   deployed:         "border-emerald-500/50 text-emerald-300",
   rejected:         "border-red-500/40 text-red-400",
-  archived:         "border-white/15 text-muted-foreground/60",
+  archived:         "border-border text-muted-foreground/60",
 };
 
 export function StatusBadge({ status }: { status?: string | null }) {
   if (!status) return null;
   return (
-    <Badge variant="outline" className={cn("text-[10px]", STATUS_STYLES[status] ?? "border-white/20")}>
+    <Badge variant="outline" className={cn("text-[10px]", STATUS_STYLES[status] ?? "border-border")}>
       {status.replace(/_/g, " ")}
     </Badge>
   );
@@ -604,7 +604,7 @@ function ConversionReportView({ conversion }: { conversion: Record<string, any> 
             {fmtTime(conversion.created_at)} · original untouched — nothing goes live until Apply
           </p>
         </div>
-        <Badge variant="outline" className={cn("text-[10px] font-semibold", FIDELITY_STYLES[fidelity] ?? "border-white/20")}>
+        <Badge variant="outline" className={cn("text-[10px] font-semibold", FIDELITY_STYLES[fidelity] ?? "border-border")}>
           {fidelity === "full" ? "full fidelity" : fidelity === "partial" ? "partial fidelity" : "AI-assisted"}
         </Badge>
         <RiskBadge risk={conversion.risk_level ?? r.risk_level} />

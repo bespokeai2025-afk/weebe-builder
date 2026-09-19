@@ -526,7 +526,7 @@ export function GrowthMindChat() {
                 "h-[42px] w-[42px] shrink-0 rounded-xl border flex items-center justify-center transition-all",
                 isRecording
                   ? "border-red-500/40 bg-red-500/15 text-red-400 animate-pulse"
-                  : "border-border text-muted-foreground hover:text-foreground hover:border-white/20",
+                  : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/20",
               )}
             >
               {isRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}

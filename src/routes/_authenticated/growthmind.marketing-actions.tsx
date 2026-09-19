@@ -97,7 +97,7 @@ function ActionRow({ action, onUndo, undoing }: {
               type="button"
               disabled={undoing === action.id}
               onClick={() => onUndo(action.id)}
-              className="inline-flex items-center gap-2 rounded-md border border-white/10 px-3 py-1.5 text-xs font-medium transition hover:bg-muted disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-xs font-medium transition hover:bg-muted disabled:opacity-50"
             >
               {undoing === action.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Undo2 className="h-3.5 w-3.5" />}
               Undo this change
@@ -154,7 +154,7 @@ function MarketingActionsPage() {
         </div>
 
         {notice && (
-          <div className="rounded-md border border-white/10 bg-muted px-3 py-2 text-xs">{notice}</div>
+          <div className="rounded-md border border-border bg-muted px-3 py-2 text-xs">{notice}</div>
         )}
 
         {isLoading ? (
@@ -162,7 +162,7 @@ function MarketingActionsPage() {
             <Loader2 className="h-4 w-4 animate-spin" /> Loading actions…
           </div>
         ) : actions.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-white/10 p-10 text-center text-sm text-muted-foreground">
+          <div className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
             No marketing actions yet. When the engine discovers opportunities or executes changes, they appear here.
           </div>
         ) : (

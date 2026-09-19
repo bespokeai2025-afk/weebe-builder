@@ -127,7 +127,7 @@ export function KnowledgeBaseDetail({ slug }: { slug: string }) {
         <button
           onClick={() => fileRef.current?.click()}
           disabled={uploading}
-          className="flex w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-white/[0.12] bg-white/[0.02] py-10 transition-colors hover:border-white/[0.2] hover:bg-white/[0.04] disabled:opacity-60"
+          className="flex w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/40 py-10 transition-colors hover:border-foreground/25 hover:bg-muted disabled:opacity-60"
         >
           {uploading ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : <Upload className="h-6 w-6 text-muted-foreground" />}
           <span className="text-sm font-medium">{uploading ? "Uploading & indexing…" : "Upload documents"}</span>
@@ -143,13 +143,13 @@ export function KnowledgeBaseDetail({ slug }: { slug: string }) {
             <Loader2 className="h-5 w-5 animate-spin" />
           </div>
         ) : (docs?.length ?? 0) === 0 ? (
-          <p className="rounded-xl border border-white/[0.06] bg-white/[0.02] py-10 text-center text-sm text-muted-foreground">
+          <p className="rounded-xl border border-border bg-muted/40 py-10 text-center text-sm text-muted-foreground">
             No documents yet. Upload reference material to ground this executive.
           </p>
         ) : (
           <div className="space-y-2">
             {docs!.map((d: any) => (
-              <div key={d.id} className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
+              <div key={d.id} className="flex items-center gap-3 rounded-xl border border-border bg-muted/40 px-4 py-3">
                 <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{d.title}</p>
@@ -161,7 +161,7 @@ export function KnowledgeBaseDetail({ slug }: { slug: string }) {
                     ) : null}
                   </div>
                 </div>
-                <button onClick={() => handleReindex(d.id)} title="Re-index" className="rounded-md p-1.5 text-muted-foreground hover:bg-white/[0.06] hover:text-foreground">
+                <button onClick={() => handleReindex(d.id)} title="Re-index" className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground">
                   <RefreshCw className="h-3.5 w-3.5" />
                 </button>
                 <button onClick={() => handleDelete(d.id)} title="Delete" className="rounded-md p-1.5 text-muted-foreground hover:bg-red-500/10 hover:text-red-400">

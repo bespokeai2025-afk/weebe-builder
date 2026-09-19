@@ -29,7 +29,7 @@ export function PricingCards({ currentPriceId, busyPriceId, onChoose, onContactS
               "hover:-translate-y-0.5 hover:bg-card/60 hover:shadow-[0_20px_60px_-30px_rgba(79,140,255,0.45)]",
               plan.highlighted
                 ? "border-primary/40 shadow-[0_0_0_1px_rgba(79,140,255,0.18),0_24px_70px_-40px_rgba(79,140,255,0.6)]"
-                : "border-white/[0.06]",
+                : "border-border",
               isCurrent && "ring-1 ring-primary/40",
             )}
           >

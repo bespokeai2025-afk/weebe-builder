@@ -187,7 +187,7 @@ function PerformanceLabPage() {
                       className={cn("rounded-full border px-2 py-0.5 text-[11px]",
                         s && !hadError ? "border-emerald-500/40 text-emerald-300"
                         : s && hadError ? "border-amber-500/40 text-amber-300"
-                        : "border-white/10 text-muted-foreground/60")}>
+                        : "border-border text-muted-foreground/60")}>
                       {key}{s && hadError ? " !" : ""}
                     </span>
                   );

@@ -99,7 +99,7 @@ export function CustomViewsSection() {
 
   if (isLoading) {
     return (
-      <div className="rounded-xl border border-white/[0.06] bg-card/60 p-4 text-xs text-muted-foreground">
+      <div className="rounded-xl border border-border bg-card/60 p-4 text-xs text-muted-foreground">
         Loading custom views…
       </div>
     );
@@ -107,8 +107,8 @@ export function CustomViewsSection() {
 
   if (!openView) {
     return (
-      <div className="rounded-xl border border-white/[0.06] bg-card/60">
-        <div className="flex items-center justify-between border-b border-white/[0.06] px-3 py-2">
+      <div className="rounded-xl border border-border bg-card/60">
+        <div className="flex items-center justify-between border-b border-border px-3 py-2">
           <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
             Custom Views
             <span className="ml-2 normal-case text-xs font-normal tracking-normal">
@@ -125,7 +125,7 @@ export function CustomViewsSection() {
         ) : (
           <div className="grid gap-2 p-3 sm:grid-cols-2 lg:grid-cols-3">
             {views.map((v) => (
-              <div key={v.id} className="rounded-lg border border-white/[0.08] bg-muted/20 p-3">
+              <div key={v.id} className="rounded-lg border border-border bg-muted/20 p-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{v.name}</p>
@@ -234,7 +234,7 @@ export function CustomViewsSection() {
                 </div>
 
                 {historyFor === v.id && (
-                  <div className="mt-2 rounded-md border border-white/[0.08] bg-black/20 p-2">
+                  <div className="mt-2 rounded-md border border-border bg-black/20 p-2">
                     <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                       Version history
                     </p>
@@ -275,8 +275,8 @@ export function CustomViewsSection() {
   // ── Open view: matching leads ─────────────────────────────────────────────
   const rows = ((viewRows as any)?.rows ?? []) as Array<Record<string, any>>;
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-card/60">
-      <div className="flex items-center gap-2 border-b border-white/[0.06] px-3 py-2">
+    <div className="rounded-xl border border-border bg-card/60">
+      <div className="flex items-center gap-2 border-b border-border px-3 py-2">
         <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" onClick={() => setOpenViewId(null)}>
           <ChevronLeft className="h-3 w-3" /> Back
         </Button>
@@ -287,7 +287,7 @@ export function CustomViewsSection() {
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
-            <tr className="border-b border-white/[0.06] text-left text-[10px] uppercase tracking-wider text-muted-foreground">
+            <tr className="border-b border-border text-left text-[10px] uppercase tracking-wider text-muted-foreground">
               <th className="px-3 py-2">Name</th>
               <th className="px-3 py-2">Phone</th>
               <th className="px-3 py-2">Email</th>
@@ -306,7 +306,7 @@ export function CustomViewsSection() {
               </tr>
             ) : (
               rows.map((r) => (
-                <tr key={r.id} className="border-b border-white/[0.04]">
+                <tr key={r.id} className="border-b border-border/60">
                   <td className="px-3 py-1.5">{r.full_name ?? "—"}</td>
                   <td className="px-3 py-1.5">{r.phone ?? "—"}</td>
                   <td className="px-3 py-1.5">{r.email ?? "—"}</td>

@@ -411,7 +411,7 @@ function ScoreHealthTab() {
               {good      > 0 && <div className="bg-sky-500/70 transition-all"     style={{ flex: good      }} title={`Good: ${good}`} />}
               {attention > 0 && <div className="bg-amber-500/70 transition-all"   style={{ flex: attention }} title={`Needs attention: ${attention}`} />}
               {critical  > 0 && <div className="bg-red-500/70 transition-all"     style={{ flex: critical  }} title={`Critical: ${critical}`} />}
-              {rows.length === 0 && <div className="bg-white/10 flex-1" />}
+              {rows.length === 0 && <div className="bg-muted flex-1" />}
             </div>
             <div className="flex gap-4 mt-2 flex-wrap">
               {[

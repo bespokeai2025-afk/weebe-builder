@@ -591,7 +591,7 @@ function stepDot(status: string) {
   if (status === "running") return <Loader2 className="h-3 w-3 text-violet-400 animate-spin shrink-0" />;
   if (status === "failed")  return <AlertTriangle className="h-3 w-3 text-red-400 shrink-0" />;
   if (status === "blocked") return <AlertTriangle className="h-3 w-3 text-amber-400 shrink-0" />;
-  return <span className="h-3 w-3 rounded-full border border-white/20 shrink-0" />;
+  return <span className="h-3 w-3 rounded-full border border-border shrink-0" />;
 }
 
 function WorkOrderProposalCard({ wo }: { wo: WorkOrderProposal }) {

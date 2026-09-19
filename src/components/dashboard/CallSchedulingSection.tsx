@@ -270,7 +270,7 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
           { label: "Daily Campaigns", value: totalDaily, icon: PhoneCall, color: "text-violet-400", bg: "bg-violet-500/10", sub: "Recurring daily" },
           { label: "Custom Interval", value: totalCustom, icon: Clock, color: "text-amber-400", bg: "bg-amber-500/10", sub: "Custom schedule" },
         ].map((s) => (
-          <div key={s.label} className="min-w-0 rounded-xl border border-white/[0.06] bg-card/60 p-3">
+          <div key={s.label} className="min-w-0 rounded-xl border border-border bg-card/60 p-3">
             <div className={cn("mb-1.5 inline-flex rounded-lg p-1.5", s.bg)}>
               <s.icon className={cn("h-3.5 w-3.5", s.color)} />
             </div>
@@ -316,7 +316,7 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
           {filtered.map((c) => (
             <div
               key={c.id}
-              className="rounded-xl border border-white/[0.06] bg-card/60 p-4"
+              className="rounded-xl border border-border bg-card/60 p-4"
             >
               <div className="flex items-start justify-between gap-3">
                 {/* Left: icon + name */}
@@ -351,7 +351,7 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
                   <button
                     title="Edit"
                     onClick={() => openEdit(c)}
-                    className="rounded p-1.5 text-muted-foreground hover:bg-white/[0.06] hover:text-foreground transition-colors"
+                    className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                   >
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
@@ -386,7 +386,7 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
               </div>
 
               {/* Footer: frequency + voicemail */}
-              <div className="mt-3 flex items-center justify-between border-t border-white/[0.04] pt-2.5">
+              <div className="mt-3 flex items-center justify-between border-t border-border/60 pt-2.5">
                 <div className="flex items-center gap-4 text-[10px] text-muted-foreground">
                   <span>
                     Frequency:{" "}
@@ -426,7 +426,7 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
 
           <div className="overflow-y-auto flex-1 pr-1 space-y-4 pb-1">
             {/* Campaign Details */}
-            <div className="rounded-xl border border-white/[0.06] bg-card/40 p-4 space-y-3">
+            <div className="rounded-xl border border-border bg-card/40 p-4 space-y-3">
               <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 <Phone className="h-3.5 w-3.5 text-blue-400" />
                 Campaign Details
@@ -471,7 +471,7 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
             </div>
 
             {/* Lead Targeting */}
-            <div className="rounded-xl border border-white/[0.06] bg-card/40 p-4 space-y-3">
+            <div className="rounded-xl border border-border bg-card/40 p-4 space-y-3">
               <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 <Globe className="h-3.5 w-3.5 text-violet-400" />
                 Lead Targeting
@@ -521,7 +521,7 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
             </div>
 
             {/* Schedule Configuration */}
-            <div className="rounded-xl border border-white/[0.06] bg-card/40 p-4 space-y-3">
+            <div className="rounded-xl border border-border bg-card/40 p-4 space-y-3">
               <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 <Clock className="h-3.5 w-3.5 text-emerald-400" />
                 Schedule Configuration
@@ -557,7 +557,7 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
               </div>
               <div>
                 <Label className="text-xs mb-1 block">Call Frequency</Label>
-                <div className="flex rounded-lg border border-white/[0.08] overflow-hidden">
+                <div className="flex rounded-lg border border-border overflow-hidden">
                   {(["daily", "custom"] as const).map((freq) => (
                     <button
                       key={freq}

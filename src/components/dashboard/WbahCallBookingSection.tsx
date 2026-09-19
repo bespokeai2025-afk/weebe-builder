@@ -41,7 +41,7 @@ function BookedBlock({
         </Badge>
         <span className="text-[11px] text-muted-foreground capitalize">{ui.statusLabel}</span>
       </div>
-      <div className="rounded-lg border border-white/[0.06] divide-y divide-white/[0.04]">
+      <div className="rounded-lg border border-border divide-y divide-white/[0.04]">
         <Row label="Appointment date" value={ui.dateLabel} />
         <Row label="Appointment time" value={ui.timeLabel} />
         <Row label="Booking status" value={ui.statusLabel} />
@@ -77,13 +77,13 @@ export function WbahCallBookingSection({
       {ui.kind === "pending" && <PendingBlock polling={polling} />}
       {ui.kind === "booked" && <BookedBlock ui={ui} callRow={callRow} />}
       {ui.kind === "positive_no_booking" && (
-        <div className="rounded-lg border border-white/[0.06] divide-y divide-white/[0.04]">
+        <div className="rounded-lg border border-border divide-y divide-white/[0.04]">
           <Row label="Outcome" value={ui.label} />
           <Row label="Sentiment" value={ui.sentimentLabel} />
         </div>
       )}
       {ui.kind === "normal" && (
-        <div className="rounded-lg border border-white/[0.06] divide-y divide-white/[0.04]">
+        <div className="rounded-lg border border-border divide-y divide-white/[0.04]">
           {ui.sentimentLabel && <Row label="Sentiment" value={ui.sentimentLabel} />}
           <Row label="Appointment date" value={ui.dateLabel} />
           <Row label="Appointment time" value={ui.timeLabel} />

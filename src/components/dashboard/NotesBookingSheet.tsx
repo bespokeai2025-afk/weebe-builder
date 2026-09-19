@@ -190,7 +190,7 @@ export function NotesBookingSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-[460px] sm:max-w-[460px] flex flex-col gap-0 p-0 overflow-hidden">
-        <SheetHeader className="px-5 pt-5 pb-4 border-b border-white/[0.06]">
+        <SheetHeader className="px-5 pt-5 pb-4 border-b border-border">
           <SheetTitle className="flex items-center gap-2 text-sm font-semibold">
             <StickyNote className="h-4 w-4 text-amber-400 flex-shrink-0" />
             <span className="truncate">{entityName}</span>
@@ -218,13 +218,13 @@ export function NotesBookingSheet({
                 )}
               </button>
               {summaryOpen && (
-                <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+                <div className="rounded-lg border border-border bg-muted/40 px-3 py-2.5">
                   <p className="text-xs text-foreground/90 whitespace-pre-wrap leading-relaxed">
                     {callSummary.trim()}
                   </p>
                 </div>
               )}
-              <Separator className="bg-white/[0.06]" />
+              <Separator className="bg-muted" />
             </div>
           )}
 
@@ -235,7 +235,7 @@ export function NotesBookingSheet({
                 phone={defaultPhone}
                 contactName={entityName}
               />
-              <Separator className="bg-white/[0.06]" />
+              <Separator className="bg-muted" />
             </>
           )}
 
@@ -253,7 +253,7 @@ export function NotesBookingSheet({
               }}
               placeholder="Write a note… (⌘↵ to save)"
               rows={3}
-              className="w-full resize-none rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40 leading-relaxed"
+              className="w-full resize-none rounded-lg border border-border bg-muted/60 px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40 leading-relaxed"
             />
             <div className="flex justify-end">
               <Button
@@ -290,7 +290,7 @@ export function NotesBookingSheet({
                 {notes.map((note) => (
                   <div
                     key={note.id}
-                    className="group relative rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5"
+                    className="group relative rounded-lg border border-border bg-muted/40 px-3 py-2.5"
                   >
                     <div className="flex items-center justify-between gap-2 mb-1">
                       <span className="text-[10px] text-muted-foreground/70 tabular-nums">
@@ -317,7 +317,7 @@ export function NotesBookingSheet({
             )}
           </div>
 
-          <Separator className="bg-white/[0.06]" />
+          <Separator className="bg-muted" />
 
           {/* ── Book Appointment ───────────────────────────── */}
           <div className="space-y-3">
@@ -338,7 +338,7 @@ export function NotesBookingSheet({
             </button>
 
             {bookingOpen && (
-              <div className="space-y-3 rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
+              <div className="space-y-3 rounded-lg border border-border bg-muted/40 p-4">
                 <div>
                   <Label className="text-[11px] text-muted-foreground">Title</Label>
                   <Input
@@ -413,7 +413,7 @@ export function NotesBookingSheet({
                     onChange={(e) => setBNotes(e.target.value)}
                     placeholder="Appointment reason or notes…"
                     rows={2}
-                    className="mt-1 w-full resize-none rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40 leading-relaxed"
+                    className="mt-1 w-full resize-none rounded-lg border border-border bg-muted/60 px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40 leading-relaxed"
                   />
                 </div>
 

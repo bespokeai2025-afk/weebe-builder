@@ -570,7 +570,7 @@ function TourCard({
         top: pos.top, left: pos.left, width: CARD_W,
         animation: shaking ? "tour-shake 0.52s ease-in-out" : undefined,
       }}
-      className="flex flex-col rounded-xl border border-slate-700/80 bg-[#111827] shadow-2xl shadow-black/70 ring-1 ring-white/[0.04]"
+      className="flex flex-col rounded-xl border border-slate-700/80 bg-[#111827] shadow-2xl shadow-black/70 ring-1 ring-border/60"
     >
       {/* Header — × always visible */}
       <div className="flex items-center gap-2 border-b border-slate-800 px-3.5 py-2">

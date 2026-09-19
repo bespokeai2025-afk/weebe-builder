@@ -121,7 +121,7 @@ function AdminWorkspacesPage() {
       </div>
 
       {/* Tab bar */}
-      <div className="flex gap-1 border-b border-white/[0.06] pb-px">
+      <div className="flex gap-1 border-b border-border pb-px">
         {(["workspaces", "requests"] as const).map((t) => (
           <button
             key={t}
@@ -173,11 +173,11 @@ function AdminWorkspacesPage() {
                 const isDirty = !!(pendingModules[ws.id] || pendingTiers[ws.id]);
 
                 return (
-                  <div key={ws.id} className="rounded-xl border border-white/[0.06] bg-card/40 overflow-hidden">
+                  <div key={ws.id} className="rounded-xl border border-border bg-card/40 overflow-hidden">
                     {/* Row header */}
                     <button
                       onClick={() => setExpanded(isOpen ? null : ws.id)}
-                      className="w-full flex items-center gap-4 p-4 text-left hover:bg-white/[0.02] transition-colors"
+                      className="w-full flex items-center gap-4 p-4 text-left hover:bg-muted/40 transition-colors"
                     >
                       <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                         <Building2 className="h-4 w-4 text-primary" />
@@ -206,7 +206,7 @@ function AdminWorkspacesPage() {
 
                     {/* Expanded module editor */}
                     {isOpen && (
-                      <div className="border-t border-white/[0.06] p-4 space-y-4">
+                      <div className="border-t border-border p-4 space-y-4">
                         {/* Plan tier selector */}
                         <div>
                           <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2 block">Plan Tier</label>
@@ -219,7 +219,7 @@ function AdminWorkspacesPage() {
                                   "px-3 py-1.5 rounded-lg text-xs font-medium border transition-all",
                                   currentTier === tier.id
                                     ? "border-current text-white"
-                                    : "border-white/[0.08] text-muted-foreground hover:border-white/20"
+                                    : "border-border text-muted-foreground hover:border-foreground/20"
                                 )}
                                 style={currentTier === tier.id ? { borderColor: tier.color, color: tier.color, background: `${tier.color}15` } : {}}
                               >
@@ -246,7 +246,7 @@ function AdminWorkspacesPage() {
                                   }}
                                   className={cn(
                                     "flex items-start gap-2.5 rounded-lg border p-3 text-left transition-all",
-                                    active ? "bg-card border-primary/30" : "bg-transparent border-white/[0.06] hover:border-white/15"
+                                    active ? "bg-card border-primary/30" : "bg-transparent border-border hover:border-foreground/20"
                                   )}
                                 >
                                   <div
@@ -266,7 +266,7 @@ function AdminWorkspacesPage() {
                         </div>
 
                         {/* Save */}
-                        <div className="flex justify-end gap-2 pt-2 border-t border-white/[0.06]">
+                        <div className="flex justify-end gap-2 pt-2 border-t border-border">
                           <Button
                             variant="outline"
                             size="sm"
@@ -315,7 +315,7 @@ function AdminWorkspacesPage() {
             </div>
           ) : (
             (requests as any[]).map((req: any) => (
-              <div key={req.id} className="rounded-xl border border-white/[0.06] bg-card/40 p-4 flex flex-wrap items-center gap-4">
+              <div key={req.id} className="rounded-xl border border-border bg-card/40 p-4 flex flex-wrap items-center gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-medium">

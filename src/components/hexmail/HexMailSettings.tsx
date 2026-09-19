@@ -93,7 +93,7 @@ function ProviderLogo({ id }: { id: HexmailProvider }) {
     postmark: "✉",
   };
   const colors: Record<HexmailProvider, string> = {
-    resend:   "bg-black/10 dark:bg-white/10 text-foreground",
+    resend:   "bg-black/10 dark:bg-muted text-foreground",
     sendgrid: "bg-[#1a82e2]/10 text-[#1a82e2]",
     postmark: "bg-yellow-400/10 text-yellow-600 dark:text-yellow-400",
   };

@@ -34,7 +34,7 @@ function NumberField({ label, suffix, value, onChange, disabled, placeholder }: 
       <div className="mt-1 flex items-center gap-2">
         <input
           type="number"
-          className="w-28 rounded-md border border-white/10 bg-white/[0.04] px-2 py-1.5 text-sm outline-none focus:border-violet-500/50 disabled:opacity-50"
+          className="w-28 rounded-md border border-border bg-muted px-2 py-1.5 text-sm outline-none focus:border-violet-500/50 disabled:opacity-50"
           value={value ?? ""}
           placeholder={placeholder}
           disabled={disabled}
@@ -58,7 +58,7 @@ function ListField({ label, desc, value, onChange, disabled }: {
       <p className="text-[11px] text-muted-foreground">{desc}</p>
       <textarea
         rows={2}
-        className="mt-1 w-full rounded-md border border-white/10 bg-white/[0.04] px-2 py-1.5 text-sm outline-none focus:border-violet-500/50 disabled:opacity-50"
+        className="mt-1 w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm outline-none focus:border-violet-500/50 disabled:opacity-50"
         value={value.join("\n")}
         disabled={disabled}
         placeholder="One per line"
@@ -118,7 +118,7 @@ export function MarketingAutonomyCard() {
   return (
     <div className="space-y-4">
       {!canManage && (
-        <div className="flex items-center gap-2 rounded-md bg-white/[0.04] px-3 py-2 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
           <Lock className="h-3.5 w-3.5" /> Only a workspace owner or admin can change these settings.
         </div>
       )}
@@ -136,7 +136,7 @@ export function MarketingAutonomyCard() {
               onClick={() => { setLevel(lv); setDirty(true); setSaved(false); }}
               className={cn(
                 "rounded-lg border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-60",
-                active ? cn("border-transparent ring-2", c.ring, c.bg) : "border-white/[0.08] hover:bg-white/[0.03]",
+                active ? cn("border-transparent ring-2", c.ring, c.bg) : "border-border hover:bg-muted/60",
               )}
             >
               <div className="flex items-center gap-2">
@@ -149,7 +149,7 @@ export function MarketingAutonomyCard() {
         })}
       </div>
 
-      <div className="rounded-lg border border-white/[0.08] p-4 space-y-4">
+      <div className="rounded-lg border border-border p-4 space-y-4">
         <div>
           <p className="text-sm font-semibold">Guardrails</p>
           <p className="text-xs text-muted-foreground">

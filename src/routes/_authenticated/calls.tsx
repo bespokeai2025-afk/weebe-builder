@@ -1002,7 +1002,7 @@ function CallsPage() {
                               : <span className="text-[11px] text-muted-foreground">—</span>}
                           </td>
                           <td className="px-2 py-0.5" onClick={(e) => e.stopPropagation()}>
-                            <button onClick={() => openPanel(c)} className="inline-flex items-center gap-1 text-[11px] rounded border border-white/20 px-2 py-0.5 text-muted-foreground hover:text-foreground hover:border-white/40 whitespace-nowrap transition-colors">View</button>
+                            <button onClick={() => openPanel(c)} className="inline-flex items-center gap-1 text-[11px] rounded border border-border px-2 py-0.5 text-muted-foreground hover:text-foreground hover:border-foreground/30 whitespace-nowrap transition-colors">View</button>
                           </td>
                           <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{wbahAppointmentDateCell(c)}</td>
                           <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{wbahAppointmentTimeCell(c)}</td>

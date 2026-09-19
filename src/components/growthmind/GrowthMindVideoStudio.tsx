@@ -1033,7 +1033,7 @@ function KnowledgeContextSelector({
             title={m.desc}
             className={cn(
               "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-left text-[11px] font-medium transition-all",
-              value === m.id ? activeRing : "border-border text-muted-foreground/60 hover:text-foreground hover:border-white/10",
+              value === m.id ? activeRing : "border-border text-muted-foreground/60 hover:text-foreground hover:border-foreground/20",
             )}
           >
             <span className="text-base leading-none">{m.icon}</span>
@@ -1850,7 +1850,7 @@ export function GrowthMindVideoStudio() {
                         className={cn(
                           "relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200",
                           !audioSupported ? "cursor-not-allowed" : "cursor-pointer",
-                          veoAudio && audioSupported ? "bg-amber-500" : "bg-white/10",
+                          veoAudio && audioSupported ? "bg-amber-500" : "bg-muted",
                         )}
                       >
                         <span className={cn(
@@ -2164,7 +2164,7 @@ export function GrowthMindVideoStudio() {
                         className={cn(
                           "relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200",
                           !audioSupported ? "cursor-not-allowed" : "cursor-pointer",
-                          veoAudio && audioSupported ? "bg-amber-500" : "bg-white/10",
+                          veoAudio && audioSupported ? "bg-amber-500" : "bg-muted",
                         )}
                       >
                         <span className={cn(

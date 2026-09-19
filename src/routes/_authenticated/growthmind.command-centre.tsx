@@ -180,7 +180,7 @@ function CommandCentrePage() {
                   <Badge variant="outline" className={cn(
                     j.status === "published" ? "border-emerald-500/40 text-emerald-300"
                     : j.status === "failed" ? "border-red-500/40 text-red-300"
-                    : "border-white/10 text-muted-foreground")}>{j.status}</Badge>
+                    : "border-border text-muted-foreground")}>{j.status}</Badge>
                   <span className="truncate text-muted-foreground">{j.platform}{j.published_at ? ` · ${new Date(j.published_at).toLocaleString()}` : j.scheduled_at ? ` · scheduled ${new Date(j.scheduled_at).toLocaleString()}` : ""}</span>
                   {j.status === "failed" && j.error_message && (
                     <span className="truncate text-xs text-red-300/80">{String(j.error_message).slice(0, 120)}</span>

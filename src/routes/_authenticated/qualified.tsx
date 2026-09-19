@@ -536,7 +536,7 @@ function QualifiedPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 overflow-x-auto border-b border-white/[0.06]">
+      <div className="flex gap-1 overflow-x-auto border-b border-border">
         {(["contacts", "campaigns"] as const).map((t) => (
           <button
             key={t}
@@ -624,7 +624,7 @@ function QualifiedPage() {
           <select
             value={wbahDaysFilter}
             onChange={(e) => setWbahDaysFilter(e.target.value)}
-            className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+            className="h-6 rounded-md border border-border bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
           >
             <option value="today">Today</option>
             <option value="yesterday">Yesterday</option>
@@ -639,7 +639,7 @@ function QualifiedPage() {
             <select
               value={wbahAgentFilter}
               onChange={(e) => setWbahAgentFilter(e.target.value)}
-              className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+              className="h-6 rounded-md border border-border bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
             >
               <option value="all">All agents</option>
               {wbahAgentOptions.map((a) => (
@@ -651,7 +651,7 @@ function QualifiedPage() {
             <select
               value={agentFilter}
               onChange={(e) => setAgentFilter(e.target.value)}
-              className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+              className="h-6 rounded-md border border-border bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
               title="Filter by agent"
             >
               <option value="all">All agents</option>
@@ -666,7 +666,7 @@ function QualifiedPage() {
       </div>
 
       {/* Table */}
-      <div className="min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
+      <div className="min-w-0 overflow-hidden rounded-xl border border-border bg-card/60">
         <div className="p-0">
           {(isWbah ? wbahLeadsQ.isLoading : leadsQ.isLoading) ? (
             <LoadingProgress label="Loading qualified contacts" estimatedMs={8000} />
@@ -698,7 +698,7 @@ function QualifiedPage() {
             <div className="min-w-0 overflow-x-auto">
               <table className="w-full text-[11px]">
                 <thead>
-                  <tr className="border-b border-white/[0.06] bg-card/30">
+                  <tr className="border-b border-border bg-card/30">
                     {!isWbah && (
                       <th className="px-2 py-1 w-6">
                         <input
@@ -758,7 +758,7 @@ function QualifiedPage() {
                   {qualPag.sliced.map((lead: any) => (
                     <tr
                       key={lead.id}
-                      className="group h-8 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors"
+                      className="group h-8 border-b border-border/60 align-middle hover:bg-muted/40 transition-colors"
                     >
                       {!isWbah && (
                         <td className="px-2 py-0.5">
