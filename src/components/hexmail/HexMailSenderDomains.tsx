@@ -30,7 +30,7 @@ function StatusBadge({ status, label }: { status: DnsStatus; label: string }) {
     fail:    "border-red-500/20 bg-red-500/5 text-red-400",
     warning: "border-amber-500/20 bg-amber-500/5 text-amber-400",
     missing: "border-red-500/20 bg-red-500/5 text-red-400/80",
-    unknown: "border-white/10 bg-white/[0.02] text-muted-foreground/50",
+    unknown: "border-white/10 bg-muted/40 text-muted-foreground/50",
   };
   return (
     <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium", styles[status])}>
@@ -67,7 +67,7 @@ function DomainCard({ domain, onRecheck, onDelete }: { domain: any; onRecheck: (
   ];
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+    <div className="rounded-xl border border-border bg-muted/40 overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-3">
           <Globe className="h-4 w-4 text-muted-foreground/50" />
@@ -86,7 +86,7 @@ function DomainCard({ domain, onRecheck, onDelete }: { domain: any; onRecheck: (
           <span className={cn("text-sm font-bold tabular-nums", scoreColor)}>{health.score}/100</span>
           <div className="flex items-center gap-1">
             <button onClick={onRecheck} title="Re-check DNS"
-              className="rounded-md p-1.5 hover:bg-white/[0.06] text-muted-foreground/50 hover:text-foreground transition-colors">
+              className="rounded-md p-1.5 hover:bg-muted text-muted-foreground/50 hover:text-foreground transition-colors">
               <RefreshCw className="h-3.5 w-3.5" />
             </button>
             <button onClick={onDelete} title="Delete domain"
@@ -94,7 +94,7 @@ function DomainCard({ domain, onRecheck, onDelete }: { domain: any; onRecheck: (
               <Trash2 className="h-3.5 w-3.5" />
             </button>
             <button onClick={() => setExpanded(v => !v)}
-              className="rounded-md p-1.5 hover:bg-white/[0.06] text-muted-foreground/50 transition-colors">
+              className="rounded-md p-1.5 hover:bg-muted text-muted-foreground/50 transition-colors">
               {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
             </button>
           </div>
@@ -102,17 +102,17 @@ function DomainCard({ domain, onRecheck, onDelete }: { domain: any; onRecheck: (
       </div>
 
       {expanded && (
-        <div className="border-t border-white/[0.06] px-4 py-4 flex flex-col gap-4">
+        <div className="border-t border-border px-4 py-4 flex flex-col gap-4">
           {/* DKIM selector */}
           <div className="flex items-end gap-2 flex-wrap">
             <div className="flex-1 min-w-[180px]">
               <Label className="text-xs text-muted-foreground/60 mb-1 block">DKIM Selector</Label>
               <Input value={selector} onChange={(e) => setSelector(e.target.value)}
                 placeholder="e.g. default, google, resend"
-                className="h-8 text-xs bg-white/[0.03] border-white/[0.08]" />
+                className="h-8 text-xs bg-muted/60 border-border" />
             </div>
             <Button onClick={saveSelector} disabled={saving || !selector.trim()} size="sm" variant="outline"
-              className="h-8 text-xs border-white/[0.08]">
+              className="h-8 text-xs border-border">
               {saving ? "Saving…" : "Save & Re-check"}
             </Button>
           </div>
@@ -120,7 +120,7 @@ function DomainCard({ domain, onRecheck, onDelete }: { domain: any; onRecheck: (
           {/* DNS rows */}
           <div className="flex flex-col gap-2">
             {DNS_ROWS.map((row) => (
-              <div key={row.key} className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+              <div key={row.key} className="rounded-lg border border-border bg-muted/40 px-3 py-2.5">
                 <div className="flex items-center gap-2 mb-1">
                   <StatusIcon status={row.status as DnsStatus} />
                   <span className="text-xs font-medium">{row.label}</span>
@@ -207,18 +207,18 @@ export function HexMailSenderDomains() {
       </div>
 
       {showAdd && (
-        <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-5 flex flex-col gap-4">
+        <div className="rounded-xl border border-border bg-muted/40 p-5 flex flex-col gap-4">
           <h2 className="text-sm font-semibold">Add Sender Domain</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label className="text-xs text-muted-foreground/60 mb-1 block">Domain *</Label>
               <Input value={domain} onChange={(e) => setDomain(e.target.value)}
-                placeholder="yourdomain.com" className="bg-white/[0.03] border-white/[0.08]" />
+                placeholder="yourdomain.com" className="bg-muted/60 border-border" />
             </div>
             <div>
               <Label className="text-xs text-muted-foreground/60 mb-1 block">Provider</Label>
               <select value={provider} onChange={(e) => setProvider(e.target.value)}
-                className="w-full h-10 rounded-md border border-white/[0.08] bg-white/[0.03] px-3 text-sm text-foreground">
+                className="w-full h-10 rounded-md border border-border bg-muted/60 px-3 text-sm text-foreground">
                 <option value="resend">Resend</option>
                 <option value="sendgrid">SendGrid</option>
                 <option value="postmark">Postmark</option>
@@ -228,7 +228,7 @@ export function HexMailSenderDomains() {
             <div className="sm:col-span-2">
               <Label className="text-xs text-muted-foreground/60 mb-1 block">DKIM Selector (optional — e.g. "resend", "google")</Label>
               <Input value={selector} onChange={(e) => setSelector(e.target.value)}
-                placeholder="resend" className="bg-white/[0.03] border-white/[0.08]" />
+                placeholder="resend" className="bg-muted/60 border-border" />
             </div>
           </div>
           {addMut.error && (
@@ -246,11 +246,11 @@ export function HexMailSenderDomains() {
       {isLoading ? (
         <div className="flex flex-col gap-3">
           {[...Array(2)].map((_, i) => (
-            <div key={i} className="h-16 animate-pulse rounded-xl bg-white/[0.03]" />
+            <div key={i} className="h-16 animate-pulse rounded-xl bg-muted/60" />
           ))}
         </div>
       ) : domains.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-white/[0.10] p-10 text-center flex flex-col items-center gap-2">
+        <div className="rounded-xl border border-dashed border-border p-10 text-center flex flex-col items-center gap-2">
           <Globe className="h-8 w-8 text-muted-foreground/30" />
           <p className="text-sm font-medium">No sender domains added yet</p>
           <p className="text-xs text-muted-foreground/50">Add your first domain to verify DNS and start warming up.</p>

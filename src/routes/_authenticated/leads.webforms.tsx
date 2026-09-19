@@ -47,7 +47,7 @@ function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) 
         "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all",
         copied
           ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
-          : "border-white/[0.12] bg-white/[0.04] text-muted-foreground hover:text-foreground hover:bg-white/[0.08]",
+          : "border-border bg-muted text-muted-foreground hover:text-foreground hover:bg-muted",
       )}
     >
       {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
@@ -90,8 +90,8 @@ function CreateFormDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
-      <div className="w-full max-w-md rounded-2xl border border-white/[0.09] bg-[hsl(var(--card))] shadow-2xl">
-        <div className="flex items-center justify-between border-b border-white/[0.07] px-5 py-4">
+      <div className="w-full max-w-md rounded-2xl border border-border bg-[hsl(var(--card))] shadow-2xl">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <p className="font-semibold text-sm">New Webform Endpoint</p>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
             <X className="h-4 w-4" />
@@ -104,7 +104,7 @@ function CreateFormDialog({
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="e.g. Homepage Contact Form"
-              className="w-full rounded-lg border border-white/[0.1] bg-white/[0.03] px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-violet-500/50"
+              className="w-full rounded-lg border border-border bg-muted/60 px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-violet-500/50"
               required
             />
           </div>
@@ -113,7 +113,7 @@ function CreateFormDialog({
             <select
               value={sourceType}
               onChange={e => setSourceType(e.target.value)}
-              className="w-full rounded-lg border border-white/[0.1] bg-[hsl(var(--background))] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500/50"
+              className="w-full rounded-lg border border-border bg-[hsl(var(--background))] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500/50"
             >
               {SOURCE_TYPE_OPTIONS.map(t => (
                 <option key={t} value={t}>{t.replace(/_/g, " ")}</option>
@@ -126,7 +126,7 @@ function CreateFormDialog({
               value={sourceDetail}
               onChange={e => setSourceDetail(e.target.value)}
               placeholder="e.g. contact_page, demo_request"
-              className="w-full rounded-lg border border-white/[0.1] bg-white/[0.03] px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-violet-500/50"
+              className="w-full rounded-lg border border-border bg-muted/60 px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-violet-500/50"
             />
           </div>
           <div>
@@ -136,7 +136,7 @@ function CreateFormDialog({
               value={notifyEmail}
               onChange={e => setNotifyEmail(e.target.value)}
               placeholder="notifications@yourcompany.com"
-              className="w-full rounded-lg border border-white/[0.1] bg-white/[0.03] px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-violet-500/50"
+              className="w-full rounded-lg border border-border bg-muted/60 px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-violet-500/50"
             />
           </div>
           <div>
@@ -145,12 +145,12 @@ function CreateFormDialog({
               value={domains}
               onChange={e => setDomains(e.target.value)}
               placeholder="yoursite.com, anotherdomain.co.uk"
-              className="w-full rounded-lg border border-white/[0.1] bg-white/[0.03] px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-violet-500/50"
+              className="w-full rounded-lg border border-border bg-muted/60 px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-violet-500/50"
             />
             <p className="text-[10px] text-muted-foreground/50 mt-1">Leave blank to allow submissions from any domain.</p>
           </div>
           <div className="flex gap-2 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 rounded-lg border border-white/[0.1] py-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+            <button type="button" onClick={onClose} className="flex-1 rounded-lg border border-border py-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
               Cancel
             </button>
             <button type="submit" disabled={saving || !name.trim()} className="flex-1 rounded-lg bg-violet-600 hover:bg-violet-700 py-2 text-sm font-semibold text-white transition-all disabled:opacity-40 flex items-center justify-center gap-2">
@@ -175,8 +175,8 @@ function SubmissionsPanel({ sourceId, onClose }: { sourceId: string; onClose: ()
   const submissions = data?.submissions ?? [];
 
   return (
-    <div className="mt-4 rounded-xl border border-white/[0.07] bg-white/[0.02]">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
+    <div className="mt-4 rounded-xl border border-border bg-muted/40">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <p className="text-xs font-semibold">Recent Submissions</p>
         <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
       </div>
@@ -195,7 +195,7 @@ function SubmissionsPanel({ sourceId, onClose }: { sourceId: string; onClose: ()
                   s.status === "processed" ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" :
                   s.status === "duplicate" ? "text-amber-400 bg-amber-500/10 border-amber-500/20" :
                   s.status === "spam"      ? "text-red-400 bg-red-500/10 border-red-500/20" :
-                  "text-muted-foreground bg-white/[0.04] border-white/[0.08]"
+                  "text-muted-foreground bg-muted border-border"
                 )}>{s.status}</span>
                 <span className="text-[10px] text-muted-foreground/50">{new Date(s.created_at).toLocaleString()}</span>
                 {s.utm_source && <span className="text-[10px] text-blue-400/60">{s.utm_source}</span>}
@@ -236,7 +236,7 @@ function WebformCard({ source, onDelete, onRefresh }: { source: any; onDelete: (
 
   return (
     <div className={cn("rounded-xl border bg-[hsl(var(--card))] transition-all",
-      source.status === "active" ? "border-white/[0.09]" : "border-white/[0.04] opacity-60"
+      source.status === "active" ? "border-border" : "border-border/60 opacity-60"
     )}>
       <div className="flex items-start gap-3 p-4">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-500/15 ring-1 ring-blue-500/25 mt-0.5">
@@ -247,9 +247,9 @@ function WebformCard({ source, onDelete, onRefresh }: { source: any; onDelete: (
             <p className="font-semibold text-sm">{source.name}</p>
             <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded border",
               source.status === "active" ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" :
-              "text-muted-foreground bg-white/[0.04] border-white/[0.08]"
+              "text-muted-foreground bg-muted border-border"
             )}>{source.status}</span>
-            <span className="text-[10px] text-muted-foreground/50 bg-white/[0.03] border border-white/[0.06] px-1.5 py-0.5 rounded">
+            <span className="text-[10px] text-muted-foreground/50 bg-muted/60 border border-border px-1.5 py-0.5 rounded">
               {source.default_source_type}
             </span>
           </div>
@@ -268,7 +268,7 @@ function WebformCard({ source, onDelete, onRefresh }: { source: any; onDelete: (
           <CopyButton text={endpointUrl} />
           <button
             onClick={() => setOpen(o => !o)}
-            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/[0.04] transition-colors"
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           >
             {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
           </button>
@@ -276,12 +276,12 @@ function WebformCard({ source, onDelete, onRefresh }: { source: any; onDelete: (
       </div>
 
       {open && (
-        <div className="border-t border-white/[0.06] px-4 py-4 space-y-4">
+        <div className="border-t border-border px-4 py-4 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <button
               onClick={() => { setShowSubmissions(s => !s); setShowEmbed(false); }}
               className={cn("flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-all",
-                showSubmissions ? "border-blue-500/30 bg-blue-500/10 text-blue-400" : "border-white/[0.1] text-muted-foreground hover:text-foreground hover:bg-white/[0.04]"
+                showSubmissions ? "border-blue-500/30 bg-blue-500/10 text-blue-400" : "border-border text-muted-foreground hover:text-foreground hover:bg-muted"
               )}
             >
               <Eye className="h-3.5 w-3.5" /> View Submissions
@@ -289,7 +289,7 @@ function WebformCard({ source, onDelete, onRefresh }: { source: any; onDelete: (
             <button
               onClick={() => { setShowEmbed(s => !s); setShowSubmissions(false); }}
               className={cn("flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-all",
-                showEmbed ? "border-violet-500/30 bg-violet-500/10 text-violet-400" : "border-white/[0.1] text-muted-foreground hover:text-foreground hover:bg-white/[0.04]"
+                showEmbed ? "border-violet-500/30 bg-violet-500/10 text-violet-400" : "border-border text-muted-foreground hover:text-foreground hover:bg-muted"
               )}
             >
               <Code className="h-3.5 w-3.5" /> Embed Code
@@ -307,7 +307,7 @@ function WebformCard({ source, onDelete, onRefresh }: { source: any; onDelete: (
               <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Allowed Domains</p>
               <div className="flex flex-wrap gap-1">
                 {source.allowed_domains.map((d: string) => (
-                  <span key={d} className="text-[10px] bg-white/[0.03] border border-white/[0.07] px-2 py-0.5 rounded text-foreground/70">{d}</span>
+                  <span key={d} className="text-[10px] bg-muted/60 border border-border px-2 py-0.5 rounded text-foreground/70">{d}</span>
                 ))}
               </div>
             </div>
@@ -319,7 +319,7 @@ function WebformCard({ source, onDelete, onRefresh }: { source: any; onDelete: (
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wide">HTML Embed Snippet</p>
                 <CopyButton text={embedHtml} label="Copy HTML" />
               </div>
-              <pre className="text-[10px] bg-black/30 border border-white/[0.07] rounded-lg p-3 overflow-x-auto text-foreground/70 font-mono leading-relaxed">
+              <pre className="text-[10px] bg-black/30 border border-border rounded-lg p-3 overflow-x-auto text-foreground/70 font-mono leading-relaxed">
                 {embedHtml}
               </pre>
               <div className="mt-3 rounded-lg border border-blue-500/15 bg-blue-500/[0.04] p-3">
@@ -380,7 +380,7 @@ function WebformsPage() {
   return (
     <div className="min-h-screen bg-transparent">
       {/* Header */}
-      <div className="sticky top-0 z-20 border-b border-white/[0.07] bg-[hsl(var(--background))]/95 backdrop-blur-sm px-5 py-3 flex items-center gap-3">
+      <div className="sticky top-0 z-20 border-b border-border bg-[hsl(var(--background))]/95 backdrop-blur-sm px-5 py-3 flex items-center gap-3">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/20 ring-1 ring-blue-500/30 shrink-0">
           <Globe className="h-4 w-4 text-blue-400" />
         </div>
@@ -406,7 +406,7 @@ function WebformsPage() {
             { label: "Duplicates (30d)",value: stats.duplicates30d,icon: RefreshCw, color: "text-amber-400" },
             { label: "Total (30d)",     value: stats.total30d,    icon: BarChart3, color: "text-violet-400" },
           ].map(({ label, value, icon: Icon, color }) => (
-            <div key={label} className="rounded-xl border border-white/[0.07] bg-[hsl(var(--card))] px-4 py-3">
+            <div key={label} className="rounded-xl border border-border bg-[hsl(var(--card))] px-4 py-3">
               <div className="flex items-center gap-2 mb-1">
                 <Icon className={cn("h-3.5 w-3.5", color)} />
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{label}</p>

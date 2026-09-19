@@ -29,7 +29,7 @@ function StatCard({ icon: Icon, label, value, sub, color = "text-muted-foregroun
   icon: React.ElementType; label: string; value: string | number; sub?: string; color?: string;
 }) {
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 flex flex-col gap-2">
+    <div className="rounded-xl border border-border bg-muted/40 p-4 flex flex-col gap-2">
       <div className="flex items-center gap-2 text-muted-foreground/60 text-xs">
         <Icon className="h-3.5 w-3.5" />
         <span>{label}</span>
@@ -72,7 +72,7 @@ function WebhookPanel() {
 
   if (isLoading) {
     return (
-      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 flex items-center gap-2 text-xs text-muted-foreground/50">
+      <div className="rounded-xl border border-border bg-muted/40 p-4 flex items-center gap-2 text-xs text-muted-foreground/50">
         <Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking Resend webhook status…
       </div>
     );
@@ -80,7 +80,7 @@ function WebhookPanel() {
 
   if (wh?.noApiKey) {
     return (
-      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 flex items-center justify-between gap-4">
+      <div className="rounded-xl border border-border bg-muted/40 p-4 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Webhook className="h-4 w-4 text-muted-foreground/40" />
           <div>
@@ -88,7 +88,7 @@ function WebhookPanel() {
             <p className="text-[11px] text-muted-foreground/50">Add your Resend API key in HexMail → Settings to auto-register the webhook.</p>
           </div>
         </div>
-        <Link to="/hexmail/settings" className="shrink-0 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs hover:bg-white/[0.06] transition-colors">
+        <Link to="/hexmail/settings" className="shrink-0 rounded-lg border border-border bg-muted/60 px-3 py-1.5 text-xs hover:bg-muted transition-colors">
           Add API Key
         </Link>
       </div>
@@ -118,7 +118,7 @@ function WebhookPanel() {
   }
 
   return (
-    <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 flex items-center justify-between gap-4">
+    <div className="rounded-xl border border-border bg-muted/40 p-4 flex items-center justify-between gap-4">
       <div className="flex items-center gap-3">
         <Webhook className="h-4 w-4 text-amber-400/70 shrink-0" />
         <div>
@@ -166,7 +166,7 @@ export function HexMailDeliverability() {
         </div>
         <button
           onClick={() => refetch()}
-          className="flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs text-muted-foreground hover:bg-white/[0.06] transition-colors"
+          className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/60 px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted transition-colors"
         >
           <RefreshCw className="h-3.5 w-3.5" /> Refresh
         </button>
@@ -176,11 +176,11 @@ export function HexMailDeliverability() {
       <WebhookPanel />
 
       {/* Health Score */}
-      <div className="rounded-xl border border-white/[0.08] bg-gradient-to-br from-white/[0.03] to-transparent p-6 flex flex-col sm:flex-row items-start sm:items-center gap-6">
+      <div className="rounded-xl border border-border bg-gradient-to-br from-white/[0.03] to-transparent p-6 flex flex-col sm:flex-row items-start sm:items-center gap-6">
         <div className="flex flex-col gap-1 min-w-[120px]">
           <span className="text-xs text-muted-foreground/60 uppercase tracking-widest">Domain Health Score</span>
           {isLoading
-            ? <div className="h-10 w-20 animate-pulse rounded-lg bg-white/[0.06]" />
+            ? <div className="h-10 w-20 animate-pulse rounded-lg bg-muted" />
             : <ScoreBadge score={stats?.avgHealthScore ?? 0} />}
         </div>
         <div className="flex-1 flex flex-wrap gap-3">
@@ -201,7 +201,7 @@ export function HexMailDeliverability() {
       {isLoading ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[...Array(8)].map((_, i) => (
-            <div key={i} className="h-24 animate-pulse rounded-xl bg-white/[0.03]" />
+            <div key={i} className="h-24 animate-pulse rounded-xl bg-muted/60" />
           ))}
         </div>
       ) : (
@@ -228,7 +228,7 @@ export function HexMailDeliverability() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {QUICK_LINKS.map((link) => (
             <Link key={link.to} to={link.to}
-              className="group flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 hover:border-white/[0.12] hover:bg-white/[0.04] transition-all"
+              className="group flex items-center justify-between rounded-xl border border-border bg-muted/40 p-4 hover:border-foreground/20 hover:bg-muted transition-all"
             >
               <div className="flex items-center gap-3">
                 <link.icon className="h-4 w-4 text-muted-foreground/60 group-hover:text-foreground transition-colors" />
@@ -247,7 +247,7 @@ export function HexMailDeliverability() {
       {(stats?.recentEvents?.length ?? 0) > 0 && (
         <div>
           <h2 className="text-sm font-medium text-muted-foreground mb-3">Recent Reputation Events</h2>
-          <div className="rounded-xl border border-white/[0.06] divide-y divide-white/[0.04] overflow-hidden">
+          <div className="rounded-xl border border-border divide-y divide-white/[0.04] overflow-hidden">
             {stats!.recentEvents.map((ev: any, i: number) => (
               <div key={i} className="flex items-center justify-between px-4 py-2.5 text-xs">
                 <div className="flex items-center gap-2">
@@ -270,7 +270,7 @@ export function HexMailDeliverability() {
 
       {/* Empty state */}
       {!isLoading && (stats?.totalDomains ?? 0) === 0 && (
-        <div className="rounded-xl border border-dashed border-white/[0.10] p-10 text-center flex flex-col items-center gap-3">
+        <div className="rounded-xl border border-dashed border-border p-10 text-center flex flex-col items-center gap-3">
           <ShieldCheck className="h-8 w-8 text-muted-foreground/30" />
           <div>
             <p className="text-sm font-medium">No sender domains yet</p>

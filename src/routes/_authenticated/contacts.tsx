@@ -345,7 +345,7 @@ function WbahLeadsSection() {
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="max-h-96 overflow-y-auto rounded-lg bg-black/30 border border-white/[0.06] p-3 font-mono text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap">
+            <div className="max-h-96 overflow-y-auto rounded-lg bg-black/30 border border-border p-3 font-mono text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap">
               {transcript.text || "No transcript available."}
             </div>
           </div>
@@ -453,7 +453,7 @@ function WbahLeadsSection() {
             "inline-flex items-center gap-1.5 rounded-lg border px-2.5 h-7 text-[11px] font-medium transition-colors",
             showFilters
               ? "border-primary/50 bg-primary/10 text-primary"
-              : "border-white/[0.08] bg-white/[0.03] text-muted-foreground hover:text-foreground hover:bg-white/[0.06]",
+              : "border-border bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted",
           )}
         >
           <SlidersHorizontal className="h-3 w-3" />
@@ -477,7 +477,7 @@ function WbahLeadsSection() {
 
       {/* Filter panel */}
       {showFilters && (
-        <div className="rounded-xl border border-white/[0.06] bg-card/50 px-4 py-3 flex flex-wrap gap-x-8 gap-y-3">
+        <div className="rounded-xl border border-border bg-card/50 px-4 py-3 flex flex-wrap gap-x-8 gap-y-3">
 
           {/* Status (callStatus) */}
           {uniqueStatuses.length > 0 && (
@@ -558,7 +558,7 @@ function WbahLeadsSection() {
       )}
 
       {/* Table */}
-      <div className={cn("rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden transition-opacity", isFetching && "opacity-60")}>
+      <div className={cn("rounded-xl border border-border bg-card/60 overflow-hidden transition-opacity", isFetching && "opacity-60")}>
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-16">
             <Phone className="h-8 w-8 text-muted-foreground" />
@@ -573,7 +573,7 @@ function WbahLeadsSection() {
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-white/[0.06] bg-card/30">
+                <tr className="border-b border-border bg-card/30">
                   {["SR No","Times Called","Dial","Name","Contact","Type","Last Called At","Call Status","Call Duration","Recording","Sentiment Analysis","Transcript","View","Appointment Date","Appointment Time","Booking Status","Calendly Booking Url","End Reason","Disconnection Reason"].map(h => (
                     <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">{h}</th>
                   ))}
@@ -581,7 +581,7 @@ function WbahLeadsSection() {
               </thead>
               <tbody>
                 {leadsPag.sliced.map((r: any, idx: number) => (
-                  <tr key={r.id ?? idx} className="h-9 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors">
+                  <tr key={r.id ?? idx} className="h-9 border-b border-border/60 last:border-0 align-middle hover:bg-muted/40 transition-colors">
                     <td className="px-3 py-1.5 text-[11px] text-muted-foreground tabular-nums">{r.srNo ?? idx + 1}</td>
                     <td className="px-3 py-1.5">
                       {(r.callCount ?? 1) > 1 ? (
@@ -768,7 +768,7 @@ function ContactsPage() {
       <div className="mb-4 flex items-center justify-between gap-4">
         <h1 className="text-xl font-semibold tracking-tight">All Contacts</h1>
         {isWbah && (
-          <div className="flex items-center gap-1 rounded-lg border border-white/[0.06] bg-card/40 p-0.5">
+          <div className="flex items-center gap-1 rounded-lg border border-border bg-card/40 p-0.5">
             <button
               onClick={() => setActiveTab("contacts")}
               className={cn(
@@ -816,9 +816,9 @@ function ContactsPage() {
           </div>
 
           {/* Table card */}
-          <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
+          <div className="rounded-xl border border-border bg-card/60 overflow-hidden">
             {/* Toolbar */}
-            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-white/[0.06]">
+            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border">
               <div className="relative flex-1 max-w-xs">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
                 <Input
@@ -852,7 +852,7 @@ function ContactsPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
-                    <tr className="border-b border-white/[0.06] bg-card/30">
+                    <tr className="border-b border-border bg-card/30">
                       <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
                       <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Phone</th>
                       <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Email</th>
@@ -865,7 +865,7 @@ function ContactsPage() {
                     {contactsPag.sliced.map((r: any) => (
                       <tr
                         key={r.id}
-                        className="h-9 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors"
+                        className="h-9 border-b border-border/60 last:border-0 align-middle hover:bg-muted/40 transition-colors"
                       >
                         <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">{displayName(r)}</td>
                         <td className="px-3 py-1.5 text-[11px] text-muted-foreground font-mono whitespace-nowrap">

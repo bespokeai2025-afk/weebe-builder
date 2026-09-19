@@ -483,7 +483,7 @@ function WbahLeadDetailModal({
         <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           {title}
         </p>
-        <div className="rounded-lg border border-white/[0.06] divide-y divide-white/[0.04]">
+        <div className="rounded-lg border border-border divide-y divide-white/[0.04]">
           {rows.map((row) => (
             <div key={row.label} className="grid grid-cols-[minmax(8rem,34%)_1fr] gap-3 px-3 py-2">
               <p className="text-[11px] font-medium text-foreground">{row.label}</p>
@@ -529,7 +529,7 @@ function WbahLeadDetailModal({
         <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           Disqualification
         </p>
-        <div className="rounded-lg border border-white/[0.06] divide-y divide-white/[0.04]">
+        <div className="rounded-lg border border-border divide-y divide-white/[0.04]">
           {rows.map((row) => (
             <div key={row.label} className="grid grid-cols-[minmax(8rem,34%)_1fr] gap-3 px-3 py-2">
               <p className="text-[11px] font-medium text-foreground">{row.label}</p>
@@ -548,7 +548,7 @@ function WbahLeadDetailModal({
         <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           Call summary
         </p>
-        <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+        <div className="rounded-lg border border-border bg-muted/40 px-3 py-2.5">
           <p className="text-[11px] text-foreground/90 whitespace-pre-wrap leading-relaxed">
             {summary.trim()}
           </p>
@@ -563,8 +563,8 @@ function WbahLeadDetailModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="w-full max-w-3xl rounded-xl border border-white/[0.08] bg-card flex flex-col max-h-[85vh]">
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06] shrink-0">
+      <div className="w-full max-w-3xl rounded-xl border border-border bg-card flex flex-col max-h-[85vh]">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-border shrink-0">
           <p className="text-sm font-semibold">{detail.name} — Lead details</p>
           <button
             onClick={onClose}
@@ -815,7 +815,7 @@ function DynamicDataTable({
     <div className="min-w-0 overflow-x-auto">
       <table className="w-full text-xs">
         <thead>
-          <tr className="border-b border-white/[0.06] bg-card/30">
+          <tr className="border-b border-border bg-card/30">
             <th className="w-8 px-2 py-0.5">
               <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
             </th>
@@ -859,7 +859,7 @@ function DynamicDataTable({
           {records.map((r: any) => (
             <tr
               key={r.id}
-              className={`group h-9 border-b border-white/4 align-middle hover:bg-white/[0.02] transition-colors ${selected.has(r.id) ? "bg-blue-500/5" : ""}`}
+              className={`group h-9 border-b border-white/4 align-middle hover:bg-muted/40 transition-colors ${selected.has(r.id) ? "bg-blue-500/5" : ""}`}
             >
               <td className="px-2.5 py-1">
                 <Checkbox checked={selected.has(r.id)} onCheckedChange={() => toggleOne(r.id)} />
@@ -2148,7 +2148,7 @@ function DataPage() {
       </div>
 
       {/* Tabs — Records + Campaigns only for WBAH; People for all */}
-      <div className="flex gap-1 overflow-x-auto border-b border-white/[0.06]">
+      <div className="flex gap-1 overflow-x-auto border-b border-border">
         {(isWbah
           ? (["records", "people", "campaigns"] as const)
           : (["people"] as const)
@@ -2264,9 +2264,9 @@ function DataPage() {
           </div>
 
           {/* Table card — matches Leads page container */}
-          <div className="min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
+          <div className="min-w-0 overflow-hidden rounded-xl border border-border bg-card/60">
             {/* Toolbar row */}
-            <div className="flex flex-col gap-1.5 border-b border-white/[0.06] px-2.5 py-1.5 sm:px-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-1.5 border-b border-border px-2.5 py-1.5 sm:px-3 lg:flex-row lg:items-center lg:justify-between">
               <p className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                 Data Records
                 {selected.size > 0 && (
@@ -2411,8 +2411,8 @@ function DataPage() {
           {/* ── Call detail modal (summary + transcript) ───────────────── */}
           {wbahCallDetailView && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-              <div className="w-full max-w-2xl rounded-xl border border-white/[0.08] bg-card flex flex-col max-h-[80vh]">
-                <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06]">
+              <div className="w-full max-w-2xl rounded-xl border border-border bg-card flex flex-col max-h-[80vh]">
+                <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
                   <p className="text-sm font-semibold">{wbahCallDetailView.name} — Call details</p>
                   <button
                     onClick={() => setWbahCallDetailView(null)}
@@ -2431,7 +2431,7 @@ function DataPage() {
                       <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                         Call summary
                       </p>
-                      <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+                      <div className="rounded-lg border border-border bg-muted/40 px-3 py-2.5">
                         <p className="text-xs text-foreground/90 whitespace-pre-wrap leading-relaxed">
                           {wbahCallDetailView.summary}
                         </p>
@@ -2442,7 +2442,7 @@ function DataPage() {
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                       Transcript
                     </p>
-                    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+                    <div className="rounded-lg border border-border bg-muted/40 px-3 py-2.5">
                       <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">
                         {wbahCallDetailView.loading
                           ? "Loading transcript…"
@@ -2478,9 +2478,9 @@ function DataPage() {
           )}
 
           {/* ── WBAH People toolbar ─────────────────────────────────────── */}
-          <div className="min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
+          <div className="min-w-0 overflow-hidden rounded-xl border border-border bg-card/60">
             {/* ── Lead-filter category sub-tabs (Dynamics CRM categories) ─ */}
-            <div className="flex items-center gap-0 overflow-x-auto border-b border-white/[0.06] px-3 sm:px-4">
+            <div className="flex items-center gap-0 overflow-x-auto border-b border-border px-3 sm:px-4">
               {[
                 ...(wbahCategories.length > 0 ? wbahCategories : WBAH_PEOPLE_TABS).map((c) => ({
                   id: c.name,
@@ -2536,7 +2536,7 @@ function DataPage() {
             </div>
 
             {wbahPeopleSubTab === NEW_LEAD_STATUS && (
-              <div className="border-b border-white/[0.06] px-2.5 py-1.5 sm:px-3">
+              <div className="border-b border-border px-2.5 py-1.5 sm:px-3">
                 <WbahNewLeadSyncToggle
                   active={dataTab === "people" && wbahPeopleSubTab === NEW_LEAD_STATUS}
                   onStateChange={(s) => setWbahNewLeadSyncOn(s.enabled)}
@@ -2544,7 +2544,7 @@ function DataPage() {
               </div>
             )}
 
-            <div className="flex flex-col gap-1.5 border-b border-white/[0.06] px-2.5 py-1.5 sm:px-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-1.5 border-b border-border px-2.5 py-1.5 sm:px-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:gap-3">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                   {wbahPeopleSubTab === "calls" ? "Calls" : wbahPeopleSubTab || "Leads"}
@@ -2562,7 +2562,7 @@ function DataPage() {
                       value={wbahPeopleSearch}
                       onChange={(e) => setWbahPeopleSearch(e.target.value)}
                       placeholder="Search name, phone…"
-                      className="h-6 min-w-0 w-full max-w-[160px] rounded-md border border-white/[0.08] bg-muted/40 pl-6 pr-2 text-[11px] placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40 sm:w-36"
+                      className="h-6 min-w-0 w-full max-w-[160px] rounded-md border border-border bg-muted/40 pl-6 pr-2 text-[11px] placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40 sm:w-36"
                     />
                     {wbahPeopleSearch && (
                       <button
@@ -2887,7 +2887,7 @@ function DataPage() {
                   )}
                   <table className="w-full text-[11px]">
                     <thead>
-                      <tr className="border-b border-white/[0.06] bg-card/30">
+                      <tr className="border-b border-border bg-card/30">
                         {isLeads && (
                           <th className={cn("w-8 px-2 py-1", stickyHead, "left-0")}>
                             <Checkbox
@@ -2961,7 +2961,7 @@ function DataPage() {
                         return (
                           <tr
                             key={r.id}
-                            className={`group h-8 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors ${isSelected ? "bg-blue-500/5" : ""}`}
+                            className={`group h-8 border-b border-border/60 align-middle hover:bg-muted/40 transition-colors ${isSelected ? "bg-blue-500/5" : ""}`}
                           >
                             {isLeads && (
                               <td className={cn("px-2 py-0.5", stickyCell, "left-0 w-8")}>
@@ -3005,7 +3005,7 @@ function DataPage() {
                                 <button
                                   type="button"
                                   onClick={() => openWbahLeadDetail(r)}
-                                  className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition-colors"
+                                  className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                                   title="View lead details"
                                 >
                                   <Eye className="h-3 w-3" />
@@ -3097,7 +3097,7 @@ function DataPage() {
                             </td>
                             <td className="px-2 py-0.5 whitespace-nowrap">
                               <span
-                                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-white/[0.06] ${statusBadge.cls}`}
+                                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-border ${statusBadge.cls}`}
                               >
                                 {statusBadge.label}
                               </span>
@@ -3167,7 +3167,7 @@ function DataPage() {
                                   return <span className="text-muted-foreground/40 text-[11px]">—</span>;
                                 }
                                 return (
-                                  <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground ring-1 ring-white/[0.06] capitalize">
+                                  <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground ring-1 ring-border capitalize">
                                     {statusText}
                                   </span>
                                 );
@@ -3204,7 +3204,7 @@ function DataPage() {
       )}
 
       {dataTab === "people" && isWbah && (
-        <div className="rounded-xl border border-white/[0.06] bg-card/60 px-3 py-2 text-xs text-muted-foreground">
+        <div className="rounded-xl border border-border bg-card/60 px-3 py-2 text-xs text-muted-foreground">
           Custom People Views are not enabled for this workspace yet.
         </div>
       )}
@@ -3212,9 +3212,9 @@ function DataPage() {
       {dataTab === "people" && !isWbah && <CustomViewsSection />}
 
       {dataTab === "people" && !isWbah && (
-        <div className="min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
+        <div className="min-w-0 overflow-hidden rounded-xl border border-border bg-card/60">
           {/* People toolbar */}
-          <div className="flex flex-col gap-1.5 border-b border-white/[0.06] px-2.5 py-1.5 sm:px-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col gap-1.5 border-b border-border px-2.5 py-1.5 sm:px-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <p className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                 Inbound Leads from CRM
@@ -3237,7 +3237,7 @@ function DataPage() {
                       value={crmSearch}
                       onChange={(e) => setCrmSearch(e.target.value)}
                       placeholder="Search name, phone…"
-                      className="h-6 min-w-0 w-full max-w-[160px] rounded-md border border-white/[0.08] bg-muted/40 pl-6 pr-2 text-[11px] placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40 sm:w-36"
+                      className="h-6 min-w-0 w-full max-w-[160px] rounded-md border border-border bg-muted/40 pl-6 pr-2 text-[11px] placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40 sm:w-36"
                     />
                     {crmSearch && (
                       <button
@@ -3390,7 +3390,7 @@ function DataPage() {
             <div className="min-w-0 overflow-x-auto">
               <table className="w-full text-[11px]">
                 <thead>
-                  <tr className="border-b border-white/[0.06] bg-card/30">
+                  <tr className="border-b border-border bg-card/30">
                     <th className="w-8 px-2 py-1">
                       <Checkbox
                         checked={
@@ -3426,7 +3426,7 @@ function DataPage() {
                   {crmPag.sliced.map((p) => (
                     <tr
                       key={p.external_id}
-                      className={`group h-9 border-b border-white/4 align-middle hover:bg-white/[0.02] transition-colors ${crmPeopleSelected.has(p.external_id) ? "bg-blue-500/5" : ""}`}
+                      className={`group h-9 border-b border-white/4 align-middle hover:bg-muted/40 transition-colors ${crmPeopleSelected.has(p.external_id) ? "bg-blue-500/5" : ""}`}
                     >
                       <td className="px-2 py-0.5">
                         <Checkbox
@@ -3453,7 +3453,7 @@ function DataPage() {
                       </td>
                       <td className="px-2.5 py-1">
                         {p.status ? (
-                          <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium capitalize text-muted-foreground ring-1 ring-white/[0.06]">
+                          <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium capitalize text-muted-foreground ring-1 ring-border">
                             {p.status.replace(/_/g, " ")}
                           </span>
                         ) : (
