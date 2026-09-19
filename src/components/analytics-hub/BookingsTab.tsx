@@ -64,7 +64,7 @@ export function BookingsTab({ filter }: { filter: AnalyticsFilterState }) {
                 <TableHead><Th>Source</Th><Th>Bookings</Th></TableHead>
                 <tbody>
                   {bySource.map((s, i) => (
-                    <tr key={i} className="h-10 border-b border-white/[0.04] hover:bg-white/[0.02]">
+                    <tr key={i} className="h-10 border-b border-border/60 hover:bg-muted/40">
                       <td className="px-3 py-2 font-medium">{s.source}</td>
                       <td className="px-3 py-2 tabular-nums">{fmtInt(s.count)}</td>
                     </tr>

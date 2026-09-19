@@ -17,19 +17,22 @@ import { Button } from "@/components/ui/button";
 import { getMyEntitlements } from "@/lib/packages/packages.functions";
 import { FEATURE_LABELS } from "@/lib/packages/packages.shared";
 
-// ── Palette (mirrors the Call Analytics tab) ──────────────────────────────────
+// ── Palette — premium/desaturated, matches the Call Analytics tab's own
+// palette (src/routes/_authenticated/analytics.tsx). Semantic slots reuse
+// the app's own AA-checked design tokens instead of a second, disconnected
+// bright color scale.
 export const CHART = {
-  primary:     "#8B5CF6",
-  primaryGlow: "#A78BFA",
-  accent:      "#22D3EE",
-  success:     "#22C55E",
-  warning:     "#F59E0B",
-  danger:      "#EF4444",
+  primary:     "#5B5FC7",
+  primaryGlow: "#8B8FDE",
+  accent:      "#3D8A8C",
+  success:     "var(--success)",
+  warning:     "var(--warning)",
+  danger:      "var(--destructive)",
   neutral:     "#64748B",
-  pink:        "#EC4899",
-  orange:      "#F97316",
-  grid:        "rgba(255,255,255,0.06)",
-  axis:        "rgba(255,255,255,0.40)",
+  pink:        "#B0567E",
+  orange:      "#BD6B3A",
+  grid:        "var(--border)",
+  axis:        "var(--muted-foreground)",
 };
 
 export const DONUT_COLORS = [CHART.primary, CHART.accent, CHART.success, CHART.warning, CHART.danger, CHART.pink, CHART.orange, CHART.neutral];
@@ -89,7 +92,7 @@ export function DateRangeControl({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="flex flex-wrap gap-1 rounded-lg border border-white/[0.06] bg-card/40 p-1">
+      <div className="flex flex-wrap gap-1 rounded-lg border border-border bg-card/40 p-1">
         {DATE_FILTERS.map((r) => (
           <Button
             key={r.key}
@@ -108,14 +111,14 @@ export function DateRangeControl({
             type="date"
             value={value.customStart ?? ""}
             onChange={(e) => onChange({ ...value, customStart: e.target.value || null })}
-            className="rounded-lg border border-white/[0.1] bg-card/60 px-2.5 py-1.5 text-xs text-foreground"
+            className="rounded-lg border border-border bg-card/60 px-2.5 py-1.5 text-xs text-foreground"
           />
           <span className="text-xs text-muted-foreground">→</span>
           <input
             type="date"
             value={value.customEnd ?? ""}
             onChange={(e) => onChange({ ...value, customEnd: e.target.value || null })}
-            className="rounded-lg border border-white/[0.1] bg-card/60 px-2.5 py-1.5 text-xs text-foreground"
+            className="rounded-lg border border-border bg-card/60 px-2.5 py-1.5 text-xs text-foreground"
           />
         </div>
       )}
@@ -132,7 +135,7 @@ export interface AnalyticsFilterOptions {
 }
 
 const SELECT_CLS =
-  "rounded-lg border border-white/[0.1] bg-card/60 px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40";
+  "rounded-lg border border-border bg-card/60 px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40";
 
 /** Which of the shared selects a tab actually honors server-side. */
 export interface FilterBarSupports { agent?: boolean; campaign?: boolean; source?: boolean }
@@ -239,7 +242,7 @@ export function LockedTab({ feature, packageName }: { feature: string; packageNa
 export function ChartTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-white/[0.1] bg-popover/95 px-3 py-2 text-xs shadow-xl backdrop-blur">
+    <div className="rounded-lg border border-border bg-popover/95 px-3 py-2 text-xs shadow-xl backdrop-blur">
       {label != null && <p className="mb-1 font-medium text-foreground">{label}</p>}
       {payload.map((p: any, i: number) => (
         <div key={i} className="flex items-center gap-1.5">
@@ -270,7 +273,7 @@ export function ChartCard({
   right?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-white/[0.06] bg-card/50 p-4 backdrop-blur-sm">
+    <div className="rounded-2xl border border-border bg-card/50 p-4 backdrop-blur-sm">
       <div className="mb-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Icon className="h-3.5 w-3.5" style={{ color }} />
@@ -297,7 +300,7 @@ export function MetricTile({
   icon?: React.ElementType;
 }) {
   return (
-    <div className="rounded-2xl border border-white/[0.06] bg-card/50 p-4 backdrop-blur-sm">
+    <div className="rounded-2xl border border-border bg-card/50 p-4 backdrop-blur-sm">
       <div className="mb-2 flex items-center gap-2">
         {Icon && <Icon className="h-3.5 w-3.5" style={{ color }} />}
         <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">{label}</p>

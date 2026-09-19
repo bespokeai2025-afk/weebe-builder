@@ -60,7 +60,7 @@ export function FinancialTab({ filter }: { filter: AnalyticsFilterState }) {
               <TableHead><Th>Provider</Th><Th>Cost</Th></TableHead>
               <tbody>
                 {providers.sort((a, b) => b.cents - a.cents).map((p) => (
-                  <tr key={p.name} className="h-10 border-b border-white/[0.04] hover:bg-white/[0.02]">
+                  <tr key={p.name} className="h-10 border-b border-border/60 hover:bg-muted/40">
                     <td className="px-3 py-2 font-medium capitalize">{p.name}</td>
                     <td className="px-3 py-2 tabular-nums">{gbp(p.cents)}</td>
                   </tr>

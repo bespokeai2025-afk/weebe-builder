@@ -42,7 +42,7 @@ export function FollowUpsTab({ filter }: { filter: AnalyticsFilterState }) {
               <TableHead><Th>Channel</Th><Th>Count</Th></TableHead>
               <tbody>
                 {byChannel.map((c, i) => (
-                  <tr key={i} className="h-10 border-b border-white/[0.04] hover:bg-white/[0.02]">
+                  <tr key={i} className="h-10 border-b border-border/60 hover:bg-muted/40">
                     <td className="px-3 py-2 font-medium capitalize">{c.channel}</td>
                     <td className="px-3 py-2 tabular-nums">{fmtInt(c.count)}</td>
                   </tr>

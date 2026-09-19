@@ -38,7 +38,7 @@ export function AgentsTab({ filter }: { filter: AnalyticsFilterState }) {
               </TableHead>
               <tbody>
                 {agents.map((a) => (
-                  <tr key={a.agentId} className="h-11 border-b border-white/[0.04] hover:bg-white/[0.02]">
+                  <tr key={a.agentId} className="h-11 border-b border-border/60 hover:bg-muted/40">
                     <td className="px-3 py-2.5 font-medium">{a.name}</td>
                     <td className="px-3 py-2.5 tabular-nums">{fmtInt(a.total)}</td>
                     <td className="px-3 py-2.5 tabular-nums">{fmtInt(a.connected)}</td>
