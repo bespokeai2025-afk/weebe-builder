@@ -23,7 +23,7 @@ const PRIORITY_COLORS: Record<Priority, { badge: string; border: string; icon: s
   critical: { badge: "bg-red-500/15 text-red-400 ring-red-500/20",     border: "border-red-500/20",    icon: "text-red-400" },
   high:     { badge: "bg-orange-500/15 text-orange-400 ring-orange-500/20", border: "border-orange-500/15", icon: "text-orange-400" },
   medium:   { badge: "bg-amber-500/15 text-amber-400 ring-amber-500/20",  border: "border-amber-500/15",  icon: "text-amber-400" },
-  low:      { badge: "bg-slate-500/15 text-slate-400 ring-slate-500/20",  border: "border-white/[0.06]",  icon: "text-slate-400" },
+  low:      { badge: "bg-slate-500/15 text-slate-400 ring-slate-500/20",  border: "border-border",  icon: "text-slate-400" },
 };
 
 const CATEGORIES = ["All", "Setup", "Agent Health", "Pipeline", "Campaigns", "Conversion", "WhatsApp", "Telephony"];
@@ -88,7 +88,7 @@ function HiveMindRecommendations() {
             {(["all", "critical", "high", "medium", "low"] as const).map(p => {
               const cnt = p === "all" ? all.length : counts[p];
               const colors: Record<string, string> = {
-                all:      "bg-white/[0.04] text-muted-foreground border-white/[0.08]",
+                all:      "bg-muted text-muted-foreground border-border",
                 critical: "bg-red-500/10 text-red-400 border-red-500/20",
                 high:     "bg-orange-500/10 text-orange-400 border-orange-500/20",
                 medium:   "bg-amber-500/10 text-amber-400 border-amber-500/20",
@@ -122,7 +122,7 @@ function HiveMindRecommendations() {
                   "rounded-md px-2.5 py-1 text-[11px] font-medium border transition-colors",
                   filterCategory === cat
                     ? "bg-violet-500/15 text-violet-300 border-violet-500/30"
-                    : "bg-white/[0.02] text-muted-foreground border-white/[0.06] hover:text-foreground",
+                    : "bg-muted/40 text-muted-foreground border-border hover:text-foreground",
                 )}
               >
                 {cat}
@@ -166,7 +166,7 @@ function HiveMindRecommendations() {
                         <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 capitalize", c.badge)}>
                           {r.priority}
                         </span>
-                        <span className="rounded-md bg-white/[0.04] px-2 py-0.5 text-[10px] text-muted-foreground">{r.category}</span>
+                        <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">{r.category}</span>
                       </div>
                       <p className="text-sm font-semibold mt-1.5 leading-snug">{r.problem}</p>
                     </div>
@@ -178,15 +178,15 @@ function HiveMindRecommendations() {
 
                   {/* Expanded detail */}
                   {open && (
-                    <div className="border-t border-white/[0.06] px-4 pb-4 pt-3 space-y-3">
-                      <div className="rounded-lg bg-white/[0.025] p-3 space-y-2.5">
+                    <div className="border-t border-border px-4 pb-4 pt-3 space-y-3">
+                      <div className="rounded-lg bg-muted/40 p-3 space-y-2.5">
                         {/* Impact */}
                         <div>
                           <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground mb-1">Impact</p>
                           <p className="text-xs leading-relaxed text-foreground/80">{r.impact}</p>
                         </div>
                         {/* Fix */}
-                        <div className="border-t border-white/[0.04] pt-2.5">
+                        <div className="border-t border-border/60 pt-2.5">
                           <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground mb-1">Suggested Fix</p>
                           <p className="text-xs leading-relaxed text-foreground/80">{r.fix}</p>
                         </div>

@@ -102,7 +102,7 @@ export function SystemMindRecommendationsPage() {
             <button key={f} onClick={() => setStatusFilter(f)}
               className={cn(
                 "rounded-full px-3 py-1 text-[11px] font-medium transition-colors capitalize",
-                statusFilter === f ? "bg-sky-500/20 text-sky-300" : "bg-white/[0.04] text-muted-foreground hover:bg-white/[0.08]",
+                statusFilter === f ? "bg-sky-500/20 text-sky-300" : "bg-muted text-muted-foreground hover:bg-muted",
               )}>
               {f === "open" ? `Open (${openCount})` : f === "all" ? `All (${allRecs.length})` : "Dismissed"}
             </button>
@@ -117,7 +117,7 @@ export function SystemMindRecommendationsPage() {
                 "rounded-full px-2.5 py-0.5 text-[10px] font-medium transition-colors capitalize",
                 categoryFilter === cat
                   ? "bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/30"
-                  : "bg-white/[0.03] text-muted-foreground/70 hover:bg-white/[0.07] border border-white/[0.06]",
+                  : "bg-muted/60 text-muted-foreground/70 hover:bg-muted border border-border",
               )}>
               {cat}
             </button>
@@ -139,11 +139,11 @@ export function SystemMindRecommendationsPage() {
         ) : (
           <div className="space-y-3">
             {sorted.map((rec: any) => (
-              <div key={rec.id} className={cn("rounded-xl border border-white/[0.06] bg-white/[0.02] p-4", rec.dismissed_at && "opacity-50")}>
+              <div key={rec.id} className={cn("rounded-xl border border-border bg-muted/40 p-4", rec.dismissed_at && "opacity-50")}>
                 <div className="flex items-start gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
-                      <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide", PRIORITY_BADGE[rec.priority] ?? "bg-white/[0.05] text-muted-foreground")}>
+                      <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide", PRIORITY_BADGE[rec.priority] ?? "bg-muted text-muted-foreground")}>
                         {rec.priority}
                       </span>
                       <span className="rounded bg-sky-500/10 px-1.5 py-0.5 text-[10px] text-sky-400 capitalize">
@@ -160,7 +160,7 @@ export function SystemMindRecommendationsPage() {
                     <button
                       onClick={() => dismiss(rec.id)}
                       disabled={dismissing === rec.id}
-                      className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition-colors"
+                      className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                       title="Dismiss"
                     >
                       {dismissing === rec.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}

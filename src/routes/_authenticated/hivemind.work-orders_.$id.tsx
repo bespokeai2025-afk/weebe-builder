@@ -56,7 +56,7 @@ function StageCard({ task, index, total }: { task: WorkOrderStageTask; index: nu
     <div className="relative flex gap-4">
       {/* Connector line */}
       {index < total - 1 && (
-        <div className="absolute left-[19px] top-10 bottom-0 w-px bg-white/[0.06]" />
+        <div className="absolute left-[19px] top-10 bottom-0 w-px bg-muted" />
       )}
 
       {/* Step circle */}
@@ -68,7 +68,7 @@ function StageCard({ task, index, total }: { task: WorkOrderStageTask; index: nu
           ? "border-red-500/40 bg-red-500/[0.06]"
           : approvable
           ? "border-violet-500/40 bg-violet-500/10"
-          : "border-white/[0.1] bg-white/[0.03]",
+          : "border-border bg-muted/60",
       )}>
         {isComplete
           ? <CheckCircle2 className="h-4 w-4 text-emerald-400" />
@@ -88,7 +88,7 @@ function StageCard({ task, index, total }: { task: WorkOrderStageTask; index: nu
           ? "border-red-500/15 bg-red-500/[0.03]"
           : approvable
           ? "border-violet-500/20 bg-violet-500/[0.04]"
-          : "border-white/[0.07] bg-white/[0.02]",
+          : "border-border bg-muted/40",
       )}>
         {/* Stage header */}
         <div className="flex items-start gap-3 flex-wrap mb-3">
@@ -120,7 +120,7 @@ function StageCard({ task, index, total }: { task: WorkOrderStageTask; index: nu
                 ? "bg-amber-500/15 text-amber-400 border-amber-500/25"
                 : task.status === "approved"
                 ? "bg-blue-500/15 text-blue-400 border-blue-500/25"
-                : "bg-white/[0.05] text-muted-foreground border-white/[0.1]",
+                : "bg-muted text-muted-foreground border-border",
             )}>
               {task.status.replace(/_/g, " ")}
             </span>
@@ -147,7 +147,7 @@ function StageCard({ task, index, total }: { task: WorkOrderStageTask; index: nu
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {findings.map((f, i) => (
-                <div key={i} className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-2.5 py-2">
+                <div key={i} className="rounded-lg border border-border bg-muted/40 px-2.5 py-2">
                   <p className="text-[10px] text-muted-foreground">{f.label}</p>
                   <p className={cn(
                     "text-sm font-semibold tabular-nums",
@@ -227,7 +227,7 @@ function WorkOrderHeader({ wo }: { wo: WorkOrderSummary }) {
   const mainBlockers = (wo.intelligence_packet?.blockers ?? []);
 
   return (
-    <div className="border-b border-white/[0.07] px-5 py-5">
+    <div className="border-b border-border px-5 py-5">
       <div className="flex items-start gap-3 mb-4 flex-wrap">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/15 ring-1 ring-violet-500/25 shrink-0">
           <GitBranch className="h-5 w-5 text-violet-400" />
@@ -238,12 +238,12 @@ function WorkOrderHeader({ wo }: { wo: WorkOrderSummary }) {
               {statusLabel}
             </span>
             {wo.channel_kind && (
-              <span className="text-[10px] text-muted-foreground/60 bg-white/[0.04] rounded-full px-1.5 py-0.5 capitalize">
+              <span className="text-[10px] text-muted-foreground/60 bg-muted rounded-full px-1.5 py-0.5 capitalize">
                 {wo.channel_kind.replace(/_/g, " ")}
               </span>
             )}
             {wo.assigned_minds.map((m) => (
-              <span key={m} className="text-[10px] text-muted-foreground/60 bg-white/[0.04] rounded-full px-1.5 py-0.5 capitalize">
+              <span key={m} className="text-[10px] text-muted-foreground/60 bg-muted rounded-full px-1.5 py-0.5 capitalize">
                 {m}
               </span>
             ))}
@@ -257,21 +257,21 @@ function WorkOrderHeader({ wo }: { wo: WorkOrderSummary }) {
 
       {/* Stats row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-        <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+        <div className="rounded-lg border border-border bg-muted/40 px-3 py-2.5">
           <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Stages</p>
           <p className="text-lg font-bold tabular-nums">{wo.stage_count}</p>
         </div>
-        <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+        <div className="rounded-lg border border-border bg-muted/40 px-3 py-2.5">
           <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Completed</p>
           <p className="text-lg font-bold tabular-nums text-emerald-400">{wo.completed_stages}</p>
         </div>
-        <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+        <div className="rounded-lg border border-border bg-muted/40 px-3 py-2.5">
           <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Blockers</p>
           <p className={cn("text-lg font-bold tabular-nums", wo.blocker_count > 0 ? "text-red-400" : "text-foreground")}>
             {wo.blocker_count}
           </p>
         </div>
-        <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+        <div className="rounded-lg border border-border bg-muted/40 px-3 py-2.5">
           <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Progress</p>
           <p className="text-lg font-bold tabular-nums">{pct}%</p>
         </div>
@@ -279,7 +279,7 @@ function WorkOrderHeader({ wo }: { wo: WorkOrderSummary }) {
 
       {/* Progress bar */}
       {wo.stage_count > 0 && (
-        <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden mb-4">
+        <div className="h-1.5 rounded-full bg-muted overflow-hidden mb-4">
           <div
             className="h-full rounded-full bg-violet-500/60 transition-all"
             style={{ width: `${pct}%` }}
@@ -314,7 +314,7 @@ function WorkOrderPacketSummary({ wo }: { wo: WorkOrderSummary }) {
   const topFindings = packetAuditFindings(pkt);
 
   return (
-    <div className="px-5 py-4 border-b border-white/[0.06]">
+    <div className="px-5 py-4 border-b border-border">
       <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-1.5">
         <Target className="h-3 w-3" /> Work Order Intelligence
       </p>
@@ -326,7 +326,7 @@ function WorkOrderPacketSummary({ wo }: { wo: WorkOrderSummary }) {
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
             {topFindings.map((f, i) => (
-              <div key={i} className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-2.5 py-2">
+              <div key={i} className="rounded-lg border border-border bg-muted/40 px-2.5 py-2">
                 <p className="text-[10px] text-muted-foreground">{f.label}</p>
                 <p className={cn(
                   "text-sm font-semibold tabular-nums",
@@ -395,7 +395,7 @@ function WorkOrderDetailPage() {
   return (
     <HiveMindShell>
       {/* Back nav */}
-      <div className="sticky top-0 z-20 border-b border-white/[0.07] bg-[hsl(var(--background))]/95 backdrop-blur-sm px-5 py-3 flex items-center gap-3">
+      <div className="sticky top-0 z-20 border-b border-border bg-[hsl(var(--background))]/95 backdrop-blur-sm px-5 py-3 flex items-center gap-3">
         <Link
           to="/hivemind/tasks"
           className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
@@ -423,7 +423,7 @@ function WorkOrderDetailPage() {
           <p className="text-xs text-muted-foreground/70 mt-1">{(error as any)?.message ?? String(error)}</p>
           <button
             onClick={() => void refetch()}
-            className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-all"
+            className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-all"
           >
             <Loader2 className="h-3.5 w-3.5" /> Retry
           </button>
@@ -433,7 +433,7 @@ function WorkOrderDetailPage() {
           <WorkOrderHeader wo={wo as WorkOrderSummary} />
           <WorkOrderPacketSummary wo={wo as WorkOrderSummary} />
           {gadsReport && (
-            <div className="px-5 py-5 border-b border-white/[0.06]">
+            <div className="px-5 py-5 border-b border-border">
               <GadsAnalysisReportViewer report={gadsReport as any} />
             </div>
           )}

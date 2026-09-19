@@ -15,7 +15,7 @@ import { Chip, MigrationNotice, ExecutionBanner, EmptyState } from "./intelligen
 const SEV_CLS: Record<string, string> = {
   high: "border-red-500/30 bg-red-500/[0.08] text-red-400",
   medium: "border-amber-500/30 bg-amber-500/[0.08] text-amber-400",
-  low: "border-white/[0.1] text-muted-foreground",
+  low: "border-border text-muted-foreground",
 };
 
 function QueueTab() {
@@ -37,7 +37,7 @@ function QueueTab() {
         {notCurated.length} to curate.
       </p>
       {items.map((it) => (
-        <div key={it.id} className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3 flex items-start justify-between gap-3">
+        <div key={it.id} className="rounded-lg border border-border bg-muted/40 p-3 flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <CircleDot className={cn("h-3 w-3 shrink-0", it.active ? "text-emerald-400" : "text-muted-foreground/40")} />
@@ -74,7 +74,7 @@ function ImprovementsTab() {
         Deterministic suggestions derived from confidence gaps. Improving these raises deployment readiness.
       </p>
       {items.map((it, i) => (
-        <div key={i} className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3 flex items-start gap-3">
+        <div key={i} className="rounded-lg border border-border bg-muted/40 p-3 flex items-start gap-3">
           <Wand2 className="h-3.5 w-3.5 text-sky-400 shrink-0 mt-0.5" />
           <div className="min-w-0 flex-1">
             <p className="text-[11px] text-foreground/90">{it.suggestion}</p>

@@ -32,7 +32,7 @@ const STATE_META: Record<string, { label: string; tone: string; icon: typeof Che
 
 function StatusRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-3 text-[11px] py-1 border-b border-white/[0.04] last:border-0">
+    <div className="flex items-center justify-between gap-3 text-[11px] py-1 border-b border-border/60 last:border-0">
       <span className="text-muted-foreground/70">{label}</span>
       <span className="font-medium text-right">{value}</span>
     </div>
@@ -107,7 +107,7 @@ function SyncStatusCard({ agentRowId }: { agentRowId: string }) {
         </Button>
       </div>
 
-      <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+      <div className="rounded-lg border border-border bg-muted/40 p-3">
         <StatusRow label="Retell agent" value={data.retellAgentId ? <code className="text-[10px]">{data.retellAgentId}</code> : "Not deployed"} />
         <StatusRow label="API key source" value={data.keySource === "workspace" ? "Workspace (Go Live)" : data.keySource === "platform" ? "WEBEE platform" : "None"} />
         <StatusRow label="Last deploy" value={data.lastDeployedAt ? `${new Date(data.lastDeployedAt).toLocaleString()} · ${data.lastDeployStatus}` : data.lastDeployStatus} />
@@ -143,7 +143,7 @@ function SyncStatusCard({ agentRowId }: { agentRowId: string }) {
       </div>
 
       {diff ? (
-        <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+        <div className="rounded-lg border border-border bg-muted/40 p-3">
           <p className="text-[11px] font-semibold mb-1.5">
             {diff.hasSnapshot
               ? diff.diffCount === 0
@@ -216,14 +216,14 @@ function WebhookHealthPanel({ retellAgentId }: { retellAgentId: string | null })
           { label: "Dead-letter", value: c.dead, tone: c.dead ? "text-red-400" : "" },
           { label: "Duplicates blocked", value: c.duplicates, tone: "text-sky-400" },
         ].map((s) => (
-          <div key={s.label} className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-2.5">
+          <div key={s.label} className="rounded-lg border border-border bg-muted/40 p-2.5">
             <p className={cn("text-lg font-semibold tabular-nums", s.tone)}>{s.value}</p>
             <p className="text-[10px] text-muted-foreground/70">{s.label}</p>
           </div>
         ))}
       </div>
 
-      <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+      <div className="rounded-lg border border-border bg-muted/40 p-3">
         <StatusRow label="Last event" value={data.config.lastEventAt ? new Date(data.config.lastEventAt).toLocaleString() : "Never"} />
         <StatusRow label="Last success" value={data.config.lastSuccessAt ? new Date(data.config.lastSuccessAt).toLocaleString() : "—"} />
         <StatusRow label="Last failure" value={data.config.lastFailureAt ? new Date(data.config.lastFailureAt).toLocaleString() : "—"} />
@@ -245,7 +245,7 @@ function WebhookHealthPanel({ retellAgentId }: { retellAgentId: string | null })
         <Section icon={Radio} title="Recent webhook events">
           <div className="space-y-1 max-h-56 overflow-auto">
             {data.recentEvents.map((e) => (
-              <div key={e.id} className="flex items-center gap-2 text-[10px] py-0.5 border-b border-white/[0.04] last:border-0">
+              <div key={e.id} className="flex items-center gap-2 text-[10px] py-0.5 border-b border-border/60 last:border-0">
                 <span className={cn(
                   "px-1.5 py-0.5 rounded border text-[9px] shrink-0",
                   e.status === "processed" ? "text-emerald-400 border-emerald-400/30" :
@@ -285,7 +285,7 @@ export function RetellSyncPanel() {
       <div className="flex items-center gap-2">
         <label className="text-[11px] text-muted-foreground/70 shrink-0">Agent</label>
         <select
-          className="h-8 text-xs rounded-md border border-white/[0.08] bg-background px-2 min-w-56"
+          className="h-8 text-xs rounded-md border border-border bg-background px-2 min-w-56"
           value={activeId ?? ""}
           onChange={(e) => setSelected(e.target.value)}
         >

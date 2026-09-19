@@ -58,9 +58,9 @@ export function HiveMindProviderHealth() {
   const recentErrors = data?.recentErrors ?? 0;
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-card/40 overflow-hidden">
+    <div className="rounded-xl border border-border bg-card/40 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-2">
           <Zap className="h-4 w-4 text-violet-400" />
           <h3 className="text-sm font-semibold">Provider Health</h3>
@@ -123,7 +123,7 @@ export function HiveMindProviderHealth() {
                   className={cn(
                     "rounded-lg border p-2.5",
                     allConnected ? "border-emerald-500/15 bg-emerald-500/[0.03]" :
-                    noneConnected ? "border-white/[0.04] bg-white/[0.01]" :
+                    noneConnected ? "border-border/60 bg-muted/20" :
                     "border-amber-500/15 bg-amber-500/[0.03]",
                   )}
                 >
@@ -161,7 +161,7 @@ export function HiveMindProviderHealth() {
             if (topProviders.length === 0) return null;
 
             return (
-              <div className="border-t border-white/[0.06] px-4 py-3">
+              <div className="border-t border-border px-4 py-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground mb-2">Top spend by provider</p>
                 <div className="space-y-1.5">
                   {topProviders.map(p => (
@@ -180,7 +180,7 @@ export function HiveMindProviderHealth() {
           })()}
 
           {/* Footer */}
-          <div className="border-t border-white/[0.06] px-4 py-2 flex items-center justify-between">
+          <div className="border-t border-border px-4 py-2 flex items-center justify-between">
             <p className="text-[10px] text-muted-foreground">
               {totalConnected > 0
                 ? `${totalConnected} of ${totalProviders} providers active across all capabilities`

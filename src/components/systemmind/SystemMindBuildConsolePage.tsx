@@ -71,7 +71,7 @@ export function SystemMindBuildConsolePage() {
   return (
     <SystemMindShell>
       <div className="px-4 pt-4 md:px-6">
-        <div className="flex items-center gap-1 border-b border-white/[0.06] overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-1 border-b border-border overflow-x-auto no-scrollbar">
           {consoleTabs.map(({ value, label, icon: Icon }) => (
             <button
               key={value}

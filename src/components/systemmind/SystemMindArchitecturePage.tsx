@@ -46,7 +46,7 @@ function LayerCard({ layer, isFirst, isLast }: { layer: ArchitectureLayer; isFir
         <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold", layerNumColor)}>
           {layer.order}
         </div>
-        {!isLast && <div className="w-px flex-1 mt-1 bg-white/[0.06]" />}
+        {!isLast && <div className="w-px flex-1 mt-1 bg-muted" />}
       </div>
 
       <div className={cn("flex-1 rounded-xl border p-4 mb-3", borderColor, bgColor)}>
@@ -108,15 +108,15 @@ export function SystemMindArchitecturePage() {
 
         {!isLoading && layers && (
           <div className="flex gap-4 mb-6">
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-center flex-1">
+            <div className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-center flex-1">
               <p className="text-2xl font-bold text-emerald-400">{healthy}</p>
               <p className="text-[11px] text-muted-foreground">Healthy layers</p>
             </div>
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-center flex-1">
+            <div className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-center flex-1">
               <p className="text-2xl font-bold">{(layers ?? []).length}</p>
               <p className="text-[11px] text-muted-foreground">Total layers</p>
             </div>
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-center flex-1">
+            <div className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-center flex-1">
               <p className="text-2xl font-bold">{(layers ?? []).flatMap((l) => l.components).length}</p>
               <p className="text-[11px] text-muted-foreground">Components</p>
             </div>

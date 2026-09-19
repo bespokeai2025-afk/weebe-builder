@@ -169,7 +169,7 @@ export function RequirementsPanel({
     <div className="space-y-4">
       {/* Detected setup */}
       {detected && (
-        <div className="rounded-lg border border-white/[0.05] bg-white/[0.02] p-3">
+        <div className="rounded-lg border border-border bg-muted/40 p-3">
           <div className="mb-2 flex items-center gap-2">
             <Bot className="h-3.5 w-3.5 text-sky-300" />
             <p className="text-[12px] font-medium">What SystemMind detected</p>
@@ -220,7 +220,7 @@ export function RequirementsPanel({
         {sections.map(([section, qs]) => {
           const open = openSections[section] ?? true;
           return (
-            <div key={section} className="rounded-lg border border-white/[0.05] bg-white/[0.01]">
+            <div key={section} className="rounded-lg border border-border bg-muted/20">
               <button
                 className="flex w-full items-center gap-2 px-3 py-2 text-left"
                 onClick={() => setOpenSections((s) => ({ ...s, [section]: !open }))}
@@ -230,7 +230,7 @@ export function RequirementsPanel({
                 <span className="ml-auto text-[10px] text-muted-foreground">{qs.length} question{qs.length === 1 ? "" : "s"}</span>
               </button>
               {open && (
-                <div className="space-y-3 border-t border-white/[0.05] p-3">
+                <div className="space-y-3 border-t border-border p-3">
                   {qs.map((q) => (
                     <div key={q.key} className="space-y-1">
                       <p className="text-[11px]">{q.prompt}{q.required && <span className="text-rose-300"> *</span>}</p>
@@ -342,7 +342,7 @@ export function RequirementsPanel({
             </div>
           ))}
           {decided.map((s) => (
-            <div key={s.id} className="flex items-center gap-2 rounded-lg border border-white/[0.05] bg-white/[0.01] px-3 py-2">
+            <div key={s.id} className="flex items-center gap-2 rounded-lg border border-border bg-muted/20 px-3 py-2">
               <p className="text-[11px]">{s.title}</p>
               <Badge
                 variant="outline"
@@ -360,7 +360,7 @@ export function RequirementsPanel({
         <div className="space-y-2">
           <p className="text-[12px] font-medium">Simulated call outcomes (no real calls, no CRM writes)</p>
           {simResults.map((r: any) => (
-            <div key={r.outcome} className="rounded-lg border border-white/[0.05] bg-white/[0.01] p-2.5">
+            <div key={r.outcome} className="rounded-lg border border-border bg-muted/20 p-2.5">
               <div className="mb-1 flex items-center gap-2">
                 <Badge variant="outline" className="text-[10px] capitalize">{String(r.outcome).replace(/_/g, " ")}</Badge>
                 {!r.matched && <span className="text-[10px] text-amber-300">no rule configured</span>}

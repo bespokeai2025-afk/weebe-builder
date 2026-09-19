@@ -59,7 +59,7 @@ function PlanView({ plan }: { plan: DeploymentPlanBody }) {
       <Section icon={Boxes} title={`Selected templates (${p.selected_templates.length})`}>
         <div className="space-y-1.5">
           {p.selected_templates.map((t) => (
-            <div key={t.id} className="flex items-center justify-between gap-2 rounded border border-white/[0.06] bg-white/[0.02] px-2.5 py-1.5">
+            <div key={t.id} className="flex items-center justify-between gap-2 rounded border border-border bg-muted/40 px-2.5 py-1.5">
               <div className="min-w-0">
                 <p className="text-[11px] font-medium truncate">{t.name}</p>
                 <p className="text-[10px] text-muted-foreground/60">{t.category ?? "General"} · {t.status ?? "draft"}</p>
@@ -261,7 +261,7 @@ export function SystemMindDeploymentPlannerPage() {
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
           {/* Composer + result */}
           <div className="space-y-3">
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.01] p-3">
+            <div className="rounded-xl border border-border bg-muted/20 p-3">
               <Textarea
                 value={request}
                 onChange={(e) => setRequest(e.target.value)}
@@ -288,7 +288,7 @@ export function SystemMindDeploymentPlannerPage() {
             )}
 
             {active ? (
-              <div className="rounded-xl border border-white/[0.06] bg-white/[0.01] p-4">
+              <div className="rounded-xl border border-border bg-muted/20 p-4">
                 <div className="flex items-center justify-between mb-3">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold truncate">{active.title ?? "Deployment plan"}</p>
@@ -302,7 +302,7 @@ export function SystemMindDeploymentPlannerPage() {
               </div>
             ) : (
               !genMut.isPending && (
-                <div className="rounded-xl border border-white/[0.06] bg-white/[0.01]">
+                <div className="rounded-xl border border-border bg-muted/20">
                   <EmptyState icon={Rocket} title="No plan selected" hint="Describe a deployment above, or pick a saved plan on the right." />
                 </div>
               )
@@ -325,7 +325,7 @@ export function SystemMindDeploymentPlannerPage() {
                     key={pl.id}
                     className={cn(
                       "group rounded-lg border p-2.5 transition-colors cursor-pointer",
-                      active?.id === pl.id ? "border-sky-500/40 bg-sky-500/[0.08]" : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04]",
+                      active?.id === pl.id ? "border-sky-500/40 bg-sky-500/[0.08]" : "border-border bg-muted/40 hover:bg-muted",
                     )}
                     onClick={() => setActive(pl)}
                   >

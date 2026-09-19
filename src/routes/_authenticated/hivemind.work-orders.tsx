@@ -62,10 +62,10 @@ function WorkOrderCard({ wo }: { wo: WorkOrderSummary }) {
     <div className={cn(
       "rounded-xl border transition-all",
       wo.status === "completed" || wo.status === "cancelled"
-        ? "border-white/[0.05] bg-white/[0.01] opacity-70"
+        ? "border-border bg-muted/20 opacity-70"
         : hasBlockers
         ? "border-red-500/15 bg-[hsl(var(--card))]"
-        : "border-white/[0.08] bg-[hsl(var(--card))]",
+        : "border-border bg-[hsl(var(--card))]",
     )}>
       <div className="px-4 py-4">
         {/* Header row */}
@@ -82,7 +82,7 @@ function WorkOrderCard({ wo }: { wo: WorkOrderSummary }) {
                 {label}
               </span>
               {wo.channel_kind && (
-                <span className="text-[10px] text-muted-foreground/60 bg-white/[0.04] rounded-full px-1.5 py-0.5 capitalize">
+                <span className="text-[10px] text-muted-foreground/60 bg-muted rounded-full px-1.5 py-0.5 capitalize">
                   {wo.channel_kind.replace(/_/g, " ")}
                 </span>
               )}
@@ -99,7 +99,7 @@ function WorkOrderCard({ wo }: { wo: WorkOrderSummary }) {
             to="/hivemind/work-orders/$id"
             params={{ id: wo.id }}
             aria-label={`View details for work order: ${wo.title}`}
-            className="flex items-center gap-1 rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:border-violet-500/30 transition-all shrink-0"
+            className="flex items-center gap-1 rounded-lg border border-border bg-muted/60 px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:border-violet-500/30 transition-all shrink-0"
           >
             Details
             <ChevronRight className="h-3 w-3" />
@@ -115,7 +115,7 @@ function WorkOrderCard({ wo }: { wo: WorkOrderSummary }) {
               </span>
               <span className="text-[10px] text-muted-foreground">{pct}%</span>
             </div>
-            <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+            <div className="h-1.5 rounded-full bg-muted overflow-hidden">
               <div
                 className={cn("h-full rounded-full transition-all",
                   wo.status === "completed" ? "bg-emerald-500/60" : "bg-violet-500/50")}
@@ -139,7 +139,7 @@ function WorkOrderCard({ wo }: { wo: WorkOrderSummary }) {
                     ? "bg-red-500/10 text-red-400 border-red-500/20"
                     : t.readiness_state && ["ready_for_analysis_approval","ready_for_content_approval","ready_for_change_approval","ready_for_publication_approval","ready_for_execution"].includes(t.readiness_state)
                     ? "bg-violet-500/10 text-violet-400 border-violet-500/20"
-                    : "bg-white/[0.04] text-muted-foreground border-white/[0.06]",
+                    : "bg-muted text-muted-foreground border-border",
                 )}>
                   {stageLabel}
                 </span>
@@ -178,7 +178,7 @@ function WorkOrderCard({ wo }: { wo: WorkOrderSummary }) {
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {topFindings.map((f, i) => (
-                <div key={i} className="rounded-lg border border-white/[0.05] bg-white/[0.02] px-2.5 py-2">
+                <div key={i} className="rounded-lg border border-border bg-muted/40 px-2.5 py-2">
                   <p className="text-[10px] text-muted-foreground">{f.label}</p>
                   <p className={cn(
                     "text-sm font-semibold tabular-nums",
@@ -234,7 +234,7 @@ function WorkOrdersPage() {
   return (
     <HiveMindShell>
       {/* Header */}
-      <div className="sticky top-0 z-20 border-b border-white/[0.07] bg-[hsl(var(--background))]/95 backdrop-blur-sm px-5 py-3 flex items-center gap-3">
+      <div className="sticky top-0 z-20 border-b border-border bg-[hsl(var(--background))]/95 backdrop-blur-sm px-5 py-3 flex items-center gap-3">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/20 ring-1 ring-violet-500/30 shrink-0">
           <GitBranch className="h-4 w-4 text-violet-400" />
         </div>
@@ -247,7 +247,7 @@ function WorkOrdersPage() {
         <button
           onClick={() => void refetch()}
           disabled={isLoading}
-          className="flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-all disabled:opacity-40"
+          className="flex items-center gap-1.5 rounded-lg border border-border bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-all disabled:opacity-40"
         >
           {isLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
           Refresh

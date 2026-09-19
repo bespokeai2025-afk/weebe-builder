@@ -32,10 +32,10 @@ function FixPlanCard({ plan, onStepToggle }: { plan: any; onStepToggle: (planId:
   }
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+    <div className="rounded-xl border border-border bg-muted/40 overflow-hidden">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/[0.02] transition-colors"
+        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors"
       >
         <Wrench className="h-4 w-4 text-sky-400 shrink-0" />
         <div className="flex-1 min-w-0">
@@ -47,7 +47,7 @@ function FixPlanCard({ plan, onStepToggle }: { plan: any; onStepToggle: (planId:
           </div>
           {steps.length > 0 && (
             <div className="flex items-center gap-2 mt-1">
-              <div className="flex-1 h-1 rounded-full bg-white/[0.08] overflow-hidden">
+              <div className="flex-1 h-1 rounded-full bg-muted overflow-hidden">
                 <div
                   className="h-full bg-sky-500 rounded-full transition-all"
                   style={{ width: `${steps.length > 0 ? Math.round((doneCount / steps.length) * 100) : 0}%` }}
@@ -63,7 +63,7 @@ function FixPlanCard({ plan, onStepToggle }: { plan: any; onStepToggle: (planId:
       </button>
 
       {open && (
-        <div className="border-t border-white/[0.06] divide-y divide-white/[0.04]">
+        <div className="border-t border-border divide-y divide-white/[0.04]">
           {plan.detail && (
             <div className="px-4 py-2.5">
               <p className="text-xs text-muted-foreground leading-relaxed">{plan.detail}</p>
@@ -162,14 +162,14 @@ export function SystemMindFixPlansPage({ embedded = false }: { embedded?: boolea
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Problem title (e.g. 'OpenAI API key missing')"
-              className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-sky-500/50"
+              className="w-full rounded-lg border border-border bg-muted/60 px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-sky-500/50"
             />
             <textarea
               value={detail}
               onChange={(e) => setDetail(e.target.value)}
               placeholder="Describe the problem in detail so the AI can generate specific steps…"
               rows={3}
-              className="w-full resize-none rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-sky-500/50"
+              className="w-full resize-none rounded-lg border border-border bg-muted/60 px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-sky-500/50"
             />
             <div className="flex gap-2 justify-end">
               <Button variant="ghost" size="sm" onClick={() => setShowForm(false)}>Cancel</Button>

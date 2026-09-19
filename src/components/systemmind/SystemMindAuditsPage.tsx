@@ -32,10 +32,10 @@ function AuditRow({ audit }: { audit: any }) {
   const summaryText: string = typeof audit.summary === "object" ? (audit.summary?.text ?? "") : (audit.summary ?? "");
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+    <div className="rounded-xl border border-border bg-muted/40 overflow-hidden">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/[0.02] transition-colors"
+        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors"
       >
         {audit.status === "complete"
           ? <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
@@ -60,7 +60,7 @@ function AuditRow({ audit }: { audit: any }) {
       </button>
 
       {open && findings.length > 0 && (
-        <div className="border-t border-white/[0.06] divide-y divide-white/[0.04]">
+        <div className="border-t border-border divide-y divide-white/[0.04]">
           {findings.map((f, i) => (
             <div key={i} className="px-4 py-3 flex gap-3">
               <span className={cn("shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase self-start mt-0.5", FINDING_SEVERITY_BADGE[f.severity] ?? FINDING_SEVERITY_BADGE.info)}>

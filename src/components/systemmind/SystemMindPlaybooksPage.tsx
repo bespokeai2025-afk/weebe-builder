@@ -29,9 +29,9 @@ function PlaybookCard({ pb }: { pb: any }) {
   const riskCls = RISK_COLORS[pb.risk_level] ?? RISK_COLORS.medium;
 
   return (
-    <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] overflow-hidden">
+    <div className="rounded-xl border border-border bg-muted/40 overflow-hidden">
       <button
-        className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-white/[0.02] transition-colors"
+        className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors"
         onClick={() => setOpen((v) => !v)}
       >
         <div className={cn("mt-0.5 shrink-0 rounded-full p-1", riskCls.split(" ")[1])}>
@@ -44,7 +44,7 @@ function PlaybookCard({ pb }: { pb: any }) {
               {pb.risk_level.toUpperCase()}
             </span>
             {pb.provider && (
-              <span className="text-[10px] text-muted-foreground border border-white/[0.08] rounded px-1.5 py-0.5">
+              <span className="text-[10px] text-muted-foreground border border-border rounded px-1.5 py-0.5">
                 {pb.provider}
               </span>
             )}
@@ -63,7 +63,7 @@ function PlaybookCard({ pb }: { pb: any }) {
       </button>
 
       {open && (
-        <div className="border-t border-white/[0.06] px-4 py-3 space-y-3">
+        <div className="border-t border-border px-4 py-3 space-y-3">
           {/* Symptoms */}
           {(pb.symptoms ?? []).length > 0 && (
             <section>
@@ -130,7 +130,7 @@ function PlaybookCard({ pb }: { pb: any }) {
           {(pb.affected_files ?? []).length > 0 && (
             <div className="flex flex-wrap gap-1">
               {(pb.affected_files as string[]).map((f, i) => (
-                <code key={i} className="text-[10px] bg-white/[0.04] border border-white/[0.06] rounded px-1.5 py-0.5 text-muted-foreground">
+                <code key={i} className="text-[10px] bg-muted border border-border rounded px-1.5 py-0.5 text-muted-foreground">
                   {f}
                 </code>
               ))}
@@ -217,7 +217,7 @@ export function SystemMindPlaybooksPage() {
             { label: "Repair",   value: repairCount,         color: "text-sky-400" },
             { label: "Provider", value: providerCount,       color: "text-violet-400" },
           ].map((s) => (
-            <div key={s.label} className="flex items-center gap-1.5 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+            <div key={s.label} className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-3 py-2">
               <span className={cn("text-base font-semibold", s.color)}>{s.value}</span>
               <span className="text-xs text-muted-foreground">{s.label}</span>
             </div>
@@ -264,7 +264,7 @@ export function SystemMindPlaybooksPage() {
               className={cn(
                 "px-2 py-1 rounded text-[10px] font-medium transition-colors border",
                 riskFilter === r
-                  ? "bg-white/[0.06] border-white/[0.12] text-foreground"
+                  ? "bg-muted border-border text-foreground"
                   : "border-transparent text-muted-foreground hover:text-foreground",
               )}
             >
@@ -282,7 +282,7 @@ export function SystemMindPlaybooksPage() {
       )}
 
       {!isLoading && filtered.length === 0 && (
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] py-16 text-center">
+        <div className="rounded-xl border border-border bg-muted/40 py-16 text-center">
           <AlertTriangle className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">
             {allPlaybooks.length === 0 ? "No playbooks yet — click Seed Defaults" : "No playbooks match your filters"}

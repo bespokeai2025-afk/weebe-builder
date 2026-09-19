@@ -102,7 +102,7 @@ function Toggle({ label, checked, onChange, icon: Icon, color }: {
         ? color === "violet"
           ? "bg-violet-500/15 text-violet-300 border-violet-500/30"
           : "bg-amber-500/15 text-amber-300 border-amber-500/30"
-        : "bg-white/[0.02] text-muted-foreground border-white/[0.08] hover:text-foreground",
+        : "bg-muted/40 text-muted-foreground border-border hover:text-foreground",
     )}>
       <Icon className={cn("h-3.5 w-3.5 shrink-0", checked && (color === "violet" ? "text-violet-400" : "text-amber-400"))} />
       {label}
@@ -127,7 +127,7 @@ function SectionHead({ icon: Icon, label, count, color }: {
 
 function EmptyState({ icon: Icon, text }: { icon: React.ElementType; text: string }) {
   return (
-    <div className="rounded-xl border border-dashed border-white/[0.06] px-4 py-4 flex items-center gap-3 text-muted-foreground">
+    <div className="rounded-xl border border-dashed border-border px-4 py-4 flex items-center gap-3 text-muted-foreground">
       <Icon className="h-4 w-4 shrink-0 opacity-40" />
       <p className="text-xs">{text}</p>
     </div>
@@ -208,14 +208,14 @@ function Dropdown<T extends string | number>({ value, options, onChange, renderL
   const [open, setOpen] = useState(false);
   return (
     <div className="relative">
-      <button onClick={() => setOpen(p => !p)} className="flex items-center gap-1 rounded-md border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-xs font-medium text-foreground hover:bg-white/[0.06]">
+      <button onClick={() => setOpen(p => !p)} className="flex items-center gap-1 rounded-md border border-border bg-muted/60 px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted">
         {renderLabel(value)} <ChevronDown className="h-3 w-3" />
       </button>
       {open && (
-        <div className="absolute left-0 top-8 z-30 min-w-[120px] rounded-xl border border-white/[0.08] bg-card shadow-xl overflow-hidden">
+        <div className="absolute left-0 top-8 z-30 min-w-[120px] rounded-xl border border-border bg-card shadow-xl overflow-hidden">
           {options.map((o, i) => (
             <button key={i} className={cn(
-              "w-full px-3 py-2 text-left text-xs hover:bg-white/[0.04] whitespace-nowrap",
+              "w-full px-3 py-2 text-left text-xs hover:bg-muted whitespace-nowrap",
               o === value && "text-violet-400 font-medium"
             )} onClick={() => { onChange(o); setOpen(false); }}>
               {renderLabel(o)}
@@ -494,7 +494,7 @@ function HiveMindOverview() {
         {/* RECOMMENDED NEXT ACTIONS — always visible when recs exist and not in observe mode */}
         {mode !== "observe" && sysRecs.length > 0 && (
           <div className="rounded-xl border border-violet-500/15 bg-violet-500/[0.03] overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.05]">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
               <div className="flex items-center gap-2">
                 <Lightbulb className="h-3.5 w-3.5 text-violet-400" />
                 <span className="text-xs font-semibold">Recommended Next Actions</span>
@@ -521,7 +521,7 @@ function HiveMindOverview() {
                     <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{r.fix}</p>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
-                    <span className="text-[9px] text-muted-foreground bg-white/[0.04] rounded px-1.5 py-0.5 hidden sm:block">
+                    <span className="text-[9px] text-muted-foreground bg-muted rounded px-1.5 py-0.5 hidden sm:block">
                       {r.category}
                     </span>
                     {r.action && (
@@ -534,7 +534,7 @@ function HiveMindOverview() {
               ))}
             </div>
             {sysRecs.length > 5 && (
-              <div className="px-4 py-2 border-t border-white/[0.04]">
+              <div className="px-4 py-2 border-t border-border/60">
                 <Link
                   to="/hivemind/recommendations"
                   className="text-[11px] text-violet-400/60 hover:text-violet-300 transition-colors"
@@ -547,9 +547,9 @@ function HiveMindOverview() {
         )}
 
         {/* CONFIGURE PANEL */}
-        <div className="rounded-xl border border-white/[0.07] bg-card/50 overflow-hidden">
+        <div className="rounded-xl border border-border bg-card/50 overflow-hidden">
           <button
-            className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-white/[0.02] transition-colors"
+            className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-muted/40 transition-colors"
             onClick={() => setConfigOpen(p => !p)}
           >
             <div className="flex items-center gap-2 min-w-0">
@@ -571,7 +571,7 @@ function HiveMindOverview() {
           </button>
 
           {configOpen && (
-            <div className="border-t border-white/[0.06] px-4 pb-4 pt-3 space-y-3">
+            <div className="border-t border-border px-4 pb-4 pt-3 space-y-3">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-violet-400/70 mb-2">Business</p>
                 <div className="flex flex-wrap gap-2">
@@ -591,7 +591,7 @@ function HiveMindOverview() {
               </div>
 
               {/* Fix #6: time window + stale threshold controls */}
-              <div className="flex items-center gap-4 flex-wrap border-t border-white/[0.05] pt-2.5">
+              <div className="flex items-center gap-4 flex-wrap border-t border-border pt-2.5">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Clock className="h-3 w-3" />
                   <span>Window:</span>
@@ -636,7 +636,7 @@ function HiveMindOverview() {
           <div className="space-y-4">
 
             {/* Tabs */}
-            <div className="flex gap-1 border-b border-white/[0.06]">
+            <div className="flex gap-1 border-b border-border">
               {([
                 ["business", "Business", businessCount, "violet"],
                 ["system",   "System",   systemCount,   "amber"],
@@ -669,10 +669,10 @@ function HiveMindOverview() {
                       <EmptyState icon={Users} text={`No new leads ${sinceLabel.toLowerCase()}`} />
                     ) : (
                       <>
-                        <div className="rounded-xl border border-white/[0.06] overflow-hidden divide-y divide-white/[0.04]">
+                        <div className="rounded-xl border border-border overflow-hidden divide-y divide-white/[0.04]">
                           {b.newLeads.map((lead: any) => (
                             <div key={lead.id} className={cn(
-                              "flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.015] transition-colors",
+                              "flex items-center gap-3 px-4 py-2.5 hover:bg-muted/25 transition-colors",
                               newLeadIds.has(lead.id) && "bg-violet-500/[0.06]"
                             )}>
                               <div className="h-7 w-7 rounded-full bg-violet-500/15 flex items-center justify-center shrink-0 text-xs font-bold text-violet-300">
@@ -724,7 +724,7 @@ function HiveMindOverview() {
                                   "rounded-full px-1.5 py-0.5 text-[10px] font-medium capitalize shrink-0",
                                   bk.status === "confirmed" ? "bg-emerald-500/15 text-emerald-400" :
                                   bk.status === "cancelled" ? "bg-red-500/15 text-red-400" :
-                                  "bg-white/[0.05] text-muted-foreground"
+                                  "bg-muted text-muted-foreground"
                                 )}>{bk.status ?? "booked"}</span>
                               </div>
                               {bk.attendee_name && (
@@ -744,7 +744,7 @@ function HiveMindOverview() {
                                 </div>
                               )}
                               {bk.notes && (
-                                <p className="text-[11px] text-muted-foreground/70 mt-1.5 italic border-t border-white/[0.04] pt-1.5 line-clamp-2">{bk.notes}</p>
+                                <p className="text-[11px] text-muted-foreground/70 mt-1.5 italic border-t border-border/60 pt-1.5 line-clamp-2">{bk.notes}</p>
                               )}
                             </div>
                           ))}
@@ -769,7 +769,7 @@ function HiveMindOverview() {
                       <>
                         <div className="rounded-xl border border-amber-500/15 overflow-hidden divide-y divide-white/[0.04]">
                           {visibleStale.map((c: any) => (
-                            <div key={c.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.015] group">
+                            <div key={c.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/25 group">
                               <div className="h-7 w-7 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0 text-xs font-bold text-amber-300">
                                 {(c.name || "?")[0]?.toUpperCase()}
                               </div>
@@ -787,7 +787,7 @@ function HiveMindOverview() {
                               <button
                                 onClick={() => dismissStale(c.id)}
                                 title="Snooze for 7 days"
-                                className="h-6 w-6 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 hover:bg-white/[0.06] transition-all shrink-0"
+                                className="h-6 w-6 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 hover:bg-muted transition-all shrink-0"
                               >
                                 <EyeOff className="h-3 w-3 text-muted-foreground" />
                               </button>
@@ -819,9 +819,9 @@ function HiveMindOverview() {
                       <EmptyState icon={Zap} text={`No pipeline changes ${sinceLabel.toLowerCase()}`} />
                     ) : (
                       <>
-                        <div className="rounded-xl border border-white/[0.06] overflow-hidden divide-y divide-white/[0.04]">
+                        <div className="rounded-xl border border-border overflow-hidden divide-y divide-white/[0.04]">
                           {b.recentPipelineChanges.map((c: any) => (
-                            <div key={c.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.015]">
+                            <div key={c.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/25">
                               <div className="h-7 w-7 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0">
                                 <Zap className="h-3.5 w-3.5 text-blue-400" />
                               </div>
@@ -853,7 +853,7 @@ function HiveMindOverview() {
                     ) : (
                       <div className="rounded-xl border border-green-500/15 overflow-hidden divide-y divide-white/[0.04]">
                         {b.inboundWA.map((m: any) => (
-                          <div key={m.id} className="flex items-start gap-3 px-4 py-2.5 hover:bg-white/[0.015]">
+                          <div key={m.id} className="flex items-start gap-3 px-4 py-2.5 hover:bg-muted/25">
                             <div className="h-7 w-7 rounded-full bg-green-500/10 flex items-center justify-center shrink-0">
                               <MessageSquare className="h-3.5 w-3.5 text-green-400" />
                             </div>
@@ -898,7 +898,7 @@ function HiveMindOverview() {
                     ) : (
                       <div className="rounded-xl border border-sky-500/10 overflow-hidden divide-y divide-white/[0.04]">
                         {b.recentEmailCampaigns.map((c: any) => (
-                          <div key={c.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.015]">
+                          <div key={c.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/25">
                             <div className="h-7 w-7 rounded-full bg-sky-500/10 flex items-center justify-center shrink-0">
                               <MailOpen className="h-3.5 w-3.5 text-sky-400" />
                             </div>
@@ -922,7 +922,7 @@ function HiveMindOverview() {
 
                 {businessCount === 0 && !briefingQ.isLoading && (
                   mode !== "observe" && sysRecs.length > 0 ? (
-                    <div className="rounded-xl border border-dashed border-white/[0.06] px-4 py-5 text-center space-y-1.5">
+                    <div className="rounded-xl border border-dashed border-border px-4 py-5 text-center space-y-1.5">
                       <CheckCircle2 className="h-6 w-6 text-emerald-400/50 mx-auto" />
                       <p className="text-sm font-semibold">Nothing new in the pipeline {sinceLabel.toLowerCase()}</p>
                       <p className="text-xs text-muted-foreground">
@@ -963,7 +963,7 @@ function HiveMindOverview() {
                             <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase",
                               r.priority === "critical" ? "bg-red-500/15 text-red-400" : "bg-amber-500/15 text-amber-400"
                             )}>{r.priority}</span>
-                            <span className="text-[10px] text-muted-foreground bg-white/[0.04] rounded px-1.5 py-0.5">{r.category}</span>
+                            <span className="text-[10px] text-muted-foreground bg-muted rounded px-1.5 py-0.5">{r.category}</span>
                           </div>
                           <p className="text-sm font-semibold">{r.problem}</p>
                           <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{r.fix}</p>

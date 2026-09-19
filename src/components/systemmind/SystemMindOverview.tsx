@@ -49,11 +49,11 @@ function StatCard({ label, value, sub, icon: Icon, accent, href }: {
   const inner = (
     <div className={cn(
       "rounded-xl border p-4 transition-colors",
-      href ? "cursor-pointer hover:bg-white/[0.04]" : "",
+      href ? "cursor-pointer hover:bg-muted" : "",
       accent === "amber"   ? "border-amber-500/20 bg-amber-500/[0.03]"
       : accent === "emerald" ? "border-emerald-500/20 bg-emerald-500/[0.03]"
       : accent === "red"     ? "border-red-500/20 bg-red-500/[0.03]"
-      : "border-white/[0.06] bg-white/[0.02]",
+      : "border-border bg-muted/40",
     )}>
       <div className="flex items-center gap-2 text-muted-foreground">
         <Icon className={cn(
@@ -148,7 +148,7 @@ export function SystemMindOverview() {
           <div className="mt-6 space-y-6">
             {/* Reliability + AI briefing */}
             <div className="grid gap-4 md:grid-cols-3">
-              <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 flex items-center gap-5">
+              <div className="rounded-xl border border-border bg-muted/40 p-5 flex items-center gap-5">
                 <ScoreRing score={summary.reliabilityScore} />
                 <div>
                   <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Reliability</p>
@@ -157,7 +157,7 @@ export function SystemMindOverview() {
                 </div>
               </div>
 
-              <div className="md:col-span-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+              <div className="md:col-span-2 rounded-xl border border-border bg-muted/40 p-5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Sparkles className="h-4 w-4 text-brand" />
@@ -184,7 +184,7 @@ export function SystemMindOverview() {
 
             {/* Workflow Health */}
             {data?.workflowHealth ? (
-              <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+              <div className="rounded-xl border border-border bg-muted/40 p-5">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-sm font-semibold flex items-center gap-2">
                     <GitBranch className="h-4 w-4 text-brand" /> Workflow Health
@@ -229,7 +229,7 @@ export function SystemMindOverview() {
                 </div>
               </div>
             ) : (
-              <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+              <div className="rounded-xl border border-border bg-muted/40 p-5">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-sm font-semibold flex items-center gap-2">
                     <GitBranch className="h-4 w-4 text-brand" /> Workflow Health
@@ -246,11 +246,11 @@ export function SystemMindOverview() {
             )}
 
             {/* Integration health grid */}
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+            <div className="rounded-xl border border-border bg-muted/40 p-5">
               <h2 className="text-sm font-semibold mb-3">Integration Health</h2>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {Object.entries(summary.systemHealth).map(([key, ok]) => (
-                  <div key={key} className="flex items-center gap-2 rounded-lg border border-white/[0.04] bg-white/[0.02] px-3 py-2">
+                  <div key={key} className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/40 px-3 py-2">
                     {ok ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> : <XCircle className="h-3.5 w-3.5 text-red-400/70" />}
                     <span className="text-xs capitalize">{key}</span>
                     <span className={cn("ml-auto text-[10px] font-medium", ok ? "text-emerald-400" : "text-muted-foreground")}>
@@ -263,7 +263,7 @@ export function SystemMindOverview() {
 
             {/* Risks */}
             {summary.topRisks.length > 0 && (
-              <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+              <div className="rounded-xl border border-border bg-muted/40 p-5">
                 <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
                   <ShieldAlert className="h-4 w-4 text-amber-400" /> Top Technical Risks
                 </h2>
@@ -284,11 +284,11 @@ export function SystemMindOverview() {
 
             {/* Recommended actions */}
             {summary.recommendedActions.length > 0 && (
-              <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+              <div className="rounded-xl border border-border bg-muted/40 p-5">
                 <h2 className="text-sm font-semibold mb-3">Recommended Actions</h2>
                 <div className="space-y-2">
                   {summary.recommendedActions.map((a) => (
-                    <div key={a.id} className="flex items-start gap-3 rounded-lg border border-white/[0.04] bg-white/[0.02] px-3 py-2.5">
+                    <div key={a.id} className="flex items-start gap-3 rounded-lg border border-border/60 bg-muted/40 px-3 py-2.5">
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-semibold">{a.label}</p>
                         <p className="text-[11px] text-muted-foreground mt-0.5">{a.fix}</p>

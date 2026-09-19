@@ -55,7 +55,7 @@ const TYPE_LABEL: Record<string, string> = {
 
 function Chip({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <span className={cn("text-[10px] border border-white/[0.08] rounded px-1.5 py-0.5 text-muted-foreground", className)}>
+    <span className={cn("text-[10px] border border-border rounded px-1.5 py-0.5 text-muted-foreground", className)}>
       {children}
     </span>
   );
@@ -63,7 +63,7 @@ function Chip({ children, className }: { children: React.ReactNode; className?: 
 
 function Section({ icon: Icon, title, children }: { icon: React.ElementType; title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+    <div className="rounded-lg border border-border bg-muted/40 p-3">
       <p className="text-[11px] font-semibold flex items-center gap-1.5 mb-2">
         <Icon className="h-3.5 w-3.5 text-sky-400" /> {title}
       </p>
@@ -86,10 +86,10 @@ function ProviderRow({ label, items }: { label: string; items: string[] }) {
 
 function StatusPill({ status, trusted }: { status: string; trusted?: boolean }) {
   const map: Record<string, string> = {
-    draft: "border-white/[0.1] text-muted-foreground",
+    draft: "border-border text-muted-foreground",
     pending_approval: "border-amber-500/30 bg-amber-500/[0.08] text-amber-400",
     approved: "border-emerald-500/30 bg-emerald-500/[0.08] text-emerald-400",
-    archived: "border-white/[0.08] text-muted-foreground/50",
+    archived: "border-border text-muted-foreground/50",
   };
   return (
     <span className={cn("text-[10px] rounded-full px-2 py-0.5 border inline-flex items-center gap-1", map[status] ?? map.draft)}>
@@ -327,7 +327,7 @@ function TemplateDetail({ id, onChanged, onDeleted }: { id: string; onChanged: (
           <div className="overflow-x-auto">
             <table className="w-full text-[10.5px]">
               <thead>
-                <tr className="text-muted-foreground/60 text-left border-b border-white/[0.06]">
+                <tr className="text-muted-foreground/60 text-left border-b border-border">
                   <th className="font-medium py-1 pr-2">Variable</th>
                   <th className="font-medium py-1 pr-2">Category</th>
                   <th className="font-medium py-1 pr-2">Example</th>
@@ -337,7 +337,7 @@ function TemplateDetail({ id, onChanged, onDeleted }: { id: string; onChanged: (
               </thead>
               <tbody>
                 {vars.map((v, i) => (
-                  <tr key={`${v.key}-${i}`} className="border-b border-white/[0.03] align-top">
+                  <tr key={`${v.key}-${i}`} className="border-b border-border/50 align-top">
                     <td className="py-1 pr-2">
                       <div className="text-foreground">{v.name}</div>
                       <code className="text-[9px] text-muted-foreground/60">{v.key}</code>
@@ -388,7 +388,7 @@ function TemplateDetail({ id, onChanged, onDeleted }: { id: string; onChanged: (
           <div className="flex flex-wrap items-center gap-1">
             {order.map((n, i) => (
               <span key={`${n}-${i}`} className="flex items-center gap-1">
-                <span className="text-[10px] rounded border border-white/[0.08] bg-white/[0.03] px-1.5 py-0.5 text-muted-foreground">{n}</span>
+                <span className="text-[10px] rounded border border-border bg-muted/60 px-1.5 py-0.5 text-muted-foreground">{n}</span>
                 {i < order.length - 1 && <ArrowRight className="h-3 w-3 text-muted-foreground/40" />}
               </span>
             ))}
@@ -579,7 +579,7 @@ function TemplatesTab() {
       {isLoading && <div className="flex justify-center py-16"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>}
 
       {!isLoading && templates.length === 0 && (
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] py-16 text-center">
+        <div className="rounded-xl border border-border bg-muted/40 py-16 text-center">
           <Boxes className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">No templates yet</p>
           <p className="text-xs text-muted-foreground/60 mt-1">Create one from a discovered workflow in the “Workflows” tab, or import a template.</p>
@@ -594,7 +594,7 @@ function TemplatesTab() {
               {filtered.map((t) => (
                 <button key={t.id} onClick={() => setSelectedId(t.id)}
                   className={cn("w-full text-left rounded-lg border px-3 py-2.5 transition-colors",
-                    selectedId === t.id ? "border-sky-500/40 bg-sky-500/[0.08]" : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04]")}>
+                    selectedId === t.id ? "border-sky-500/40 bg-sky-500/[0.08]" : "border-border bg-muted/40 hover:bg-muted")}>
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-medium truncate flex-1">{t.name}</span>
                     <StatusPill status={t.status} trusted={t.is_trusted} />
@@ -609,7 +609,7 @@ function TemplatesTab() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-white/[0.06] bg-white/[0.01] p-4 min-h-[60vh]">
+          <div className="rounded-xl border border-border bg-muted/20 p-4 min-h-[60vh]">
             {selectedId
               ? <TemplateDetail id={selectedId} onChanged={invalidateList} onDeleted={() => { setSelectedId(null); invalidateList(); }} />
               : (
@@ -672,7 +672,7 @@ function WorkflowRow({ w, onChanged }: { w: any; onChanged: () => void }) {
   });
 
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+    <div className="rounded-lg border border-border bg-muted/40 p-3">
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs font-medium flex-1 truncate">{w.name}</span>
         {w.active && <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" title="active" />}
@@ -758,7 +758,7 @@ function WorkflowsTab() {
       {isLoading && <div className="flex justify-center py-16"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>}
 
       {!isLoading && workflows.length === 0 && (
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] py-16 text-center">
+        <div className="rounded-xl border border-border bg-muted/40 py-16 text-center">
           <Network className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">No discovered workflows</p>
           <p className="text-xs text-muted-foreground/60 mt-1">Discover workflows in Workflow Intelligence first, then classify and templatise them here.</p>

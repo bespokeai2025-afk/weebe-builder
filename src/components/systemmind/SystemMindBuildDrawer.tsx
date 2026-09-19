@@ -46,7 +46,7 @@ export function SystemMindBuildDrawer({
         )}
       >
         {/* Header */}
-        <div className="flex flex-wrap items-center gap-2 border-b border-white/[0.06] px-4 py-3 pr-12">
+        <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3 pr-12">
           <Bot className="h-4 w-4 shrink-0 text-sky-400" />
           <div className="min-w-0">
             <SheetTitle className="truncate text-sm font-semibold">

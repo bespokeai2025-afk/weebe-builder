@@ -152,7 +152,7 @@ function WhatsAppSetupDetail({ payload }: { payload: Record<string, any> }) {
           <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Starter message templates</p>
           <div className="space-y-2">
             {templates.map((t: any, i: number) => (
-              <div key={i} className="rounded-lg border border-white/[0.05] bg-white/[0.02] p-2.5">
+              <div key={i} className="rounded-lg border border-border bg-muted/40 p-2.5">
                 <p className="text-[11px] font-medium">
                   {t.name}{t.language ? <span className="text-muted-foreground font-normal"> · {t.language}</span> : null}
                 </p>
@@ -378,7 +378,7 @@ function DraftCard({
   const customPrompt: string = draft.payload?.custom_prompt ?? "";
 
   return (
-    <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] overflow-hidden">
+    <div className="rounded-xl border border-border bg-muted/40 overflow-hidden">
       <div className="p-4">
         <div className="flex items-start gap-3">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-cyan-500/10 ring-1 ring-cyan-500/20">
@@ -486,7 +486,7 @@ function DraftCard({
       </div>
 
       {expanded && (
-        <div className="border-t border-white/[0.06] bg-black/20 p-4 space-y-4">
+        <div className="border-t border-border bg-black/20 p-4 space-y-4">
           {/* Kind-specific detail */}
           {draft.action_kind === "whatsapp_setup" ? (
             <WhatsAppSetupDetail payload={draft.payload ?? {}} />
@@ -523,7 +523,7 @@ function DraftCard({
           {customPrompt && (
             <div>
               <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Custom prompt</p>
-              <pre className="text-[11px] text-muted-foreground whitespace-pre-wrap bg-white/[0.02] border border-white/[0.05] rounded-lg p-3 max-h-48 overflow-y-auto">{customPrompt}</pre>
+              <pre className="text-[11px] text-muted-foreground whitespace-pre-wrap bg-muted/40 border border-border rounded-lg p-3 max-h-48 overflow-y-auto">{customPrompt}</pre>
             </div>
           )}
 
@@ -566,7 +566,7 @@ function AuditPanel({ draftId, onClose }: { draftId: string; onClose: () => void
   });
 
   return (
-    <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
+    <div className="rounded-xl border border-border bg-muted/40 p-4">
       <div className="flex items-center justify-between mb-3">
         <p className="text-sm font-semibold flex items-center gap-2">
           <ScrollText className="h-4 w-4 text-cyan-400" /> Audit trail
@@ -582,7 +582,7 @@ function AuditPanel({ draftId, onClose }: { draftId: string; onClose: () => void
       ) : (
         <div className="space-y-2 max-h-72 overflow-y-auto">
           {rows.map((r: any) => (
-            <div key={r.id} className="flex items-start gap-2 text-[11px] border-b border-white/[0.04] pb-2 last:border-0">
+            <div key={r.id} className="flex items-start gap-2 text-[11px] border-b border-border/60 pb-2 last:border-0">
               <Badge variant="outline" className="text-[10px] font-mono shrink-0">{r.action_type}</Badge>
               <div className="min-w-0 flex-1">
                 <p className="text-muted-foreground">
@@ -723,7 +723,7 @@ export function SystemMindAutomationPage({ embedded = false }: { embedded?: bool
           "rounded-lg border px-3 py-2 text-[11px] flex items-center gap-2",
           claudeEnabled
             ? "border-violet-500/20 bg-violet-500/[0.06] text-violet-300"
-            : "border-white/[0.08] bg-white/[0.03] text-muted-foreground",
+            : "border-border bg-muted/60 text-muted-foreground",
         )}>
           <Sparkles className="h-3.5 w-3.5" />
           {claudeEnabled
@@ -732,7 +732,7 @@ export function SystemMindAutomationPage({ embedded = false }: { embedded?: bool
         </div>
 
         {/* Generate form */}
-        <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 space-y-3">
+        <div className="rounded-xl border border-border bg-muted/40 p-4 space-y-3">
           {/* Generator kind tabs */}
           <div className="flex items-center gap-1.5 flex-wrap">
             {MODE_TABS.map((t) => {
@@ -747,7 +747,7 @@ export function SystemMindAutomationPage({ embedded = false }: { embedded?: bool
                     "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition-colors",
                     active
                       ? "border-cyan-500/40 bg-cyan-500/10 text-cyan-300"
-                      : "border-white/[0.08] bg-white/[0.02] text-muted-foreground hover:text-foreground hover:border-white/20",
+                      : "border-border bg-muted/40 text-muted-foreground hover:text-foreground hover:border-white/20",
                   )}
                 >
                   <TabIcon className="h-3 w-3" /> {t.label}
@@ -765,7 +765,7 @@ export function SystemMindAutomationPage({ embedded = false }: { embedded?: bool
 
           {mode === "whatsapp" && (
             <Select value={waProvider} onValueChange={(v) => setWaProvider(v as "twilio" | "wati" | "meta")}>
-              <SelectTrigger className="w-56 h-8 text-xs bg-white/[0.02] border-white/[0.08]">
+              <SelectTrigger className="w-56 h-8 text-xs bg-muted/40 border-border">
                 <SelectValue placeholder="WhatsApp provider" />
               </SelectTrigger>
               <SelectContent>
@@ -788,7 +788,7 @@ export function SystemMindAutomationPage({ embedded = false }: { embedded?: bool
               </p>
             ) : (
               <Select value={n8nRowId} onValueChange={setN8nRowId}>
-                <SelectTrigger className="w-full h-9 text-xs bg-white/[0.02] border-white/[0.08]">
+                <SelectTrigger className="w-full h-9 text-xs bg-muted/40 border-border">
                   <SelectValue placeholder="Choose an n8n workflow…" />
                 </SelectTrigger>
                 <SelectContent>
@@ -805,7 +805,7 @@ export function SystemMindAutomationPage({ embedded = false }: { embedded?: bool
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder={MODE_PLACEHOLDERS[mode]}
-              className="min-h-[90px] text-sm bg-white/[0.02] border-white/[0.08]"
+              className="min-h-[90px] text-sm bg-muted/40 border-border"
               maxLength={4000}
             />
           )}
@@ -837,7 +837,7 @@ export function SystemMindAutomationPage({ embedded = false }: { embedded?: bool
               <Loader2 className="h-4 w-4 animate-spin" /> Loading drafts…
             </div>
           ) : drafts.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-white/[0.08] p-8 text-center">
+            <div className="rounded-xl border border-dashed border-border p-8 text-center">
               <Zap className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
               <p className="text-sm text-muted-foreground">No automation drafts yet — describe one above to get started.</p>
             </div>

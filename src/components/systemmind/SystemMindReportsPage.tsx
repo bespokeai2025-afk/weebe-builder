@@ -74,7 +74,7 @@ export function SystemMindReportsPage() {
             <h2 className="text-sm font-semibold truncate">{selected.title}</h2>
             <div className="ml-auto flex items-center gap-2 shrink-0">
               {selected.model && (
-                <span className="text-[10px] text-muted-foreground/50 bg-white/[0.04] rounded px-1.5 py-0.5">
+                <span className="text-[10px] text-muted-foreground/50 bg-muted rounded px-1.5 py-0.5">
                   {selected.model}
                 </span>
               )}
@@ -83,9 +83,9 @@ export function SystemMindReportsPage() {
               </span>
             </div>
           </div>
-          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-6">
+          <div className="rounded-xl border border-border bg-muted/40 p-6">
             <div
-              className="prose prose-sm prose-invert max-w-none prose-headings:text-foreground prose-p:text-foreground/80 prose-strong:text-foreground prose-li:text-foreground/80 prose-code:text-sky-300 prose-code:bg-white/[0.06] prose-code:px-1 prose-code:rounded"
+              className="prose prose-sm prose-invert max-w-none prose-headings:text-foreground prose-p:text-foreground/80 prose-strong:text-foreground prose-li:text-foreground/80 prose-code:text-sky-300 prose-code:bg-muted prose-code:px-1 prose-code:rounded"
               dangerouslySetInnerHTML={{ __html: renderedBody || selected.body || "" }}
             />
           </div>
@@ -144,7 +144,7 @@ export function SystemMindReportsPage() {
                 key={report.id}
                 onClick={() => openReport(report)}
                 disabled={loadingId === report.id}
-                className="w-full text-left rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 flex items-center gap-3 hover:bg-white/[0.04] transition-colors group disabled:opacity-60"
+                className="w-full text-left rounded-xl border border-border bg-muted/40 px-4 py-3 flex items-center gap-3 hover:bg-muted transition-colors group disabled:opacity-60"
               >
                 {loadingId === report.id
                   ? <Loader2 className="h-4 w-4 text-emerald-400 shrink-0 animate-spin" />

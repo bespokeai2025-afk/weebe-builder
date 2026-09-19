@@ -110,7 +110,7 @@ export function DeploymentChecklistPanel({
 
   if (!deploymentId) {
     return (
-      <div className="rounded-lg border border-white/[0.08] bg-card/60 p-4 space-y-2">
+      <div className="rounded-lg border border-border bg-card/60 p-4 space-y-2">
         <div className="flex items-center gap-2 text-sm font-medium">
           <Rocket className="h-4 w-4 text-primary" />
           SystemMind guided deployment
@@ -168,7 +168,7 @@ export function DeploymentChecklistPanel({
   };
 
   return (
-    <div className="rounded-lg border border-white/[0.08] bg-card/60 p-4 space-y-4" data-testid="deployment-checklist-panel">
+    <div className="rounded-lg border border-border bg-card/60 p-4 space-y-4" data-testid="deployment-checklist-panel">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-sm font-medium">
           <Rocket className="h-4 w-4 text-primary" />
@@ -235,7 +235,7 @@ export function DeploymentChecklistPanel({
 
       {/* Telephony options */}
       {needsTelephony && !telephonyBlocked && cl.deployment.status !== "live" && (
-        <div className="rounded-md border border-white/[0.08] bg-white/[0.02] p-3 space-y-3">
+        <div className="rounded-md border border-border bg-muted/40 p-3 space-y-3">
           <div className="flex items-center gap-1.5 text-xs font-medium">
             <Phone className="h-3.5 w-3.5 text-primary" /> Phone number / SIP options
           </div>

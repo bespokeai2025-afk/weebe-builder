@@ -25,7 +25,7 @@ const SEVERITY_STYLE: Record<string, string> = {
   critical: "border-red-500/30 bg-red-500/[0.06] text-red-300",
   high:     "border-amber-500/30 bg-amber-500/[0.06] text-amber-300",
   medium:   "border-sky-500/30 bg-sky-500/[0.06] text-sky-300",
-  low:      "border-white/[0.08] bg-white/[0.03] text-muted-foreground",
+  low:      "border-border bg-muted/60 text-muted-foreground",
 };
 
 const SEVERITY_DOT: Record<string, string> = {
@@ -69,7 +69,7 @@ export function MarketingExecutiveSummary({
 
   if (selfFetch && isLoading) {
     return (
-      <div className={cn("rounded-xl border border-white/[0.07] bg-[hsl(var(--card))] px-4 py-6 flex items-center justify-center gap-2 text-muted-foreground", className)}>
+      <div className={cn("rounded-xl border border-border bg-[hsl(var(--card))] px-4 py-6 flex items-center justify-center gap-2 text-muted-foreground", className)}>
         <Loader2 className="h-4 w-4 animate-spin text-violet-400" />
         <span className="text-xs">Consulting GrowthMind…</span>
       </div>
@@ -78,7 +78,7 @@ export function MarketingExecutiveSummary({
 
   if (!gm) {
     return (
-      <div className={cn("rounded-xl border border-white/[0.07] bg-[hsl(var(--card))] px-4 py-5 text-center", className)}>
+      <div className={cn("rounded-xl border border-border bg-[hsl(var(--card))] px-4 py-5 text-center", className)}>
         <Megaphone className="h-6 w-6 text-violet-400/50 mx-auto mb-2" />
         <p className="text-xs text-muted-foreground">Marketing advisory unavailable right now</p>
       </div>
@@ -88,7 +88,7 @@ export function MarketingExecutiveSummary({
   return (
     <div className={cn("rounded-xl border border-violet-500/20 bg-gradient-to-br from-violet-500/[0.05] to-transparent overflow-hidden", className)}>
       {/* Header */}
-      <div className="px-4 py-3 border-b border-white/[0.06] flex items-center gap-3">
+      <div className="px-4 py-3 border-b border-border flex items-center gap-3">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/20 ring-1 ring-violet-500/30 shrink-0">
           <Megaphone className="h-4 w-4 text-violet-400" />
         </div>
@@ -117,7 +117,7 @@ export function MarketingExecutiveSummary({
                   <span className="text-muted-foreground">{r.label}</span>
                   <span className="tabular-nums font-medium">{r.score}/{r.max}</span>
                 </div>
-                <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                <div className="h-1.5 rounded-full bg-muted overflow-hidden">
                   <div className={cn("h-full rounded-full transition-all", BAR_COLOR[r.color])} style={{ width: `${r.pct}%` }} />
                 </div>
               </div>
@@ -174,7 +174,7 @@ export function MarketingExecutiveSummary({
           <Section icon={Lightbulb} iconClass="text-violet-400" label="CMO Recommendations">
             <div className="space-y-2">
               {gm.recommendedActions.slice(0, 4).map((a) => (
-                <div key={a.id} className="rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2.5">
+                <div key={a.id} className="rounded-lg border border-border bg-muted/40 px-3 py-2.5">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", SEVERITY_DOT[a.priority] ?? SEVERITY_DOT.low)} />
                     <p className="text-xs font-medium">{a.label}</p>
@@ -301,7 +301,7 @@ export function MarketingExecutiveSummary({
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-[10px] text-muted-foreground uppercase tracking-wide font-semibold">Missing:</span>
             {gm.missingMarketingAssets.map((m, i) => (
-              <span key={i} className="text-[10px] rounded border border-white/[0.08] bg-white/[0.03] px-1.5 py-0.5 text-muted-foreground">{m}</span>
+              <span key={i} className="text-[10px] rounded border border-border bg-muted/60 px-1.5 py-0.5 text-muted-foreground">{m}</span>
             ))}
           </div>
         )}

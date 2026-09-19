@@ -54,7 +54,7 @@ function DraftCard({
   const canPropose = ["draft", "needs_review"].includes(draft.status);
 
   return (
-    <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] overflow-hidden">
+    <div className="rounded-xl border border-border bg-muted/40 overflow-hidden">
       <div className="p-4">
         <div className="flex items-start gap-3">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-500/10 ring-1 ring-sky-500/20">
@@ -150,7 +150,7 @@ function DraftCard({
 
       {/* Expanded details */}
       {expanded && (
-        <div className="border-t border-white/[0.06] p-4 space-y-4">
+        <div className="border-t border-border p-4 space-y-4">
           {/* Validation */}
           {draft.validation_results_json.length > 0 && (
             <div>
@@ -317,7 +317,7 @@ export function WorkflowDraftsPage({ embedded = false }: { embedded?: boolean } 
                 "px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-colors",
                 statusFilter === s
                   ? "bg-sky-500/15 text-sky-300"
-                  : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
               )}
             >
               {s === "all"            && `All (${counts.all})`}

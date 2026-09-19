@@ -45,10 +45,10 @@ function MetricCard({
   const trendColor = flat ? "text-muted-foreground" : up ? "text-emerald-400" : "text-red-400";
 
   return (
-    <div className="rounded-xl border border-white/[0.08] bg-[hsl(var(--card))] px-4 py-4">
+    <div className="rounded-xl border border-border bg-[hsl(var(--card))] px-4 py-4">
       <div className="flex items-center justify-between mb-3">
         <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">{label}</p>
-        <div className={cn("flex h-7 w-7 items-center justify-center rounded-lg bg-white/[0.04]")}>
+        <div className={cn("flex h-7 w-7 items-center justify-center rounded-lg bg-muted")}>
           <Icon className={cn("h-3.5 w-3.5", color)} />
         </div>
       </div>
@@ -95,7 +95,7 @@ function RecommendationCard({
 }) {
   const p = { high: "text-red-400 bg-red-500/10 border-red-500/20", medium: "text-amber-400 bg-amber-500/10 border-amber-500/20", low: "text-blue-400 bg-blue-500/10 border-blue-500/20" }[rec.priority];
   return (
-    <div className="rounded-xl border border-white/[0.08] bg-[hsl(var(--card))] px-4 py-3 flex items-start gap-3">
+    <div className="rounded-xl border border-border bg-[hsl(var(--card))] px-4 py-3 flex items-start gap-3">
       <Lightbulb className="h-4 w-4 text-violet-400 shrink-0 mt-0.5" />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
@@ -159,7 +159,7 @@ function HiveMindBriefingPage() {
   return (
     <HiveMindShell>
       {/* Header */}
-      <div className="sticky top-0 z-20 border-b border-white/[0.07] bg-[hsl(var(--background))]/95 backdrop-blur-sm px-5 py-3 flex items-center gap-3">
+      <div className="sticky top-0 z-20 border-b border-border bg-[hsl(var(--background))]/95 backdrop-blur-sm px-5 py-3 flex items-center gap-3">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/20 ring-1 ring-violet-500/30 shrink-0">
           <Newspaper className="h-4 w-4 text-violet-400" />
         </div>
@@ -172,7 +172,7 @@ function HiveMindBriefingPage() {
         <div className="flex items-center gap-2">
           {proposeMsg && <p className="text-[11px] text-emerald-400 hidden sm:block">{proposeMsg}</p>}
           <button onClick={() => refetch()} disabled={isFetching}
-            className="flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-all disabled:opacity-40">
+            className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/60 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-all disabled:opacity-40">
             <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
             Refresh
           </button>
@@ -212,7 +212,7 @@ function HiveMindBriefingPage() {
 
           {/* Today's snapshot */}
           {(d.today.leads + d.today.bookings + d.today.calls > 0) && (
-            <div className="rounded-xl border border-white/[0.07] bg-[hsl(var(--card))] px-4 py-3">
+            <div className="rounded-xl border border-border bg-[hsl(var(--card))] px-4 py-3">
               <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-semibold mb-2">Today</p>
               <div className="flex flex-wrap gap-4">
                 {d.today.leads > 0 && <span className="text-xs"><span className="font-bold text-violet-300">{d.today.leads}</span> <span className="text-muted-foreground">new leads</span></span>}
@@ -225,7 +225,7 @@ function HiveMindBriefingPage() {
           {/* Performance spotlight */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {/* Top agent */}
-            <div className="rounded-xl border border-white/[0.08] bg-[hsl(var(--card))] px-4 py-3">
+            <div className="rounded-xl border border-border bg-[hsl(var(--card))] px-4 py-3">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-2 font-semibold">Top Agent</p>
               {d.topAgent ? (
                 <>
@@ -241,14 +241,14 @@ function HiveMindBriefingPage() {
             </div>
 
             {/* Conversion rate */}
-            <div className="rounded-xl border border-white/[0.08] bg-[hsl(var(--card))] px-4 py-3">
+            <div className="rounded-xl border border-border bg-[hsl(var(--card))] px-4 py-3">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-2 font-semibold">Conversion Rate</p>
               <p className="text-2xl font-bold tabular-nums">{d.conversionRate}%</p>
               <p className="text-[11px] text-muted-foreground mt-0.5">lead → sale</p>
             </div>
 
             {/* Costs */}
-            <div className="rounded-xl border border-white/[0.08] bg-[hsl(var(--card))] px-4 py-3">
+            <div className="rounded-xl border border-border bg-[hsl(var(--card))] px-4 py-3">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-2 font-semibold">AI Call Costs (30d)</p>
               <p className="text-2xl font-bold tabular-nums">{fmtDollar(d.costs.totalDollars)}</p>
               <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -259,7 +259,7 @@ function HiveMindBriefingPage() {
 
           {/* Lead velocity */}
           {(d.leadVelocity.thisMonth > 0 || d.leadVelocity.lastMonth > 0) && (
-            <div className="rounded-xl border border-white/[0.08] bg-[hsl(var(--card))] px-4 py-3">
+            <div className="rounded-xl border border-border bg-[hsl(var(--card))] px-4 py-3">
               <div className="flex items-center justify-between mb-3">
                 <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-semibold">Lead Velocity</p>
                 <div className={cn("flex items-center gap-1 text-xs font-medium",
@@ -291,8 +291,8 @@ function HiveMindBriefingPage() {
 
           {/* Agent rankings */}
           {d.agentRankings.length > 0 && (
-            <div className="rounded-xl border border-white/[0.08] bg-[hsl(var(--card))] overflow-hidden">
-              <div className="px-4 py-3 border-b border-white/[0.06]">
+            <div className="rounded-xl border border-border bg-[hsl(var(--card))] overflow-hidden">
+              <div className="px-4 py-3 border-b border-border">
                 <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-semibold">Agent Performance</p>
               </div>
               <div className="divide-y divide-white/[0.04]">

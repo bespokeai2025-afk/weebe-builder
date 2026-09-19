@@ -200,7 +200,7 @@ export function SystemMindKnowledgePage() {
             { label: "Processing", value: pendingCount,  color: "text-amber-400" },
             { label: "Failed",     value: failedCount,   color: "text-red-400" },
           ].map((s) => (
-            <div key={s.label} className="flex items-center gap-1.5 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+            <div key={s.label} className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-3 py-2">
               <span className={cn("text-base font-semibold", s.color)}>{s.value}</span>
               <span className="text-xs text-muted-foreground">{s.label}</span>
             </div>
@@ -210,7 +210,7 @@ export function SystemMindKnowledgePage() {
 
       {/* Upload dropzone */}
       <div
-        className="relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-white/[0.1] bg-white/[0.02] px-8 py-12 cursor-pointer hover:border-sky-500/40 hover:bg-sky-500/[0.03] transition-colors"
+        className="relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-border bg-muted/40 px-8 py-12 cursor-pointer hover:border-sky-500/40 hover:bg-sky-500/[0.03] transition-colors"
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
         onClick={() => fileRef.current?.click()}
@@ -241,7 +241,7 @@ export function SystemMindKnowledgePage() {
         <p className="text-xs text-muted-foreground mb-2 font-medium">Suggested categories to document:</p>
         <div className="flex flex-wrap gap-1.5">
           {CATEGORY_SUGGESTIONS.map((cat) => (
-            <Badge key={cat} variant="outline" className="text-[10px] text-muted-foreground border-white/[0.08]">
+            <Badge key={cat} variant="outline" className="text-[10px] text-muted-foreground border-border">
               {cat}
             </Badge>
           ))}
@@ -257,7 +257,7 @@ export function SystemMindKnowledgePage() {
         </h2>
 
         {!isLoading && docList.length === 0 && (
-          <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] py-10 text-center">
+          <div className="rounded-lg border border-border bg-muted/40 py-10 text-center">
             <FileText className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
             <p className="text-sm text-muted-foreground">No documents yet</p>
             <p className="text-xs text-muted-foreground/60 mt-0.5">Upload your first document above, or click "Seed Starter Knowledge"</p>
@@ -267,7 +267,7 @@ export function SystemMindKnowledgePage() {
         {docList.map((doc: any) => (
           <div
             key={doc.id}
-            className="flex items-center gap-3 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5"
+            className="flex items-center gap-3 rounded-lg border border-border bg-muted/40 px-3 py-2.5"
           >
             <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
             <div className="flex-1 min-w-0">

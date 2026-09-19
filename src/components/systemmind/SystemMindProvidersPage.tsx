@@ -84,7 +84,7 @@ function ProviderCard({ provider }: { provider: SystemMindProvider }) {
           {provider.keyPresent ? "Key ✓" : "No key"}
         </span>
         {provider.fallback && (
-          <span className="rounded bg-white/[0.05] px-1.5 py-0.5 text-[9px] text-muted-foreground/60">
+          <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground/60">
             Fallback → {provider.fallback}
           </span>
         )}
@@ -145,7 +145,7 @@ export function SystemMindProvidersPage() {
             { label: "Partial",   count: partial,   color: "text-amber-400" },
             { label: "Disconnected", count: disconnected, color: "text-red-400" },
           ].map((s) => (
-            <div key={s.label} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 text-center">
+            <div key={s.label} className="rounded-xl border border-border bg-muted/40 p-3 text-center">
               <p className={cn("text-2xl font-bold", s.color)}>{s.count}</p>
               <p className="text-[11px] text-muted-foreground">{s.label}</p>
             </div>
@@ -158,7 +158,7 @@ export function SystemMindProvidersPage() {
             <button key={f} onClick={() => setFilter(f)}
               className={cn(
                 "rounded-full px-3 py-1 text-[11px] font-medium capitalize transition-colors",
-                filter === f ? "bg-sky-500/20 text-sky-300" : "bg-white/[0.04] text-muted-foreground hover:bg-white/[0.08]",
+                filter === f ? "bg-sky-500/20 text-sky-300" : "bg-muted text-muted-foreground hover:bg-muted",
               )}>
               {f}
             </button>

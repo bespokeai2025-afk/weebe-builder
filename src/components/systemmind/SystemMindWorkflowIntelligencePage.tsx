@@ -35,7 +35,7 @@ function ConfidenceBadge({ value }: { value: number | null | undefined }) {
 
 function Chip({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <span className={cn("text-[10px] border border-white/[0.08] rounded px-1.5 py-0.5 text-muted-foreground", className)}>
+    <span className={cn("text-[10px] border border-border rounded px-1.5 py-0.5 text-muted-foreground", className)}>
       {children}
     </span>
   );
@@ -43,7 +43,7 @@ function Chip({ children, className }: { children: React.ReactNode; className?: 
 
 function Section({ icon: Icon, title, children }: { icon: React.ElementType; title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+    <div className="rounded-lg border border-border bg-muted/40 p-3">
       <p className="text-[11px] font-semibold flex items-center gap-1.5 mb-2">
         <Icon className="h-3.5 w-3.5 text-sky-400" /> {title}
       </p>
@@ -120,7 +120,7 @@ function DetailPanel({ id }: { id: string }) {
             <h3 className="text-sm font-semibold">{r.name}</h3>
             {r.active
               ? <Chip className="border-emerald-500/40 text-emerald-400">active</Chip>
-              : <Chip className="border-white/[0.08] text-muted-foreground/70">inactive</Chip>}
+              : <Chip className="border-border text-muted-foreground/70">inactive</Chip>}
             <ConfidenceBadge value={r.confidence} />
           </div>
           <div className="flex items-center gap-2 flex-wrap mt-1">
@@ -230,7 +230,7 @@ function DetailPanel({ id }: { id: string }) {
           <div className="flex gap-1 flex-wrap">
             {(r.node_count ?? 0) === 0 && <span className="text-[11px] text-muted-foreground/50">no nodes</span>}
             {(meta.nodeTypes ?? []).slice(0, 24).map((t: string) => (
-              <code key={t} className="text-[9px] bg-white/[0.04] border border-white/[0.05] rounded px-1 py-0.5 text-muted-foreground">{t}</code>
+              <code key={t} className="text-[9px] bg-muted border border-border rounded px-1 py-0.5 text-muted-foreground">{t}</code>
             ))}
           </div>
         </Section>
@@ -344,7 +344,7 @@ export function SystemMindWorkflowIntelligencePage() {
       {isLoading && <div className="flex justify-center py-16"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>}
 
       {!isLoading && configured && workflows.length === 0 && (
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] py-16 text-center">
+        <div className="rounded-xl border border-border bg-muted/40 py-16 text-center">
           <Network className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">No workflows discovered yet</p>
           <p className="text-xs text-muted-foreground/60 mt-1">Click “Re-scan” to catalog your n8n workflows.</p>
@@ -374,7 +374,7 @@ export function SystemMindWorkflowIntelligencePage() {
                     "w-full text-left rounded-lg border px-3 py-2.5 transition-colors",
                     selectedId === w.id
                       ? "border-sky-500/40 bg-sky-500/[0.08]"
-                      : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04]",
+                      : "border-border bg-muted/40 hover:bg-muted",
                   )}
                 >
                   <div className="flex items-center gap-2">
@@ -403,7 +403,7 @@ export function SystemMindWorkflowIntelligencePage() {
           </div>
 
           {/* Detail */}
-          <div className="rounded-xl border border-white/[0.06] bg-white/[0.01] p-4 min-h-[60vh]">
+          <div className="rounded-xl border border-border bg-muted/20 p-4 min-h-[60vh]">
             {selectedId
               ? <DetailPanel id={selectedId} />
               : (

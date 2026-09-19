@@ -206,7 +206,7 @@ export function SystemMindChatPage() {
     <SystemMindShell>
       <div className="flex flex-col h-full">
         {/* Header */}
-        <div className="border-b border-white/[0.06] px-6 py-4 flex items-center gap-3 shrink-0">
+        <div className="border-b border-border px-6 py-4 flex items-center gap-3 shrink-0">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/20 ring-1 ring-sky-500/30">
             <MessageSquare className="h-4 w-4 text-sky-400" />
           </div>
@@ -222,7 +222,7 @@ export function SystemMindChatPage() {
                 "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-colors",
                 voiceEnabled
                   ? "bg-sky-500/20 text-sky-300 ring-1 ring-sky-500/40"
-                  : "bg-white/[0.04] text-muted-foreground hover:bg-white/[0.08]",
+                  : "bg-muted text-muted-foreground hover:bg-muted",
               )}
             >
               {voiceEnabled ? <Mic className="h-3.5 w-3.5" /> : <MicOff className="h-3.5 w-3.5" />}
@@ -258,7 +258,7 @@ export function SystemMindChatPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-lg">
                 {STARTERS.map((s) => (
                   <button key={s} onClick={() => send(s)}
-                    className="text-left rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 text-xs text-muted-foreground hover:bg-white/[0.05] hover:text-foreground transition-colors">
+                    className="text-left rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
                     {s}
                   </button>
                 ))}
@@ -276,7 +276,7 @@ export function SystemMindChatPage() {
                   "max-w-[80%] rounded-xl px-3.5 py-2.5 text-xs leading-relaxed whitespace-pre-wrap",
                   m.role === "user"
                     ? "bg-sky-500/15 text-sky-100 rounded-br-sm"
-                    : "border border-white/[0.06] bg-white/[0.03] text-foreground rounded-bl-sm",
+                    : "border border-border bg-muted/60 text-foreground rounded-bl-sm",
                 )}>
                   {m.content || (m.streaming ? (
                     <span className="flex items-center gap-1.5 text-muted-foreground">
@@ -289,7 +289,7 @@ export function SystemMindChatPage() {
                   )}
                 </div>
                 {m.role === "user" && (
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/[0.08] mt-0.5">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted mt-0.5">
                     <User className="h-3.5 w-3.5" />
                   </div>
                 )}
@@ -300,7 +300,7 @@ export function SystemMindChatPage() {
         </div>
 
         {/* Input bar */}
-        <div className="border-t border-white/[0.06] px-4 md:px-8 py-4 shrink-0">
+        <div className="border-t border-border px-4 md:px-8 py-4 shrink-0">
           <div className="flex gap-2 max-w-3xl mx-auto">
             {voiceEnabled && (
               <button
@@ -310,7 +310,7 @@ export function SystemMindChatPage() {
                   "self-end rounded-xl border px-3 py-2.5 transition-colors shrink-0",
                   listening
                     ? "border-sky-500/50 bg-sky-500/20 text-sky-400 animate-pulse"
-                    : "border-white/[0.08] bg-white/[0.03] text-muted-foreground hover:text-sky-400 hover:border-sky-500/30",
+                    : "border-border bg-muted/60 text-muted-foreground hover:text-sky-400 hover:border-sky-500/30",
                 )}
               >
                 {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
@@ -322,7 +322,7 @@ export function SystemMindChatPage() {
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
               placeholder={voiceEnabled && listening ? "Listening…" : "Ask SystemMind anything about your platform…"}
               rows={1}
-              className="flex-1 resize-none rounded-xl border border-white/[0.08] bg-white/[0.03] px-3.5 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-sky-500/50 min-h-[40px] max-h-32"
+              className="flex-1 resize-none rounded-xl border border-border bg-muted/60 px-3.5 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-sky-500/50 min-h-[40px] max-h-32"
             />
             <Button size="sm" onClick={() => send()} disabled={!input.trim() || sending} className="self-end bg-sky-600 hover:bg-sky-500 text-white shrink-0">
               {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}

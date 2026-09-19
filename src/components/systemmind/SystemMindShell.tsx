@@ -95,7 +95,7 @@ function NavLink({ label, href, icon: Icon, active }: NavItem & { active: boolea
         "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors",
         active
           ? "bg-sky-500/15 text-sky-300"
-          : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
+          : "text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
     >
       <Icon className={cn("h-3.5 w-3.5 shrink-0", active && "text-sky-400")} />
@@ -159,7 +159,7 @@ export function SystemMindShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-full min-h-0 w-full">
       {/* Left sidebar */}
-      <aside className="hidden md:flex w-56 shrink-0 flex-col border-r border-white/[0.06] bg-[hsl(var(--sidebar-background))] py-4 overflow-y-auto">
+      <aside className="hidden md:flex w-56 shrink-0 flex-col border-r border-border bg-[hsl(var(--sidebar-background))] py-4 overflow-y-auto">
         <div className="px-4 mb-5">
           <div className="flex items-center gap-2.5">
             <div className="flex h-7 w-7 items-center justify-center rounded-md bg-sky-500/20 ring-1 ring-sky-500/30">
@@ -201,7 +201,7 @@ export function SystemMindShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Mobile nav */}
-      <div className="flex md:hidden border-b border-white/[0.06] overflow-x-auto shrink-0 w-full">
+      <div className="flex md:hidden border-b border-border overflow-x-auto shrink-0 w-full">
         {allItems.map(({ label, href, icon: Icon }) => {
           const active = isActive(href);
           return (

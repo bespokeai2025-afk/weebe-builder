@@ -129,7 +129,7 @@ function HiveMindSystemHealth() {
           <div className="space-y-6">
 
             {/* Summary bar */}
-            <div className="flex items-center gap-4 rounded-xl border border-white/[0.06] bg-card/60 px-5 py-4 flex-wrap">
+            <div className="flex items-center gap-4 rounded-xl border border-border bg-card/60 px-5 py-4 flex-wrap">
               <div>
                 <p className="text-2xl font-bold tabular-nums">
                   <span className={connectedCount === totalCount ? "text-emerald-400" : connectedCount > totalCount / 2 ? "text-amber-400" : "text-red-400"}>
@@ -139,7 +139,7 @@ function HiveMindSystemHealth() {
                 </p>
                 <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-[0.1em]">Services connected</p>
               </div>
-              <div className="flex-1 h-2 rounded-full bg-white/[0.06] overflow-hidden min-w-[100px]">
+              <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden min-w-[100px]">
                 <div
                   className={cn("h-full rounded-full transition-all",
                     connectedCount === totalCount ? "bg-emerald-500" : connectedCount > totalCount / 2 ? "bg-amber-500" : "bg-red-500"
@@ -212,10 +212,10 @@ function HiveMindSystemHealth() {
             {(data?.phoneNumbers?.length ?? 0) > 0 && (
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mb-2">Phone Number Status</p>
-                <div className="rounded-xl border border-white/[0.06] overflow-hidden">
+                <div className="rounded-xl border border-border overflow-hidden">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-white/[0.06] bg-white/[0.015]">
+                      <tr className="border-b border-border bg-muted/25">
                         {["Number", "Status", "Agent Assigned"].map(h => (
                           <th key={h} className="px-4 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{h}</th>
                         ))}
@@ -223,7 +223,7 @@ function HiveMindSystemHealth() {
                     </thead>
                     <tbody className="divide-y divide-white/[0.04]">
                       {data.phoneNumbers.map((p: any) => (
-                        <tr key={p.id} className="hover:bg-white/[0.015]">
+                        <tr key={p.id} className="hover:bg-muted/25">
                           <td className="px-4 py-2.5 font-mono text-xs">{p.phone_number}</td>
                           <td className="px-4 py-2.5">
                             {p.active !== false
