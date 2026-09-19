@@ -40,7 +40,7 @@ export function TablePagBar({
   const to   = Math.min(page * pageSize, total);
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/[0.06] px-2.5 py-1.5 text-[11px] text-muted-foreground select-none">
+    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-2.5 py-1.5 text-[11px] text-muted-foreground select-none">
       <div className="flex min-w-0 items-center gap-2">
         <span>Rows per page</span>
         <select
@@ -57,7 +57,7 @@ export function TablePagBar({
           <button
             onClick={() => setPage(page - 1)}
             disabled={page <= 1}
-            className="flex h-6 w-6 items-center justify-center rounded hover:bg-white/[0.06] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="flex h-6 w-6 items-center justify-center rounded hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
           </button>
@@ -65,7 +65,7 @@ export function TablePagBar({
           <button
             onClick={() => setPage(page + 1)}
             disabled={page >= totalPages}
-            className="flex h-6 w-6 items-center justify-center rounded hover:bg-white/[0.06] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="flex h-6 w-6 items-center justify-center rounded hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
             <ChevronRight className="h-3.5 w-3.5" />
           </button>

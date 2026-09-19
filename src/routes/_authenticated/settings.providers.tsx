@@ -181,14 +181,14 @@ function WebespokeEnterpriseSection() {
   return (
     <div>
       <div className="flex items-center gap-2 mb-3">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/[0.04] border border-white/[0.06]">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted border border-border">
           <Building2 className="h-3.5 w-3.5 text-violet-400" />
         </div>
         <h2 className="text-sm font-semibold">Enterprise Integrations</h2>
         <span className="text-[10px] text-muted-foreground">client data is fully isolated</span>
       </div>
 
-      <div className="rounded-xl border border-white/[0.06] bg-card/60 p-4 space-y-4">
+      <div className="rounded-xl border border-border bg-card/60 p-4 space-y-4">
 
         {/* ── Header row ── */}
         <div className="flex items-start gap-3">
@@ -236,7 +236,7 @@ function WebespokeEnterpriseSection() {
                   { icon: Users,     label: "Buyers",  count: stat.buyersCount  },
                   { icon: UserCheck, label: "Dealers", count: stat.dealersCount },
                 ]).map(c => (
-                  <div key={c.label} className="rounded-lg bg-muted/30 border border-white/[0.04] p-2.5 flex items-center gap-2">
+                  <div key={c.label} className="rounded-lg bg-muted/30 border border-border/60 p-2.5 flex items-center gap-2">
                     <c.icon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                     <div>
                       <p className="text-sm font-semibold tabular-nums leading-none">{c.count}</p>
@@ -600,7 +600,7 @@ function CredentialForm({
   const requiredFilled = fields.filter(f => f.required).every(f => values[f.key]?.trim());
 
   return (
-    <div className="mt-3 rounded-lg border border-white/[0.08] bg-black/20 p-3 space-y-2.5">
+    <div className="mt-3 rounded-lg border border-border bg-black/20 p-3 space-y-2.5">
       {fields.map((field) => (
         <div key={field.key}>
           <Label className="text-[10px] font-medium text-muted-foreground mb-1 block">
@@ -697,7 +697,7 @@ function UsageStatsBar({ stats }: { stats: ProviderUsageStat }) {
   return (
     <div className="mb-2">
       <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/50 mb-1">Last 30 days</p>
-    <div className="grid grid-cols-4 gap-px rounded-lg border border-white/[0.06] bg-white/[0.03] overflow-hidden">
+    <div className="grid grid-cols-4 gap-px rounded-lg border border-border bg-muted/60 overflow-hidden">
       <div className="flex flex-col items-center py-1.5 px-1 bg-black/10">
         <span className="text-[11px] font-semibold tabular-nums leading-none">
           {stats.requests >= 1000
@@ -789,9 +789,9 @@ function ProviderCard({
       className={cn(
         "rounded-xl border p-3.5 transition-colors",
         isConnected  ? "border-emerald-500/15 bg-emerald-500/[0.03]" :
-        isComingSoon ? "border-white/[0.04] bg-white/[0.01] opacity-60" :
+        isComingSoon ? "border-border/60 bg-muted/30 opacity-60" :
         formOpen     ? "border-violet-500/20 bg-violet-500/[0.02]" :
-        "border-white/[0.05] bg-white/[0.02]",
+        "border-border bg-muted/40",
       )}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
@@ -810,7 +810,7 @@ function ProviderCard({
 
       {/* Controls for connected providers */}
       {isConnected && (
-        <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-white/[0.05]">
+        <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-border">
           <Button
             size="sm"
             variant={provider.isDefault ? "secondary" : "ghost"}
@@ -959,7 +959,7 @@ function CostRateInline({
   }
 
   return (
-    <div className="mt-2 rounded-lg border border-white/[0.08] bg-black/20 p-3 space-y-2">
+    <div className="mt-2 rounded-lg border border-border bg-black/20 p-3 space-y-2">
       <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Cost Rate Override</p>
       <div className="flex gap-2">
         <div className="flex-1">
@@ -1051,7 +1051,7 @@ function WbahAgentReconcileSection() {
     report && ((report.orphaned?.length ?? 0) > 0 || (report.missing?.length ?? 0) > 0 || (report.duplicates?.length ?? 0) > 0);
 
   return (
-    <div className="mb-8 rounded-xl border border-white/[0.06] bg-card/60 p-5">
+    <div className="mb-8 rounded-xl border border-border bg-card/60 p-5">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <UserCheck className="h-4 w-4 text-blue-400" />
@@ -1236,7 +1236,7 @@ function ProvidersSettingsPage() {
                 { label: "Total Spend", value: `$${totalSpend.toFixed(4)}`,           sub: "all time",        icon: DollarSign,    color: "text-emerald-400" },
                 { label: "Errors",      value: String(recentErrors),                  sub: "all time",        icon: AlertTriangle, color: recentErrors > 0 ? "text-red-400" : "text-muted-foreground" },
               ].map((card) => (
-                <div key={card.label} className="rounded-xl border border-white/[0.06] bg-card/60 px-4 py-3">
+                <div key={card.label} className="rounded-xl border border-border bg-card/60 px-4 py-3">
                   <div className="flex items-center gap-2 mb-1">
                     <card.icon className={cn("h-3.5 w-3.5", card.color)} />
                     <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{card.label}</span>
@@ -1271,7 +1271,7 @@ function ProvidersSettingsPage() {
               return (
                 <div key={cat}>
                   <div className="flex items-center gap-2 mb-3">
-                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/[0.04] border border-white/[0.06]">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted border border-border">
                       <Icon className={cn("h-3.5 w-3.5", meta.color)} />
                     </div>
                     <h2 className="text-sm font-semibold">{meta.label}</h2>

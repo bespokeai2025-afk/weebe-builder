@@ -82,7 +82,7 @@ function HealthBadge({ route, base }: { route: string | null; base: string }) {
 // ── Env var row ────────────────────────────────────────────────────────────────
 function EnvRow({ k, present, required }: { k: string; present: boolean; required: boolean }) {
   return (
-    <div className="flex items-center justify-between py-1.5 border-b border-white/[0.04] last:border-0">
+    <div className="flex items-center justify-between py-1.5 border-b border-border/60 last:border-0">
       <code className="text-xs font-mono text-sky-300/80">{k}</code>
       <div className="flex items-center gap-2">
         {required && !present && (
@@ -290,9 +290,9 @@ function ProductionReadinessPage() {
                 { label: "WebSocket / SSE",  value: "✓ Supported",        note: "srvx preserves WS upgrade + SSE streams" },
                 { label: "Static Assets",    value: "dist/client",        note: "Served via srvx --static=../client" },
               ].map(row => (
-                <div key={row.label} className="flex items-center justify-between gap-4 py-1 border-b border-white/[0.04] last:border-0">
+                <div key={row.label} className="flex items-center justify-between gap-4 py-1 border-b border-border/60 last:border-0">
                   <span className="text-muted-foreground w-36 shrink-0">{row.label}</span>
-                  <code className="font-mono text-[11px] bg-white/[0.04] px-2 py-0.5 rounded">{row.value}</code>
+                  <code className="font-mono text-[11px] bg-muted px-2 py-0.5 rounded">{row.value}</code>
                   <span className="text-[10px] text-muted-foreground/60 text-right min-w-0 truncate">{row.note}</span>
                 </div>
               ))}
@@ -345,7 +345,7 @@ function ProductionReadinessPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               {data.webhooks.map(w => (
-                <div key={w.id} className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+                <div key={w.id} className="rounded-lg border border-border bg-muted/40 p-3">
                   <div className="flex items-start justify-between gap-3 mb-1.5">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-xs font-medium">{w.label}</span>
@@ -401,7 +401,7 @@ function ProductionReadinessPage() {
               <Accordion type="multiple" className="w-full">
 
                 {/* Supabase */}
-                <AccordionItem value="supabase" className="border-b border-white/[0.05] px-6">
+                <AccordionItem value="supabase" className="border-b border-border px-6">
                   <AccordionTrigger className="text-xs py-3 hover:no-underline">
                     <span className="flex items-center gap-2">
                       <span className="text-emerald-400 font-semibold">Supabase</span>
@@ -416,7 +416,7 @@ function ProductionReadinessPage() {
                       { label: "Redirect URL", value: `${data.productionUrl}/login` },
                       { label: "Redirect URL", value: `${data.productionUrl}/signup` },
                     ].map((row, i) => (
-                      <div key={i} className="flex items-center justify-between rounded bg-white/[0.03] border border-white/[0.06] px-2.5 py-1.5">
+                      <div key={i} className="flex items-center justify-between rounded bg-muted/60 border border-border px-2.5 py-1.5">
                         <span className="text-muted-foreground w-24 shrink-0">{row.label}</span>
                         <code className="font-mono text-sky-300/80 flex-1 mx-2">{row.value}</code>
                         <CopyBtn text={row.value} />
@@ -426,7 +426,7 @@ function ProductionReadinessPage() {
                 </AccordionItem>
 
                 {/* DNS */}
-                <AccordionItem value="dns" className="border-b border-white/[0.05] px-6">
+                <AccordionItem value="dns" className="border-b border-border px-6">
                   <AccordionTrigger className="text-xs py-3 hover:no-underline">
                     <span className="flex items-center gap-2">
                       <span className="text-sky-400 font-semibold">DNS</span>
@@ -437,11 +437,11 @@ function ProductionReadinessPage() {
                     <p className="text-muted-foreground">
                       In your DNS provider, point <code className="font-mono">www.webeebuilder.com</code> to your Replit deployment domain. Exact records are shown in <strong>Replit → Deploy → Custom Domain</strong>.
                     </p>
-                    <div className="rounded bg-white/[0.03] border border-white/[0.06] p-3 space-y-1.5 font-mono text-[10px]">
+                    <div className="rounded bg-muted/60 border border-border p-3 space-y-1.5 font-mono text-[10px]">
                       <div><span className="text-muted-foreground">Type:</span> CNAME</div>
                       <div><span className="text-muted-foreground">Name:</span> www</div>
                       <div><span className="text-muted-foreground">Value:</span> &lt;shown in Replit Deploy settings&gt;</div>
-                      <div className="mt-1 border-t border-white/[0.06] pt-1">
+                      <div className="mt-1 border-t border-border pt-1">
                         <span className="text-muted-foreground">Also add:</span> CNAME @ (apex) or A record if your registrar supports ALIAS
                       </div>
                     </div>
@@ -449,7 +449,7 @@ function ProductionReadinessPage() {
                 </AccordionItem>
 
                 {/* Stripe */}
-                <AccordionItem value="stripe" className="border-b border-white/[0.05] px-6">
+                <AccordionItem value="stripe" className="border-b border-border px-6">
                   <AccordionTrigger className="text-xs py-3 hover:no-underline">
                     <span className="flex items-center gap-2">
                       <span className="text-violet-400 font-semibold">Stripe</span>
@@ -460,7 +460,7 @@ function ProductionReadinessPage() {
                     <p className="text-muted-foreground">
                       Go to <strong>Stripe Dashboard → Developers → Webhooks → Add endpoint</strong>
                     </p>
-                    <div className="flex items-center rounded bg-white/[0.03] border border-white/[0.06] px-2.5 py-1.5">
+                    <div className="flex items-center rounded bg-muted/60 border border-border px-2.5 py-1.5">
                       <code className="font-mono text-sky-300/80 flex-1">{data.productionUrl}/api/public/payments/webhook</code>
                       <CopyBtn text={`${data.productionUrl}/api/public/payments/webhook`} />
                     </div>
@@ -469,7 +469,7 @@ function ProductionReadinessPage() {
                 </AccordionItem>
 
                 {/* Meta WhatsApp */}
-                <AccordionItem value="meta" className="border-b border-white/[0.05] px-6">
+                <AccordionItem value="meta" className="border-b border-border px-6">
                   <AccordionTrigger className="text-xs py-3 hover:no-underline">
                     <span className="flex items-center gap-2">
                       <span className="text-green-400 font-semibold">Meta</span>
@@ -483,7 +483,7 @@ function ProductionReadinessPage() {
                     <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
                       <li>Set Callback URL to your workspace URL:</li>
                     </ol>
-                    <div className="flex items-center rounded bg-white/[0.03] border border-white/[0.06] px-2.5 py-1.5">
+                    <div className="flex items-center rounded bg-muted/60 border border-border px-2.5 py-1.5">
                       <code className="font-mono text-sky-300/80 flex-1">{data.productionUrl}/api/public/whatsapp-webhook/<span className="text-amber-300">{"{workspaceId}"}</span></code>
                       <CopyBtn text={`${data.productionUrl}/api/public/whatsapp-webhook/{workspaceId}`} />
                     </div>
@@ -508,7 +508,7 @@ function ProductionReadinessPage() {
                       { label: "Status callback", value: `${data.productionUrl}/api/public/frejun/status` },
                       { label: "Flow events",     value: `${data.productionUrl}/api/public/frejun/flow` },
                     ].map((row, i) => (
-                      <div key={i} className="flex items-center rounded bg-white/[0.03] border border-white/[0.06] px-2.5 py-1.5">
+                      <div key={i} className="flex items-center rounded bg-muted/60 border border-border px-2.5 py-1.5">
                         <span className="text-muted-foreground w-28 shrink-0">{row.label}</span>
                         <code className="font-mono text-sky-300/80 flex-1 min-w-0 truncate">{row.value}</code>
                         <CopyBtn text={row.value} />
@@ -535,7 +535,7 @@ function ProductionReadinessPage() {
               </CardHeader>
               <CardContent className="space-y-1.5">
                 {(expandedLog ? updateLog : updateLog.slice(0, 5)).map((row: any) => (
-                  <div key={row.id} className="flex items-center gap-3 text-[10px] rounded bg-white/[0.02] border border-white/[0.04] px-2.5 py-1.5">
+                  <div key={row.id} className="flex items-center gap-3 text-[10px] rounded bg-muted/40 border border-border/60 px-2.5 py-1.5">
                     <span className={cn(
                       "shrink-0 font-semibold",
                       row.status === "success" ? "text-emerald-400" : row.status === "skipped" ? "text-muted-foreground" : "text-red-400",

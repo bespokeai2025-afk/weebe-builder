@@ -25,7 +25,7 @@ function UsageMeter({
   const over   = cap != null && value > cap;
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-card/60 p-4">
+    <div className="rounded-xl border border-border bg-card/60 p-4">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${color}/15 ring-1 ${color}/25`}>
@@ -48,7 +48,7 @@ function UsageMeter({
         {cap == null && <span className="text-xs text-muted-foreground">No limit set</span>}
       </div>
       {cap != null && (
-        <div className="h-1.5 w-full bg-white/[0.06] rounded-full overflow-hidden">
+        <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
           <div
             className={`h-full rounded-full transition-all duration-500 ${over ? "bg-red-500" : atRisk ? "bg-amber-500" : "bg-emerald-500"}`}
             style={{ width: `${pct}%` }}
@@ -61,7 +61,7 @@ function UsageMeter({
 
 function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-card/60 p-4">
+    <div className="rounded-xl border border-border bg-card/60 p-4">
       <p className="text-xs text-muted-foreground mb-1">{label}</p>
       <p className="text-xl font-bold tabular-nums">{value}</p>
       {sub && <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>}
@@ -159,7 +159,7 @@ function UsageDashboardPage() {
       {data.topProviders.length > 0 && (
         <div>
           <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Top Cost Drivers</h2>
-          <div className="rounded-xl border border-white/[0.06] bg-card/60 divide-y divide-white/[0.04]">
+          <div className="rounded-xl border border-border bg-card/60 divide-y divide-white/[0.04]">
             {data.topProviders.map(p => (
               <div key={p.provider} className="flex items-center justify-between px-4 py-3">
                 <span className="text-sm capitalize">{p.provider.replace(/_/g, " ")}</span>

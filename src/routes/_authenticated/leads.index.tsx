@@ -856,10 +856,10 @@ function LeadsPage() {
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
-          <h1 className="text-sm font-semibold tracking-tight">
+          <h1 className="text-xl font-semibold tracking-tight">
             {isWbah ? "Positive / Neutral Leads" : "Leads"}
           </h1>
-          <p className="text-[10px] text-muted-foreground mt-0.5">
+          <p className="text-caption text-muted-foreground mt-0.5">
             {isWbah
               ? "Already-called leads with positive or neutral sentiment — newest first"
               : "Lead Generation intelligence — updated automatically after every call"}
@@ -869,8 +869,7 @@ function LeadsPage() {
           {tab === "leads" && scheduledCount > 0 && (
             <Button
               size="sm"
-              variant="outline"
-              className="border-purple-500/30 text-purple-400 hover:text-purple-300"
+              variant="secondary"
               onClick={handleFireScheduled}
               disabled={firingScheduled}
             >
@@ -883,19 +882,19 @@ function LeadsPage() {
             </Button>
           )}
           {tab === "leads" && !isWbah && selectedIds.size > 0 && (
-            <Button size="sm" variant="outline" className="border-blue-500/30 text-blue-400 hover:text-blue-300" onClick={openQualDialog}>
+            <Button size="sm" variant="default" onClick={openQualDialog}>
               <ShieldCheck className="mr-1 h-4 w-4" />
               Qualify {selectedIds.size} Lead{selectedIds.size !== 1 ? "s" : ""}
             </Button>
           )}
           {tab === "leads" && !isWbah && selectedIds.size > 0 && canAssign && (
-            <Button size="sm" variant="outline" className="border-emerald-500/30 text-emerald-400 hover:text-emerald-300" onClick={() => setAssignDialogOpen(true)}>
+            <Button size="sm" variant="secondary" onClick={() => setAssignDialogOpen(true)}>
               <UserPlus className="mr-1 h-4 w-4" />
               Assign {selectedIds.size}
             </Button>
           )}
           {tab === "leads" && !isWbah && selectedIds.size > 0 && (
-            <Button size="sm" variant="outline" className="border-red-500/30 text-red-400 hover:text-red-300" onClick={openRemoveDialog}>
+            <Button size="sm" variant="destructive" onClick={openRemoveDialog}>
               <Trash2 className="mr-1 h-4 w-4" />
               Remove {selectedIds.size} Lead{selectedIds.size !== 1 ? "s" : ""}
             </Button>
@@ -968,8 +967,8 @@ function LeadsPage() {
 
       {/* Lead Intelligence Tab */}
       {tab === "leads" && (
-        <div className="min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
-          <div className="flex flex-col gap-1.5 border-b border-white/[0.06] px-2.5 py-1.5 sm:px-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0 overflow-hidden rounded-xl border border-border bg-card/60">
+          <div className="flex flex-col gap-1.5 border-b border-border px-2.5 py-1.5 sm:px-3 lg:flex-row lg:items-center lg:justify-between">
             <p className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
               {isWbah ? "Positive / Neutral Leads" : "Lead Records"}
               {hasLeadFilters && (
@@ -1002,7 +1001,7 @@ function LeadsPage() {
                 aria-label="Lead Status"
                 value={leadStatusCat}
                 onChange={(e) => setLeadStatusCat(e.target.value as LeadStatusCategory)}
-                className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                className="h-6 rounded-md border border-border bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
               >
                 {LEAD_STATUS_CATEGORIES.map((c) => (
                   <option key={c.value} value={c.value}>
@@ -1013,7 +1012,7 @@ function LeadsPage() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                className="h-6 rounded-md border border-border bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
               >
                 <option value="">All Statuses</option>
                 {STATUS_OPTIONS.map((o) => (
@@ -1023,7 +1022,7 @@ function LeadsPage() {
               <select
                 value={sentimentFilter}
                 onChange={(e) => setSentimentFilter(e.target.value)}
-                className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                className="h-6 rounded-md border border-border bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
               >
                 <option value="">All Sentiments</option>
                 <option value="positive">Positive</option>
@@ -1033,7 +1032,7 @@ function LeadsPage() {
               <select
                 value={originFilter}
                 onChange={(e) => setOriginFilter(e.target.value)}
-                className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                className="h-6 rounded-md border border-border bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
                 title="Lead source / origin"
               >
                 {ORIGIN_FILTER_OPTIONS.map((o) => (
@@ -1044,7 +1043,7 @@ function LeadsPage() {
                 <select
                   value={callStatusFilter}
                   onChange={(e) => setCallStatusFilter(e.target.value)}
-                  className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                  className="h-6 rounded-md border border-border bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
                 >
                   <option value="">All Call Statuses</option>
                   <option value="completed">Completed</option>
@@ -1056,7 +1055,7 @@ function LeadsPage() {
               <select
                 value={leadsDuration}
                 onChange={(e) => setLeadsDuration(e.target.value)}
-                className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                className="h-6 rounded-md border border-border bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
                 title="Call duration"
               >
                 <option value="">Any duration</option>
@@ -1069,7 +1068,7 @@ function LeadsPage() {
               <select
                 value={leadsOutcome}
                 onChange={(e) => setLeadsOutcome(e.target.value)}
-                className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                className="h-6 rounded-md border border-border bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
                 title="Call outcome"
               >
                 <option value="">All Outcomes</option>
@@ -1079,7 +1078,7 @@ function LeadsPage() {
               <select
                 value={wbahDaysFilter}
                 onChange={(e) => setWbahDaysFilter(e.target.value)}
-                className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                className="h-6 rounded-md border border-border bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
               >
                 <option value="today">Today</option>
                 <option value="yesterday">Yesterday</option>
@@ -1098,7 +1097,7 @@ function LeadsPage() {
                     value={leadsFrom}
                     max={leadsTo || undefined}
                     onChange={(e) => setLeadsFrom(e.target.value)}
-                    className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                    className="h-6 rounded-md border border-border bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
                     title="From date"
                   />
                   <span className="text-[11px] text-muted-foreground">to</span>
@@ -1107,7 +1106,7 @@ function LeadsPage() {
                     value={leadsTo}
                     min={leadsFrom || undefined}
                     onChange={(e) => setLeadsTo(e.target.value)}
-                    className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                    className="h-6 rounded-md border border-border bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
                     title="To date"
                   />
                 </div>
@@ -1116,7 +1115,7 @@ function LeadsPage() {
                 <select
                   value={wbahAgentFilter}
                   onChange={(e) => setWbahAgentFilter(e.target.value)}
-                  className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                  className="h-6 rounded-md border border-border bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
                 >
                   <option value="all">All agents</option>
                   {wbahAgentOptions.map((a) => (
@@ -1128,7 +1127,7 @@ function LeadsPage() {
                 <select
                   value={agentFilter}
                   onChange={(e) => setAgentFilter(e.target.value)}
-                  className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                  className="h-6 rounded-md border border-border bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
                   title="Filter by agent"
                 >
                   <option value="all">All agents</option>
@@ -1149,7 +1148,7 @@ function LeadsPage() {
               )}
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-1.5 border-b border-white/[0.06] px-2.5 py-1.5 sm:px-3">
+          <div className="flex flex-wrap items-center gap-1.5 border-b border-border px-2.5 py-1.5 sm:px-3">
               <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mr-1">Quick filter</span>
               {[
                 { value: "positive", label: "Positive" },
@@ -1165,7 +1164,7 @@ function LeadsPage() {
                     className={`rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 transition-colors ${
                       active
                         ? "bg-primary/15 text-primary ring-primary/30"
-                        : "bg-card/80 text-muted-foreground ring-white/[0.08] hover:text-foreground hover:ring-white/20"
+                        : "bg-card/80 text-muted-foreground ring-border hover:text-foreground hover:ring-foreground/20"
                     }`}
                   >
                     {c.label}
@@ -1189,7 +1188,7 @@ function LeadsPage() {
               <div className="min-w-0 overflow-x-auto">
                 <table className="w-full text-[11px]">
                   <thead>
-                    <tr className="border-b border-white/[0.06] bg-card/30">
+                    <tr className="border-b border-border bg-card/30">
                       <th className={cn("px-2 py-1 w-8", isWbah && cn(stickyHead, "left-0"))}>
                         <Checkbox
                           checked={selectedIds.size === filtered.length && filtered.length > 0}
@@ -1232,7 +1231,7 @@ function LeadsPage() {
                     {leadsPag.sliced.map((lead: any) => (
                       <tr
                         key={lead.id}
-                        className={`group h-8 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors ${selectedIds.has(lead.id) ? "bg-blue-500/5" : ""}`}
+                        className={`group h-8 border-b border-border/60 align-middle hover:bg-muted/40 transition-colors ${selectedIds.has(lead.id) ? "bg-blue-500/5" : ""}`}
                       >
                         <td className={cn("px-2 py-0.5", isWbah && cn(stickyCell, "left-0 w-8"))}>
                           <Checkbox
