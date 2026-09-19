@@ -553,7 +553,7 @@ export function AppSidebar() {
     <Sidebar
       collapsible="icon"
       className={cn(
-        "border-r border-white/[0.06]",
+        "border-r border-border",
         "bg-[linear-gradient(180deg,hsl(var(--sidebar-background))_0%,hsl(var(--sidebar-background))_100%)]",
         "backdrop-blur-xl",
       )}
@@ -564,7 +564,7 @@ export function AppSidebar() {
             <button
               className={cn(
                 "group flex w-full items-center gap-2.5 rounded-lg px-1.5 py-1.5 text-left transition-all duration-200",
-                "hover:bg-white/[0.04]",
+                "hover:bg-muted",
                 "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
               )}
             >
@@ -610,7 +610,7 @@ export function AppSidebar() {
         </DropdownMenu>
       </SidebarHeader>
 
-      <div className="mx-2 my-1 h-px bg-white/[0.05] group-data-[collapsible=icon]:mx-1.5" />
+      <div className="mx-2 my-1 h-px bg-muted group-data-[collapsible=icon]:mx-1.5" />
 
       <SidebarContent className="px-1.5 pt-2 group-data-[collapsible=icon]:px-1.5">
         <SidebarGroup>
@@ -664,7 +664,7 @@ export function AppSidebar() {
 
         {isAdmin && (
           <>
-            <div className="mx-2 my-3 h-px bg-white/[0.05] group-data-[collapsible=icon]:mx-1.5" />
+            <div className="mx-2 my-3 h-px bg-muted group-data-[collapsible=icon]:mx-1.5" />
             <SidebarGroup>
               {!collapsed && (
                 <SidebarGroupLabel className="px-2 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/70">
@@ -704,7 +704,7 @@ export function AppSidebar() {
               </SidebarGroupContent>
             </SidebarGroup>
 
-            <div className="mx-2 my-3 h-px bg-white/[0.05] group-data-[collapsible=icon]:mx-1.5" />
+            <div className="mx-2 my-3 h-px bg-muted group-data-[collapsible=icon]:mx-1.5" />
             <SidebarGroup>
               {!collapsed && (
                 <SidebarGroupLabel className="px-2 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/70">
@@ -928,7 +928,7 @@ export function AppSidebar() {
         )}
       </SidebarContent>
 
-      <div className="mx-2 mb-1 h-px bg-white/[0.05] group-data-[collapsible=icon]:mx-1.5" />
+      <div className="mx-2 mb-1 h-px bg-muted group-data-[collapsible=icon]:mx-1.5" />
       <SidebarFooter className="px-1.5 pb-3 group-data-[collapsible=icon]:px-1.5">
 
       {/* ── Upgrade module dialog ─────────────────────────────────────────── */}
@@ -1014,12 +1014,12 @@ export function AppSidebar() {
             <button
               className={cn(
                 "group flex w-full items-center gap-2.5 rounded-lg px-1.5 py-1.5 text-left transition-all duration-200",
-                "hover:bg-white/[0.04]",
+                "hover:bg-muted",
                 "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
               )}
             >
               <div className="relative shrink-0">
-                <Avatar className="h-8 w-8 ring-1 ring-white/10">
+                <Avatar className="h-8 w-8 ring-1 ring-border">
                   <AvatarFallback className="bg-gradient-to-br from-primary/30 to-primary/10 text-[11px] font-semibold text-foreground">
                     {initials}
                   </AvatarFallback>

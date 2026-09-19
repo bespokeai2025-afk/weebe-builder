@@ -19,9 +19,9 @@ export function DashboardPage({ children, className }: { children: React.ReactNo
 
 /** Sticky left columns for wide WBAH tables (layout-only) */
 export const stickyHead =
-  "sticky z-20 bg-card/95 backdrop-blur-sm after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-white/[0.08]";
+  "sticky z-20 bg-card/95 backdrop-blur-sm after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-muted";
 export const stickyCell =
-  "sticky z-10 bg-card/95 backdrop-blur-sm group-hover:bg-[#141a24] after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-white/[0.06]";
+  "sticky z-10 bg-card/95 backdrop-blur-sm group-hover:bg-[#141a24] after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-muted";
 
 export function PageHeader({
   title,
@@ -37,7 +37,7 @@ export function PageHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-white/[0.06] sm:px-4">
+    <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-border sm:px-4">
       <div className="flex items-center gap-2.5">
         {Icon && (
           <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/15 text-primary">
@@ -163,7 +163,7 @@ export function MiniKpiCard({
   hint?: string;
 }) {
   return (
-    <div className="min-w-0 rounded-lg border border-dashed border-white/[0.08] bg-card/30 px-2.5 py-2">
+    <div className="min-w-0 rounded-lg border border-dashed border-border bg-card/30 px-2.5 py-2">
       <p className="text-label text-muted-foreground">{label}</p>
       <p className="mt-0.5 text-sm font-bold leading-none tabular-nums">{value}</p>
       {hint && <p className="text-caption text-muted-foreground mt-0.5 leading-tight">{hint}</p>}
@@ -192,7 +192,7 @@ export function StatCard({
   icon?: React.ComponentType<{ className?: string }>;
 }) {
   return (
-    <div className={cn("relative min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60 p-3 backdrop-blur", toneStyles[tone].split(" ").slice(2).join(" "))}>
+    <div className={cn("relative min-w-0 overflow-hidden rounded-xl border border-border bg-card/60 p-3 backdrop-blur", toneStyles[tone].split(" ").slice(2).join(" "))}>
       <div className={cn("absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r", toneStyles[tone].split(" ").slice(0, 2).join(" "))} />
       <p className="text-label text-muted-foreground">{label}</p>
       <p className="mt-0.5 text-xl font-bold tracking-tight text-foreground tabular-nums">{value}</p>
@@ -223,7 +223,7 @@ export function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-white/[0.08] bg-card/30 px-6 py-10 text-center">
+    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card/30 px-6 py-10 text-center">
       <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
         <Icon className="h-4 w-4" />
       </div>
@@ -238,7 +238,7 @@ export function EmptyState({
 export function TableHead({ children }: { children: React.ReactNode }) {
   return (
     <thead>
-      <tr className="border-b border-white/[0.06] bg-card/30">
+      <tr className="border-b border-border bg-card/30">
         {children}
       </tr>
     </thead>
@@ -271,7 +271,7 @@ export function SummaryTooltip({
         </TooltipTrigger>
         <TooltipContent
           side="left"
-          className="max-w-sm rounded-lg border border-white/[0.08] bg-[#111827] p-3 text-xs leading-relaxed text-foreground shadow-2xl"
+          className="max-w-sm rounded-lg border border-border bg-[#111827] p-3 text-xs leading-relaxed text-foreground shadow-2xl"
         >
           <p className="whitespace-pre-wrap">{text}</p>
         </TooltipContent>

@@ -59,7 +59,7 @@ const STATUS_LABEL: Record<AgentStatus, string> = {
 const STATUS_STYLES: Record<AgentStatus, string> = {
   live: "bg-emerald-400/10 text-emerald-300 ring-1 ring-emerald-400/30",
   training: "bg-amber-400/10 text-amber-300 ring-1 ring-amber-400/30",
-  draft: "bg-white/[0.04] text-muted-foreground ring-1 ring-white/10",
+  draft: "bg-muted text-muted-foreground ring-1 ring-border",
   failed: "bg-destructive/15 text-red-300 ring-1 ring-red-400/30",
 };
 
@@ -288,7 +288,7 @@ export function AgentCard({ agent, loading, onOpen, onDeploy, onGuidedDeploy, on
       </div>
 
       {/* Actions */}
-      <div className="mt-6 flex items-center justify-between border-t border-white/[0.04] pt-4">
+      <div className="mt-6 flex items-center justify-between border-t border-border/60 pt-4">
         <div className="flex items-center gap-1.5 opacity-0 transition-opacity duration-200 group-hover/card:opacity-100">
           <Button
             size="sm"

@@ -378,7 +378,7 @@ type MktgTabKey = typeof MKTG_TABS[number]["key"];
 function ChartTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-white/10 bg-popover/95 px-3 py-2 text-xs shadow-xl backdrop-blur">
+    <div className="rounded-lg border border-border bg-popover/95 px-3 py-2 text-xs shadow-xl backdrop-blur">
       {label && <div className="mb-1 font-medium text-foreground">{label}</div>}
       {payload.map((p: any, i: number) => (
         <div key={i} className="flex items-center gap-2">
@@ -915,7 +915,7 @@ function AnalyticsPage() {
             <div className="relative">
                 <button
                   onClick={() => setSelectorOpen((o) => !o)}
-                  className="flex items-center gap-2 rounded-lg border border-white/[0.1] bg-card/60 px-3 py-1.5 text-sm font-medium hover:bg-card/80"
+                  className="flex items-center gap-2 rounded-lg border border-border bg-card/60 px-3 py-1.5 text-sm font-medium hover:bg-card/80"
                 >
                   <span className="max-w-[180px] truncate">{selectedAgentName}</span>
                   {voiceAgentsQ.isPending ? (
@@ -948,7 +948,7 @@ function AnalyticsPage() {
             <button
               onClick={() => setVmOverride(!includeVm)}
               title="Include or exclude voicemail calls in the totals below"
-              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${includeVm ? "border-primary/30 bg-primary/15 text-primary" : "border-white/[0.1] bg-card/60 text-muted-foreground hover:bg-card/80"}`}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${includeVm ? "border-primary/30 bg-primary/15 text-primary" : "border-border bg-card/60 text-muted-foreground hover:bg-card/80"}`}
             >
               <PauseCircle className="h-3.5 w-3.5" />
               {includeVm ? "Voicemails: shown" : "Voicemails: hidden"}
@@ -1607,7 +1607,7 @@ function SeoTab({ data }: { data: { sites: SeoSite[] } }) {
           {site.hasGscData && site.avgPosition != null && (
             <div className="mt-2">
               <div className="flex items-center justify-between text-xs text-muted-foreground mb-1"><span>Average position</span><span>#{site.avgPosition}</span></div>
-              <div className="h-2 rounded-full bg-white/10 overflow-hidden"><div className="h-full rounded-full bg-primary/70" style={{ width: `${Math.max(5, Math.min(100, 100 - (site.avgPosition / 100) * 100))}%` }} /></div>
+              <div className="h-2 rounded-full bg-muted overflow-hidden"><div className="h-full rounded-full bg-primary/70" style={{ width: `${Math.max(5, Math.min(100, 100 - (site.avgPosition / 100) * 100))}%` }} /></div>
             </div>
           )}
         </MktPanel>
@@ -1710,7 +1710,7 @@ function WhatsAppTab({ data }: { data: WhatsAppData }) {
           {[{ label: "Delivery rate", pct: deliveryRate, color: "#22c55e" }, { label: "Read rate", pct: readRate, color: "#3b82f6" }, { label: "Reply rate", pct: replyRate, color: "#f59e0b" }].map(({ label, pct, color }) => (
             <div key={label}>
               <div className="flex justify-between text-xs text-muted-foreground mb-1"><span>{label}</span><span style={{ color }}>{pct}%</span></div>
-              <div className="h-1.5 rounded-full bg-white/10 overflow-hidden"><div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }} /></div>
+              <div className="h-1.5 rounded-full bg-muted overflow-hidden"><div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }} /></div>
             </div>
           ))}
         </div>

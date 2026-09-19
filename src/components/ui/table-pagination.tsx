@@ -46,7 +46,7 @@ export function TablePagBar({
         <select
           value={pageSize}
           onChange={(e) => changePageSize(Number(e.target.value) as PageSize)}
-          className="h-6 rounded border border-white/10 bg-card px-1.5 text-[11px] text-foreground focus:outline-none cursor-pointer"
+          className="h-6 rounded border border-border bg-card px-1.5 text-[11px] text-foreground focus:outline-none cursor-pointer"
         >
           {PAGE_SIZES.map(n => <option key={n} value={n}>{n}</option>)}
         </select>
