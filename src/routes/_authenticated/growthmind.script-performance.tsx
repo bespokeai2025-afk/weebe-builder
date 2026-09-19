@@ -40,13 +40,13 @@ function hourLabel(h: number): string {
 const QUALITY_STYLE: Record<string, string> = {
   strong:  "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
   weak:    "bg-red-500/15 text-red-300 border-red-500/30",
-  neutral: "bg-white/[0.06] text-muted-foreground border-white/[0.1]",
+  neutral: "bg-muted text-muted-foreground border-border",
 };
 
 const FREQ_STYLE: Record<string, string> = {
   common:     "bg-amber-500/15 text-amber-300 border-amber-500/30",
   occasional: "bg-sky-500/15 text-sky-300 border-sky-500/30",
-  rare:       "bg-white/[0.06] text-muted-foreground border-white/[0.1]",
+  rare:       "bg-muted text-muted-foreground border-border",
 };
 
 function ScriptPerformancePage() {
@@ -129,7 +129,7 @@ function ScriptPerformancePage() {
       </div>
 
       {!analysis ? (
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-8 text-center">
+        <div className="rounded-xl border border-border bg-muted/40 p-8 text-center">
           <AudioLines className="mx-auto h-8 w-8 text-muted-foreground/50" />
           <p className="mt-3 text-sm font-medium">No script analysis yet</p>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -137,7 +137,7 @@ function ScriptPerformancePage() {
           </p>
         </div>
       ) : analysis.totals.calls === 0 ? (
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-8 text-center">
+        <div className="rounded-xl border border-border bg-muted/40 p-8 text-center">
           <AlertTriangle className="mx-auto h-8 w-8 text-amber-400/70" />
           <p className="mt-3 text-sm font-medium">No calls in the last 30 days</p>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -155,7 +155,7 @@ function ScriptPerformancePage() {
               { label: "Qualified rate",  value: pct(analysis.totals.qualifiedRate) },
               { label: "Booking rate",    value: pct(analysis.totals.bookingRate) },
             ].map(kpi => (
-              <div key={kpi.label} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+              <div key={kpi.label} className="rounded-xl border border-border bg-muted/40 p-4">
                 <div className="text-xs text-muted-foreground">{kpi.label}</div>
                 <div className="mt-1 text-lg font-semibold tabular-nums">{kpi.value}</div>
               </div>
@@ -171,7 +171,7 @@ function ScriptPerformancePage() {
           </p>
 
           {/* Per-agent table */}
-          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+          <div className="rounded-xl border border-border bg-muted/40 p-4">
             <h2 className="text-sm font-medium">Per-agent script performance</h2>
             <p className="mt-0.5 text-xs text-muted-foreground">
               Select an agent to target the recommendation drafts below. Best hours = strongest connect/positive/booking mix.
@@ -179,7 +179,7 @@ function ScriptPerformancePage() {
             <div className="mt-3 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-white/[0.08] text-left text-xs text-muted-foreground">
+                  <tr className="border-b border-border text-left text-xs text-muted-foreground">
                     <th className="px-3 py-2">Agent</th>
                     <th className="px-3 py-2">Calls</th>
                     <th className="px-3 py-2">Conn. rate</th>
@@ -195,7 +195,7 @@ function ScriptPerformancePage() {
                       key={a.agentKey}
                       onClick={() => { setSelectedAgent(selectedAgent === a.agentKey ? null : a.agentKey); setSelectedCampaign(null); }}
                       className={cn(
-                        "h-11 cursor-pointer border-b border-white/[0.04] hover:bg-white/[0.03]",
+                        "h-11 cursor-pointer border-b border-border/60 hover:bg-muted/60",
                         selectedAgent === a.agentKey && "bg-emerald-500/[0.08]"
                       )}
                     >
@@ -225,7 +225,7 @@ function ScriptPerformancePage() {
           </div>
 
           {/* Per-campaign table */}
-          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+          <div className="rounded-xl border border-border bg-muted/40 p-4">
             <h2 className="text-sm font-medium">Per-campaign script performance</h2>
             <p className="mt-0.5 text-xs text-muted-foreground">
               Calls attributed to campaigns via the agent each campaign uses{analysis.source === "wbah" ? " and the nearest scheduled dialler slot" : ""}.
@@ -239,7 +239,7 @@ function ScriptPerformancePage() {
               <div className="mt-3 overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-white/[0.08] text-left text-xs text-muted-foreground">
+                    <tr className="border-b border-border text-left text-xs text-muted-foreground">
                       <th className="px-3 py-2">Campaign</th>
                       <th className="px-3 py-2">Calls</th>
                       <th className="px-3 py-2">Conn. rate</th>
@@ -255,7 +255,7 @@ function ScriptPerformancePage() {
                         key={c.campaignKey}
                         onClick={() => { setSelectedCampaign(selectedCampaign === c.campaignKey ? null : c.campaignKey); setSelectedAgent(null); }}
                         className={cn(
-                          "h-11 cursor-pointer border-b border-white/[0.04] hover:bg-white/[0.03]",
+                          "h-11 cursor-pointer border-b border-border/60 hover:bg-muted/60",
                           selectedCampaign === c.campaignKey && "bg-emerald-500/[0.08]"
                         )}
                       >
@@ -281,7 +281,7 @@ function ScriptPerformancePage() {
 
           {/* AI-extracted patterns */}
           <div className="grid gap-4 lg:grid-cols-2">
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+            <div className="rounded-xl border border-border bg-muted/40 p-4">
               <h2 className="flex items-center gap-2 text-sm font-medium">
                 <Quote className="h-4 w-4 text-emerald-400" /> Opening-line patterns
               </h2>
@@ -292,7 +292,7 @@ function ScriptPerformancePage() {
               ) : (
                 <ul className="mt-3 space-y-3">
                   {patterns.openingLines.map((o: any, i: number) => (
-                    <li key={i} className="rounded-lg border border-white/[0.05] bg-white/[0.02] p-3">
+                    <li key={i} className="rounded-lg border border-border bg-muted/40 p-3">
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-sm">“{o.line}”</p>
                         <Badge variant="outline" className={cn("shrink-0 text-[10px]", QUALITY_STYLE[o.quality])}>{o.quality}</Badge>
@@ -304,7 +304,7 @@ function ScriptPerformancePage() {
               )}
             </div>
 
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+            <div className="rounded-xl border border-border bg-muted/40 p-4">
               <h2 className="flex items-center gap-2 text-sm font-medium">
                 <MessageSquareWarning className="h-4 w-4 text-amber-400" /> Objection patterns
               </h2>
@@ -315,7 +315,7 @@ function ScriptPerformancePage() {
               ) : (
                 <ul className="mt-3 space-y-3">
                   {patterns.objections.map((o: any, i: number) => (
-                    <li key={i} className="rounded-lg border border-white/[0.05] bg-white/[0.02] p-3">
+                    <li key={i} className="rounded-lg border border-border bg-muted/40 p-3">
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-sm font-medium">{o.objection}</p>
                         <Badge variant="outline" className={cn("shrink-0 text-[10px]", FREQ_STYLE[o.frequency])}>{o.frequency}</Badge>
@@ -329,7 +329,7 @@ function ScriptPerformancePage() {
           </div>
 
           {patterns && patterns.insights.length > 0 && (
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+            <div className="rounded-xl border border-border bg-muted/40 p-4">
               <h2 className="flex items-center gap-2 text-sm font-medium">
                 <Lightbulb className="h-4 w-4 text-sky-400" /> Insights
               </h2>

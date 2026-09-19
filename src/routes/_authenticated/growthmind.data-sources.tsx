@@ -337,7 +337,7 @@ function SourceCard({ source }: { source: DataSource }) {
   const Icon = cfg.icon;
 
   return (
-    <div className={cn("rounded-xl border border-white/[0.06] p-4 flex flex-col gap-3", cfg.bg)}>
+    <div className={cn("rounded-xl border border-border p-4 flex flex-col gap-3", cfg.bg)}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <Icon className={cn("h-4 w-4 shrink-0", cfg.color)} />
@@ -353,7 +353,7 @@ function SourceCard({ source }: { source: DataSource }) {
       <div className="flex items-center justify-between gap-2 mt-auto">
         <div className="flex flex-wrap gap-1">
           {source.usedBy.slice(0, 2).map(u => (
-            <span key={u} className="text-[10px] bg-white/[0.04] text-muted-foreground px-1.5 py-0.5 rounded">
+            <span key={u} className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
               {u}
             </span>
           ))}
@@ -399,12 +399,12 @@ function DataSourcesPage() {
         </div>
 
         {/* Summary bar */}
-        <div className="rounded-xl border border-white/[0.06] bg-card/60 p-4">
+        <div className="rounded-xl border border-border bg-card/60 p-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium">Marketing Data Coverage</span>
             <span className="text-xl font-bold text-emerald-400 tabular-nums">{coveragePct}%</span>
           </div>
-          <div className="h-1.5 w-full bg-white/[0.06] rounded-full overflow-hidden">
+          <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
             <div className="h-full rounded-full bg-emerald-500 transition-all duration-500" style={{ width: `${coveragePct}%` }} />
           </div>
           <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">

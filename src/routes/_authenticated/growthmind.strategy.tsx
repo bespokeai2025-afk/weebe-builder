@@ -30,7 +30,7 @@ function StrategySection({ title, icon: Icon, content }: { title: string; icon: 
   const [open, setOpen] = useState(true);
   if (!content?.trim()) return null;
   return (
-    <div className="border-b border-white/[0.04] last:border-0">
+    <div className="border-b border-border/60 last:border-0">
       <button
         type="button" onClick={() => setOpen(o => !o)}
         className="w-full flex items-center justify-between py-3 text-left"
@@ -55,9 +55,9 @@ function StrategyCard({ strategy, onDelete, onSend }: {
   const [expanded, setExpanded] = useState(true);
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
+    <div className="rounded-xl border border-border bg-card/60 overflow-hidden">
       {/* Header */}
-      <div className="px-5 py-4 border-b border-white/[0.04] flex items-start justify-between gap-3">
+      <div className="px-5 py-4 border-b border-border/60 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-semibold">{strategy.primaryAngle || "Strategy"}</p>
           <p className="text-xs text-muted-foreground mt-0.5 truncate">{strategy.targetAudience}</p>
@@ -66,7 +66,7 @@ function StrategyCard({ strategy, onDelete, onSend }: {
               {Math.round(strategy.confidenceScore * 100)}% confidence
             </span>
             {strategy.channels.slice(0, 3).map(ch => (
-              <span key={ch} className="text-[10px] bg-white/[0.04] text-muted-foreground px-1.5 py-0.5 rounded">{ch}</span>
+              <span key={ch} className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded">{ch}</span>
             ))}
           </div>
         </div>
@@ -117,13 +117,13 @@ function StrategyCard({ strategy, onDelete, onSend }: {
 
           {/* KPIs */}
           {strategy.kpis.length > 0 && (
-            <div className="border-b border-white/[0.04] last:border-0 pb-3">
+            <div className="border-b border-border/60 last:border-0 pb-3">
               <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-2 pt-3 flex items-center gap-2">
                 <BarChart3 className="h-3.5 w-3.5" /> KPIs
               </p>
               <div className="grid grid-cols-2 gap-2">
                 {strategy.kpis.map((kpi, i) => (
-                  <div key={i} className="rounded-lg bg-white/[0.03] px-3 py-2">
+                  <div key={i} className="rounded-lg bg-muted/60 px-3 py-2">
                     <p className="text-xs font-medium">{kpi.metric}</p>
                     <p className="text-[11px] text-emerald-400">{kpi.target}</p>
                     <p className="text-[10px] text-muted-foreground">{kpi.period}</p>
@@ -146,7 +146,7 @@ function StrategyCard({ strategy, onDelete, onSend }: {
                       Wk {task.week}
                     </span>
                     <span className="text-muted-foreground flex-1">{task.task}</span>
-                    <span className="text-[10px] bg-white/[0.04] text-muted-foreground px-1.5 py-0.5 rounded shrink-0">
+                    <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded shrink-0">
                       {task.channel}
                     </span>
                   </div>
@@ -157,16 +157,16 @@ function StrategyCard({ strategy, onDelete, onSend }: {
 
           {/* Campaigns */}
           {strategy.campaigns.length > 0 && (
-            <div className="border-t border-white/[0.04] pb-3">
+            <div className="border-t border-border/60 pb-3">
               <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-2 pt-3 flex items-center gap-2">
                 <Megaphone className="h-3.5 w-3.5" /> Recommended Campaigns
               </p>
               <div className="space-y-2">
                 {strategy.campaigns.map((c, i) => (
-                  <div key={i} className="rounded-lg bg-white/[0.03] px-3 py-2">
+                  <div key={i} className="rounded-lg bg-muted/60 px-3 py-2">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-xs font-medium">{c.name}</p>
-                      <span className="text-[10px] bg-white/[0.04] text-muted-foreground px-1.5 py-0.5 rounded">{c.timeline}</span>
+                      <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded">{c.timeline}</span>
                     </div>
                     <p className="text-[11px] text-muted-foreground mt-0.5">{c.goal}</p>
                   </div>
@@ -250,7 +250,7 @@ function StrategyPage() {
         </div>
 
         {/* Period tabs */}
-        <div className="flex items-center gap-1 bg-white/[0.03] rounded-lg p-1 w-fit">
+        <div className="flex items-center gap-1 bg-muted/60 rounded-lg p-1 w-fit">
           {PERIODS.map(p => (
             <button
               key={p.id} type="button"
@@ -297,7 +297,7 @@ function StrategyPage() {
             />
           </>
         ) : (
-          <div className="rounded-xl border border-dashed border-white/[0.12] bg-card/40 flex flex-col items-center justify-center py-16 gap-4">
+          <div className="rounded-xl border border-dashed border-border bg-card/40 flex flex-col items-center justify-center py-16 gap-4">
             <Target className="h-10 w-10 text-muted-foreground/30" />
             <div className="text-center">
               <p className="text-sm font-medium">No {PERIODS.find(p => p.id === activeTab)?.label} yet</p>

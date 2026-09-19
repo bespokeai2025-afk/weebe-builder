@@ -69,7 +69,7 @@ function MigrationBanner({ sql }: { sql: string }) {
           </p>
         </div>
       </div>
-      <pre className="rounded-lg bg-black/40 border border-white/[0.06] p-3 text-[10px] text-emerald-300 font-mono overflow-x-auto whitespace-pre-wrap leading-relaxed">
+      <pre className="rounded-lg bg-black/40 border border-border p-3 text-[10px] text-emerald-300 font-mono overflow-x-auto whitespace-pre-wrap leading-relaxed">
         {sql}
       </pre>
       <Button size="sm" variant="outline" className="mt-3" onClick={copy}>
@@ -90,7 +90,7 @@ function ProgressBar({ pct, atRisk, achieved }: { pct: number; atRisk: boolean; 
       : "bg-emerald-500";
 
   return (
-    <div className="relative h-2 w-full rounded-full bg-white/[0.06] overflow-hidden">
+    <div className="relative h-2 w-full rounded-full bg-muted overflow-hidden">
       <div
         className={cn("h-full rounded-full transition-all duration-700", color)}
         style={{ width: `${Math.min(100, pct)}%` }}
@@ -129,7 +129,7 @@ function GoalCard({
           ? "border-emerald-500/25 bg-emerald-500/[0.04]"
           : goal.atRisk
             ? "border-amber-500/25 bg-amber-500/[0.04]"
-            : "border-white/[0.06]",
+            : "border-border",
       )}
     >
       {/* Header row */}
@@ -189,14 +189,14 @@ function GoalCard({
       </div>
 
       {/* AI commentary */}
-      <div className="flex items-start gap-2 rounded-lg bg-white/[0.03] border border-white/[0.05] px-3 py-2.5">
+      <div className="flex items-start gap-2 rounded-lg bg-muted/60 border border-border px-3 py-2.5">
         <Sparkles className="h-3 w-3 text-emerald-400 shrink-0 mt-0.5" />
         <p className="text-[11px] text-muted-foreground leading-relaxed">{commentary}</p>
       </div>
 
       {/* Metric tag */}
       <div className="mt-2.5">
-        <span className="rounded-full bg-white/[0.04] border border-white/[0.06] px-2 py-0.5 text-[10px] text-muted-foreground">
+        <span className="rounded-full bg-muted border border-border px-2 py-0.5 text-[10px] text-muted-foreground">
           {metricInfo?.label ?? goal.metric} · last 30 days
         </span>
       </div>
@@ -259,7 +259,7 @@ function CreateGoalForm({
           <Plus className="h-4 w-4 text-emerald-400" />
           New Goal
         </p>
-        <button onClick={onCancel} className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-white/[0.05] transition-colors">
+        <button onClick={onCancel} className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
           <X className="h-4 w-4" />
         </button>
       </div>
@@ -281,7 +281,7 @@ function CreateGoalForm({
                   "rounded-lg border px-3 py-2.5 text-left text-xs transition-all",
                   metric === m.key
                     ? "border-emerald-500/40 bg-emerald-500/10 text-foreground"
-                    : "border-white/[0.06] bg-white/[0.02] text-muted-foreground hover:text-foreground hover:bg-white/[0.04]",
+                    : "border-border bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted",
                 )}
               >
                 <p className="font-semibold">{m.label}</p>
@@ -371,7 +371,7 @@ function SummaryStrip({ goals }: { goals: GoalWithProgress[] }) {
         { label: "At Risk",   value: atRisk,   icon: AlertTriangle, color: "text-amber-400",   bg: "bg-amber-500/10" },
         { label: "Achieved",  value: achieved, icon: CheckCircle2,  color: "text-emerald-400", bg: "bg-emerald-500/10" },
       ].map(({ label, value, icon: Icon, color, bg }) => (
-        <div key={label} className="rounded-xl border border-white/[0.06] bg-card/60 px-4 py-3 flex items-center gap-3">
+        <div key={label} className="rounded-xl border border-border bg-card/60 px-4 py-3 flex items-center gap-3">
           <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg shrink-0", bg)}>
             <Icon className={cn("h-4 w-4", color)} />
           </div>

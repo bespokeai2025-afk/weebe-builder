@@ -125,7 +125,7 @@ function SocialAccountsPage() {
       </div>
 
       {/* App credentials */}
-      <div className="rounded-xl border border-white/[0.06] bg-card/60 p-5 space-y-3">
+      <div className="rounded-xl border border-border bg-card/60 p-5 space-y-3">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-semibold">Meta App Credentials</p>
@@ -167,7 +167,7 @@ function SocialAccountsPage() {
         <p className="text-sm font-semibold">Connected accounts</p>
         {isLoading && <p className="text-xs text-muted-foreground">Loading…</p>}
         {!isLoading && activeConns.length === 0 && (
-          <div className="rounded-xl border border-dashed border-white/[0.08] p-8 text-center">
+          <div className="rounded-xl border border-dashed border-border p-8 text-center">
             <p className="text-sm text-muted-foreground">No social accounts connected yet.</p>
             <p className="text-xs text-muted-foreground mt-1">Instagram must be a professional account linked to a Facebook Page.</p>
           </div>
@@ -177,10 +177,10 @@ function SocialAccountsPage() {
           const expiry = expiryLabel(c);
           const needsAttention = c.status !== "connected";
           return (
-            <div key={c.id} className="rounded-xl border border-white/[0.06] bg-card/60 p-4 flex items-center gap-3">
+            <div key={c.id} className="rounded-xl border border-border bg-card/60 p-4 flex items-center gap-3">
               {c.profile_picture_url
                 ? <img src={c.profile_picture_url} alt="" className="h-10 w-10 rounded-full object-cover" />
-                : <div className="h-10 w-10 rounded-full bg-white/[0.06] flex items-center justify-center">
+                : <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
                     {isIg ? <Instagram className="h-5 w-5 text-pink-400" /> : <Facebook className="h-5 w-5 text-blue-400" />}
                   </div>}
               <div className="flex-1 min-w-0">
@@ -203,7 +203,7 @@ function SocialAccountsPage() {
                   <div className="flex items-center gap-1 mt-1 flex-wrap">
                     <span className="text-[10px] text-muted-foreground">Permissions:</span>
                     {(c.permissions as string[]).map(p => (
-                      <span key={p} className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.05] text-muted-foreground">{p}</span>
+                      <span key={p} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{p}</span>
                     ))}
                   </div>
                 )}

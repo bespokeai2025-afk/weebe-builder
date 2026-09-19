@@ -43,7 +43,7 @@ class StrategyErrorBoundary extends Component<
           <p className="text-sm font-medium text-red-300">Failed to render strategy</p>
           <p className="text-xs text-muted-foreground">{this.state.message}</p>
           <button
-            className="text-xs px-3 py-1.5 rounded-lg bg-white/[0.05] hover:bg-white/[0.08] transition-colors"
+            className="text-xs px-3 py-1.5 rounded-lg bg-muted hover:bg-muted transition-colors"
             onClick={() => this.setState({ hasError: false, message: "" })}
           >
             Retry
@@ -70,7 +70,7 @@ function MarkdownContent({ content }: { content: string }) {
         li:     ({ children }) => <li>{children}</li>,
         strong: ({ children }) => <strong className="text-foreground font-semibold">{children}</strong>,
         em:     ({ children }) => <em className="text-foreground/80">{children}</em>,
-        code:   ({ children }) => <code className="bg-white/[0.06] rounded px-1 py-0.5 text-[11px]">{children}</code>,
+        code:   ({ children }) => <code className="bg-muted rounded px-1 py-0.5 text-[11px]">{children}</code>,
       }}
     >
       {content}
@@ -131,13 +131,13 @@ const ENGINE_LABELS: Record<string, string> = {
 };
 
 const STATUS_STYLES: Record<string, string> = {
-  draft:                "bg-white/[0.06] text-muted-foreground",
+  draft:                "bg-muted text-muted-foreground",
   proposed_to_hivemind: "bg-amber-500/15 text-amber-300",
   approved:             "bg-emerald-500/15 text-emerald-300",
   rejected:             "bg-red-500/15 text-red-300",
   in_progress:          "bg-blue-500/15 text-blue-300",
   executed:             "bg-purple-500/15 text-purple-300",
-  archived:             "bg-white/[0.04] text-muted-foreground/50",
+  archived:             "bg-muted text-muted-foreground/50",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -159,11 +159,11 @@ function Section({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="border border-white/[0.06] rounded-xl overflow-hidden">
+    <div className="border border-border rounded-xl overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-white/[0.02] hover:bg-white/[0.04] transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3 bg-muted/40 hover:bg-muted transition-colors"
       >
         <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
           <Icon className="h-3.5 w-3.5" />
@@ -352,7 +352,7 @@ function StrategyDisplay({
           <button
             onClick={wrap(onRegenerate, setRegenerating)}
             disabled={regenerating}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs bg-white/[0.05] hover:bg-white/[0.08] text-muted-foreground transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs bg-muted hover:bg-muted text-muted-foreground transition-colors disabled:opacity-50"
           >
             {regenerating ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
             Regenerate
@@ -400,7 +400,7 @@ function StrategyDisplay({
             <div key={field}>
               <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-1">{label}</p>
               <input
-                className="w-full bg-black/20 border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-blue-500/50"
+                className="w-full bg-black/20 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-blue-500/50"
                 value={editFields[field]}
                 onChange={e => setEditFields(prev => ({ ...prev, [field]: e.target.value }))}
               />
@@ -410,7 +410,7 @@ function StrategyDisplay({
             <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-1">Executive Summary</p>
             <textarea
               rows={3}
-              className="w-full bg-black/20 border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-blue-500/50 resize-none"
+              className="w-full bg-black/20 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-blue-500/50 resize-none"
               value={editFields.executiveSummary}
               onChange={e => setEditFields(prev => ({ ...prev, executiveSummary: e.target.value }))}
             />
@@ -419,7 +419,7 @@ function StrategyDisplay({
             <button
               type="button"
               onClick={() => setEditing(false)}
-              className="px-3 py-1.5 rounded-lg text-xs text-muted-foreground hover:bg-white/[0.05] transition-colors"
+              className="px-3 py-1.5 rounded-lg text-xs text-muted-foreground hover:bg-muted transition-colors"
             >
               Cancel
             </button>
@@ -462,7 +462,7 @@ function StrategyDisplay({
                     .sort(([, a], [, b]) => (b as number) - (a as number))
                     .slice(0, 5)
                     .map(([name, score]) => (
-                      <span key={name} className="text-[10px] px-2 py-0.5 rounded-full bg-white/[0.06] text-muted-foreground">
+                      <span key={name} className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
                         {name}: {typeof score === "number" ? score.toFixed(1) : score}
                       </span>
                     ))}
@@ -481,7 +481,7 @@ function StrategyDisplay({
           { label: "Budget",          value: strategy.budgetRecommendation,  icon: DollarSign },
           { label: "Channels",        value: strategy.channelRecommendation.join(", "), icon: Layers },
         ].map(({ label, value, icon: Icon }) => value ? (
-          <div key={label} className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+          <div key={label} className="rounded-lg border border-border bg-muted/40 p-3">
             <div className="flex items-center gap-1.5 mb-1">
               <Icon className="h-3 w-3 text-muted-foreground/60" />
               <p className="text-[9px] text-muted-foreground/60 uppercase tracking-widest font-semibold">{label}</p>
@@ -512,14 +512,14 @@ function StrategyDisplay({
 
       {/* KPIs */}
       {strategy.kpis.length > 0 && (
-        <div className="rounded-xl border border-white/[0.06] overflow-hidden">
-          <div className="px-4 py-3 bg-white/[0.02] flex items-center gap-2">
+        <div className="rounded-xl border border-border overflow-hidden">
+          <div className="px-4 py-3 bg-muted/40 flex items-center gap-2">
             <BarChart3 className="h-3.5 w-3.5 text-muted-foreground" />
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">KPIs</p>
           </div>
           <div className="p-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
             {strategy.kpis.map((kpi, i) => (
-              <div key={i} className="rounded-lg bg-white/[0.03] px-3 py-2.5">
+              <div key={i} className="rounded-lg bg-muted/60 px-3 py-2.5">
                 <p className="text-xs font-medium truncate">{kpi.metric}</p>
                 <p className="text-sm font-bold text-emerald-400 mt-0.5">{kpi.target}</p>
                 <p className="text-[10px] text-muted-foreground">{kpi.period}</p>
@@ -543,7 +543,7 @@ function StrategyDisplay({
       {(strategy.requiredAssets.length > 0 || strategy.approvalActions.length > 0) && (
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {strategy.requiredAssets.length > 0 && (
-            <div className="rounded-xl border border-white/[0.06] p-4">
+            <div className="rounded-xl border border-border p-4">
               <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-2 flex items-center gap-1.5">
                 <Package className="h-3 w-3" /> Required Assets
               </p>
@@ -577,7 +577,7 @@ function StrategyDisplay({
 
       {/* Prompt Engines Used */}
       {strategy.promptEnginesUsed.length > 0 && (
-        <div className="rounded-xl border border-white/[0.06] p-4">
+        <div className="rounded-xl border border-border p-4">
           <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-3 flex items-center gap-1.5">
             <Zap className="h-3 w-3" /> Prompt Engines Used
           </p>
@@ -585,7 +585,7 @@ function StrategyDisplay({
             {strategy.promptEnginesUsed.map(engine => {
               const EIcon = ENGINE_ICONS[engine] ?? Zap;
               return (
-                <div key={engine} className="flex items-center gap-1.5 rounded-lg bg-white/[0.04] border border-white/[0.06] px-2.5 py-1.5">
+                <div key={engine} className="flex items-center gap-1.5 rounded-lg bg-muted border border-border px-2.5 py-1.5">
                   <EIcon className="h-3 w-3 text-muted-foreground/60" />
                   <span className="text-xs text-muted-foreground">{ENGINE_LABELS[engine] ?? engine}</span>
                 </div>
@@ -618,8 +618,8 @@ function StrategyDisplay({
       )}
 
       {/* Generated Assets */}
-      <div className="rounded-xl border border-white/[0.06] overflow-hidden">
-          <div className="px-4 py-3 bg-white/[0.02] flex items-center gap-2">
+      <div className="rounded-xl border border-border overflow-hidden">
+          <div className="px-4 py-3 bg-muted/40 flex items-center gap-2">
             <Package className="h-3.5 w-3.5 text-muted-foreground" />
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Generated Campaign Assets</p>
             {assets.length > 0 && (
@@ -653,8 +653,8 @@ function StrategyDisplay({
 
       {/* Strategy Tasks */}
       {strategy.status === "approved" && (
-        <div className="rounded-xl border border-white/[0.06] overflow-hidden">
-          <div className="px-4 py-3 bg-white/[0.02] flex items-center gap-2">
+        <div className="rounded-xl border border-border overflow-hidden">
+          <div className="px-4 py-3 bg-muted/40 flex items-center gap-2">
             <CheckCircle2 className="h-3.5 w-3.5 text-muted-foreground" />
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Strategy Tasks</p>
             {tasks.length > 0 && (
@@ -684,7 +684,7 @@ function StrategyDisplay({
                     "flex items-start gap-3 px-3 py-2.5 rounded-lg border transition-colors",
                     done
                       ? "bg-emerald-500/[0.04] border-emerald-500/10 opacity-60"
-                      : "bg-white/[0.02] border-white/[0.04]",
+                      : "bg-muted/40 border-border/60",
                   )}
                 >
                   <button
@@ -709,13 +709,13 @@ function StrategyDisplay({
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
                     {task.channel && (
-                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/[0.05] text-muted-foreground/60 uppercase tracking-widest">{task.channel}</span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground/60 uppercase tracking-widest">{task.channel}</span>
                     )}
                     <span className={cn(
                       "text-[9px] px-1.5 py-0.5 rounded font-semibold uppercase tracking-widest",
                       task.priority === "high"   ? "bg-red-500/10 text-red-400"
                       : task.priority === "medium" ? "bg-yellow-500/10 text-yellow-400"
-                      : "bg-white/[0.05] text-muted-foreground/60",
+                      : "bg-muted text-muted-foreground/60",
                     )}>
                       {task.priority}
                     </span>
@@ -890,9 +890,9 @@ export function GrowthMindStrategyCentre() {
       <div className="flex min-h-0 flex-1">
 
         {/* ── Left panel: type selector + history ──────────────────────────── */}
-        <aside className="w-72 shrink-0 border-r border-white/[0.04] flex flex-col min-h-0">
+        <aside className="w-72 shrink-0 border-r border-border/60 flex flex-col min-h-0">
           {/* Type selector */}
-          <div className="p-3 border-b border-white/[0.04]">
+          <div className="p-3 border-b border-border/60">
             <p className="text-[10px] text-muted-foreground/60 uppercase tracking-widest font-semibold mb-2 px-1">
               Strategy Type
             </p>
@@ -913,7 +913,7 @@ export function GrowthMindStrategyCentre() {
                             "w-full text-left flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors",
                             isActive
                               ? "bg-emerald-500/15 text-emerald-300"
-                              : "hover:bg-white/[0.04] text-muted-foreground hover:text-foreground",
+                              : "hover:bg-muted text-muted-foreground hover:text-foreground",
                           )}
                         >
                           <Icon className={cn("h-3.5 w-3.5 shrink-0", isActive ? "text-emerald-400" : t.color)} />
@@ -935,7 +935,7 @@ export function GrowthMindStrategyCentre() {
                   Goal <span className="normal-case font-normal">(optional)</span>
                 </p>
                 <input
-                  className="w-full bg-black/20 border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-emerald-500/40 transition-colors"
+                  className="w-full bg-black/20 border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-emerald-500/40 transition-colors"
                   placeholder="e.g. Get 20 new clients in 30 days"
                   value={goal}
                   onChange={e => setGoal(e.target.value)}
@@ -946,7 +946,7 @@ export function GrowthMindStrategyCentre() {
                   Budget <span className="normal-case font-normal">(optional)</span>
                 </p>
                 <input
-                  className="w-full bg-black/20 border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-emerald-500/40 transition-colors"
+                  className="w-full bg-black/20 border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-emerald-500/40 transition-colors"
                   placeholder="e.g. £1,500/month"
                   value={budget}
                   onChange={e => setBudget(e.target.value)}
@@ -988,7 +988,7 @@ export function GrowthMindStrategyCentre() {
                       onClick={() => setSelectedStrategyId(s.id)}
                       className={cn(
                         "w-full text-left px-2.5 py-2 rounded-lg transition-colors",
-                        isActive ? "bg-white/[0.06]" : "hover:bg-white/[0.03]",
+                        isActive ? "bg-muted" : "hover:bg-muted/60",
                       )}
                     >
                       <div className="flex items-center gap-2">
@@ -1073,7 +1073,7 @@ export function GrowthMindStrategyCentre() {
                   { icon: Trophy,     label: "Scores Services",        desc: "AI picks the best offer" },
                   { icon: Layers,     label: "Routes to Engines",      desc: "Up to 8 prompt engines" },
                 ].map(({ icon: Icon, label, desc }) => (
-                  <div key={label} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 text-center">
+                  <div key={label} className="rounded-xl border border-border bg-muted/40 p-3 text-center">
                     <Icon className="h-5 w-5 text-emerald-400 mx-auto mb-1.5" />
                     <p className="text-xs font-medium">{label}</p>
                     <p className="text-[10px] text-muted-foreground/60 mt-0.5">{desc}</p>

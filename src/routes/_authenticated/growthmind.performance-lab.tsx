@@ -85,7 +85,7 @@ function PerformanceLabPage() {
         </p>
       </div>
 
-      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+      <div className="rounded-xl border border-border bg-muted/40 p-4">
         <h2 className="flex items-center gap-2 text-sm font-medium"><Brain className="h-4 w-4 text-emerald-400" /> Learnings awaiting your decision</h2>
         {proposed.length === 0 ? (
           <p className="mt-2 text-sm text-muted-foreground">
@@ -94,7 +94,7 @@ function PerformanceLabPage() {
         ) : (
           <ul className="mt-2 space-y-2">
             {proposed.map((p: any) => (
-              <li key={p.id} className="rounded-lg bg-white/[0.03] px-3 py-2.5">
+              <li key={p.id} className="rounded-lg bg-muted/60 px-3 py-2.5">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline" className="border-emerald-500/40 text-emerald-300">{String(p.pattern_kind).replaceAll("_", " ")}</Badge>
                   <span className="text-xs text-muted-foreground">based on {p.sample_size} post{p.sample_size === 1 ? "" : "s"} · confidence {(Number(p.confidence) * 100).toFixed(0)}%</span>
@@ -154,7 +154,7 @@ function PerformanceLabPage() {
           const cats = latest?.metrics?.categories ?? {};
           const attribution = latest?.metrics?.attribution ?? {};
           return (
-            <div key={post.id} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+            <div key={post.id} className="rounded-xl border border-border bg-muted/40 p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{post.title ?? `${post.platform} ${post.target_type}`}</p>
@@ -171,7 +171,7 @@ function PerformanceLabPage() {
 
               <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
                 {CATEGORY_META.map(({ key, label, icon: Icon }) => (
-                  <div key={key} className="rounded-lg bg-white/[0.03] px-3 py-2">
+                  <div key={key} className="rounded-lg bg-muted/60 px-3 py-2">
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><Icon className="h-3 w-3" /> {label}</div>
                     <div className="mt-0.5 text-lg font-semibold">{sumCat(cats[key]).toLocaleString()}</div>
                   </div>

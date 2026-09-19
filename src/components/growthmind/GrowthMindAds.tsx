@@ -132,8 +132,8 @@ function AccountModal({ initial, defaultPlatform = "google", onClose, onSave, sa
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-md rounded-2xl border border-white/[0.09] bg-[hsl(var(--card))] shadow-2xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-white/[0.07] flex items-center justify-between">
+      <div className="relative w-full max-w-md rounded-2xl border border-border bg-[hsl(var(--card))] shadow-2xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-border flex items-center justify-between">
           <p className="text-sm font-semibold">{isEdit ? "Edit Ad Account" : "Connect Ad Account"}</p>
           <button onClick={onClose} className="p-1 rounded text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
         </div>
@@ -150,7 +150,7 @@ function AccountModal({ initial, defaultPlatform = "google", onClose, onSave, sa
                     "flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-all text-left",
                     platform === pl.id
                       ? `${pl.bg} ${pl.activeBorder} ${pl.color}`
-                      : "border-white/[0.08] text-muted-foreground hover:text-foreground hover:border-white/20",
+                      : "border-border text-muted-foreground hover:text-foreground hover:border-white/20",
                   )}
                 >
                   <span className={cn("h-2 w-2 rounded-full shrink-0", pl.bg, "ring-1", pl.border)} />
@@ -164,14 +164,14 @@ function AccountModal({ initial, defaultPlatform = "google", onClose, onSave, sa
             <label className="block text-xs text-muted-foreground mb-1.5">Account Label</label>
             <input type="text" value={label} onChange={e => setLabel(e.target.value)}
               placeholder={`e.g. Main ${p.label} Account`}
-              className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-emerald-500/30" required />
+              className="w-full rounded-lg border border-border bg-muted/60 px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-emerald-500/30" required />
           </div>
 
           <div>
             <label className="block text-xs text-muted-foreground mb-1.5">Account ID / Customer ID</label>
             <input type="text" value={accountId} onChange={e => setAccountId(e.target.value)}
               placeholder="e.g. 123-456-7890"
-              className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-emerald-500/30" required />
+              className="w-full rounded-lg border border-border bg-muted/60 px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-emerald-500/30" required />
           </div>
 
           <div>
@@ -182,7 +182,7 @@ function AccountModal({ initial, defaultPlatform = "google", onClose, onSave, sa
             <div className="relative">
               <input type={showToken ? "text" : "password"} value={token} onChange={e => setToken(e.target.value)}
                 placeholder={isEdit && initial?.has_token ? "••••••••••••" : "Enter API token (encrypted at rest)"}
-                className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 pr-9 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-emerald-500/30" />
+                className="w-full rounded-lg border border-border bg-muted/60 px-3 py-2 pr-9 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-emerald-500/30" />
               <button type="button" onClick={() => setShowToken(s => !s)}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/40 hover:text-muted-foreground">
                 {showToken ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
@@ -192,7 +192,7 @@ function AccountModal({ initial, defaultPlatform = "google", onClose, onSave, sa
           </div>
 
           {platform === "google" && !isEdit && (
-            <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3 space-y-2">
+            <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2">
               <p className="text-[11px] font-medium">Or connect with Google (recommended)</p>
               <p className="text-[10px] text-muted-foreground leading-relaxed">
                 Sign in with the Google account that manages your Ads account — no token pasting or
@@ -280,8 +280,8 @@ function CampaignModal({ account, initial, onClose, onSave, saving }: CampaignMo
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-lg rounded-2xl border border-white/[0.09] bg-[hsl(var(--card))] shadow-2xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-white/[0.07] flex items-center gap-3 justify-between">
+      <div className="relative w-full max-w-lg rounded-2xl border border-border bg-[hsl(var(--card))] shadow-2xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-border flex items-center gap-3 justify-between">
           <div className="flex items-center gap-2">
             <span className={cn("h-2 w-2 rounded-full", p.bg, "ring-1", p.border)} />
             <p className="text-sm font-semibold">{initial?.id ? "Edit Campaign" : "Log Campaign"}</p>
@@ -295,13 +295,13 @@ function CampaignModal({ account, initial, onClose, onSave, saving }: CampaignMo
             <div className="col-span-2">
               <label className="block text-xs text-muted-foreground mb-1.5">Campaign Name</label>
               <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Lead Gen Q1 2025"
-                className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-emerald-500/30" required />
+                className="w-full rounded-lg border border-border bg-muted/60 px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-emerald-500/30" required />
             </div>
 
             <div>
               <label className="block text-xs text-muted-foreground mb-1.5">Status</label>
               <select value={status} onChange={e => setStatus(e.target.value as any)}
-                className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm focus:outline-none focus:border-emerald-500/30">
+                className="w-full rounded-lg border border-border bg-muted/60 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500/30">
                 <option value="active">Active</option>
                 <option value="paused">Paused</option>
                 <option value="ended">Ended</option>
@@ -311,43 +311,43 @@ function CampaignModal({ account, initial, onClose, onSave, saving }: CampaignMo
             <div>
               <label className="block text-xs text-muted-foreground mb-1.5">Total Spend (£)</label>
               <input type="number" value={spend} onChange={e => setSpend(e.target.value)} placeholder="0.00" min="0" step="0.01"
-                className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-emerald-500/30" />
+                className="w-full rounded-lg border border-border bg-muted/60 px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-emerald-500/30" />
             </div>
 
             <div>
               <label className="block text-xs text-muted-foreground mb-1.5">Impressions</label>
               <input type="number" value={impressions} onChange={e => setImpressions(e.target.value)} placeholder="0" min="0"
-                className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-emerald-500/30" />
+                className="w-full rounded-lg border border-border bg-muted/60 px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-emerald-500/30" />
             </div>
 
             <div>
               <label className="block text-xs text-muted-foreground mb-1.5">Clicks</label>
               <input type="number" value={clicks} onChange={e => setClicks(e.target.value)} placeholder="0" min="0"
-                className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-emerald-500/30" />
+                className="w-full rounded-lg border border-border bg-muted/60 px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-emerald-500/30" />
             </div>
 
             <div>
               <label className="block text-xs text-muted-foreground mb-1.5">Conversions / Leads</label>
               <input type="number" value={conversions} onChange={e => setConversions(e.target.value)} placeholder="0" min="0"
-                className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-emerald-500/30" />
+                className="w-full rounded-lg border border-border bg-muted/60 px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-emerald-500/30" />
             </div>
 
             <div>
               <label className="block text-xs text-muted-foreground mb-1.5">ROAS (optional)</label>
               <input type="number" value={roas} onChange={e => setRoas(e.target.value)} placeholder="e.g. 3.2" min="0" step="0.1"
-                className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-emerald-500/30" />
+                className="w-full rounded-lg border border-border bg-muted/60 px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-emerald-500/30" />
             </div>
 
             <div>
               <label className="block text-xs text-muted-foreground mb-1.5">Period Start</label>
               <input type="date" value={periodStart} onChange={e => setPeriodStart(e.target.value)}
-                className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm focus:outline-none focus:border-emerald-500/30" />
+                className="w-full rounded-lg border border-border bg-muted/60 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500/30" />
             </div>
 
             <div>
               <label className="block text-xs text-muted-foreground mb-1.5">Period End</label>
               <input type="date" value={periodEnd} onChange={e => setPeriodEnd(e.target.value)}
-                className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm focus:outline-none focus:border-emerald-500/30" />
+                className="w-full rounded-lg border border-border bg-muted/60 px-3 py-2 text-sm focus:outline-none focus:border-emerald-500/30" />
             </div>
           </div>
 
@@ -452,10 +452,10 @@ function AccountDetail({ account, onEdit, onDelete }: {
   }
 
   return (
-    <div className="border-t border-white/[0.06]">
+    <div className="border-t border-border">
       {/* Metrics bar */}
       {totalSpend > 0 && (
-        <div className="px-4 py-3 grid grid-cols-3 sm:grid-cols-6 gap-3 bg-white/[0.01]">
+        <div className="px-4 py-3 grid grid-cols-3 sm:grid-cols-6 gap-3 bg-muted/20">
           {[
             { label: "Spend",       value: `£${totalSpend.toFixed(2)}` },
             { label: "Impressions", value: totalImpressions >= 1000 ? `${(totalImpressions / 1000).toFixed(1)}k` : totalImpressions.toString() },
@@ -473,7 +473,7 @@ function AccountDetail({ account, onEdit, onDelete }: {
       )}
 
       {/* Campaign table header */}
-      <div className="px-4 py-2.5 flex items-center justify-between border-t border-white/[0.05]">
+      <div className="px-4 py-2.5 flex items-center justify-between border-t border-border">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.08em]">
           Manual campaigns ({campaigns.length})
           <span className="ml-2 normal-case font-normal tracking-normal text-[10px] text-muted-foreground/70">
@@ -511,7 +511,7 @@ function AccountDetail({ account, onEdit, onDelete }: {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[600px] text-xs">
             <thead>
-              <tr className="border-y border-white/[0.04] bg-white/[0.02]">
+              <tr className="border-y border-border/60 bg-muted/40">
                 {["Campaign", "Status", "Spend", "Impr.", "Clicks", "Conv.", "CPL", "ROAS", ""].map(h => (
                   <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.08em] first:pl-4 last:pr-4">{h}</th>
                 ))}
@@ -521,7 +521,7 @@ function AccountDetail({ account, onEdit, onDelete }: {
               {campaigns.map(c => {
                 const cpl = c.cpl ?? (Number(c.conversions) > 0 ? Number(c.spend) / Number(c.conversions) : null);
                 return (
-                  <tr key={c.id} className="hover:bg-white/[0.02] transition-colors">
+                  <tr key={c.id} className="hover:bg-muted/40 transition-colors">
                     <td className="px-4 py-2.5 font-medium max-w-[160px] truncate">{c.name}</td>
                     <td className="px-3 py-2.5">
                       <span className={cn(
@@ -559,7 +559,7 @@ function AccountDetail({ account, onEdit, onDelete }: {
 
       {/* AI recommendations */}
       {showRecos && (
-        <div className="border-t border-white/[0.06] px-4 py-4">
+        <div className="border-t border-border px-4 py-4">
           <p className="text-xs font-semibold mb-3 flex items-center gap-1.5">
             <Lightbulb className="h-3.5 w-3.5 text-emerald-400" />
             GrowthMind Analysis
@@ -576,7 +576,7 @@ function AccountDetail({ account, onEdit, onDelete }: {
                   "rounded-lg border px-3 py-2.5 flex items-start gap-2.5",
                   r.priority === "high"   ? "border-orange-500/20 bg-orange-500/[0.05]" :
                   r.priority === "medium" ? "border-amber-500/15 bg-amber-500/[0.04]" :
-                                           "border-white/[0.06] bg-white/[0.02]",
+                                           "border-border bg-muted/40",
                 )}>
                   <AlertTriangle className={cn(
                     "h-3.5 w-3.5 shrink-0 mt-0.5",
@@ -641,7 +641,7 @@ function PlatformCard({ platform, accounts, onConnect, onEdit, onDelete, extra }
                 {accounts.length} account{accounts.length !== 1 ? "s" : ""}
               </span>
             ) : (
-              <span className="rounded-full bg-white/[0.05] px-1.5 py-0.5 text-[10px] text-muted-foreground/60">
+              <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground/60">
                 Not connected
               </span>
             )}
@@ -656,7 +656,7 @@ function PlatformCard({ platform, accounts, onConnect, onEdit, onDelete, extra }
           </Button>
           {connected && (
             <button onClick={() => setExpanded(e => !e)}
-              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition-colors">
+              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
               {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
             </button>
           )}
@@ -668,11 +668,11 @@ function PlatformCard({ platform, accounts, onConnect, onEdit, onDelete, extra }
 
       {/* Expanded: list of accounts with campaign detail */}
       {expanded && connected && (
-        <div className="border-t border-white/[0.06] divide-y divide-white/[0.04]">
+        <div className="border-t border-border divide-y divide-white/[0.04]">
           {accounts.map(acct => (
             <div key={acct.id}>
               {/* Account sub-header */}
-              <div className="px-4 py-2.5 flex items-center gap-2 bg-white/[0.015]">
+              <div className="px-4 py-2.5 flex items-center gap-2 bg-muted/25">
                 <LinkIcon className="h-3 w-3 text-muted-foreground/60 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <span className="text-xs font-medium">{acct.label}</span>
@@ -786,7 +786,7 @@ function SyncHealthBar({
   return (
     <>
       {/* Health indicator row */}
-      <div className="mb-4 flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-2.5">
+      <div className="mb-4 flex items-center gap-2 rounded-xl border border-border bg-muted/40 px-4 py-2.5">
         <Activity className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
         <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/50 mr-1">Sync Status</span>
         <span className={cn("inline-flex items-center gap-1.5 text-[11px] font-medium", textCls)}>
@@ -1000,7 +1000,7 @@ export function GrowthMindAds() {
         {totalSpend > 0 && (
           <div className="mb-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
             {syncAccounts.map((acc: any) => (
-              <div key={acc.id} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+              <div key={acc.id} className="rounded-xl border border-border bg-muted/40 p-3">
                 <div className="text-[10px] text-muted-foreground/60 uppercase tracking-widest flex items-center gap-1">
                   <DollarSign className="h-2.5 w-2.5" /> {acc.platform}
                 </div>
@@ -1061,9 +1061,9 @@ export function GrowthMindAds() {
               />
             ))}
 
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 mt-2">
+            <div className="rounded-xl border border-border bg-muted/40 p-4 mt-2">
               <p className="text-xs text-muted-foreground leading-relaxed">
-                <span className="text-emerald-400 font-medium">Live sync:</span> Connect your ad accounts with access tokens to pull real campaign data, spend, ROAS and impressions automatically. Tokens are encrypted with AES-256-GCM and never returned to the browser. Webhooks for Meta &amp; TikTok receive conversion events at <code className="text-[10px] bg-white/[0.04] px-1 rounded">/api/public/meta-ads-webhook</code> and <code className="text-[10px] bg-white/[0.04] px-1 rounded">/api/public/tiktok-ads-webhook</code>.
+                <span className="text-emerald-400 font-medium">Live sync:</span> Connect your ad accounts with access tokens to pull real campaign data, spend, ROAS and impressions automatically. Tokens are encrypted with AES-256-GCM and never returned to the browser. Webhooks for Meta &amp; TikTok receive conversion events at <code className="text-[10px] bg-muted px-1 rounded">/api/public/meta-ads-webhook</code> and <code className="text-[10px] bg-muted px-1 rounded">/api/public/tiktok-ads-webhook</code>.
               </p>
             </div>
           </div>

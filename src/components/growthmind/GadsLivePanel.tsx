@@ -105,7 +105,7 @@ function ConversionUploadStatus() {
   ];
 
   return (
-    <div className="px-4 py-3 border-t border-white/[0.05]">
+    <div className="px-4 py-3 border-t border-border">
       <div className="flex items-center gap-2 flex-wrap">
         <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-[0.08em]">Conversion uploads</p>
         <span className={cn(
@@ -294,7 +294,7 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
 
   if (connLoading) {
     return (
-      <div className="border-t border-white/[0.06] px-4 py-6 flex items-center gap-2 text-muted-foreground">
+      <div className="border-t border-border px-4 py-6 flex items-center gap-2 text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin text-blue-400" />
         <span className="text-xs">Checking Google Ads connection…</span>
       </div>
@@ -339,10 +339,10 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
   const currency = dash?.account?.currencyCode ?? conn.account?.currencyCode;
 
   return (
-    <div className="border-t border-white/[0.06]">
+    <div className="border-t border-border">
 
       {/* ── 4-stage status ── */}
-      <div className="px-4 py-3 bg-white/[0.015]">
+      <div className="px-4 py-3 bg-muted/25">
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
           {STAGES.map((s, i) => {
             const done = !!state?.[s.key];
@@ -408,7 +408,7 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
 
       {/* ── Account selector (after discovery before selection, or when changing account) ── */}
       {state?.apiVerified && (changingAccount || !state?.accountSelected) && discovered && (
-        <div className="px-4 py-3 border-t border-white/[0.05]">
+        <div className="px-4 py-3 border-t border-border">
           <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-[0.08em] mb-2">
             {changingAccount ? "Change advertising account" : "Select your advertising account"}
           </p>
@@ -422,7 +422,7 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
             <div className="space-y-1.5">
               {selectable.map((c: any) => (
                 <button key={c.customerId}
-                  className="w-full flex items-center gap-3 rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-2 hover:border-blue-500/30 transition-colors text-left"
+                  className="w-full flex items-center gap-3 rounded-lg border border-border bg-muted/40 px-3 py-2 hover:border-blue-500/30 transition-colors text-left"
                   disabled={selectMut.isPending}
                   onClick={() => selectMut.mutate({ customerId: c.customerId, loginCustomerId: c.loginCustomerId ?? null })}>
                   <Target className="h-3.5 w-3.5 text-blue-400 shrink-0" />
@@ -446,7 +446,7 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
       {showDashboard && (
         <>
           {/* Account line + window picker */}
-          <div className="px-4 py-2.5 border-t border-white/[0.05] flex items-center gap-2 flex-wrap">
+          <div className="px-4 py-2.5 border-t border-border flex items-center gap-2 flex-wrap">
             <ShieldCheck className="h-3 w-3 text-blue-400 shrink-0" />
             <span className="text-[11px] text-muted-foreground">
               {conn.account?.descriptiveName || "Google Ads"} · ID {conn.account?.customerId}
@@ -473,7 +473,7 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
           ) : kpis ? (
             <>
               {/* KPI row */}
-              <div className="px-4 py-3 grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-3 border-t border-white/[0.04]">
+              <div className="px-4 py-3 grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-3 border-t border-border/60">
                 {[
                   { label: "Spend",       cur: kpis.spend,       prev: prevKpis?.spend ?? 0,       fmt: (n: number) => fmtGBP(n, currency), invert: false },
                   { label: "Impressions", cur: kpis.impressions, prev: prevKpis?.impressions ?? 0, fmt: (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n), invert: false },
@@ -515,7 +515,7 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
               </div>
 
               {/* Campaigns table — sortable, filterable, click a row for detail */}
-              <div className="border-t border-white/[0.04]">
+              <div className="border-t border-border/60">
                 <div className="px-4 pt-3 pb-1.5 flex items-center gap-2 flex-wrap">
                   <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-[0.08em]">
                     Live campaigns ({visibleCampaigns.length})
@@ -542,7 +542,7 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
                   <div className="overflow-x-auto pb-1">
                     <table className="w-full min-w-[700px] text-xs">
                       <thead>
-                        <tr className="border-y border-white/[0.04] bg-white/[0.02]">
+                        <tr className="border-y border-border/60 bg-muted/40">
                           {([
                             ["name", "Campaign"], ["status", "Status"], ["spend", "Spend"],
                             ["clicks", "Clicks"], ["ctr", "CTR"], ["cpc", "CPC"],
@@ -562,7 +562,7 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
                       <tbody className="divide-y divide-white/[0.03]">
                         {visibleCampaigns.map((c: any) => (
                           <Fragment key={c.campaignId}>
-                            <tr className="hover:bg-white/[0.02] transition-colors cursor-pointer"
+                            <tr className="hover:bg-muted/40 transition-colors cursor-pointer"
                               onClick={() => setExpandedCampaign(expandedCampaign === c.campaignId ? null : c.campaignId)}>
                               <td className="px-4 py-2 font-medium max-w-[200px] truncate">
                                 <span className="inline-flex items-center gap-1">
@@ -588,7 +588,7 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
                             </tr>
                             {expandedCampaign === c.campaignId && (
                               <tr>
-                                <td colSpan={9} className="px-4 py-3 bg-white/[0.015]">
+                                <td colSpan={9} className="px-4 py-3 bg-muted/25">
                                   {detailLoading ? (
                                     <div className="flex items-center gap-2 text-muted-foreground py-2">
                                       <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-400" />
@@ -617,7 +617,7 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
                                       )}
                                       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                                         {Object.entries(campDetail.dimensions ?? {}).map(([dim, rows]: [string, any]) => (
-                                          <div key={dim} className="rounded-lg border border-white/[0.06] bg-white/[0.01] p-2.5">
+                                          <div key={dim} className="rounded-lg border border-border bg-muted/20 p-2.5">
                                             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.08em] mb-1.5">
                                               {DIMENSION_LABELS[dim] ?? dim.replace(/_/g, " ")}
                                             </p>
@@ -651,7 +651,7 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
 
               {/* Recommendations — approval-gated, never auto-applied */}
               {recommendations.length > 0 && (
-                <div className="border-t border-white/[0.05] px-4 py-3">
+                <div className="border-t border-border px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1 flex items-center gap-1.5">
                     <Lightbulb className="h-3 w-3 text-amber-400" />
                     GrowthMind recommendations ({recommendations.length})
@@ -667,7 +667,7 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
                         r.priority === "critical" ? "border-red-500/25 bg-red-500/[0.06]" :
                         r.priority === "high"   ? "border-orange-500/20 bg-orange-500/[0.05]" :
                         r.priority === "medium" ? "border-amber-500/15 bg-amber-500/[0.04]" :
-                                                  "border-white/[0.06] bg-white/[0.02]",
+                                                  "border-border bg-muted/40",
                       )}>
                         <div className="flex items-start gap-2.5">
                           <AlertTriangle className={cn(
@@ -704,7 +704,7 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
 
               {/* Change requests with honest engine statuses */}
               {changeRequests.length > 0 && (
-                <div className="border-t border-white/[0.05] px-4 py-3">
+                <div className="border-t border-border px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-2 flex items-center gap-1.5">
                     <MousePointerClick className="h-3 w-3 text-blue-400" />
                     Change requests
@@ -717,7 +717,7 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
                         st === "failed" ? "text-red-400 border-red-500/20 bg-red-500/[0.05]" :
                         st === "submitted" ? "text-blue-400 border-blue-500/15 bg-blue-500/[0.04]" :
                         st === "draft" ? "text-amber-400 border-amber-500/15 bg-amber-500/[0.04]" :
-                        "text-muted-foreground border-white/[0.08] bg-white/[0.02]";
+                        "text-muted-foreground border-border bg-muted/40";
                       const label =
                         st === "executed" ? "Applied to Google Ads" :
                         st === "failed" ? "Failed" :
@@ -740,7 +740,7 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
               )}
 
               {/* Sync history */}
-              <div className="border-t border-white/[0.05] px-4 py-2.5">
+              <div className="border-t border-border px-4 py-2.5">
                 <button className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
                   onClick={() => setShowRuns(s => !s)}>
                   <FileClock className="h-3 w-3" />
@@ -772,7 +772,7 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
               </div>
             </>
           ) : (
-            <p className="px-4 py-4 text-xs text-muted-foreground border-t border-white/[0.04]">
+            <p className="px-4 py-4 text-xs text-muted-foreground border-t border-border/60">
               No synced data yet — the first sync runs right after you select an account.
             </p>
           )}

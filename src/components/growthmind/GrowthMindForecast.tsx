@@ -57,7 +57,7 @@ function SummaryCard({ label, icon: Icon, values, currency, showCurrency = false
       : n.toLocaleString();
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-card/60 p-4">
+    <div className="rounded-xl border border-border bg-card/60 p-4">
       <div className="flex items-center gap-2 mb-3">
         <Icon className="h-4 w-4 text-emerald-400" />
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{label}</p>
@@ -88,9 +88,9 @@ function SavedForecastRow({ fc }: { fc: any }) {
   const curr = fc.currency ?? "GBP";
 
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+    <div className="rounded-lg border border-border bg-muted/40 overflow-hidden">
       <div
-        className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-white/[0.02]"
+        className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-muted/40"
         onClick={() => setOpen(v => !v)}
       >
         <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform", open && "rotate-180")} />
@@ -113,7 +113,7 @@ function SavedForecastRow({ fc }: { fc: any }) {
         )}
       </div>
       {open && s.leadsBase !== undefined && (
-        <div className="px-4 pb-3 pt-1 border-t border-white/[0.04]">
+        <div className="px-4 pb-3 pt-1 border-t border-border/60">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
               { label: "Leads",       val: s.leadsBase },
@@ -121,7 +121,7 @@ function SavedForecastRow({ fc }: { fc: any }) {
               { label: "Sales",       val: s.salesBase },
               { label: "Revenue",     val: `${curr}${s.revBase >= 1000 ? (s.revBase / 1000).toFixed(1) + "k" : s.revBase}` },
             ].map(item => (
-              <div key={item.label} className="rounded-md bg-white/[0.03] px-3 py-2">
+              <div key={item.label} className="rounded-md bg-muted/60 px-3 py-2">
                 <p className="text-[10px] text-muted-foreground">{item.label} (base)</p>
                 <p className="text-sm font-bold tabular-nums mt-0.5">{item.val}</p>
               </div>
@@ -138,7 +138,7 @@ function SavedForecastRow({ fc }: { fc: any }) {
 function CustomTooltip({ active, payload, label, metric }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-white/[0.12] bg-[hsl(var(--card))] px-3 py-2.5 text-xs shadow-xl">
+    <div className="rounded-lg border border-border bg-[hsl(var(--card))] px-3 py-2.5 text-xs shadow-xl">
       <p className="font-semibold mb-1.5">{label}</p>
       {payload.map((p: any) => (
         <div key={p.dataKey} className="flex items-center gap-2">
@@ -322,7 +322,7 @@ export function GrowthMindForecast() {
 
         {/* Config panel */}
         {showConfig && (
-          <div className="mb-5 rounded-xl border border-white/[0.06] bg-card/60 p-4">
+          <div className="mb-5 rounded-xl border border-border bg-card/60 p-4">
             <p className="text-sm font-semibold mb-3 flex items-center gap-2">
               <Settings2 className="h-4 w-4 text-emerald-400" />
               Forecast Configuration
@@ -376,7 +376,7 @@ export function GrowthMindForecast() {
             {/* Scenario toggle + metric tabs */}
             <div className="flex items-center justify-between gap-3 flex-wrap">
               {/* Metric tabs */}
-              <div className="flex gap-1 p-1 rounded-lg bg-white/[0.04] border border-white/[0.06]">
+              <div className="flex gap-1 p-1 rounded-lg bg-muted border border-border">
                 {(["leads", "bookings", "sales"] as MetricKey[]).map(m => (
                   <button
                     key={m}
@@ -394,7 +394,7 @@ export function GrowthMindForecast() {
               </div>
 
               {/* Scenario toggle */}
-              <div className="flex gap-1 p-1 rounded-lg bg-white/[0.04] border border-white/[0.06]">
+              <div className="flex gap-1 p-1 rounded-lg bg-muted border border-border">
                 {([
                   { key: "conservative", label: "Conservative", color: SCENARIO_COLORS.conservative },
                   { key: "base",         label: "Base",         color: SCENARIO_COLORS.base },
@@ -406,7 +406,7 @@ export function GrowthMindForecast() {
                     className={cn(
                       "px-3 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1.5",
                       scenario === s.key
-                        ? "bg-white/[0.08] text-foreground"
+                        ? "bg-muted text-foreground"
                         : "text-muted-foreground hover:text-foreground",
                     )}
                   >
@@ -437,7 +437,7 @@ export function GrowthMindForecast() {
             </div>
 
             {/* Chart */}
-            <div className="rounded-xl border border-white/[0.06] bg-card/60 p-4">
+            <div className="rounded-xl border border-border bg-card/60 p-4">
               <p className="text-xs font-medium text-muted-foreground mb-1">
                 {METRIC_LABELS[metric]} — actuals (solid) vs forecast (dashed)
               </p>
@@ -551,8 +551,8 @@ export function GrowthMindForecast() {
             )}
 
             {/* Saved forecasts */}
-            <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
-              <div className="px-4 py-3 border-b border-white/[0.06]">
+            <div className="rounded-xl border border-border bg-card/60 overflow-hidden">
+              <div className="px-4 py-3 border-b border-border">
                 <p className="text-sm font-semibold">Saved Forecasts</p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">Historical forecast snapshots</p>
               </div>

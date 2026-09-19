@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 
 function ProgressBar({ pct, color = "emerald" }: { pct: number; color?: string }) {
   return (
-    <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
       <div
         className={cn("h-full rounded-full transition-all", `bg-${color}-500`)}
         style={{ width: `${Math.min(pct, 100)}%` }}
@@ -76,15 +76,15 @@ export function GrowthMindCampaigns() {
                 { label: "Paused / Stopped", value: stopped.length,          color: "text-amber-400" },
                 { label: "Email Campaigns",  value: data?.email?.total ?? 0, color: "text-blue-400" },
               ].map(s => (
-                <div key={s.label} className="rounded-xl border border-white/[0.06] bg-card/60 p-4 text-center">
+                <div key={s.label} className="rounded-xl border border-border bg-card/60 p-4 text-center">
                   <p className={cn("text-2xl font-bold tabular-nums", s.color)}>{s.value}</p>
                   <p className="text-[10px] text-muted-foreground mt-0.5">{s.label}</p>
                 </div>
               ))}
             </div>
 
-            <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
-              <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between">
+            <div className="rounded-xl border border-border bg-card/60 overflow-hidden">
+              <div className="px-4 py-3 border-b border-border flex items-center justify-between">
                 <p className="text-sm font-semibold flex items-center gap-1.5">
                   <BarChart3 className="h-4 w-4 text-emerald-400" />
                   Call Campaigns
@@ -114,7 +114,7 @@ export function GrowthMindCampaigns() {
                         <div className="flex items-start gap-3 mb-3">
                           <div className={cn(
                             "flex h-7 w-7 items-center justify-center rounded-lg shrink-0",
-                            isActive ? "bg-emerald-500/10" : "bg-white/[0.04]",
+                            isActive ? "bg-emerald-500/10" : "bg-muted",
                           )}>
                             {isActive
                               ? <Play className="h-3.5 w-3.5 text-emerald-400" />
@@ -126,7 +126,7 @@ export function GrowthMindCampaigns() {
                               <p className="text-sm font-semibold">{c.name}</p>
                               <span className={cn(
                                 "rounded-full px-2 py-0.5 text-[10px] font-medium capitalize",
-                                isActive ? "bg-emerald-500/15 text-emerald-400" : "bg-white/[0.06] text-muted-foreground",
+                                isActive ? "bg-emerald-500/15 text-emerald-400" : "bg-muted text-muted-foreground",
                               )}>
                                 {c.status}
                               </span>
@@ -171,7 +171,7 @@ export function GrowthMindCampaigns() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="rounded-xl border border-white/[0.06] bg-card/60 p-4">
+              <div className="rounded-xl border border-border bg-card/60 p-4">
                 <div className="flex items-center gap-2 mb-3">
                   <Mail className="h-4 w-4 text-blue-400" />
                   <p className="text-sm font-semibold">HexMail Campaigns</p>
@@ -200,7 +200,7 @@ export function GrowthMindCampaigns() {
                 )}
               </div>
 
-              <div className="rounded-xl border border-white/[0.06] bg-card/60 p-4">
+              <div className="rounded-xl border border-border bg-card/60 p-4">
                 <div className="flex items-center gap-2 mb-3">
                   <MessageSquare className="h-4 w-4 text-emerald-400" />
                   <p className="text-sm font-semibold">WhatsApp Reach</p>

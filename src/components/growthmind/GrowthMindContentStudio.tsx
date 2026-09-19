@@ -246,7 +246,7 @@ function SeoPanel({ seoData }: { seoData: Partial<SeoData> }) {
           <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mb-1">Secondary Keywords</p>
           <div className="flex flex-wrap gap-1">
             {seoData.secondaryKeywords!.map((k, i) => (
-              <span key={i} className="rounded bg-white/[0.04] border border-white/[0.06] px-2 py-0.5 text-[10px] text-muted-foreground">{k}</span>
+              <span key={i} className="rounded bg-muted border border-border px-2 py-0.5 text-[10px] text-muted-foreground">{k}</span>
             ))}
           </div>
         </div>
@@ -294,10 +294,10 @@ function AssetCard({ asset, onView, onDelete, onToggleFav, onStatusChange }: {
   const Icon              = td.icon;
 
   return (
-    <div className="group rounded-xl border border-white/[0.06] bg-card/60 p-4 flex flex-col gap-3 hover:border-white/[0.12] transition-all">
+    <div className="group rounded-xl border border-border bg-card/60 p-4 flex flex-col gap-3 hover:border-foreground/20 transition-all">
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="shrink-0 flex h-7 w-7 items-center justify-center rounded-lg bg-white/[0.04] border border-white/[0.06]">
+          <div className="shrink-0 flex h-7 w-7 items-center justify-center rounded-lg bg-muted border border-border">
             <Icon className={cn("h-3.5 w-3.5", td.color)} />
           </div>
           <div className="min-w-0">
@@ -320,13 +320,13 @@ function AssetCard({ asset, onView, onDelete, onToggleFav, onStatusChange }: {
               <MoreHorizontal className="h-3.5 w-3.5" />
             </button>
             {menu && (
-              <div className="absolute right-0 top-6 z-10 w-40 rounded-lg border border-white/[0.08] bg-popover shadow-xl py-1">
+              <div className="absolute right-0 top-6 z-10 w-40 rounded-lg border border-border bg-popover shadow-xl py-1">
                 <button onClick={() => { onView(asset); setMenu(false); }}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-white/[0.04] transition-colors">
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-muted transition-colors">
                   <Eye className="h-3 w-3" /> View / Edit
                 </button>
                 <button onClick={() => { copy(asset.content); setMenu(false); }}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-white/[0.04] transition-colors">
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-muted transition-colors">
                   {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />} Copy content
                 </button>
                 <button
@@ -339,7 +339,7 @@ function AssetCard({ asset, onView, onDelete, onToggleFav, onStatusChange }: {
                     });
                     window.location.assign(`/growthmind/video-studio?${params.toString()}`);
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-white/[0.04] transition-colors text-violet-400">
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-muted transition-colors text-violet-400">
                   <Clapperboard className="h-3 w-3" /> Create Video
                 </button>
                 <button
@@ -352,24 +352,24 @@ function AssetCard({ asset, onView, onDelete, onToggleFav, onStatusChange }: {
                     });
                     window.location.assign(`/growthmind/image-studio?${params.toString()}`);
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-white/[0.04] transition-colors text-orange-400">
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-muted transition-colors text-orange-400">
                   <ImageIcon className="h-3 w-3" /> Generate Image
                 </button>
                 {asset.status !== "published" && (
                   <button onClick={() => { onStatusChange(asset.id, "published"); setMenu(false); }}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-white/[0.04] transition-colors">
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-muted transition-colors">
                     <ExternalLink className="h-3 w-3 text-emerald-400" /> Mark published
                   </button>
                 )}
                 {asset.status !== "archived" && (
                   <button onClick={() => { onStatusChange(asset.id, "archived"); setMenu(false); }}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-white/[0.04] transition-colors text-muted-foreground">
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-muted transition-colors text-muted-foreground">
                     <Archive className="h-3 w-3" /> Archive
                   </button>
                 )}
-                <div className="border-t border-white/[0.06] my-1" />
+                <div className="border-t border-border my-1" />
                 <button onClick={() => { onDelete(asset.id); setMenu(false); }}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-white/[0.04] text-red-400 transition-colors">
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-muted text-red-400 transition-colors">
                   <Trash2 className="h-3 w-3" /> Delete
                 </button>
               </div>
@@ -442,7 +442,7 @@ function MetaConnectModal({ onClose, onSaved }: {
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-background/70 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-2xl border border-white/[0.08] bg-[hsl(var(--sidebar-background))] shadow-2xl p-6 space-y-5">
+      <div className="w-full max-w-lg rounded-2xl border border-border bg-[hsl(var(--sidebar-background))] shadow-2xl p-6 space-y-5">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500/15 border border-blue-500/20">
             <Facebook className="h-4.5 w-4.5 text-blue-400" />
@@ -575,7 +575,7 @@ function MetaPublishModal({ asset, onClose }: {
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-background/70 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-2xl border border-white/[0.08] bg-[hsl(var(--sidebar-background))] shadow-2xl p-6 space-y-5">
+      <div className="w-full max-w-lg rounded-2xl border border-border bg-[hsl(var(--sidebar-background))] shadow-2xl p-6 space-y-5">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500/15 border border-blue-500/20">
             <Upload className="h-4 w-4 text-blue-400" />
@@ -598,11 +598,11 @@ function MetaPublishModal({ asset, onClose }: {
               </div>
               <p className="text-xs text-muted-foreground">{result.message}</p>
               <div className="grid grid-cols-2 gap-2 mt-2">
-                <div className="rounded-lg bg-white/[0.03] border border-white/[0.06] px-3 py-2">
+                <div className="rounded-lg bg-muted/60 border border-border px-3 py-2">
                   <p className="text-[10px] text-muted-foreground/50 mb-0.5">Campaign ID</p>
                   <p className="text-xs font-mono text-muted-foreground truncate">{result.campaignId}</p>
                 </div>
-                <div className="rounded-lg bg-white/[0.03] border border-white/[0.06] px-3 py-2">
+                <div className="rounded-lg bg-muted/60 border border-border px-3 py-2">
                   <p className="text-[10px] text-muted-foreground/50 mb-0.5">Ad Set ID</p>
                   <p className="text-xs font-mono text-muted-foreground truncate">{result.adSetId}</p>
                 </div>
@@ -661,7 +661,7 @@ function MetaPublishModal({ asset, onClose }: {
               </div>
             </div>
 
-            <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+            <div className="rounded-lg border border-border bg-muted/40 p-3">
               <p className="text-[10px] text-muted-foreground/50 mb-1.5">Ad Copy Preview</p>
               <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed">{asset.content.slice(0, 200)}{asset.content.length > 200 ? "…" : ""}</p>
             </div>
@@ -719,9 +719,9 @@ function AssetViewer({ asset, onClose, onSave, onDelete }: {
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-stretch bg-background/80 backdrop-blur-sm">
-        <div className="ml-auto flex w-full max-w-3xl flex-col border-l border-white/[0.08] bg-[hsl(var(--sidebar-background))] overflow-hidden">
+        <div className="ml-auto flex w-full max-w-3xl flex-col border-l border-border bg-[hsl(var(--sidebar-background))] overflow-hidden">
           {/* Header */}
-          <div className="flex items-center gap-3 px-5 py-3.5 border-b border-white/[0.06] shrink-0">
+          <div className="flex items-center gap-3 px-5 py-3.5 border-b border-border shrink-0">
             <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors mr-1">
               <ArrowLeft className="h-4 w-4" />
             </button>
@@ -741,7 +741,7 @@ function AssetViewer({ asset, onClose, onSave, onDelete }: {
                 <option value="published">published</option>
                 <option value="archived">archived</option>
               </select>
-              <button onClick={() => copy(content)} className="p-1.5 rounded hover:bg-white/[0.04] transition-colors text-muted-foreground hover:text-foreground" title="Copy content">
+              <button onClick={() => copy(content)} className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Copy content">
                 {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
               </button>
               {dirty && (
@@ -760,7 +760,7 @@ function AssetViewer({ asset, onClose, onSave, onDelete }: {
 
           {/* Ad Actions Bar — shown for meta_ad / google_ad */}
           {isAd && (
-            <div className="flex items-center gap-2 px-5 py-3 border-b border-white/[0.06] shrink-0 bg-white/[0.01]">
+            <div className="flex items-center gap-2 px-5 py-3 border-b border-border shrink-0 bg-muted/20">
               <span className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mr-1">Actions</span>
               {asset.contentType === "meta_ad" && (
                 <Button
@@ -794,7 +794,7 @@ function AssetViewer({ asset, onClose, onSave, onDelete }: {
             <textarea
               value={content}
               onChange={e => { setContent(e.target.value); setDirty(true); }}
-              className="w-full rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-sm leading-relaxed text-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none min-h-[400px] font-mono"
+              className="w-full rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm leading-relaxed text-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none min-h-[400px] font-mono"
               style={{ height: "auto" }}
               onInput={e => { const t = e.currentTarget; t.style.height = "auto"; t.style.height = t.scrollHeight + "px"; }}
             />
@@ -802,7 +802,7 @@ function AssetViewer({ asset, onClose, onSave, onDelete }: {
               <SeoPanel seoData={asset.seoData} />
             )}
             {asset.brief && Object.keys(asset.brief).length > 0 && (
-              <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+              <div className="rounded-xl border border-border bg-muted/40 p-4">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-3">Brief Used</p>
                 <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
                   {Object.entries(asset.brief).filter(([, v]) => v && String(v).length > 0 && !["contentType"].includes(String(v))).map(([k, v]) => (
@@ -869,19 +869,19 @@ function CalendarTab({ assets }: { assets: ContentAsset[] }) {
           Content Calendar
         </h2>
         <div className="flex items-center gap-2 ml-auto">
-          <button onClick={prevMonth} className="p-1 rounded hover:bg-white/[0.04] transition-colors text-muted-foreground">
+          <button onClick={prevMonth} className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground">
             <ChevronLeft className="h-4 w-4" />
           </button>
           <span className="text-sm font-semibold w-36 text-center">{MONTH_NAMES[month]} {year}</span>
-          <button onClick={nextMonth} className="p-1 rounded hover:bg-white/[0.04] transition-colors text-muted-foreground">
+          <button onClick={nextMonth} className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground">
             <ChevronRight className="h-4 w-4" />
           </button>
         </div>
       </div>
 
-      <div className="rounded-xl border border-white/[0.06] overflow-hidden">
+      <div className="rounded-xl border border-border overflow-hidden">
         {/* Day headers */}
-        <div className="grid grid-cols-7 border-b border-white/[0.06]">
+        <div className="grid grid-cols-7 border-b border-border">
           {DAY_NAMES.map(d => (
             <div key={d} className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50 text-center">
               {d}
@@ -897,9 +897,9 @@ function CalendarTab({ assets }: { assets: ContentAsset[] }) {
               <div
                 key={idx}
                 className={cn(
-                  "min-h-[80px] p-1.5 border-b border-r border-white/[0.04] last:border-r-0",
+                  "min-h-[80px] p-1.5 border-b border-r border-border/60 last:border-r-0",
                   idx % 7 === 6 && "border-r-0",
-                  !day && "bg-white/[0.01]",
+                  !day && "bg-muted/20",
                 )}
               >
                 {day && (
@@ -1316,7 +1316,7 @@ export function GrowthMindContentStudio() {
             )}
           </div>
 
-          <div className="flex gap-1 border-b border-white/[0.06]">
+          <div className="flex gap-1 border-b border-border">
             {([
               { id: "generate", label: "Generate", icon: Sparkles },
               { id: "library",  label: "Library",  icon: Library },
@@ -1336,7 +1336,7 @@ export function GrowthMindContentStudio() {
                 <t.icon className="h-3.5 w-3.5" />
                 {t.label}
                 {t.id === "library" && statsData && statsData.total > 0 && (
-                  <span className="ml-0.5 rounded-full bg-white/[0.08] px-1.5 py-0.5 text-[9px] font-semibold">{statsData.total}</span>
+                  <span className="ml-0.5 rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-semibold">{statsData.total}</span>
                 )}
               </button>
             ))}
@@ -1374,7 +1374,7 @@ export function GrowthMindContentStudio() {
                                       "flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-all",
                                       active
                                         ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
-                                        : "border-white/[0.06] bg-white/[0.02] text-muted-foreground hover:border-white/[0.12] hover:text-foreground",
+                                        : "border-border bg-muted/40 text-muted-foreground hover:border-foreground/20 hover:text-foreground",
                                     )}
                                   >
                                     <Icon className={cn("h-3.5 w-3.5 shrink-0", active ? "text-emerald-400" : t.color)} />
@@ -1398,7 +1398,7 @@ export function GrowthMindContentStudio() {
                     return (
                       <div>
                         <p className="text-sm font-semibold mb-3">2. AI Mode</p>
-                        <div className="rounded-xl border border-white/[0.06] bg-card/60 p-4 space-y-3">
+                        <div className="rounded-xl border border-border bg-card/60 p-4 space-y-3">
                           {/* Toggle */}
                           <div className="flex items-center gap-2">
                             <button
@@ -1407,7 +1407,7 @@ export function GrowthMindContentStudio() {
                                 "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all border",
                                 aiMode === "smart"
                                   ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300"
-                                  : "bg-white/[0.02] border-white/[0.06] text-muted-foreground hover:text-foreground",
+                                  : "bg-muted/40 border-border text-muted-foreground hover:text-foreground",
                               )}
                             >
                               <Zap className="h-3 w-3" />
@@ -1419,7 +1419,7 @@ export function GrowthMindContentStudio() {
                                 "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all border",
                                 aiMode === "manual"
                                   ? "bg-blue-500/15 border-blue-500/40 text-blue-300"
-                                  : "bg-white/[0.02] border-white/[0.06] text-muted-foreground hover:text-foreground",
+                                  : "bg-muted/40 border-border text-muted-foreground hover:text-foreground",
                               )}
                             >
                               <SlidersHorizontal className="h-3 w-3" />
@@ -1437,7 +1437,7 @@ export function GrowthMindContentStudio() {
                               <span className="text-muted-foreground">{smartMeta.bestFor}</span>
                               <span className={cn(
                                 "ml-auto rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide",
-                                smartMeta.tier === "premium" ? "bg-amber-500/15 text-amber-300" : "bg-white/[0.06] text-muted-foreground",
+                                smartMeta.tier === "premium" ? "bg-amber-500/15 text-amber-300" : "bg-muted text-muted-foreground",
                               )}>{smartMeta.tier}</span>
                             </div>
                           )}
@@ -1460,7 +1460,7 @@ export function GrowthMindContentStudio() {
                                           "rounded px-2.5 py-1 text-xs font-medium border transition-all",
                                           manualProvider === p.id
                                             ? "bg-blue-500/15 border-blue-500/40 text-blue-300"
-                                            : "bg-white/[0.02] border-white/[0.06] text-muted-foreground hover:text-foreground",
+                                            : "bg-muted/40 border-border text-muted-foreground hover:text-foreground",
                                         )}
                                       >
                                         {p.label}
@@ -1479,7 +1479,7 @@ export function GrowthMindContentStudio() {
                                           "rounded px-2.5 py-1 text-xs font-medium border transition-all",
                                           manualModel === m
                                             ? "bg-blue-500/15 border-blue-500/40 text-blue-300"
-                                            : "bg-white/[0.02] border-white/[0.06] text-muted-foreground hover:text-foreground",
+                                            : "bg-muted/40 border-border text-muted-foreground hover:text-foreground",
                                         )}
                                       >
                                         {MODEL_META[m].label}
@@ -1489,7 +1489,7 @@ export function GrowthMindContentStudio() {
                                 </div>
                               </div>
                               {manualMeta && (
-                                <div className="rounded-lg bg-white/[0.02] border border-white/[0.04] px-3 py-2 grid grid-cols-4 gap-2 text-xs">
+                                <div className="rounded-lg bg-muted/40 border border-border/60 px-3 py-2 grid grid-cols-4 gap-2 text-xs">
                                   <div>
                                     <p className="text-[9px] text-muted-foreground/50 uppercase tracking-wide mb-0.5">Best For</p>
                                     <p className="text-muted-foreground leading-tight">{manualMeta.bestFor}</p>
@@ -1523,7 +1523,7 @@ export function GrowthMindContentStudio() {
                       {/* Step header + prompt source toggle */}
                       <div className="flex items-center gap-3 mb-3 flex-wrap">
                         <p className="text-sm font-semibold">3. Content brief</p>
-                        <div className="flex items-center gap-1 rounded-lg border border-white/[0.06] bg-white/[0.02] p-0.5 ml-auto">
+                        <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/40 p-0.5 ml-auto">
                           <button
                             onClick={() => setPromptSource("brief")}
                             className={cn(
@@ -1551,7 +1551,7 @@ export function GrowthMindContentStudio() {
                         </div>
                       </div>
 
-                      <div className="rounded-xl border border-white/[0.06] bg-card/60 p-5 space-y-4">
+                      <div className="rounded-xl border border-border bg-card/60 p-5 space-y-4">
 
                         {/* ── Standard Brief ── */}
                         {promptSource === "brief" && (
@@ -1818,8 +1818,8 @@ export function GrowthMindContentStudio() {
 
                   <div className={cn("gap-5", output.seoData && Object.keys(output.seoData).length > 0 ? "grid grid-cols-1 lg:grid-cols-3" : "")}>
                     <div className={output.seoData && Object.keys(output.seoData).length > 0 ? "lg:col-span-2" : ""}>
-                      <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
-                        <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06]">
+                      <div className="rounded-xl border border-border bg-card/60 overflow-hidden">
+                        <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
                           <p className="text-xs font-semibold">Generated Content</p>
                         </div>
                         <pre className="whitespace-pre-wrap text-sm leading-relaxed p-5 font-sans text-foreground/90 overflow-x-auto">
@@ -1843,7 +1843,7 @@ export function GrowthMindContentStudio() {
           {tab === "library" && (
             <div className="flex h-full min-h-[600px]">
               {/* Filter sidebar */}
-              <aside className="w-44 shrink-0 border-r border-white/[0.06] py-4 overflow-y-auto">
+              <aside className="w-44 shrink-0 border-r border-border py-4 overflow-y-auto">
                 <nav className="flex flex-col gap-0.5 px-2">
                   {LIBRARY_FILTERS.map(f => {
                     const Icon = f.icon;
@@ -1859,7 +1859,7 @@ export function GrowthMindContentStudio() {
                           "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors",
                           active
                             ? "bg-emerald-500/15 text-emerald-300"
-                            : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
+                            : "text-muted-foreground hover:bg-muted hover:text-foreground",
                         )}
                       >
                         <Icon className={cn("h-3.5 w-3.5 shrink-0", active && "text-emerald-400")} />

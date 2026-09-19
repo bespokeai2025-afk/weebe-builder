@@ -116,8 +116,8 @@ function EntryModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="w-full max-w-lg rounded-xl border border-white/[0.08] bg-card shadow-2xl" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06]">
+      <div className="w-full max-w-lg rounded-xl border border-border bg-card shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
           <p className="text-sm font-semibold">{form.id ? "Edit Content" : "Add Content"}</p>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
         </div>
@@ -195,7 +195,7 @@ function EntryModal({
             <Textarea value={form.notes} onChange={e => set("notes", e.target.value)} rows={2} placeholder="Internal notes…" />
           </div>
         </div>
-        <div className="flex justify-end gap-2 px-5 py-3.5 border-t border-white/[0.06]">
+        <div className="flex justify-end gap-2 px-5 py-3.5 border-t border-border">
           <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
           <Button size="sm" onClick={() => onSave(form)} disabled={!form.title.trim() || saving}>
             {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Save className="h-3.5 w-3.5 mr-1.5" />}
@@ -240,9 +240,9 @@ function MonthView({
   const today = new Date();
 
   return (
-    <div className="rounded-xl border border-white/[0.06] overflow-hidden">
+    <div className="rounded-xl border border-border overflow-hidden">
       {/* Day-of-week header */}
-      <div className="grid grid-cols-7 border-b border-white/[0.06]">
+      <div className="grid grid-cols-7 border-b border-border">
         {DOW.map(d => (
           <div key={d} className="text-center text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60 py-2">
             {d}
@@ -260,7 +260,7 @@ function MonthView({
             <div
               key={i}
               className={cn(
-                "border-b border-r border-white/[0.04] min-h-[96px] p-1 group",
+                "border-b border-r border-border/60 min-h-[96px] p-1 group",
                 !isCurrentMonth && "opacity-40",
                 i % 7 === 6 && "border-r-0",
                 i >= days.length - 7 && "border-b-0",
@@ -306,10 +306,10 @@ function WeekView({ pivot, entries, onAddDay, onEdit }: { pivot: Date; entries: 
   const today = new Date();
 
   return (
-    <div className="rounded-xl border border-white/[0.06] overflow-hidden">
-      <div className="grid grid-cols-7 border-b border-white/[0.06]">
+    <div className="rounded-xl border border-border overflow-hidden">
+      <div className="grid grid-cols-7 border-b border-border">
         {days.map((d, i) => (
-          <div key={i} className={cn("text-center py-2 border-r border-white/[0.04] last:border-r-0", isSameDay(d, today) && "bg-emerald-500/5")}>
+          <div key={i} className={cn("text-center py-2 border-r border-border/60 last:border-r-0", isSameDay(d, today) && "bg-emerald-500/5")}>
             <p className="text-[10px] text-muted-foreground/60 uppercase tracking-[0.08em]">{DOW[d.getDay()]}</p>
             <p className={cn("text-sm font-semibold mt-0.5", isSameDay(d, today) && "text-emerald-400")}>{d.getDate()}</p>
           </div>
@@ -320,7 +320,7 @@ function WeekView({ pivot, entries, onAddDay, onEdit }: { pivot: Date; entries: 
           const k = dateKey(d);
           const dayEntries = entries.filter(e => e.scheduledDate && isSameDay(new Date(e.scheduledDate), d));
           return (
-            <div key={i} className={cn("border-r border-white/[0.04] last:border-r-0 p-2 space-y-1 group", isSameDay(d, today) && "bg-emerald-500/[0.03]")}>
+            <div key={i} className={cn("border-r border-border/60 last:border-r-0 p-2 space-y-1 group", isSameDay(d, today) && "bg-emerald-500/[0.03]")}>
               <button onClick={() => onAddDay(d)} className="opacity-0 group-hover:opacity-100 w-full flex items-center justify-center gap-1 text-[10px] text-emerald-400/60 hover:text-emerald-400 py-1 rounded border border-dashed border-emerald-500/20 transition-all hover:border-emerald-500/40">
                 <Plus className="h-2.5 w-2.5" /> Add
               </button>
@@ -363,7 +363,7 @@ function ListView({ entries, onEdit, onDelete }: { entries: CalendarEntry[]; onE
             {items.map(e => {
               const color = CONTENT_TYPE_COLORS[e.contentType] ?? "#10b981";
               return (
-                <div key={e.id} className="flex items-center gap-3 rounded-lg border border-white/[0.06] bg-card/40 px-3 py-2 group hover:bg-card/70 transition-colors">
+                <div key={e.id} className="flex items-center gap-3 rounded-lg border border-border bg-card/40 px-3 py-2 group hover:bg-card/70 transition-colors">
                   <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{e.title}</p>
@@ -427,8 +427,8 @@ function CampaignPanel({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="w-full max-w-md rounded-xl border border-white/[0.08] bg-card shadow-2xl" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06]">
+      <div className="w-full max-w-md rounded-xl border border-border bg-card shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
           <p className="text-sm font-semibold">Campaigns</p>
           <button onClick={onClose}><X className="h-4 w-4 text-muted-foreground" /></button>
         </div>
@@ -448,7 +448,7 @@ function CampaignPanel({ onClose }: { onClose: () => void }) {
           </div>
           <div className="space-y-1.5">
             {campaigns.map(c => (
-              <div key={c.id} className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-card/40 px-3 py-2">
+              <div key={c.id} className="flex items-center gap-2 rounded-lg border border-border bg-card/40 px-3 py-2">
                 <span className="w-2 h-2 rounded-full" style={{ backgroundColor: c.color }} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{c.name}</p>
@@ -493,8 +493,8 @@ function SeriesPanel({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="w-full max-w-md rounded-xl border border-white/[0.08] bg-card shadow-2xl" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06]">
+      <div className="w-full max-w-md rounded-xl border border-border bg-card shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
           <p className="text-sm font-semibold flex items-center gap-2"><Repeat className="h-4 w-4 text-emerald-400" />Content Series</p>
           <button onClick={onClose}><X className="h-4 w-4 text-muted-foreground" /></button>
         </div>
@@ -518,7 +518,7 @@ function SeriesPanel({ onClose }: { onClose: () => void }) {
           </div>
           <div className="space-y-1.5">
             {seriesList.map(s => (
-              <div key={s.id} className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-card/40 px-3 py-2">
+              <div key={s.id} className="flex items-center gap-2 rounded-lg border border-border bg-card/40 px-3 py-2">
                 <Repeat className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{s.name}</p>
@@ -711,14 +711,14 @@ export function GrowthMindContentCalendar() {
 
         {/* View switcher */}
         <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-          <div className="flex items-center gap-1 rounded-lg border border-white/[0.06] bg-card/40 p-0.5">
+          <div className="flex items-center gap-1 rounded-lg border border-border bg-card/40 p-0.5">
             {(["month", "week", "day", "quarter", "90day"] as CalView[]).map(v => (
               <button
                 key={v}
                 onClick={() => setView(v)}
                 className={cn(
                   "px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
-                  view === v ? "bg-emerald-600 text-white" : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]",
+                  view === v ? "bg-emerald-600 text-white" : "text-muted-foreground hover:text-foreground hover:bg-muted",
                 )}
               >
                 {VIEW_LABELS[v]}
@@ -740,7 +740,7 @@ export function GrowthMindContentCalendar() {
             </select>
 
             {/* Nav */}
-            <div className="flex items-center gap-1 rounded-lg border border-white/[0.06] bg-card/40">
+            <div className="flex items-center gap-1 rounded-lg border border-border bg-card/40">
               <button onClick={() => navigate(-1)} className="px-2 py-1.5 text-muted-foreground hover:text-foreground">
                 <ChevronLeft className="h-4 w-4" />
               </button>
@@ -778,11 +778,11 @@ export function GrowthMindContentCalendar() {
               <WeekView pivot={pivot} entries={entries} onAddDay={openAdd} onEdit={openEdit} />
             )}
             {view === "day" && (
-              <div className="rounded-xl border border-white/[0.06] p-6 min-h-[300px]">
+              <div className="rounded-xl border border-border p-6 min-h-[300px]">
                 <p className="text-sm font-semibold mb-4">{pivot.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p>
                 <div className="space-y-2">
                   {entries.filter(e => e.scheduledDate && isSameDay(new Date(e.scheduledDate), pivot)).map(e => (
-                    <div key={e.id} className="flex items-center gap-3 p-3 rounded-lg border border-white/[0.06] bg-card/40 hover:bg-card/70 cursor-pointer" onClick={() => openEdit(e)}>
+                    <div key={e.id} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card/40 hover:bg-card/70 cursor-pointer" onClick={() => openEdit(e)}>
                       <span className="w-2 h-2 rounded-full" style={{ backgroundColor: CONTENT_TYPE_COLORS[e.contentType] ?? "#10b981" }} />
                       <div className="flex-1">
                         <p className="text-sm font-medium">{e.title}</p>

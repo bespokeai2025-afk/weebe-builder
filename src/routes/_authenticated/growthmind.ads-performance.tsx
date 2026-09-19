@@ -722,7 +722,7 @@ function HeroStats({ data }: { data: AdsPerformanceData }) {
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
       {stats.map(s => (
-        <div key={s.label} className="rounded-xl border border-white/[0.06] bg-card/40 p-3.5 space-y-1.5">
+        <div key={s.label} className="rounded-xl border border-border bg-card/40 p-3.5 space-y-1.5">
           <div className="flex items-center gap-1.5">
             <s.icon className="h-3 w-3 text-muted-foreground/50 shrink-0" />
             <span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/60">{s.label}</span>
@@ -762,9 +762,9 @@ function SyncHistoryPanel() {
   };
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-card/40">
+    <div className="rounded-xl border border-border bg-card/40">
       <button
-        className="w-full flex items-center gap-2 px-5 py-3.5 text-left hover:bg-white/[0.02] transition-colors"
+        className="w-full flex items-center gap-2 px-5 py-3.5 text-left hover:bg-muted/40 transition-colors"
         onClick={() => setOpen(o => !o)}
       >
         <RefreshCw className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
@@ -775,7 +775,7 @@ function SyncHistoryPanel() {
       </button>
 
       {open && (
-        <div className="border-t border-white/[0.06]">
+        <div className="border-t border-border">
           {isLoading ? (
             <div className="flex items-center gap-2 p-5 text-xs text-muted-foreground">
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading sync log…
@@ -788,7 +788,7 @@ function SyncHistoryPanel() {
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-white/[0.04]">
+                  <tr className="border-b border-border/60">
                     <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">Platform</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">Status</th>
                     <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">Campaigns</th>
@@ -800,7 +800,7 @@ function SyncHistoryPanel() {
                 </thead>
                 <tbody>
                   {rows.map(r => (
-                    <tr key={r.id} className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors">
+                    <tr key={r.id} className="border-b border-border/50 hover:bg-muted/40 transition-colors">
                       <td className="px-4 py-2.5">
                         <span className={cn("text-[9px] font-semibold px-1.5 py-0.5 rounded-full", PLATFORM_BADGE[r.platform] ?? "bg-slate-500/15 text-slate-400")}>
                           {r.platform.toUpperCase()}
@@ -906,9 +906,9 @@ function BudgetCapsPanel({ hasAnyCap }: { hasAnyCap: boolean }) {
   });
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-card/40">
+    <div className="rounded-xl border border-border bg-card/40">
       <button
-        className="w-full flex items-center gap-2 px-5 py-3.5 text-left hover:bg-white/[0.02] transition-colors"
+        className="w-full flex items-center gap-2 px-5 py-3.5 text-left hover:bg-muted/40 transition-colors"
         onClick={() => setOpen(o => !o)}
       >
         <Settings2 className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
@@ -932,7 +932,7 @@ function BudgetCapsPanel({ hasAnyCap }: { hasAnyCap: boolean }) {
       </button>
 
       {open && (
-        <div className="border-t border-white/[0.06] px-5 pb-5 pt-4 space-y-5">
+        <div className="border-t border-border px-5 pb-5 pt-4 space-y-5">
           <p className="text-[11px] text-muted-foreground/70">
             Set per-platform monthly spend caps. Alerts fire at your chosen percentage (default 80%) and again at 100%.
           </p>
@@ -945,7 +945,7 @@ function BudgetCapsPanel({ hasAnyCap }: { hasAnyCap: boolean }) {
               {PLATFORM_CAP_CONFIG.map(({ platform, label, color }) => {
                 const draft = getDraft(platform);
                 return (
-                  <div key={platform} className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
+                  <div key={platform} className="rounded-lg border border-border bg-muted/40 p-4 space-y-3">
                     <span className={cn("text-xs font-semibold", color)}>{label}</span>
 
                     <div className="space-y-2">
@@ -1082,7 +1082,7 @@ function AdsTrendCharts() {
         <h2 className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground/60">
           Historical Trends
         </h2>
-        <div className="flex items-center gap-1 rounded-lg border border-white/[0.06] bg-white/[0.02] p-0.5">
+        <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/40 p-0.5">
           {RANGE_OPTIONS.map(opt => (
             <button
               key={opt.days}
@@ -1090,7 +1090,7 @@ function AdsTrendCharts() {
               className={cn(
                 "px-2.5 py-1 rounded text-[10px] font-semibold transition-colors",
                 range === opt.days
-                  ? "bg-white/[0.08] text-foreground"
+                  ? "bg-muted text-foreground"
                   : "text-muted-foreground/60 hover:text-muted-foreground",
               )}
             >
@@ -1101,11 +1101,11 @@ function AdsTrendCharts() {
       </div>
 
       {isLoading ? (
-        <div className="flex items-center justify-center h-40 rounded-xl border border-white/[0.06] bg-card/40">
+        <div className="flex items-center justify-center h-40 rounded-xl border border-border bg-card/40">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/40" />
         </div>
       ) : !hasAnyData ? (
-        <div className="flex flex-col items-center justify-center h-40 rounded-xl border border-dashed border-white/[0.08] text-center gap-2">
+        <div className="flex flex-col items-center justify-center h-40 rounded-xl border border-dashed border-border text-center gap-2">
           <TrendingUp className="h-6 w-6 text-muted-foreground/20" />
           <p className="text-xs text-muted-foreground/60">No sync history yet for this range</p>
           <p className="text-[10px] text-muted-foreground/40">Charts populate after your first successful sync</p>
@@ -1120,7 +1120,7 @@ function AdsTrendCharts() {
             if (!hasMetaData && !hasGoogleData && !hasTiktokData) return null;
 
             return (
-              <div key={panel.key} className="rounded-xl border border-white/[0.06] bg-card/40 p-4 space-y-3">
+              <div key={panel.key} className="rounded-xl border border-border bg-card/40 p-4 space-y-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/60">
                   {panel.label}
                 </p>
@@ -1238,7 +1238,7 @@ function SpendComparisonChart({ meta, google }: { meta: PlatformTotals; google: 
   ];
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-card/40 p-5 space-y-4">
+    <div className="rounded-xl border border-border bg-card/40 p-5 space-y-4">
       <h3 className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/60">Spend by Platform</h3>
       <div className="space-y-3">
         {items.map(item => (
@@ -1257,7 +1257,7 @@ function SpendComparisonChart({ meta, google }: { meta: PlatformTotals; google: 
                 </span>
               </div>
             </div>
-            <div className="h-2 w-full rounded-full bg-white/[0.05] overflow-hidden">
+            <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
               <div
                 className={cn("h-full rounded-full transition-all duration-500", item.color)}
                 style={{ width: `${item.pct}%` }}
@@ -1349,7 +1349,7 @@ function BudgetUtilizationBar({
           <span className="font-normal opacity-70">({pct.toFixed(0)}%)</span>
         </span>
       </div>
-      <div className="relative h-2 w-full rounded-full bg-white/[0.05] overflow-hidden">
+      <div className="relative h-2 w-full rounded-full bg-muted overflow-hidden">
         <div
           className={cn("h-full rounded-full transition-all duration-500", barColor)}
           style={{ width: `${pct}%` }}
@@ -1387,7 +1387,7 @@ function PlatformCard({
 }) {
   if (!hasCreds) {
     return (
-      <div className="rounded-xl border border-white/[0.06] bg-card/40 p-5 flex flex-col gap-3">
+      <div className="rounded-xl border border-border bg-card/40 p-5 flex flex-col gap-3">
         <div className="flex items-center gap-2">
           {logo}
           <span className="text-sm font-semibold">{name}</span>
@@ -1403,7 +1403,7 @@ function PlatformCard({
 
   if (totals.count === 0) {
     return (
-      <div className="rounded-xl border border-white/[0.06] bg-card/40 p-5 flex flex-col gap-3">
+      <div className="rounded-xl border border-border bg-card/40 p-5 flex flex-col gap-3">
         <div className="flex items-center gap-2">
           {logo}
           <span className="text-sm font-semibold">{name}</span>
@@ -1415,7 +1415,7 @@ function PlatformCard({
   }
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-card/40 p-5 space-y-4">
+    <div className="rounded-xl border border-border bg-card/40 p-5 space-y-4">
       <div className="flex items-center gap-2">
         {logo}
         <span className="text-sm font-semibold">{name}</span>
@@ -1459,7 +1459,7 @@ function Metric({
   label: string; value: string; icon: React.ElementType; valueClass?: string;
 }) {
   return (
-    <div className="rounded-lg bg-white/[0.03] border border-white/[0.04] p-2.5">
+    <div className="rounded-lg bg-muted/60 border border-border/60 p-2.5">
       <div className="flex items-center gap-1 mb-1">
         <Icon className="h-2.5 w-2.5 text-muted-foreground/50" />
         <span className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">{label}</span>
@@ -1514,7 +1514,7 @@ function CampaignRow({ c }: { c: AdCampaign }) {
   };
 
   return (
-    <tr className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors">
+    <tr className="border-b border-border/60 hover:bg-muted/40 transition-colors">
       <td className="px-3 py-3 max-w-[180px]">
         <div className="flex items-center gap-2">
           <span className={cn("text-[9px] font-semibold px-1.5 py-0.5 rounded-full shrink-0", PLATFORM_BADGE[c.platform] ?? "bg-slate-500/15 text-slate-400")}>
@@ -1644,7 +1644,7 @@ function AdsPerformancePage() {
                 h.overallStatus === "partial" ? "Partial" :
                 h.overallStatus === "error"   ? "Error"   : "No data";
               return (
-                <div className="flex items-center gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.02] px-2.5 py-1.5">
+                <div className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-2.5 py-1.5">
                   <Activity className="h-3 w-3 text-muted-foreground/40 shrink-0" />
                   <span className={cn("inline-flex items-center gap-1 text-[10px] font-semibold", textCls)}>
                     <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", dotCls)} />
@@ -1665,7 +1665,7 @@ function AdsPerformancePage() {
               variant="outline"
               onClick={() => syncMut.mutate()}
               disabled={syncMut.isPending || isLoading}
-              className="h-8 gap-1.5 text-xs border-white/[0.08]"
+              className="h-8 gap-1.5 text-xs border-border"
             >
               <RefreshCw className={cn("h-3.5 w-3.5", syncMut.isPending && "animate-spin")} />
               {syncMut.isPending ? "Syncing…" : "Sync Now"}
@@ -1725,7 +1725,7 @@ function AdsPerformancePage() {
 
         {/* No credentials state */}
         {!isLoading && !hasAnyCreds && (
-          <div className="rounded-xl border border-white/[0.06] bg-card/60 p-8 text-center space-y-3">
+          <div className="rounded-xl border border-border bg-card/60 p-8 text-center space-y-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/10 ring-1 ring-blue-500/20 mx-auto">
               <BarChart2 className="h-5 w-5 text-blue-400" />
             </div>
@@ -1818,11 +1818,11 @@ function AdsPerformancePage() {
                   </h2>
                   <span className="text-[10px] text-muted-foreground/50">Last 30 days</span>
                 </div>
-                <div className="rounded-xl border border-white/[0.06] bg-card/40 overflow-hidden">
+                <div className="rounded-xl border border-border bg-card/40 overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs">
                       <thead>
-                        <tr className="border-b border-white/[0.06]">
+                        <tr className="border-b border-border">
                           <th className="px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 text-left">Campaign</th>
                           <SortTh label="Spend"       sortKey="spend"       current={sortKey} dir={sortDir} onClick={handleSort} />
                           <SortTh label="Impressions" sortKey="impressions" current={sortKey} dir={sortDir} onClick={handleSort} />
@@ -1838,7 +1838,7 @@ function AdsPerformancePage() {
                       </tbody>
                       {/* Totals row */}
                       <tfoot>
-                        <tr className="border-t border-white/[0.06] bg-white/[0.02]">
+                        <tr className="border-t border-border bg-muted/40">
                           <td className="px-3 py-2.5 text-xs font-semibold text-muted-foreground">Total</td>
                           <td className="px-3 py-2.5 text-right text-xs font-bold tabular-nums">{fmtCurrency(data?.totalSpend ?? 0)}</td>
                           <td className="px-3 py-2.5 text-right text-xs font-semibold tabular-nums text-muted-foreground">
@@ -1863,7 +1863,7 @@ function AdsPerformancePage() {
 
             {/* No campaigns yet */}
             {campaigns.length === 0 && (
-              <div className="rounded-xl border border-dashed border-white/[0.1] p-8 text-center space-y-2">
+              <div className="rounded-xl border border-dashed border-border p-8 text-center space-y-2">
                 <RefreshCw className="h-8 w-8 text-muted-foreground/30 mx-auto" />
                 <p className="text-sm font-medium">No campaign data yet</p>
                 <p className="text-xs text-muted-foreground">
@@ -1883,7 +1883,7 @@ function AdsPerformancePage() {
 
             {/* Connect more platforms */}
             {!(data?.hasMetaCreds && data?.hasGoogleCreds) && (
-              <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 flex items-center gap-3">
+              <div className="rounded-xl border border-border bg-muted/40 p-4 flex items-center gap-3">
                 <Zap className="h-4 w-4 text-emerald-400 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium">Connect more ad platforms</p>
@@ -1896,7 +1896,7 @@ function AdsPerformancePage() {
                   </p>
                 </div>
                 <Link to="/settings/providers">
-                  <Button size="sm" variant="outline" className="text-xs border-white/[0.08] gap-1">
+                  <Button size="sm" variant="outline" className="text-xs border-border gap-1">
                     Connect <ExternalLink className="h-3 w-3" />
                   </Button>
                 </Link>

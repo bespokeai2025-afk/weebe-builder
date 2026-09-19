@@ -15,7 +15,7 @@ const SIGNAL_META: Record<string, { label: string; cls: string; Icon: typeof Che
   verified:    { label: "Verified",    cls: "text-emerald-400 border-emerald-500/30 bg-emerald-500/10", Icon: CheckCircle2 },
   partial:     { label: "Partial",     cls: "text-amber-400 border-amber-500/30 bg-amber-500/10",       Icon: AlertTriangle },
   broken:      { label: "Broken",      cls: "text-red-400 border-red-500/30 bg-red-500/10",             Icon: XCircle },
-  unavailable: { label: "Unavailable", cls: "text-muted-foreground border-white/[0.1] bg-white/[0.03]", Icon: HelpCircle },
+  unavailable: { label: "Unavailable", cls: "text-muted-foreground border-border bg-muted/60", Icon: HelpCircle },
 };
 
 export function ConversionDiagnosticsPanel() {
@@ -30,7 +30,7 @@ export function ConversionDiagnosticsPanel() {
   if (isLoading) return null;
   if (error || !data) {
     return (
-      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+      <div className="rounded-xl border border-border bg-muted/40 p-4">
         <p className="text-xs text-muted-foreground">Conversion tracking diagnostics unavailable.</p>
       </div>
     );
@@ -40,7 +40,7 @@ export function ConversionDiagnosticsPanel() {
   const { Icon } = meta;
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
+    <div className="rounded-xl border border-border bg-muted/40 p-4 space-y-3">
       <div className="flex items-center gap-2">
         <Radar className="h-4 w-4 text-sky-400" />
         <p className="text-sm font-medium flex-1">Conversion Tracking</p>
@@ -56,7 +56,7 @@ export function ConversionDiagnosticsPanel() {
       </ul>
 
       <div className="flex flex-wrap items-center gap-2 text-[11px]">
-        <Badge variant="outline" className="text-[10px] border-white/[0.1] bg-white/[0.03] text-muted-foreground">
+        <Badge variant="outline" className="text-[10px] border-border bg-muted/60 text-muted-foreground">
           Transport: {data.uploadConfig.transport === "data_manager" ? "Google Data Manager API" : "Legacy click conversions (fallback)"}
         </Badge>
         {data.uploadConfig.hasDataManagerScope ? (
@@ -146,7 +146,7 @@ export function ConversionDiagnosticsPanel() {
             </thead>
             <tbody>
               {data.conversions.map((c: any) => (
-                <tr key={c.conversionName} className="border-t border-white/[0.04]">
+                <tr key={c.conversionName} className="border-t border-border/60">
                   <td className="py-1.5 pr-3 font-medium">{c.conversionName}</td>
                   <td className="py-1.5 pr-3 text-muted-foreground">{(c.sources ?? []).join(", ") || "—"}</td>
                   <td className="py-1.5 pr-3">{c.last24h}</td>

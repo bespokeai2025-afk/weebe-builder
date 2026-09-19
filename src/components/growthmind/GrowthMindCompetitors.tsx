@@ -45,13 +45,13 @@ function CompetitorCard({
   ].filter(f => f.value.trim());
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
+    <div className="rounded-xl border border-border bg-card/60 overflow-hidden">
       {/* Header */}
       <div
-        className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white/[0.02] transition-colors"
+        className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/40 transition-colors"
         onClick={() => setOpen(v => !v)}
       >
-        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-white/[0.05] shrink-0">
+        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted shrink-0">
           <Swords className="h-3.5 w-3.5 text-muted-foreground" />
         </div>
         <div className="flex-1 min-w-0">
@@ -90,7 +90,7 @@ function CompetitorCard({
 
       {/* Expanded details */}
       {open && fields.length > 0 && (
-        <div className="border-t border-white/[0.06] px-4 py-3 space-y-3">
+        <div className="border-t border-border px-4 py-3 space-y-3">
           {fields.map(f => (
             <div key={f.label}>
               <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60 mb-1">
@@ -105,7 +105,7 @@ function CompetitorCard({
       )}
 
       {open && fields.length === 0 && (
-        <div className="border-t border-white/[0.06] px-4 py-3">
+        <div className="border-t border-border px-4 py-3">
           <p className="text-xs text-muted-foreground">No details added yet. Click edit to add competitive intelligence.</p>
         </div>
       )}
@@ -336,7 +336,7 @@ export function GrowthMindCompetitors() {
 
             {/* Competitor cards */}
             {competitors.length === 0 && !showForm ? (
-              <div className="rounded-xl border border-white/[0.06] bg-card/60 px-6 py-16 text-center">
+              <div className="rounded-xl border border-border bg-card/60 px-6 py-16 text-center">
                 <Swords className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
                 <p className="text-sm font-semibold text-muted-foreground">No competitors tracked yet</p>
                 <p className="text-xs text-muted-foreground/60 mt-1">

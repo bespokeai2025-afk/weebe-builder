@@ -138,7 +138,7 @@ function TemplateCard({
         "w-full text-left rounded-lg p-2.5 border transition-all group",
         isSelected
           ? "border-emerald-500/30 bg-emerald-500/[0.08]"
-          : "border-white/[0.04] hover:border-white/[0.1] hover:bg-white/[0.03]",
+          : "border-border/60 hover:border-foreground/20 hover:bg-muted/60",
       )}
     >
       <div className="flex items-start justify-between gap-2">
@@ -209,7 +209,7 @@ function VariableEditor({
   return (
     <div className="space-y-2">
       {variables.map((v, i) => (
-        <div key={i} className="flex items-start gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-2">
+        <div key={i} className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 p-2">
           <div className="flex-1 grid grid-cols-2 gap-2">
             <div>
               <p className="text-[10px] text-muted-foreground mb-0.5">Variable</p>
@@ -221,7 +221,7 @@ function VariableEditor({
                 ? <p className="text-xs text-foreground truncate">{v.defaultValue || "—"}</p>
                 : (
                   <input
-                    className="w-full bg-transparent border border-white/[0.08] rounded px-1.5 py-0.5 text-xs text-foreground outline-none focus:border-emerald-500/40"
+                    className="w-full bg-transparent border border-border rounded px-1.5 py-0.5 text-xs text-foreground outline-none focus:border-emerald-500/40"
                     value={v.defaultValue}
                     onChange={e => {
                       const next = [...variables];
@@ -239,7 +239,7 @@ function VariableEditor({
                 ? <p className="text-xs text-muted-foreground">{v.description || "—"}</p>
                 : (
                   <input
-                    className="w-full bg-transparent border border-white/[0.08] rounded px-1.5 py-0.5 text-xs text-foreground outline-none focus:border-emerald-500/40"
+                    className="w-full bg-transparent border border-border rounded px-1.5 py-0.5 text-xs text-foreground outline-none focus:border-emerald-500/40"
                     value={v.description}
                     onChange={e => {
                       const next = [...variables];
@@ -317,7 +317,7 @@ function HighlightedTextarea({
   };
 
   return (
-    <div className="relative rounded-lg overflow-hidden border border-white/[0.08] focus-within:border-emerald-500/40">
+    <div className="relative rounded-lg overflow-hidden border border-border focus-within:border-emerald-500/40">
       {/* Highlight backdrop — shows all text at normal opacity; {{variable}} marks are emerald.
           The textarea on top is transparent so this layer is what the user reads. */}
       <div
@@ -467,10 +467,10 @@ function ChainBuilderEditor({
               dragIdx.current = null;
               dragOverIdx.current = null;
             }}
-            className="rounded-lg border border-white/[0.06] bg-white/[0.02] overflow-hidden"
+            className="rounded-lg border border-border bg-muted/40 overflow-hidden"
           >
             {/* Step header */}
-            <div className="flex items-center gap-2 px-3 py-2 bg-white/[0.02] border-b border-white/[0.04]">
+            <div className="flex items-center gap-2 px-3 py-2 bg-muted/40 border-b border-border/60">
               {!readOnly && (
                 <span className="cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground/60 shrink-0">
                   <GripVertical className="h-3.5 w-3.5" />
@@ -509,7 +509,7 @@ function ChainBuilderEditor({
                   <select
                     value={step.templateId ?? ""}
                     onChange={e => updateStep(idx, { templateId: e.target.value || null, inputMappings: [] })}
-                    className="mt-1 w-full rounded-md bg-white/[0.04] border border-white/[0.08] px-2 py-1.5 text-xs text-foreground outline-none focus:border-violet-500/40 [&>option]:bg-[#1a1a2e]"
+                    className="mt-1 w-full rounded-md bg-muted border border-border px-2 py-1.5 text-xs text-foreground outline-none focus:border-violet-500/40 [&>option]:bg-[#1a1a2e]"
                   >
                     <option value="">— select template —</option>
                     {templates.map(t => (
@@ -549,7 +549,7 @@ function ChainBuilderEditor({
                             next[si] = e.target.value;
                             updateStep(idx, { outputSections: next });
                           }}
-                          className="flex-1 bg-transparent border border-white/[0.06] rounded px-1.5 py-0.5 text-[10px] font-mono text-violet-300 outline-none focus:border-violet-500/40 placeholder:text-muted-foreground/30"
+                          className="flex-1 bg-transparent border border-border rounded px-1.5 py-0.5 text-[10px] font-mono text-violet-300 outline-none focus:border-violet-500/40 placeholder:text-muted-foreground/30"
                           placeholder="e.g. Headline, Summary, CTA"
                         />
                         <button
@@ -590,7 +590,7 @@ function ChainBuilderEditor({
                           "flex items-center gap-1.5 rounded px-2 py-1 text-[10px] transition-colors border",
                           step.autoInjectSections
                             ? "bg-amber-500/10 border-amber-500/30 text-amber-300 hover:bg-amber-500/15"
-                            : "bg-white/[0.03] border-white/[0.06] text-muted-foreground/50 hover:text-muted-foreground hover:bg-white/[0.05]"
+                            : "bg-muted/60 border-border text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted"
                         )}
                       >
                         <Zap className="h-2.5 w-2.5 shrink-0" />
@@ -673,7 +673,7 @@ function ChainBuilderEditor({
                             <select
                               value={currentEncoded}
                               onChange={e => updateMapping(idx, varName, e.target.value)}
-                              className="flex-1 rounded bg-white/[0.04] border border-white/[0.06] px-1.5 py-0.5 text-[10px] text-foreground outline-none focus:border-violet-500/40 [&>option]:bg-[#1a1a2e]"
+                              className="flex-1 rounded bg-muted border border-border px-1.5 py-0.5 text-[10px] text-foreground outline-none focus:border-violet-500/40 [&>option]:bg-[#1a1a2e]"
                             >
                               <option value="0:">From test inputs</option>
                               {sorted.slice(0, idx).map((prevStep, prevIdx) => {
@@ -707,7 +707,7 @@ function ChainBuilderEditor({
                   <input
                     value={step.description}
                     onChange={e => updateStep(idx, { description: e.target.value })}
-                    className="mt-1 w-full bg-transparent border border-white/[0.06] rounded px-2 py-1 text-[11px] text-muted-foreground outline-none focus:border-white/[0.12]"
+                    className="mt-1 w-full bg-transparent border border-border rounded px-2 py-1 text-[11px] text-muted-foreground outline-none focus:border-border"
                     placeholder="Describe what this step does…"
                   />
                 </div>
@@ -719,7 +719,7 @@ function ChainBuilderEditor({
 
             {/* Arrow connector between steps */}
             {idx < sorted.length - 1 && (
-              <div className="flex items-center justify-center py-0.5 bg-white/[0.01]">
+              <div className="flex items-center justify-center py-0.5 bg-muted/20">
                 <ChevronDown className="h-3 w-3 text-violet-400/40" />
               </div>
             )}
@@ -730,7 +730,7 @@ function ChainBuilderEditor({
       {!readOnly && (
         <button
           onClick={addStep}
-          className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-white/[0.1] hover:border-violet-500/30 text-muted-foreground hover:text-violet-300 py-2 text-xs font-medium transition-colors"
+          className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-border hover:border-violet-500/30 text-muted-foreground hover:text-violet-300 py-2 text-xs font-medium transition-colors"
         >
           <Plus className="h-3.5 w-3.5" /> Add Step
         </button>
@@ -1143,7 +1143,7 @@ export function GrowthMindPromptStudio() {
     <GrowthMindShell>
       <div className="flex h-full min-h-0 flex-col">
         {/* Page header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06] shrink-0">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-border shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-500/15 ring-1 ring-emerald-500/20">
               <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
@@ -1184,16 +1184,16 @@ export function GrowthMindPromptStudio() {
         {!migrationNeeded && (
           <div className="flex flex-1 min-h-0">
             {/* ── Left panel: Template Library ───────────────────────────── */}
-            <aside className="w-72 shrink-0 border-r border-white/[0.06] flex flex-col min-h-0">
+            <aside className="w-72 shrink-0 border-r border-border flex flex-col min-h-0">
               {/* Search */}
-              <div className="p-2.5 border-b border-white/[0.06]">
+              <div className="p-2.5 border-b border-border">
                 <div className="relative">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
                   <input
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     placeholder="Search templates..."
-                    className="w-full pl-7 pr-7 py-1.5 rounded-md bg-white/[0.04] border border-white/[0.08] text-xs outline-none focus:border-emerald-500/40 placeholder:text-muted-foreground/50"
+                    className="w-full pl-7 pr-7 py-1.5 rounded-md bg-muted border border-border text-xs outline-none focus:border-emerald-500/40 placeholder:text-muted-foreground/50"
                   />
                   {searchQuery && (
                     <button onClick={() => setSearchQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
@@ -1204,7 +1204,7 @@ export function GrowthMindPromptStudio() {
               </div>
 
               {/* Library / Custom / Workflows tabs */}
-              <div className="flex border-b border-white/[0.06]">
+              <div className="flex border-b border-border">
                 <button
                   onClick={() => setLibTab("library")}
                   className={cn(
@@ -1241,11 +1241,11 @@ export function GrowthMindPromptStudio() {
               </div>
 
               {/* Type filter pills */}
-              <div className="flex gap-1 px-2.5 py-2 overflow-x-auto border-b border-white/[0.06] scrollbar-none">
+              <div className="flex gap-1 px-2.5 py-2 overflow-x-auto border-b border-border scrollbar-none">
                 <button
                   onClick={() => setTypeFilter("all")}
                   className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium whitespace-nowrap transition-colors shrink-0",
-                    typeFilter === "all" ? "bg-emerald-500/20 text-emerald-300" : "bg-white/[0.04] text-muted-foreground hover:text-foreground"
+                    typeFilter === "all" ? "bg-emerald-500/20 text-emerald-300" : "bg-muted text-muted-foreground hover:text-foreground"
                   )}
                 >All</button>
                 {PROMPT_TYPES.map(t => (
@@ -1253,7 +1253,7 @@ export function GrowthMindPromptStudio() {
                     key={t.value}
                     onClick={() => setTypeFilter(t.value)}
                     className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium whitespace-nowrap transition-colors shrink-0",
-                      typeFilter === t.value ? "bg-emerald-500/20 text-emerald-300" : "bg-white/[0.04] text-muted-foreground hover:text-foreground"
+                      typeFilter === t.value ? "bg-emerald-500/20 text-emerald-300" : "bg-muted text-muted-foreground hover:text-foreground"
                     )}
                   >{t.label}</button>
                 ))}
@@ -1329,7 +1329,7 @@ export function GrowthMindPromptStudio() {
               ) : (
                 <>
                 {/* Center tab bar: Prompts | Chain */}
-                <div className="flex border-b border-white/[0.06] shrink-0">
+                <div className="flex border-b border-border shrink-0">
                   <button
                     onClick={() => setCenterTab("prompts")}
                     className={cn(
@@ -1356,7 +1356,7 @@ export function GrowthMindPromptStudio() {
                     {editState.chainSteps.length > 0 && (
                       <span className={cn(
                         "ml-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold leading-none",
-                        centerTab === "chain" ? "bg-violet-500/20 text-violet-300" : "bg-white/[0.08] text-muted-foreground",
+                        centerTab === "chain" ? "bg-violet-500/20 text-violet-300" : "bg-muted text-muted-foreground",
                       )}>
                         {editState.chainSteps.length}
                       </span>
@@ -1383,7 +1383,7 @@ export function GrowthMindPromptStudio() {
                         value={editState.name}
                         onChange={e => { setEditState(s => ({ ...s, name: e.target.value })); setIsDirty(true); }}
                         disabled={isReadOnly}
-                        className="mt-1 w-full bg-transparent border border-white/[0.08] rounded-lg px-3 py-2 text-sm font-medium outline-none focus:border-emerald-500/40 disabled:opacity-60"
+                        className="mt-1 w-full bg-transparent border border-border rounded-lg px-3 py-2 text-sm font-medium outline-none focus:border-emerald-500/40 disabled:opacity-60"
                         placeholder="Template name"
                       />
                     </div>
@@ -1396,7 +1396,7 @@ export function GrowthMindPromptStudio() {
                       value={editState.description}
                       onChange={e => { setEditState(s => ({ ...s, description: e.target.value })); setIsDirty(true); }}
                       disabled={isReadOnly}
-                      className="mt-1 w-full bg-transparent border border-white/[0.08] rounded-lg px-3 py-2 text-xs outline-none focus:border-emerald-500/40 disabled:opacity-60"
+                      className="mt-1 w-full bg-transparent border border-border rounded-lg px-3 py-2 text-xs outline-none focus:border-emerald-500/40 disabled:opacity-60"
                       placeholder="Brief description of what this template does"
                     />
                   </div>
@@ -1413,7 +1413,7 @@ export function GrowthMindPromptStudio() {
                             "rounded-full px-2.5 py-1 text-[10px] font-medium transition-all",
                             editState.type === t.value
                               ? (TYPE_COLORS[t.value] ?? "bg-emerald-500/20 text-emerald-300") + " ring-1 ring-current/30"
-                              : "bg-white/[0.04] text-muted-foreground hover:bg-white/[0.07]",
+                              : "bg-muted text-muted-foreground hover:bg-muted",
                             isReadOnly && "cursor-default",
                           )}
                         >
@@ -1479,7 +1479,7 @@ export function GrowthMindPromptStudio() {
                       <label className="text-[10px] text-muted-foreground uppercase tracking-widest">Tags</label>
                       <div className="mt-1.5 flex flex-wrap gap-1.5 items-center">
                         {editState.tags.map((tag, i) => (
-                          <span key={i} className="flex items-center gap-1 rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] text-muted-foreground">
+                          <span key={i} className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
                             {tag}
                             <button onClick={() => { setEditState(s => ({ ...s, tags: s.tags.filter((_, j) => j !== i) })); setIsDirty(true); }}>
                               <X className="h-2.5 w-2.5 hover:text-foreground" />
@@ -1506,7 +1506,7 @@ export function GrowthMindPromptStudio() {
                   )}
 
                   {/* Toolbar */}
-                  <div className="flex items-center gap-2 pt-2 border-t border-white/[0.06]">
+                  <div className="flex items-center gap-2 pt-2 border-t border-border">
                     {!isReadOnly && (
                       <button
                         onClick={handleSave}
@@ -1520,7 +1520,7 @@ export function GrowthMindPromptStudio() {
                     <button
                       onClick={handleDuplicate}
                       disabled={isSaving}
-                      className="flex items-center gap-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.07] text-muted-foreground hover:text-foreground px-3 py-1.5 text-xs font-medium transition-colors"
+                      className="flex items-center gap-1.5 rounded-lg bg-muted hover:bg-muted text-muted-foreground hover:text-foreground px-3 py-1.5 text-xs font-medium transition-colors"
                     >
                       <Copy className="h-3.5 w-3.5" />
                       {isReadOnly ? "Duplicate to Edit" : "Duplicate"}
@@ -1556,14 +1556,14 @@ export function GrowthMindPromptStudio() {
                         <input
                           value={editState.name}
                           onChange={e => { setEditState(s => ({ ...s, name: e.target.value })); setIsDirty(true); }}
-                          className="mt-1 w-full bg-transparent border border-white/[0.08] rounded-lg px-3 py-2 text-sm font-medium outline-none focus:border-violet-500/40"
+                          className="mt-1 w-full bg-transparent border border-border rounded-lg px-3 py-2 text-sm font-medium outline-none focus:border-violet-500/40"
                           placeholder="Workflow name"
                         />
                         {editState.description !== undefined && (
                           <input
                             value={editState.description}
                             onChange={e => { setEditState(s => ({ ...s, description: e.target.value })); setIsDirty(true); }}
-                            className="mt-1.5 w-full bg-transparent border border-white/[0.08] rounded-lg px-3 py-2 text-xs outline-none focus:border-violet-500/40"
+                            className="mt-1.5 w-full bg-transparent border border-border rounded-lg px-3 py-2 text-xs outline-none focus:border-violet-500/40"
                             placeholder="Brief description (optional)"
                           />
                         )}
@@ -1597,7 +1597,7 @@ export function GrowthMindPromptStudio() {
 
                     {/* Toolbar — always shown for non-read-only */}
                     {!isReadOnly && (
-                      <div className="flex items-center gap-2 pt-2 border-t border-white/[0.06]">
+                      <div className="flex items-center gap-2 pt-2 border-t border-border">
                         <button
                           onClick={handleSave}
                           disabled={isSaving || !editState.name.trim()}
@@ -1609,7 +1609,7 @@ export function GrowthMindPromptStudio() {
                         <button
                           onClick={handleDuplicate}
                           disabled={isSaving}
-                          className="flex items-center gap-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.07] text-muted-foreground hover:text-foreground px-3 py-1.5 text-xs font-medium transition-colors"
+                          className="flex items-center gap-1.5 rounded-lg bg-muted hover:bg-muted text-muted-foreground hover:text-foreground px-3 py-1.5 text-xs font-medium transition-colors"
                         >
                           <Copy className="h-3.5 w-3.5" />
                           Duplicate
@@ -1634,11 +1634,11 @@ export function GrowthMindPromptStudio() {
 
             {/* ── Right panel: Test / Versions / Stats ──────────────────── */}
             <aside className={cn(
-              "shrink-0 border-l border-white/[0.06] flex flex-col min-h-0 transition-all duration-300",
+              "shrink-0 border-l border-border flex flex-col min-h-0 transition-all duration-300",
               abEnabled && testOutput?.variantB ? "w-[680px]" : "w-80",
             )}>
               {/* Tab bar */}
-              <div className="flex border-b border-white/[0.06]">
+              <div className="flex border-b border-border">
                 {(["test", "preview", "versions", "stats"] as const).map(tab => {
                   const icons = { test: FlaskConical, preview: Eye, versions: Clock, stats: BarChart2 };
                   const labels = { test: "Test", preview: "Preview", versions: "History", stats: "Stats" };
@@ -1682,7 +1682,7 @@ export function GrowthMindPromptStudio() {
                                 <input
                                   value={testInputs[v.name] ?? ""}
                                   onChange={e => setTestInputs(s => ({ ...s, [v.name]: e.target.value }))}
-                                  className="w-full bg-transparent border border-white/[0.08] rounded px-2 py-1 text-xs outline-none focus:border-emerald-500/40"
+                                  className="w-full bg-transparent border border-border rounded px-2 py-1 text-xs outline-none focus:border-emerald-500/40"
                                   placeholder={v.defaultValue || "Enter value…"}
                                 />
                               </div>
@@ -1691,7 +1691,7 @@ export function GrowthMindPromptStudio() {
                         )}
 
                         {/* Compare mode toggle */}
-                        <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-2.5 space-y-2">
+                        <div className="rounded-lg border border-border bg-muted/40 p-2.5 space-y-2">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                               <GitCompare className="h-3 w-3 text-blue-400" />
@@ -1714,7 +1714,7 @@ export function GrowthMindPromptStudio() {
                               }}
                               className={cn(
                                 "relative h-5 w-9 rounded-full transition-colors",
-                                abEnabled ? "bg-blue-500" : "bg-white/[0.12]",
+                                abEnabled ? "bg-blue-500" : "bg-muted",
                               )}
                             >
                               <span className={cn(
@@ -1725,7 +1725,7 @@ export function GrowthMindPromptStudio() {
                           </div>
 
                           {abEnabled && (
-                            <div className="space-y-2 pt-1 border-t border-white/[0.06]">
+                            <div className="space-y-2 pt-1 border-t border-border">
                               <div className="flex items-center gap-1.5">
                                 <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-blue-500/20 text-[9px] font-bold text-blue-300">B</span>
                                 <p className="text-[10px] text-blue-300/80 uppercase tracking-widest">Variant B — edit what you want to test differently</p>
@@ -1827,7 +1827,7 @@ export function GrowthMindPromptStudio() {
                                     >
                                       {/* Step header — click to expand/collapse */}
                                       <button
-                                        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-white/[0.02] transition-colors"
+                                        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/40 transition-colors"
                                         onClick={() => setExpandedChainStep(isExpanded ? null : step.stepOrder)}
                                       >
                                         <span className="h-4 w-4 rounded-full bg-violet-500/20 text-violet-300 text-[9px] font-bold flex items-center justify-center shrink-0">
@@ -1848,7 +1848,7 @@ export function GrowthMindPromptStudio() {
 
                                       {/* Expanded step content */}
                                       {isExpanded && (
-                                        <div className="border-t border-white/[0.04] px-3 py-2 space-y-2">
+                                        <div className="border-t border-border/60 px-3 py-2 space-y-2">
                                           {hasError ? (
                                             <p className="text-xs text-red-300">{step.error}</p>
                                           ) : (
@@ -1863,7 +1863,7 @@ export function GrowthMindPromptStudio() {
                                                         <span className="text-[9px] text-muted-foreground">{slabel}</span>
                                                         <span className={cn("text-[9px] font-medium", scoreColor(val))}>{val}/10</span>
                                                       </div>
-                                                      <div className="h-1 rounded-full bg-white/[0.06] overflow-hidden">
+                                                      <div className="h-1 rounded-full bg-muted overflow-hidden">
                                                         <div className={cn("h-full rounded-full", scoreBg(val))} style={{ width: `${val * 10}%` }} />
                                                       </div>
                                                     </div>
@@ -1877,7 +1877,7 @@ export function GrowthMindPromptStudio() {
                                                   <p className="text-[9px] text-muted-foreground uppercase tracking-widest">Output</p>
                                                   <span className="text-[9px] text-muted-foreground/50">{step.provider ?? "—"}/{step.model ?? "—"}</span>
                                                 </div>
-                                                <div className="rounded border border-white/[0.06] bg-black/20 p-2 max-h-40 overflow-y-auto">
+                                                <div className="rounded border border-border bg-black/20 p-2 max-h-40 overflow-y-auto">
                                                   <p className="text-[10px] text-foreground/80 whitespace-pre-wrap leading-relaxed">{step.outputText}</p>
                                                 </div>
                                                 {step.costUsd != null && (
@@ -1896,7 +1896,7 @@ export function GrowthMindPromptStudio() {
                                 {chainOutput.finalOutput && (
                                   <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/[0.04] p-2.5">
                                     <p className="text-[10px] text-emerald-400/70 uppercase tracking-widest font-medium mb-1.5">Final Output</p>
-                                    <div className="rounded border border-white/[0.06] bg-black/20 p-2 max-h-48 overflow-y-auto">
+                                    <div className="rounded border border-border bg-black/20 p-2 max-h-48 overflow-y-auto">
                                       <p className="text-xs text-foreground/80 whitespace-pre-wrap leading-relaxed">{chainOutput.finalOutput}</p>
                                     </div>
                                   </div>
@@ -1986,7 +1986,7 @@ export function GrowthMindPromptStudio() {
                                                   {!equal && <span className={better ? "text-emerald-400" : "text-red-400"}>{better ? "▲" : "▼"}</span>}
                                                 </span>
                                               </div>
-                                              <div className="h-1 rounded-full bg-white/[0.06] overflow-hidden">
+                                              <div className="h-1 rounded-full bg-muted overflow-hidden">
                                                 <div className={cn("h-full rounded-full transition-all", scoreBg(val))} style={{ width: `${val * 10}%` }} />
                                               </div>
                                             </div>
@@ -2000,7 +2000,7 @@ export function GrowthMindPromptStudio() {
                                           <p className="text-[9px] text-muted-foreground uppercase tracking-widest">Output</p>
                                           <span className="text-[9px] text-muted-foreground/50">{vd.provider ?? "—"}/{vd.model ?? "—"}</span>
                                         </div>
-                                        <div className="rounded border border-white/[0.06] bg-black/20 p-2 max-h-40 overflow-y-auto">
+                                        <div className="rounded border border-border bg-black/20 p-2 max-h-40 overflow-y-auto">
                                           <p className="text-[10px] text-foreground/80 whitespace-pre-wrap leading-relaxed">{vd.outputText}</p>
                                         </div>
                                         {vd.costUsd != null && (
@@ -2019,7 +2019,7 @@ export function GrowthMindPromptStudio() {
                                               ? accent === "emerald"
                                                 ? "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300"
                                                 : "bg-blue-500/20 hover:bg-blue-500/30 text-blue-300"
-                                              : "bg-white/[0.04] hover:bg-white/[0.08] text-muted-foreground hover:text-foreground",
+                                              : "bg-muted hover:bg-muted text-muted-foreground hover:text-foreground",
                                           )}
                                         >
                                           {isSettingWinner ? (
@@ -2053,7 +2053,7 @@ export function GrowthMindPromptStudio() {
                                             <span className="text-[10px] text-muted-foreground">{slabel}</span>
                                             <span className={cn("text-[10px] font-medium", scoreColor(val))}>{val}/10</span>
                                           </div>
-                                          <div className="h-1 rounded-full bg-white/[0.06] overflow-hidden">
+                                          <div className="h-1 rounded-full bg-muted overflow-hidden">
                                             <div className={cn("h-full rounded-full transition-all", scoreBg(val))} style={{ width: `${val * 10}%` }} />
                                           </div>
                                         </div>
@@ -2066,7 +2066,7 @@ export function GrowthMindPromptStudio() {
                                     <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Output</p>
                                     <span className="text-[10px] text-muted-foreground/50">{testOutput.provider}/{testOutput.model}</span>
                                   </div>
-                                  <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-2.5 max-h-48 overflow-y-auto">
+                                  <div className="rounded-lg border border-border bg-muted/40 p-2.5 max-h-48 overflow-y-auto">
                                     <p className="text-xs text-foreground/80 whitespace-pre-wrap leading-relaxed">{testOutput.outputText}</p>
                                   </div>
                                   {testOutput.costUsd != null && (
@@ -2104,7 +2104,7 @@ export function GrowthMindPromptStudio() {
                                   "text-[9px] font-mono px-1.5 py-0.5 rounded-full",
                                   testInputs[v.name]
                                     ? "bg-emerald-500/15 text-emerald-300"
-                                    : "bg-white/[0.06] text-muted-foreground/60"
+                                    : "bg-muted text-muted-foreground/60"
                                 )}>
                                   {`{{${v.name}}}`} = {testInputs[v.name] ? `"${testInputs[v.name].slice(0, 12)}${testInputs[v.name].length > 12 ? "…" : ""}"` : "empty"}
                                 </span>
@@ -2114,14 +2114,14 @@ export function GrowthMindPromptStudio() {
                         )}
 
                         <div className="space-y-2">
-                          <div className="rounded-lg border border-white/[0.06] bg-white/[0.015] p-2.5">
+                          <div className="rounded-lg border border-border bg-muted/25 p-2.5">
                             <p className="text-[9px] text-emerald-400/60 uppercase tracking-widest font-medium mb-1.5">System Prompt</p>
                             <p className="text-[11px] text-foreground/80 whitespace-pre-wrap leading-relaxed font-mono">
                               {livePreviewSystem || <span className="text-muted-foreground/50 italic">No system prompt</span>}
                             </p>
                           </div>
 
-                          <div className="rounded-lg border border-white/[0.06] bg-white/[0.015] p-2.5">
+                          <div className="rounded-lg border border-border bg-muted/25 p-2.5">
                             <p className="text-[9px] text-blue-400/60 uppercase tracking-widest font-medium mb-1.5">User Prompt</p>
                             <p className="text-[11px] text-foreground/80 whitespace-pre-wrap leading-relaxed font-mono">
                               {livePreviewUser || <span className="text-muted-foreground/50 italic">No user prompt template</span>}
@@ -2149,7 +2149,7 @@ export function GrowthMindPromptStudio() {
                       <p className="text-xs text-muted-foreground/50 py-4 text-center">No versions saved yet. Save the template to create version 1.</p>
                     ) : (
                       versions.map((v, i) => (
-                        <div key={v.id} className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-2.5">
+                        <div key={v.id} className="rounded-lg border border-border bg-muted/40 p-2.5">
                           <div className="flex items-start justify-between gap-2">
                             <div>
                               <div className="flex items-center gap-1.5">
@@ -2196,7 +2196,7 @@ export function GrowthMindPromptStudio() {
                             { label: "Success Rate",  value: selectedTemplate.stats.successRate != null ? `${selectedTemplate.stats.successRate}%` : "—" },
                             { label: "Last Run",      value: selectedTemplate.stats.lastUsedAt ? new Date(selectedTemplate.stats.lastUsedAt).toLocaleDateString() : "—" },
                           ].map(stat => (
-                            <div key={stat.label} className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-2.5">
+                            <div key={stat.label} className="rounded-lg border border-border bg-muted/40 p-2.5">
                               <p className="text-[10px] text-muted-foreground">{stat.label}</p>
                               <p className="text-sm font-semibold mt-0.5">{stat.value}</p>
                             </div>
@@ -2207,7 +2207,7 @@ export function GrowthMindPromptStudio() {
                           <div>
                             <p className="text-[10px] text-muted-foreground mb-2">Average Score</p>
                             <div className="flex items-center gap-3">
-                              <div className="flex-1 h-2 rounded-full bg-white/[0.06] overflow-hidden">
+                              <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
                                 <div
                                   className={cn("h-full rounded-full transition-all", scoreBg(selectedTemplate.stats.avgScore))}
                                   style={{ width: `${selectedTemplate.stats.avgScore * 10}%` }}

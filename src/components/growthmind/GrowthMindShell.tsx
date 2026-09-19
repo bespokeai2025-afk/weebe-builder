@@ -75,7 +75,7 @@ function NavItem({ label, href, icon: Icon, highlight, active, badge }: {
           ? "bg-brand/15 text-brand"
           : highlight
             ? "text-brand/80 hover:bg-brand/[0.08] hover:text-brand"
-            : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
+            : "text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
     >
       <Icon className={cn("h-3.5 w-3.5 shrink-0", (active || highlight) && "text-brand")} />
@@ -115,7 +115,7 @@ export function GrowthMindShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-full min-h-0 w-full">
       {/* Left sidebar */}
-      <aside className="hidden md:flex w-56 shrink-0 flex-col border-r border-white/[0.06] bg-[hsl(var(--sidebar-background))] py-4 overflow-y-auto">
+      <aside className="hidden md:flex w-56 shrink-0 flex-col border-r border-border bg-[hsl(var(--sidebar-background))] py-4 overflow-y-auto">
         {/* Brand */}
         <div className="px-4 mb-5">
           <div className="flex items-center gap-2.5">
@@ -182,7 +182,7 @@ export function GrowthMindShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Mobile nav — scrollable horizontal tabs */}
-      <div className="flex md:hidden border-b border-white/[0.06] overflow-x-auto shrink-0 w-full">
+      <div className="flex md:hidden border-b border-border overflow-x-auto shrink-0 w-full">
         {ALL_NAV.map(({ label, href, icon: Icon }) => {
           const active = isActive(href);
           const isProposals = href === "/growthmind/proposals";

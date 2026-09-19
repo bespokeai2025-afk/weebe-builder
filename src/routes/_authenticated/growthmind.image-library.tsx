@@ -164,32 +164,32 @@ function ImageLibraryPage() {
 
         {/* Filter bar */}
         {filtersOpen && (
-          <div className="rounded-xl border border-white/[0.06] bg-card/50 p-4 flex flex-wrap gap-3 items-end">
+          <div className="rounded-xl border border-border bg-card/50 p-4 flex flex-wrap gap-3 items-end">
             <div className="space-y-1">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Asset Type</p>
               <select value={assetTypeFilter} onChange={e => setAssetTypeFilter(e.target.value as AssetType | "")}
-                className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs text-foreground focus:outline-none">
+                className="rounded-lg border border-border bg-muted/60 px-3 py-1.5 text-xs text-foreground focus:outline-none">
                 {ASSET_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
             <div className="space-y-1">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Platform</p>
               <select value={platformFilter} onChange={e => setPlatformFilter(e.target.value as PlatformHint | "")}
-                className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs text-foreground focus:outline-none">
+                className="rounded-lg border border-border bg-muted/60 px-3 py-1.5 text-xs text-foreground focus:outline-none">
                 {PLATFORM_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
             <div className="space-y-1">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Campaign</p>
               <select value={campaignFilter} onChange={e => setCampaignFilter(e.target.value)}
-                className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs text-foreground focus:outline-none">
+                className="rounded-lg border border-border bg-muted/60 px-3 py-1.5 text-xs text-foreground focus:outline-none">
                 <option value="">All Campaigns</option>
                 {drafts?.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
             </div>
             {activeFilters > 0 && (
               <button onClick={() => { setAssetTypeFilter(""); setPlatformFilter(""); setCampaignFilter(""); }}
-                className="flex items-center gap-1 rounded-lg border border-white/[0.06] px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                className="flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
                 <X className="h-3 w-3" /> Clear filters
               </button>
             )}
@@ -259,8 +259,8 @@ function LibraryCard({
   onAttach(campaignId: string): void;
 }) {
   return (
-    <div className="group rounded-xl border border-white/[0.06] bg-card/50 overflow-hidden hover:border-white/[0.12] transition-all">
-      <div className="relative aspect-square bg-white/[0.03]">
+    <div className="group rounded-xl border border-border bg-card/50 overflow-hidden hover:border-foreground/20 transition-all">
+      <div className="relative aspect-square bg-muted/60">
         {asset.status === "generating" ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <Loader2 className="h-5 w-5 animate-spin text-orange-400" />
@@ -308,7 +308,7 @@ function LibraryCard({
           <span className="rounded-full border border-orange-500/20 bg-orange-500/10 px-1.5 py-0.5 text-[9px] text-orange-400 font-medium">
             {ASSET_TYPE_LABELS[asset.asset_type] ?? asset.asset_type}
           </span>
-          <span className="rounded-full border border-white/[0.06] px-1.5 py-0.5 text-[9px] text-muted-foreground">
+          <span className="rounded-full border border-border px-1.5 py-0.5 text-[9px] text-muted-foreground">
             {PLATFORM_LABELS[asset.platform_hint] ?? asset.platform_hint}
           </span>
         </div>
@@ -321,19 +321,19 @@ function LibraryCard({
           <div className="flex items-center gap-1 pt-0.5">
             <div className="relative flex-1">
               <button onClick={onToggleAttach}
-                className="w-full rounded border border-white/[0.06] py-1 text-[9px] text-muted-foreground hover:text-orange-400 hover:border-orange-500/30 transition-colors">
+                className="w-full rounded border border-border py-1 text-[9px] text-muted-foreground hover:text-orange-400 hover:border-orange-500/30 transition-colors">
                 Attach
               </button>
               {attachOpen && (
                 <div className="absolute bottom-full mb-1 left-0 z-30 w-52 rounded-lg border border-white/10 bg-popover shadow-xl overflow-hidden">
-                  <p className="px-3 py-2 text-[10px] font-semibold text-muted-foreground border-b border-white/[0.06]">Attach to campaign</p>
+                  <p className="px-3 py-2 text-[10px] font-semibold text-muted-foreground border-b border-border">Attach to campaign</p>
                   {drafts.length === 0 ? (
                     <p className="px-3 py-2 text-[10px] text-muted-foreground">No drafts found</p>
                   ) : (
                     <div className="max-h-40 overflow-y-auto">
                       {drafts.map(d => (
                         <button key={d.id} onClick={() => onAttach(d.id)}
-                          className="w-full px-3 py-2 text-left text-xs hover:bg-white/[0.05] text-foreground transition-colors">
+                          className="w-full px-3 py-2 text-left text-xs hover:bg-muted text-foreground transition-colors">
                           {d.name}
                         </button>
                       ))}
@@ -343,7 +343,7 @@ function LibraryCard({
               )}
             </div>
             <button onClick={onDelete} disabled={working}
-              className="rounded border border-white/[0.06] px-1.5 py-1 text-muted-foreground hover:text-red-400 hover:border-red-500/30 transition-colors">
+              className="rounded border border-border px-1.5 py-1 text-muted-foreground hover:text-red-400 hover:border-red-500/30 transition-colors">
               <Trash2 className="h-3 w-3" />
             </button>
           </div>

@@ -65,10 +65,10 @@ function NegativeKeywordLogPage() {
             negative-keyword recommendation is approved.
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-white/[0.07]">
+          <div className="overflow-x-auto rounded-lg border border-border">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="border-b border-white/[0.07] text-[10px] uppercase tracking-wide text-muted-foreground">
+                <tr className="border-b border-border text-[10px] uppercase tracking-wide text-muted-foreground">
                   <th className="px-3 py-2">Search term</th>
                   <th className="px-3 py-2">Classification</th>
                   <th className="px-3 py-2">Decision</th>
@@ -79,10 +79,10 @@ function NegativeKeywordLogPage() {
               </thead>
               <tbody>
                 {entries.map((e) => {
-                  const c = CLASS_META[e.classification] ?? { label: e.classification, cls: "bg-white/[0.06] text-muted-foreground" };
-                  const d = DECISION_META[e.decision] ?? { label: e.decision, cls: "bg-white/[0.06] text-muted-foreground" };
+                  const c = CLASS_META[e.classification] ?? { label: e.classification, cls: "bg-muted text-muted-foreground" };
+                  const d = DECISION_META[e.decision] ?? { label: e.decision, cls: "bg-muted text-muted-foreground" };
                   return (
-                    <tr key={e.id} className="border-b border-white/[0.04] align-top">
+                    <tr key={e.id} className="border-b border-border/60 align-top">
                       <td className="px-3 py-2 font-medium">"{e.search_term}"{e.match_type ? <span className="ml-1 text-[10px] text-muted-foreground">[{e.match_type}]</span> : null}</td>
                       <td className="px-3 py-2"><span className={cn("inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium", c.cls)}>{c.label}</span></td>
                       <td className="px-3 py-2"><span className={cn("inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium", d.cls)}>{d.label}</span></td>

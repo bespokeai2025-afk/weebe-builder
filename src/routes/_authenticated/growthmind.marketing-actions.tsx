@@ -55,7 +55,7 @@ function ActionRow({ action, onUndo, undoing }: {
   const [open, setOpen] = useState(false);
   const undoable = UNDOABLE_MARKETING_STATUSES.includes(action.status) && !action.rollback_of;
   return (
-    <div className="rounded-lg border border-white/[0.07] bg-[hsl(var(--card))]">
+    <div className="rounded-lg border border-border bg-[hsl(var(--card))]">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -72,7 +72,7 @@ function ActionRow({ action, onUndo, undoing }: {
               </span>
             )}
             {action.rollback_of && (
-              <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[11px] text-muted-foreground">Undo action</span>
+              <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">Undo action</span>
             )}
           </div>
           <p className="mt-0.5 truncate text-xs text-muted-foreground">
@@ -82,7 +82,7 @@ function ActionRow({ action, onUndo, undoing }: {
         {open ? <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />}
       </button>
       {open && (
-        <div className="space-y-3 border-t border-white/[0.06] px-4 py-3">
+        <div className="space-y-3 border-t border-border px-4 py-3">
           <div className="grid gap-3 sm:grid-cols-2">
             <JsonBlock label="Target" value={action.target} />
             <JsonBlock label="Evidence" value={action.evidence} />
@@ -97,7 +97,7 @@ function ActionRow({ action, onUndo, undoing }: {
               type="button"
               disabled={undoing === action.id}
               onClick={() => onUndo(action.id)}
-              className="inline-flex items-center gap-2 rounded-md border border-white/10 px-3 py-1.5 text-xs font-medium transition hover:bg-white/[0.05] disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-md border border-white/10 px-3 py-1.5 text-xs font-medium transition hover:bg-muted disabled:opacity-50"
             >
               {undoing === action.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Undo2 className="h-3.5 w-3.5" />}
               Undo this change
@@ -154,7 +154,7 @@ function MarketingActionsPage() {
         </div>
 
         {notice && (
-          <div className="rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-xs">{notice}</div>
+          <div className="rounded-md border border-white/10 bg-muted px-3 py-2 text-xs">{notice}</div>
         )}
 
         {isLoading ? (

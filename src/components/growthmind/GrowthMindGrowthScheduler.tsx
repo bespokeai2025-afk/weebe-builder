@@ -126,7 +126,7 @@ function PlanCard({
         "rounded-xl border p-4 cursor-pointer transition-all",
         isSelected
           ? "border-emerald-500/40 bg-emerald-500/[0.06]"
-          : "border-white/[0.06] bg-card/40 hover:bg-card/70",
+          : "border-border bg-card/40 hover:bg-card/70",
       )}
     >
       <div className="flex items-start justify-between gap-2">
@@ -193,10 +193,10 @@ function TaskRow({
     <div className={cn(
       "flex items-center gap-3 rounded-lg border px-3 py-2.5 group transition-colors",
       task.status === "completed"
-        ? "border-white/[0.04] bg-card/20 opacity-60"
+        ? "border-border/60 bg-card/20 opacity-60"
         : overdue
           ? "border-red-500/20 bg-red-500/[0.03] hover:bg-red-500/[0.06]"
-          : "border-white/[0.06] bg-card/40 hover:bg-card/70",
+          : "border-border bg-card/40 hover:bg-card/70",
     )}>
       <button onClick={onComplete} disabled={task.status === "completed"}
         className="shrink-0 text-muted-foreground hover:text-emerald-400 disabled:cursor-default transition-colors">
@@ -242,8 +242,8 @@ function NewPlanModal({ onClose, onSave, saving }: { onClose: () => void; onSave
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="w-full max-w-xl rounded-xl border border-white/[0.08] bg-card shadow-2xl" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06]">
+      <div className="w-full max-w-xl rounded-xl border border-border bg-card shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
           <p className="text-sm font-semibold flex items-center gap-2">
             <Rocket className="h-4 w-4 text-emerald-400" />
             New Growth Plan
@@ -305,7 +305,7 @@ function NewPlanModal({ onClose, onSave, saving }: { onClose: () => void; onSave
             <Textarea value={form.growthGoals} onChange={e => set("growthGoals", e.target.value)} rows={3} placeholder="What does success look like in this period?" />
           </div>
         </div>
-        <div className="flex justify-end gap-2 px-5 py-3.5 border-t border-white/[0.06]">
+        <div className="flex justify-end gap-2 px-5 py-3.5 border-t border-border">
           <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
           <Button size="sm" onClick={() => onSave(form)} disabled={!form.name.trim() || saving}>
             {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Save className="h-3.5 w-3.5 mr-1.5" />}
@@ -332,7 +332,7 @@ function QuickAddTask({ onAdd, adding }: { onAdd: (title: string, type: string, 
   }
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-card/40 p-3">
+    <div className="rounded-xl border border-border bg-card/40 p-3">
       <p className="text-xs font-semibold text-muted-foreground/60 mb-2 uppercase tracking-[0.08em]">Add Task</p>
       <div className="flex gap-2 flex-wrap">
         <Input className="flex-1 min-w-[160px]" placeholder="Task title…" value={title} onChange={e => setTitle(e.target.value)}
@@ -530,7 +530,7 @@ export function GrowthMindGrowthScheduler() {
 
         {/* Marketing Readiness */}
         {readiness && (
-          <div className="mb-6 rounded-xl border border-white/[0.06] bg-card/40 p-5">
+          <div className="mb-6 rounded-xl border border-border bg-card/40 p-5">
             <div className="flex items-center justify-between mb-4">
               <p className="text-sm font-semibold flex items-center gap-2">
                 <BarChart3 className="h-4 w-4 text-emerald-400" />
@@ -552,7 +552,7 @@ export function GrowthMindGrowthScheduler() {
               <ScoreRing score={(readiness as any).taskScore ?? 50} label="Task Completion" color="#8b5cf6" />
             </div>
             {readiness.stats && (
-              <div className="mt-4 grid grid-cols-4 gap-3 border-t border-white/[0.06] pt-3">
+              <div className="mt-4 grid grid-cols-4 gap-3 border-t border-border pt-3">
                 {[
                   { label: "Total Content",  value: readiness.stats.totalEntries, color: "text-foreground" },
                   { label: "Published",      value: readiness.stats.published,    color: "text-emerald-400" },
@@ -584,7 +584,7 @@ export function GrowthMindGrowthScheduler() {
                 <span className="text-sm">Loading…</span>
               </div>
             ) : plans.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-white/[0.1] p-6 text-center">
+              <div className="rounded-xl border border-dashed border-border p-6 text-center">
                 <Rocket className="h-8 w-8 text-emerald-400/40 mx-auto mb-2" />
                 <p className="text-sm text-muted-foreground mb-3">No growth plans yet.</p>
                 <Button size="sm" variant="outline" onClick={() => setShowNewPlan(true)}>
@@ -600,7 +600,7 @@ export function GrowthMindGrowthScheduler() {
                     "w-full text-left rounded-xl border px-4 py-2.5 text-sm font-medium transition-all",
                     selectedPlanId === null
                       ? "border-emerald-500/40 bg-emerald-500/[0.06] text-emerald-300"
-                      : "border-white/[0.06] bg-card/40 text-muted-foreground hover:bg-card/70",
+                      : "border-border bg-card/40 text-muted-foreground hover:bg-card/70",
                   )}
                 >
                   <LayoutList className="h-3.5 w-3.5 inline mr-2" />
@@ -650,12 +650,12 @@ export function GrowthMindGrowthScheduler() {
                       "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors",
                       activeTab === tab.id
                         ? "bg-emerald-600 text-white"
-                        : "bg-card/40 text-muted-foreground hover:text-foreground border border-white/[0.06]",
+                        : "bg-card/40 text-muted-foreground hover:text-foreground border border-border",
                     )}
                   >
                     <tab.icon className="h-3 w-3" />
                     {tab.label}
-                    {count > 0 && <span className={cn("text-[10px] px-1 rounded", activeTab === tab.id ? "bg-white/20" : "bg-white/[0.08]")}>{count}</span>}
+                    {count > 0 && <span className={cn("text-[10px] px-1 rounded", activeTab === tab.id ? "bg-white/20" : "bg-muted")}>{count}</span>}
                   </button>
                 );
               })}
@@ -671,7 +671,7 @@ export function GrowthMindGrowthScheduler() {
                 <span className="text-sm">Loading tasks…</span>
               </div>
             ) : filteredTasks.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-white/[0.1] p-8 text-center">
+              <div className="rounded-xl border border-dashed border-border p-8 text-center">
                 <CalendarDays className="h-8 w-8 text-emerald-400/40 mx-auto mb-2" />
                 <p className="text-sm text-muted-foreground mb-2">No tasks in this category.</p>
                 {!selectedPlan?.generatedAt && plans.length > 0 && (

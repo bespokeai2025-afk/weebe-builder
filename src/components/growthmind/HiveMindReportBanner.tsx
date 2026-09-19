@@ -44,10 +44,10 @@ export function HiveMindReportBanner({
   const trendColor = trend === "up" ? "text-emerald-400" : trend === "down" ? "text-red-400" : "text-muted-foreground";
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-card/40 mb-6 overflow-hidden">
+    <div className="rounded-xl border border-border bg-card/40 mb-6 overflow-hidden">
 
       {/* Top bar */}
-      <div className="px-4 py-2.5 border-b border-white/[0.04] flex items-center justify-between gap-3 flex-wrap">
+      <div className="px-4 py-2.5 border-b border-border/60 flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <Brain className="h-3.5 w-3.5 text-emerald-400" />
           <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-[0.08em]">

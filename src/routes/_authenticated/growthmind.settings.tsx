@@ -159,7 +159,7 @@ function GrowthMindSettingsPage() {
       </div>
 
       {/* Autonomy mode */}
-      <div className="rounded-xl border border-white/[0.06] bg-card/60 p-5 space-y-4">
+      <div className="rounded-xl border border-border bg-card/60 p-5 space-y-4">
         <div>
           <p className="text-sm font-semibold">Autonomy Mode</p>
           <p className="text-xs text-muted-foreground mt-0.5">Default is Recommend. GrowthMind never publishes anything without approval unless Operator mode is explicitly enabled.</p>
@@ -174,7 +174,7 @@ function GrowthMindSettingsPage() {
                 onClick={() => applyMode(key)}
                 className={cn(
                   "text-left rounded-lg border p-4 transition-colors",
-                  active ? "border-emerald-500/50 bg-emerald-500/[0.08]" : "border-white/[0.06] bg-background/40 hover:bg-white/[0.03]",
+                  active ? "border-emerald-500/50 bg-emerald-500/[0.08]" : "border-border bg-background/40 hover:bg-muted/60",
                 )}>
                 <div className="flex items-center gap-2">
                   <Icon className={cn("h-4 w-4", active ? "text-emerald-400" : "text-muted-foreground")} />
@@ -209,7 +209,7 @@ function GrowthMindSettingsPage() {
       </div>
 
       {/* Content approval rules */}
-      <div className="rounded-xl border border-white/[0.06] bg-card/60 p-5 space-y-4">
+      <div className="rounded-xl border border-border bg-card/60 p-5 space-y-4">
         <div className="flex items-center gap-2">
           <ShieldCheck className="h-4 w-4 text-emerald-400" />
           <div>
@@ -237,7 +237,7 @@ function GrowthMindSettingsPage() {
           ))}
         </div>
 
-        <div className="rounded-lg border border-white/[0.06] bg-background/40 p-4 space-y-3">
+        <div className="rounded-lg border border-border bg-background/40 p-4 space-y-3">
           <div>
             <p className="text-xs font-medium">Restricted terms</p>
             <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -263,7 +263,7 @@ function GrowthMindSettingsPage() {
           ) : (
             <div className="flex flex-wrap gap-1.5">
               {rules.restricted_terms.map((term) => (
-                <span key={term} className="inline-flex items-center gap-1 rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[11px]">
+                <span key={term} className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2.5 py-1 text-[11px]">
                   {term}
                   <button
                     type="button"
@@ -282,7 +282,7 @@ function GrowthMindSettingsPage() {
       </div>
 
       {/* Activity log */}
-      <div className="rounded-xl border border-white/[0.06] bg-card/60 p-5 space-y-3">
+      <div className="rounded-xl border border-border bg-card/60 p-5 space-y-3">
         <div className="flex items-center gap-2">
           <ScrollText className="h-4 w-4 text-muted-foreground" />
           <p className="text-sm font-semibold">Activity Log</p>
@@ -290,7 +290,7 @@ function GrowthMindSettingsPage() {
         {entries.length === 0 && <p className="text-xs text-muted-foreground">No GrowthMind activity recorded yet.</p>}
         <div className="space-y-1.5">
           {entries.map((e: any) => (
-            <div key={e.id} className="flex items-center justify-between gap-3 text-xs py-1 border-b border-white/[0.03] last:border-0">
+            <div key={e.id} className="flex items-center justify-between gap-3 text-xs py-1 border-b border-border/50 last:border-0">
               <div className="min-w-0">
                 <p className="truncate">{e.summary ?? e.action}</p>
                 <p className="text-[11px] text-muted-foreground">{e.actor} · {e.category}{e.mode_at_time ? ` · ${e.mode_at_time} mode` : ""}</p>

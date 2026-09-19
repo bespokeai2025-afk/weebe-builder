@@ -59,7 +59,7 @@ function PlaybookCard({
       "rounded-xl border bg-card/60 overflow-hidden transition-all",
       isActive
         ? "border-emerald-500/40 ring-1 ring-emerald-500/20"
-        : "border-white/[0.06] hover:border-white/[0.1]",
+        : "border-border hover:border-foreground/20",
     )}>
       {/* Header */}
       <div className="p-4">
@@ -67,7 +67,7 @@ function PlaybookCard({
           <div className="flex items-center gap-3">
             <div className={cn(
               "flex h-9 w-9 items-center justify-center rounded-lg shrink-0",
-              isActive ? "bg-emerald-500/20 ring-1 ring-emerald-500/30" : "bg-white/[0.05]",
+              isActive ? "bg-emerald-500/20 ring-1 ring-emerald-500/30" : "bg-muted",
             )}>
               <PlaybookIcon
                 name={playbook.iconName}
@@ -96,7 +96,7 @@ function PlaybookCard({
           {playbook.sections.map(s => (
             <span
               key={s.channel}
-              className="inline-flex items-center gap-1 rounded-md bg-white/[0.04] px-2 py-0.5 text-[10px] text-muted-foreground border border-white/[0.06]"
+              className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-[10px] text-muted-foreground border border-border"
             >
               {channelIcon(s.channel)}
               {s.channel}
@@ -151,7 +151,7 @@ function PlaybookCard({
 
       {/* Expanded tactics */}
       {expanded && (
-        <div className="border-t border-white/[0.06] divide-y divide-white/[0.04]">
+        <div className="border-t border-border divide-y divide-white/[0.04]">
           {playbook.sections.map(section => (
             <div key={section.channel} className="px-4 py-3">
               <div className="flex items-center gap-2 mb-2">

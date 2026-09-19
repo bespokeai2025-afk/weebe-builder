@@ -104,7 +104,7 @@ export function GrowthMindLeadOpportunities() {
               { label: "Never Called",   value: summary.byType.never_called,  color: "text-orange-400" },
               { label: "No-Shows",       value: summary.byType.no_show,       color: "text-red-400" },
             ].map(s => (
-              <div key={s.label} className="rounded-xl border border-white/[0.06] bg-card/60 p-3 text-center">
+              <div key={s.label} className="rounded-xl border border-border bg-card/60 p-3 text-center">
                 <p className={cn("text-2xl font-bold tabular-nums", s.color)}>{s.value}</p>
                 <p className="text-[10px] text-muted-foreground mt-0.5">{s.label}</p>
               </div>
@@ -123,7 +123,7 @@ export function GrowthMindLeadOpportunities() {
                   onClick={() => setUrgencyFilter(u)}
                   className={cn(
                     "rounded-full px-3 py-1 text-xs font-medium border transition-all capitalize",
-                    u === "all"      ? "bg-white/[0.04] text-muted-foreground border-white/[0.08]" :
+                    u === "all"      ? "bg-muted text-muted-foreground border-border" :
                     u === "critical" ? "bg-red-500/10 text-red-400 border-red-500/20" :
                     u === "high"     ? "bg-orange-500/10 text-orange-400 border-orange-500/20" :
                     u === "medium"   ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
@@ -152,7 +152,7 @@ export function GrowthMindLeadOpportunities() {
                     "rounded-md px-2.5 py-1 text-[11px] font-medium border transition-colors",
                     typeFilter === t
                       ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
-                      : "bg-white/[0.02] text-muted-foreground border-white/[0.06] hover:text-foreground",
+                      : "bg-muted/40 text-muted-foreground border-border hover:text-foreground",
                   )}
                 >
                   {label} ({cnt})
