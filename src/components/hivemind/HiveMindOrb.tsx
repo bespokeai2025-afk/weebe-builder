@@ -7,7 +7,7 @@ import { getHiveMindAIResponse, getHiveMindTTS } from "@/lib/hivemind/hivemind.a
 import { streamHiveMindChat } from "@/lib/hivemind/use-hivemind-stream";
 import { useMindConversation } from "@/hooks/useMindConversation";
 import { loadHiveMindVoiceSettings, loadHiveMindUserName } from "@/lib/hivemind/voice-profile";
-import { AvaSignal } from "./AvaSignal.portable";
+import { AssistantBrain } from "./AssistantBrain";
 import {
   calculateHiveMindAnchor,
   HIVE_MIND_SHELL_GUTTER,
@@ -51,16 +51,10 @@ function OrbVisual({ state, notifCount, alertMode, hovered }: {
 }) {
   return (
     <div
-      className="relative flex h-[105px] w-[126px] items-center justify-center sm:h-[124px] sm:w-[154px] lg:h-[145px] lg:w-[180px]"
+      className="relative flex h-16 w-16 items-center justify-center"
       style={{ willChange: "transform" }}
     >
-      <AvaSignal
-        className="h-[105px] w-[126px] sm:h-[124px] sm:w-[154px] lg:h-[145px] lg:w-[180px]"
-        dark
-        step={state === "thinking" ? "connecting" : state === "speaking" || state === "listening" ? "live" : state === "error" ? "error" : "idle"}
-        agentSpeaking={state === "speaking"}
-        hovered={hovered}
-      />
+      <AssistantBrain state={state} hovered={hovered} />
 
       {/* Notification badge */}
       {notifCount > 0 && (
@@ -496,9 +490,7 @@ const COLLISION_GUTTER = 18;
 const HIVE_MIND_CORNER_GUTTER = 16;
 
 function viewportOrbSize() {
-  if (window.innerWidth < 640) return { width: 126, height: 105 };
-  if (window.innerWidth < 1024) return { width: 154, height: 124 };
-  return { width: 180, height: 145 };
+  return { width: 64, height: 64 };
 }
 
 function isVisibleLayoutElement(element: HTMLElement) {
@@ -850,7 +842,7 @@ export function HiveMindOrb() {
               boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
             }}
           >
-            <span className="opacity-60 text-[9px] uppercase tracking-widest mr-1.5">DoubleClick</span>Open assistant
+            Click to chat · drag to move
             <div
               className="absolute -bottom-1 right-5 w-2 h-2 rotate-45"
               style={{ background: "rgba(2,12,27,0.95)", borderRight: "1px solid rgba(6,182,212,0.2)", borderBottom: "1px solid rgba(6,182,212,0.2)" }}
@@ -889,14 +881,15 @@ export function HiveMindOrb() {
           onPointerCancel={onDragPointerUp}
           onMouseEnter={() => setHovered(true)}
           onMouseLeave={() => setHovered(false)}
+          onFocus={() => setHovered(true)}
+          onBlur={() => setHovered(false)}
+          aria-expanded={open}
           aria-label={open ? "Collapse assistant" : "Open executive assistant"}
-          title={open ? "Collapse assistant" : "Open assistant — drag to move"}
-          className="relative cursor-grab active:cursor-grabbing transition-transform duration-300 active:scale-95 focus:outline-none"
+          className="relative rounded-2xl cursor-grab active:cursor-grabbing motion-safe:transition-transform motion-safe:duration-300 motion-safe:active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           style={{
             background: "none",
             border: "none",
             padding: 0,
-            transform: hovered ? "scale(1.1)" : "scale(1)",
           }}
         >
           <OrbVisual

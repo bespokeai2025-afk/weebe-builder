@@ -16,24 +16,13 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { getMyEntitlements } from "@/lib/packages/packages.functions";
 import { FEATURE_LABELS } from "@/lib/packages/packages.shared";
+import { CHART, coloredSlices } from "@/components/dashboard/chart-model";
+export { CHART } from "@/components/dashboard/chart-model";
 
 // ── Palette — premium/desaturated, matches the Call Analytics tab's own
 // palette (src/routes/_authenticated/analytics.tsx). Semantic slots reuse
 // the app's own AA-checked design tokens instead of a second, disconnected
 // bright color scale.
-export const CHART = {
-  primary:     "#5B5FC7",
-  primaryGlow: "#8B8FDE",
-  accent:      "#3D8A8C",
-  success:     "var(--success)",
-  warning:     "var(--warning)",
-  danger:      "var(--destructive)",
-  neutral:     "#64748B",
-  pink:        "#B0567E",
-  orange:      "#BD6B3A",
-  grid:        "var(--border)",
-  axis:        "var(--muted-foreground)",
-};
 
 export const DONUT_COLORS = [CHART.primary, CHART.accent, CHART.success, CHART.warning, CHART.danger, CHART.pink, CHART.orange, CHART.neutral];
 export const SENTIMENT_COLORS = [CHART.success, CHART.warning, CHART.danger, CHART.neutral];
@@ -99,6 +88,7 @@ export function DateRangeControl({
             size="sm"
             variant={value.dateFilter === r.key ? "secondary" : "ghost"}
             onClick={() => onChange({ ...value, dateFilter: r.key })}
+            aria-pressed={value.dateFilter === r.key}
             className={value.dateFilter === r.key ? "bg-primary/20 text-primary" : ""}
           >
             {r.label}
@@ -110,6 +100,7 @@ export function DateRangeControl({
           <input
             type="date"
             value={value.customStart ?? ""}
+            aria-label="Start date"
             onChange={(e) => onChange({ ...value, customStart: e.target.value || null })}
             className="rounded-lg border border-border bg-card/60 px-2.5 py-1.5 text-xs text-foreground"
           />
@@ -117,6 +108,7 @@ export function DateRangeControl({
           <input
             type="date"
             value={value.customEnd ?? ""}
+            aria-label="End date"
             onChange={(e) => onChange({ ...value, customEnd: e.target.value || null })}
             className="rounded-lg border border-border bg-card/60 px-2.5 py-1.5 text-xs text-foreground"
           />
@@ -322,7 +314,7 @@ export function CompactDonut({
   centerLabel: string;
   centerValue: number | string;
 }) {
-  const filtered = data.filter((d) => d.value > 0);
+  const filtered = coloredSlices(data, colors);
   if (filtered.length === 0) return <NoData />;
   return (
     <div className="w-full">
@@ -331,7 +323,7 @@ export function CompactDonut({
           <PieChart>
             <Tooltip content={<ChartTooltip />} />
             <Pie data={filtered} dataKey="value" nameKey="name" innerRadius={52} outerRadius={76} paddingAngle={2} stroke="none">
-              {filtered.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} />)}
+              {filtered.map((d) => <Cell key={d.name} fill={d.color} />)}
             </Pie>
           </PieChart>
         </ResponsiveContainer>
@@ -343,7 +335,7 @@ export function CompactDonut({
       <div className="mt-3 flex flex-wrap justify-center gap-x-3 gap-y-1.5">
         {filtered.map((d, i) => (
           <div key={d.name} className="flex items-center gap-1.5 text-[10px]">
-            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: colors[i % colors.length] }} />
+            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: d.color }} />
             <span className="text-muted-foreground">{d.name}</span>
             <span className="font-medium tabular-nums text-foreground/90">{d.value}</span>
           </div>

@@ -121,10 +121,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
 const PALETTE_UI: Record<NodeKind, { icon: React.ElementType; color: string }> = {
-  begin: { icon: Flag, color: "text-violet-500" },
+  begin: { icon: Flag, color: "text-violet-500 light:text-violet-800" },
   conversation: { icon: MessageCircle, color: "text-sky-600" },
-  wait: { icon: PauseCircle, color: "text-amber-500" },
-  subagent: { icon: Users, color: "text-sky-500" },
+  wait: { icon: PauseCircle, color: "text-amber-500 light:text-amber-800" },
+  subagent: { icon: Users, color: "text-sky-500 light:text-sky-800" },
   ending: { icon: Square, color: "text-rose-600" },
   function: { icon: Cpu, color: "text-violet-600" },
   call_transfer: { icon: PhoneForwarded, color: "text-emerald-600" },
@@ -139,7 +139,7 @@ const PALETTE_UI: Record<NodeKind, { icon: React.ElementType; color: string }> =
   send_upload_link: { icon: Link, color: "text-sky-600" },
   http_request: { icon: Globe, color: "text-blue-600" },
   mcp: { icon: Radio, color: "text-fuchsia-500" },
-  wa_start: { icon: MsgSq, color: "text-green-500" },
+  wa_start: { icon: MsgSq, color: "text-green-500 light:text-green-800" },
   wa_message: { icon: MsgSq, color: "text-green-600" },
   wa_media: { icon: ImageIcon, color: "text-lime-600" },
   wa_booking: { icon: CalendarCheck, color: "text-sky-600" },
@@ -314,7 +314,7 @@ function LanguagePicker({
             onClick={pickFlex}
             className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-muted/60 transition-colors"
           >
-            <Globe className="h-4 w-4 text-emerald-500 shrink-0" />
+            <Globe className="h-4 w-4 text-emerald-500 light:text-emerald-800 shrink-0" />
             <span className="font-medium">Flex Mode</span>
             <span className="ml-auto">
               {isFlex && <Check className="h-3 w-3 text-primary" />}
@@ -376,7 +376,7 @@ function MiniAudioPlayer({ url }: { url: string }) {
 
   return (
     <div className="space-y-0.5">
-      <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/60">Recording</p>
+      <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/60 light:text-muted-foreground">Recording</p>
       <audio
         ref={audioRef}
         src={url}
@@ -411,7 +411,7 @@ function MiniAudioPlayer({ url }: { url: string }) {
             style={{ width: duration ? `${(current / duration) * 100}%` : "0%" }}
           />
         </div>
-        <span className="text-[9px] tabular-nums text-muted-foreground/70 shrink-0">
+        <span className="text-[9px] tabular-nums text-muted-foreground/70 light:text-muted-foreground shrink-0">
           {fmt(current)}{Number.isFinite(duration) && duration > 0 ? ` / ${fmt(duration)}` : ""}
         </span>
       </div>
@@ -896,17 +896,17 @@ export function Builder({
       <div
         role="toolbar"
         aria-label="Builder toolbar"
-        className="flex flex-nowrap items-center gap-1.5 overflow-x-auto border-b border-border bg-background/60 px-2 py-1 backdrop-blur-sm [&_button]:h-7 [&_button]:px-2 [&_button]:text-[11px] [&_button]:gap-1 [&_button_svg]:h-3.5 [&_button_svg]:w-3.5"
+        className="flex shrink-0 flex-col gap-3 border-b border-border bg-card px-4 py-3 [&_button]:min-h-8 [&_button]:text-xs [&_button]:gap-1.5 [&_button_svg]:h-3.5 [&_button_svg]:w-3.5"
       >
         {/* Left: panel toggle + agent name + status */}
-        <div className="flex flex-1 items-center gap-1 min-w-0">
+        <div className="flex w-full flex-wrap items-center gap-3 min-w-0">
           {toolbarStart}
           {/* Page identity — the global app header is hidden on this route
               (see hideHeader in _authenticated.tsx), so this is the only
               "you are here" anchor on the whole screen. Hidden below sm:
               on narrow viewports the agent-name input and save action need
               the room more than this label does. */}
-          <span className="hidden shrink-0 px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50 sm:inline">
+          <span className="hidden shrink-0 px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50 light:text-muted-foreground sm:inline">
             Builder
           </span>
           <div className="hidden h-3.5 w-px shrink-0 bg-border sm:block" />
@@ -914,13 +914,13 @@ export function Builder({
             data-tour="agent-name-input"
             value={settings.agentName}
             onChange={(e) => setSettings({ agentName: e.target.value })}
-            className="h-7 max-w-[180px] border-transparent bg-transparent px-1.5 text-[11px] font-semibold text-foreground hover:border-border focus-visible:border-brand/40"
+            className="h-9 min-w-40 flex-1 max-w-sm border-input bg-background px-3 text-sm font-semibold text-foreground focus-visible:border-brand"
             placeholder="Agent name"
           />
           {settings.voiceProvider === "OPENAI_REALTIME" && (
             <Badge
               variant="outline"
-              className="shrink-0 border-violet-500/40 bg-violet-500/10 text-violet-300 text-[10px] gap-1 px-1.5 py-0.5 h-5"
+              className="shrink-0 border-violet-500/40 bg-violet-500/10 text-violet-300 light:text-violet-800 text-[10px] gap-1 px-1.5 py-0.5 h-5"
             >
               <Zap className="h-2.5 w-2.5" />
               Enterprise Line
@@ -944,7 +944,7 @@ export function Builder({
               className={cn(
                 "flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium transition-colors",
                 settings.channelType === "whatsapp"
-                  ? "bg-green-500/20 text-green-400"
+                  ? "bg-green-500/20 text-green-400 light:text-green-800"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
@@ -955,13 +955,13 @@ export function Builder({
         </div>
 
         {/* Right: canvas utilities + primary actions */}
-        <div className="flex flex-nowrap items-center gap-1.5">
+        <div className="flex w-full flex-wrap items-center gap-3 border-t border-border pt-3">
           {/* Canvas utility cluster */}
           <div
             role="group"
             aria-label="Canvas tools"
             title="Canvas tools"
-            className="hidden items-center gap-0.5 rounded-md border border-border bg-muted/40 px-1 py-0.5 lg:flex"
+            className="flex flex-wrap items-center gap-1 rounded-lg border border-border bg-muted/40 p-1"
           >
             <Button
               size="sm"
@@ -969,7 +969,7 @@ export function Builder({
               onClick={() => undo()}
               disabled={!canUndo}
               title="Undo (⌘Z)"
-              className="!w-8 !p-0 text-muted-foreground/60 hover:text-foreground"
+              className="!w-8 !p-0 text-muted-foreground/60 light:text-muted-foreground hover:text-foreground"
             >
               <Undo2 />
             </Button>
@@ -979,7 +979,7 @@ export function Builder({
               onClick={() => redo()}
               disabled={!canRedo}
               title="Redo (⌘⇧Z)"
-              className="!w-8 !p-0 text-muted-foreground/60 hover:text-foreground"
+              className="!w-8 !p-0 text-muted-foreground/60 light:text-muted-foreground hover:text-foreground"
             >
               <Redo2 />
             </Button>
@@ -1005,7 +1005,7 @@ export function Builder({
               }}
               disabled={!preAutoLayoutPositions}
               title="Revert auto layout"
-              className="!w-8 !p-0 text-muted-foreground/60 hover:text-foreground disabled:opacity-30"
+              className="!w-8 !p-0 text-muted-foreground/60 light:text-muted-foreground hover:text-foreground disabled:opacity-30"
             >
               <RotateCcw className="h-3 w-3 opacity-70" />
             </Button>
@@ -1014,14 +1014,14 @@ export function Builder({
               variant="ghost"
               onClick={() => rf?.fitView({ padding: 0.2 })}
               title="Fit canvas"
-              className="!w-8 !p-0 text-muted-foreground/60 hover:text-foreground"
+              className="!w-8 !p-0 text-muted-foreground/60 light:text-muted-foreground hover:text-foreground"
             >
               <Maximize />
             </Button>
             {/* Import / Export dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button size="sm" variant="ghost" title="Import / Export" className="!w-8 !p-0 text-muted-foreground/60 hover:text-foreground">
+                <Button size="sm" variant="ghost" title="Import / Export" className="!w-8 !p-0 text-muted-foreground/60 light:text-muted-foreground hover:text-foreground">
                   <MoreHorizontal />
                 </Button>
               </DropdownMenuTrigger>
@@ -1033,7 +1033,7 @@ export function Builder({
                   <Upload className="mr-2 h-3.5 w-3.5" /> Import JSON
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setImportOpen(true)}>
-                  <Download className="mr-2 h-3.5 w-3.5 text-emerald-400" /> Load Live Agent
+                  <Download className="mr-2 h-3.5 w-3.5 text-emerald-400 light:text-emerald-800" /> Load Live Agent
                 </DropdownMenuItem>
                 {settings.channelType !== "whatsapp" && (
                   <DropdownMenuItem onSelect={() => setImportPdfOpen(true)}>
@@ -1041,7 +1041,7 @@ export function Builder({
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem onSelect={() => setImportSMDraftOpen(true)}>
-                  <GitBranch className="mr-2 h-3.5 w-3.5 text-sky-400" /> Import SystemMind Draft
+                  <GitBranch className="mr-2 h-3.5 w-3.5 text-sky-400 light:text-sky-800" /> Import SystemMind Draft
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -1064,7 +1064,7 @@ export function Builder({
                   size="sm"
                   variant="ghost"
                   title="Clear canvas"
-                  className="!w-8 !p-0 text-muted-foreground/60 hover:bg-destructive/10 hover:text-destructive"
+                  className="!w-8 !p-0 text-muted-foreground/60 light:text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                 >
                   <Trash />
                 </Button>
@@ -1183,8 +1183,8 @@ export function Builder({
             )}
             {settings.channelType === "whatsapp" && (
               <div className="flex items-center gap-1.5 rounded-md border border-green-500/20 bg-green-500/10 px-2.5 py-1">
-                <MsgSq className="h-3 w-3 text-green-500" />
-                <span className="text-[11px] font-medium text-green-400">WhatsApp Mode</span>
+                <MsgSq className="h-3 w-3 text-green-500 light:text-green-800" />
+                <span className="text-[11px] font-medium text-green-400 light:text-green-800">WhatsApp Mode</span>
               </div>
             )}
           </div>
@@ -1195,7 +1195,7 @@ export function Builder({
 
       {editingComponentId && (
         <div className="flex items-center gap-2 border-b border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-[11px]">
-          <span className="font-medium text-amber-200">
+          <span className="font-medium text-amber-200 light:text-amber-800">
             Editing component{" "}
             {(settings.customComponents ?? []).find((c) => c.id === editingComponentId)?.label ?? ""}
           </span>
@@ -1281,7 +1281,7 @@ export function Builder({
                           <Icon className="h-3 w-3 shrink-0 text-emerald-600" />
                           <span className="flex min-w-0 flex-col">
                             <span className="truncate">{c.label}</span>
-                            <span className="truncate text-[10px] text-muted-foreground/70">{c.description}</span>
+                            <span className="truncate text-[10px] text-muted-foreground/70 light:text-muted-foreground">{c.description}</span>
                           </span>
                         </button>
                         {custom && (
@@ -1316,7 +1316,7 @@ export function Builder({
                             <button
                               type="button"
                               title="Delete"
-                              className="p-0.5 text-rose-400 hover:text-rose-300"
+                              className="p-0.5 text-rose-400 light:text-rose-800 hover:text-rose-300"
                               onClick={() => deleteCustomComponent(c.id)}
                             >
                               <Trash className="h-2.5 w-2.5" />
@@ -1419,7 +1419,7 @@ export function Builder({
                 {/* Header */}
                 <div className="flex items-center justify-between pb-2 border-b border-border mb-2">
                   <div className="flex items-center gap-1.5">
-                    <MessageSquare className="h-3.5 w-3.5 text-violet-400" />
+                    <MessageSquare className="h-3.5 w-3.5 text-violet-400 light:text-violet-800" />
                     <span className="text-[11px] font-semibold tracking-tight text-foreground">Live Transcript</span>
                     {callActive && <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse ml-0.5" />}
                     {!callActive && <span className="text-[10px] text-muted-foreground ml-1">· ended</span>}
@@ -1455,8 +1455,8 @@ export function Builder({
                           className={`max-w-[90%] rounded-lg px-2.5 py-1.5 text-[11px] leading-relaxed ${
                             entry.role === "user"
                               ? entry.partial
-                                ? "bg-violet-500/10 text-violet-300/60 italic"
-                                : "bg-violet-500/15 text-violet-200"
+                                ? "bg-violet-500/10 text-violet-300/60 light:text-violet-800 italic"
+                                : "bg-violet-500/15 text-violet-200 light:text-violet-800"
                               : "bg-muted text-foreground/80"
                           }`}
                         >
@@ -1565,7 +1565,7 @@ export function Builder({
                   <button
                     type="button"
                     onClick={() => setRightPanelMode("transcript")}
-                    className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-violet-400 hover:bg-violet-500/10 transition-colors"
+                    className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-violet-400 light:text-violet-800 hover:bg-violet-500/10 transition-colors"
                   >
                     <MessageSquare className="h-3 w-3" />
                     Last call
@@ -1588,9 +1588,9 @@ export function Builder({
 
             {settings.channelType === "whatsapp" ? (
               <div className="rounded-lg border border-green-500/20 bg-green-500/5 p-2.5 space-y-1.5">
-                <p className="text-[10px] uppercase tracking-wider text-green-500/60 font-medium">WhatsApp Channel</p>
+                <p className="text-[10px] uppercase tracking-wider text-green-500/60 light:text-green-800 font-medium">WhatsApp Channel</p>
                 <div className="flex items-center gap-2">
-                  <MsgSq className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                  <MsgSq className="h-3.5 w-3.5 text-green-500 light:text-green-800 shrink-0" />
                   <div className="min-w-0">
                     <div className="text-[10px] font-medium text-foreground">WhatsApp via Twilio</div>
                     <div className="text-[9px] text-muted-foreground">Inbound message routing active</div>
@@ -1640,7 +1640,7 @@ export function Builder({
                       <Icon className={`h-3 w-3 shrink-0 ${active ? "text-primary" : "text-muted-foreground"}`} />
                       <div className="min-w-0">
                         <div className={`text-[10px] font-medium truncate ${active ? "text-foreground" : "text-muted-foreground"}`}>{label}</div>
-                        <div className="text-[9px] text-muted-foreground/60">{sub}</div>
+                        <div className="text-[9px] text-muted-foreground/60 light:text-muted-foreground">{sub}</div>
                       </div>
                       {active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary shrink-0" />}
                     </button>
@@ -1770,7 +1770,7 @@ export function Builder({
                       {/* Upload voice sample — available even when list API is restricted */}
                       <div className="flex items-center gap-1.5">
                         <div className="flex-1 h-px bg-muted" />
-                        <span className="text-[9px] text-muted-foreground/60 shrink-0">or upload</span>
+                        <span className="text-[9px] text-muted-foreground/60 light:text-muted-foreground shrink-0">or upload</span>
                         <div className="flex-1 h-px bg-muted" />
                       </div>
                       <button
@@ -1792,7 +1792,7 @@ export function Builder({
                         className="hidden"
                         onChange={handleElHsVoiceUpload}
                       />
-                      <p className="text-[8.5px] text-muted-foreground/50 leading-snug">
+                      <p className="text-[8.5px] text-muted-foreground/50 light:text-muted-foreground leading-snug">
                         MP3, WAV, M4A, OGG — min 1 min of clear speech recommended
                       </p>
                     </div>
@@ -2126,7 +2126,7 @@ export function Builder({
                       </p>
                     )}
                     {!fishVoicesLoading && !fishVoicesError && fishVoices.length === 0 && (
-                      <p className="text-[9px] text-muted-foreground/70 leading-snug">
+                      <p className="text-[9px] text-muted-foreground/70 light:text-muted-foreground leading-snug">
                         No voices found. Try English + a search like “British”, “narrator”, or “female”.
                       </p>
                     )}
@@ -2192,7 +2192,7 @@ export function Builder({
                                             {formatFishVoiceSubtitle(v)}
                                           </p>
                                           {v.description && (
-                                            <p className="text-[8px] text-muted-foreground/60 leading-tight line-clamp-1">
+                                            <p className="text-[8px] text-muted-foreground/60 light:text-muted-foreground leading-tight line-clamp-1">
                                               {v.description}
                                             </p>
                                           )}
@@ -2361,7 +2361,7 @@ export function Builder({
                         ))}
                       </SelectContent>
                     </Select>
-                    <p className="text-[9px] text-muted-foreground/50 mt-1">Default: Low (Optimized Balanced)</p>
+                    <p className="text-[9px] text-muted-foreground/50 light:text-muted-foreground mt-1">Default: Low (Optimized Balanced)</p>
                   </div>
 
                   <div className="flex items-center gap-1.5 rounded-full border border-border bg-muted/60 px-2 py-1 w-fit">
@@ -2533,7 +2533,7 @@ export function Builder({
                                   <p className="text-[9px] font-medium leading-tight truncate">{v.name}</p>
                                   {v.description && <p className="text-[8px] text-muted-foreground leading-tight line-clamp-1">{v.description}</p>}
                                   {Object.keys(v.labels ?? {}).length > 0 && (
-                                    <p className="text-[8px] text-muted-foreground/60 leading-tight">
+                                    <p className="text-[8px] text-muted-foreground/60 light:text-muted-foreground leading-tight">
                                       {Object.values(v.labels).slice(0, 3).join(" · ")}
                                     </p>
                                   )}
@@ -2704,16 +2704,16 @@ export function Builder({
                   </SelectContent>
                 </Select>
                 {settings.agentType === "lead_generation" && (
-                  <p className="text-[10px] text-violet-500 dark:text-violet-400">Lead Gen sections active ↓</p>
+                  <p className="text-[10px] text-violet-500 light:text-violet-800 dark:text-violet-400">Lead Gen sections active ↓</p>
                 )}
                 {settings.agentType === "client_qualification" && (
-                  <p className="text-[10px] text-blue-500 dark:text-blue-400">Client Qualification sections active ↓</p>
+                  <p className="text-[10px] text-blue-500 light:text-blue-800 dark:text-blue-400">Client Qualification sections active ↓</p>
                 )}
                 {settings.agentType === "custom" && (
                   <button
                     type="button"
                     onClick={() => smBuild.launch()}
-                    className="text-[10px] text-sky-500 dark:text-sky-400 underline-offset-2 hover:underline text-left"
+                    className="text-[10px] text-sky-500 light:text-sky-800 dark:text-sky-400 underline-offset-2 hover:underline text-left"
                   >
                     Custom agents are built with SystemMind — open the build panel
                   </button>
@@ -2758,8 +2758,8 @@ export function Builder({
               <div className="space-y-3">
                 <div className="rounded-lg border border-green-500/20 bg-green-500/5 p-3 space-y-2">
                   <div className="flex items-center gap-1.5">
-                    <MsgSq className="h-3.5 w-3.5 text-green-500" />
-                    <p className="text-[11px] font-semibold text-green-400">WhatsApp Mode</p>
+                    <MsgSq className="h-3.5 w-3.5 text-green-500 light:text-green-800" />
+                    <p className="text-[11px] font-semibold text-green-400 light:text-green-800">WhatsApp Mode</p>
                   </div>
                   <p className="text-[10px] text-muted-foreground leading-relaxed">
                     Use <strong>WA Message</strong>, <strong>WA Wait Reply</strong>, <strong>WA Media</strong>, and <strong>WA Booking</strong> nodes to build your conversation.
@@ -2785,7 +2785,7 @@ export function Builder({
                         onClick={() => setSettings({ waExecutionMode: mode })}
                         className={`w-full text-left rounded-md border px-2.5 py-2 transition-colors ${active ? "border-green-500/40 bg-green-500/10" : "border-border bg-muted/40 hover:bg-muted"}`}
                       >
-                        <p className={`text-[11px] font-medium ${active ? "text-green-400" : "text-foreground"}`}>{labels[mode]}</p>
+                        <p className={`text-[11px] font-medium ${active ? "text-green-400 light:text-green-800" : "text-foreground"}`}>{labels[mode]}</p>
                         <p className="text-[10px] text-muted-foreground mt-0.5">{descs[mode]}</p>
                       </button>
                     );

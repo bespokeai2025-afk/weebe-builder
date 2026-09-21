@@ -16,18 +16,18 @@ import { ActiveWorkOrdersWidget } from "@/components/minds/ActiveWorkOrdersWidge
 import { useIsWbahWorkspace } from "@/hooks/useIsWbahWorkspace";
 
 const SEVERITY_COLOR: Record<string, string> = {
-  critical: "text-red-400 bg-red-500/10 border-red-500/20",
-  high: "text-orange-400 bg-orange-500/10 border-orange-500/20",
-  medium: "text-amber-400 bg-amber-500/10 border-amber-500/20",
-  low: "text-slate-400 bg-slate-500/10 border-slate-500/20",
+  critical: "text-red-400 light:text-red-800 bg-red-500/10 border-red-500/20",
+  high: "text-orange-400 light:text-orange-800 bg-orange-500/10 border-orange-500/20",
+  medium: "text-amber-400 light:text-amber-800 bg-amber-500/10 border-amber-500/20",
+  low: "text-slate-400 light:text-slate-800 bg-slate-500/10 border-slate-500/20",
 };
 
 function ScoreRing({ score }: { score: number }) {
-  const color = score >= 75 ? "text-success" : score >= 50 ? "text-amber-400" : "text-red-400";
+  const color = score >= 75 ? "text-success" : score >= 50 ? "text-amber-400 light:text-amber-800" : "text-red-400 light:text-red-800";
   return (
     <div className="relative flex h-24 w-24 items-center justify-center">
       <svg className="absolute inset-0 -rotate-90" viewBox="0 0 100 100">
-        <circle cx="50" cy="50" r="42" className="stroke-white/[0.06]" strokeWidth="8" fill="none" />
+        <circle cx="50" cy="50" r="42" className="stroke-border" strokeWidth="8" fill="none" />
         <circle
           cx="50" cy="50" r="42" strokeWidth="8" fill="none" strokeLinecap="round"
           className={cn("transition-all", color)} stroke="currentColor"
@@ -53,14 +53,14 @@ function StatCard({ label, value, sub, icon: Icon, accent, href }: {
       accent === "amber"   ? "border-amber-500/20 bg-amber-500/[0.03]"
       : accent === "emerald" ? "border-emerald-500/20 bg-emerald-500/[0.03]"
       : accent === "red"     ? "border-red-500/20 bg-red-500/[0.03]"
-      : "border-border bg-muted/40",
+      : "border-border bg-card",
     )}>
       <div className="flex items-center gap-2 text-muted-foreground">
         <Icon className={cn(
           "h-3.5 w-3.5",
-          accent === "amber" ? "text-amber-400"
-          : accent === "emerald" ? "text-emerald-400"
-          : accent === "red" ? "text-red-400"
+          accent === "amber" ? "text-amber-400 light:text-amber-800"
+          : accent === "emerald" ? "text-emerald-400 light:text-emerald-800"
+          : accent === "red" ? "text-red-400 light:text-red-800"
           : "",
         )} />
         <span className="text-[11px] font-medium uppercase tracking-wide">{label}</span>
@@ -127,14 +127,14 @@ export function SystemMindOverview() {
             to="/systemmind/wbah-post-call"
             className="mt-4 flex items-center gap-3 rounded-xl border border-violet-500/25 bg-violet-500/[0.06] px-4 py-3 transition-colors hover:bg-violet-500/10"
           >
-            <Workflow className="h-5 w-5 text-violet-400 shrink-0" />
+            <Workflow className="h-5 w-5 text-violet-400 light:text-violet-800 shrink-0" />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-violet-100">Post-Call Workflows</p>
               <p className="text-[11px] text-muted-foreground">
                 Build Retell post-call automation — dashboard, Calendly, Dynamics — with guided setup (n8n-style).
               </p>
             </div>
-            <ArrowRight className="h-4 w-4 text-violet-400 shrink-0" />
+            <ArrowRight className="h-4 w-4 text-violet-400 light:text-violet-800 shrink-0" />
           </Link>
         )}
 
@@ -148,7 +148,7 @@ export function SystemMindOverview() {
           <div className="mt-6 space-y-6">
             {/* Reliability + AI briefing */}
             <div className="grid gap-4 md:grid-cols-3">
-              <div className="rounded-xl border border-border bg-muted/40 p-5 flex items-center gap-5">
+              <div className="rounded-xl border border-border bg-card p-5 flex items-center gap-5">
                 <ScoreRing score={summary.reliabilityScore} />
                 <div>
                   <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Reliability</p>
@@ -157,7 +157,7 @@ export function SystemMindOverview() {
                 </div>
               </div>
 
-              <div className="md:col-span-2 rounded-xl border border-border bg-muted/40 p-5">
+              <div className="md:col-span-2 rounded-xl border border-border bg-card p-5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Sparkles className="h-4 w-4 text-brand" />
@@ -184,7 +184,7 @@ export function SystemMindOverview() {
 
             {/* Workflow Health */}
             {data?.workflowHealth ? (
-              <div className="rounded-xl border border-border bg-muted/40 p-5">
+              <div className="rounded-xl border border-border bg-card p-5">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-sm font-semibold flex items-center gap-2">
                     <GitBranch className="h-4 w-4 text-brand" /> Workflow Health
@@ -229,7 +229,7 @@ export function SystemMindOverview() {
                 </div>
               </div>
             ) : (
-              <div className="rounded-xl border border-border bg-muted/40 p-5">
+              <div className="rounded-xl border border-border bg-card p-5">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-sm font-semibold flex items-center gap-2">
                     <GitBranch className="h-4 w-4 text-brand" /> Workflow Health
@@ -246,14 +246,14 @@ export function SystemMindOverview() {
             )}
 
             {/* Integration health grid */}
-            <div className="rounded-xl border border-border bg-muted/40 p-5">
+            <div className="rounded-xl border border-border bg-card p-5">
               <h2 className="text-sm font-semibold mb-3">Integration Health</h2>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {Object.entries(summary.systemHealth).map(([key, ok]) => (
                   <div key={key} className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/40 px-3 py-2">
-                    {ok ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> : <XCircle className="h-3.5 w-3.5 text-red-400/70" />}
+                    {ok ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 light:text-emerald-800" /> : <XCircle className="h-3.5 w-3.5 text-red-400/70 light:text-red-800" />}
                     <span className="text-xs capitalize">{key}</span>
-                    <span className={cn("ml-auto text-[10px] font-medium", ok ? "text-emerald-400" : "text-muted-foreground")}>
+                    <span className={cn("ml-auto text-[10px] font-medium", ok ? "text-emerald-400 light:text-emerald-800" : "text-muted-foreground")}>
                       {ok ? "Connected" : "Off"}
                     </span>
                   </div>
@@ -263,9 +263,9 @@ export function SystemMindOverview() {
 
             {/* Risks */}
             {summary.topRisks.length > 0 && (
-              <div className="rounded-xl border border-border bg-muted/40 p-5">
+              <div className="rounded-xl border border-border bg-card p-5">
                 <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                  <ShieldAlert className="h-4 w-4 text-amber-400" /> Top Technical Risks
+                  <ShieldAlert className="h-4 w-4 text-amber-400 light:text-amber-800" /> Top Technical Risks
                 </h2>
                 <div className="space-y-2">
                   {summary.topRisks.map((r) => (
@@ -284,7 +284,7 @@ export function SystemMindOverview() {
 
             {/* Recommended actions */}
             {summary.recommendedActions.length > 0 && (
-              <div className="rounded-xl border border-border bg-muted/40 p-5">
+              <div className="rounded-xl border border-border bg-card p-5">
                 <h2 className="text-sm font-semibold mb-3">Recommended Actions</h2>
                 <div className="space-y-2">
                   {summary.recommendedActions.map((a) => (

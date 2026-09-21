@@ -46,7 +46,7 @@ function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) 
       className={cn(
         "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all",
         copied
-          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400 light:text-emerald-800"
           : "border-border bg-muted text-muted-foreground hover:text-foreground hover:bg-muted",
       )}
     >
@@ -90,7 +90,7 @@ function CreateFormDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
-      <div className="w-full max-w-md rounded-2xl border border-border bg-[hsl(var(--card))] shadow-2xl">
+      <div className="w-full max-w-md rounded-2xl border border-border bg-card shadow-2xl">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <p className="font-semibold text-sm">New Webform Endpoint</p>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
@@ -121,7 +121,7 @@ function CreateFormDialog({
             </select>
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5 block">Source Detail <span className="text-muted-foreground/50">(optional)</span></label>
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5 block">Source Detail <span className="text-muted-foreground/50 light:text-muted-foreground">(optional)</span></label>
             <input
               value={sourceDetail}
               onChange={e => setSourceDetail(e.target.value)}
@@ -130,7 +130,7 @@ function CreateFormDialog({
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5 block">Notification Email <span className="text-muted-foreground/50">(optional)</span></label>
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5 block">Notification Email <span className="text-muted-foreground/50 light:text-muted-foreground">(optional)</span></label>
             <input
               type="email"
               value={notifyEmail}
@@ -140,14 +140,14 @@ function CreateFormDialog({
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5 block">Allowed Domains <span className="text-muted-foreground/50">(comma-separated, optional)</span></label>
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5 block">Allowed Domains <span className="text-muted-foreground/50 light:text-muted-foreground">(comma-separated, optional)</span></label>
             <input
               value={domains}
               onChange={e => setDomains(e.target.value)}
               placeholder="yoursite.com, anotherdomain.co.uk"
               className="w-full rounded-lg border border-border bg-muted/60 px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-violet-500/50"
             />
-            <p className="text-[10px] text-muted-foreground/50 mt-1">Leave blank to allow submissions from any domain.</p>
+            <p className="text-[10px] text-muted-foreground/50 light:text-muted-foreground mt-1">Leave blank to allow submissions from any domain.</p>
           </div>
           <div className="flex gap-2 pt-2">
             <button type="button" onClick={onClose} className="flex-1 rounded-lg border border-border py-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
@@ -192,19 +192,19 @@ function SubmissionsPanel({ sourceId, onClose }: { sourceId: string; onClose: ()
             <div key={s.id} className="px-4 py-3">
               <div className="flex items-center gap-2 mb-1">
                 <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded border",
-                  s.status === "processed" ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" :
-                  s.status === "duplicate" ? "text-amber-400 bg-amber-500/10 border-amber-500/20" :
-                  s.status === "spam"      ? "text-red-400 bg-red-500/10 border-red-500/20" :
+                  s.status === "processed" ? "text-emerald-400 light:text-emerald-800 bg-emerald-500/10 border-emerald-500/20" :
+                  s.status === "duplicate" ? "text-amber-400 light:text-amber-800 bg-amber-500/10 border-amber-500/20" :
+                  s.status === "spam"      ? "text-red-400 light:text-red-800 bg-red-500/10 border-red-500/20" :
                   "text-muted-foreground bg-muted border-border"
                 )}>{s.status}</span>
-                <span className="text-[10px] text-muted-foreground/50">{new Date(s.created_at).toLocaleString()}</span>
-                {s.utm_source && <span className="text-[10px] text-blue-400/60">{s.utm_source}</span>}
+                <span className="text-[10px] text-muted-foreground/50 light:text-muted-foreground">{new Date(s.created_at).toLocaleString()}</span>
+                {s.utm_source && <span className="text-[10px] text-blue-400/60 light:text-blue-800">{s.utm_source}</span>}
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-0.5">
                 {Object.entries(s.mapped_payload ?? {})
                   .filter(([k]) => ["full_name","email","phone","company_name"].includes(k))
                   .map(([k, v]) => (
-                    <span key={k} className="text-xs text-foreground/70"><span className="text-muted-foreground/50">{k.replace(/_/g," ")}:</span> {String(v)}</span>
+                    <span key={k} className="text-xs text-foreground/70"><span className="text-muted-foreground/50 light:text-muted-foreground">{k.replace(/_/g," ")}:</span> {String(v)}</span>
                   ))}
               </div>
             </div>
@@ -235,31 +235,31 @@ function WebformCard({ source, onDelete, onRefresh }: { source: any; onDelete: (
 </form>`;
 
   return (
-    <div className={cn("rounded-xl border bg-[hsl(var(--card))] transition-all",
+    <div className={cn("rounded-xl border bg-card transition-all",
       source.status === "active" ? "border-border" : "border-border/60 opacity-60"
     )}>
       <div className="flex items-start gap-3 p-4">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-500/15 ring-1 ring-blue-500/25 mt-0.5">
-          <Globe className="h-4 w-4 text-blue-400" />
+          <Globe className="h-4 w-4 text-blue-400 light:text-blue-800" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5 flex-wrap">
             <p className="font-semibold text-sm">{source.name}</p>
             <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded border",
-              source.status === "active" ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" :
+              source.status === "active" ? "text-emerald-400 light:text-emerald-800 bg-emerald-500/10 border-emerald-500/20" :
               "text-muted-foreground bg-muted border-border"
             )}>{source.status}</span>
-            <span className="text-[10px] text-muted-foreground/50 bg-muted/60 border border-border px-1.5 py-0.5 rounded">
+            <span className="text-[10px] text-muted-foreground/50 light:text-muted-foreground bg-muted/60 border border-border px-1.5 py-0.5 rounded">
               {source.default_source_type}
             </span>
           </div>
           <div className="flex items-center gap-1 mt-1">
-            <code className="text-[10px] text-violet-400/80 bg-violet-500/[0.06] border border-violet-500/15 px-2 py-0.5 rounded font-mono truncate max-w-xs">
+            <code className="text-[10px] text-violet-400/80 light:text-violet-800 bg-violet-500/[0.06] border border-violet-500/15 px-2 py-0.5 rounded font-mono truncate max-w-xs">
               {endpointUrl}
             </code>
           </div>
           {source.notify_email && (
-            <p className="text-[10px] text-muted-foreground/50 mt-0.5 flex items-center gap-1">
+            <p className="text-[10px] text-muted-foreground/50 light:text-muted-foreground mt-0.5 flex items-center gap-1">
               <Mail className="h-2.5 w-2.5" /> {source.notify_email}
             </p>
           )}
@@ -281,7 +281,7 @@ function WebformCard({ source, onDelete, onRefresh }: { source: any; onDelete: (
             <button
               onClick={() => { setShowSubmissions(s => !s); setShowEmbed(false); }}
               className={cn("flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-all",
-                showSubmissions ? "border-blue-500/30 bg-blue-500/10 text-blue-400" : "border-border text-muted-foreground hover:text-foreground hover:bg-muted"
+                showSubmissions ? "border-blue-500/30 bg-blue-500/10 text-blue-400 light:text-blue-800" : "border-border text-muted-foreground hover:text-foreground hover:bg-muted"
               )}
             >
               <Eye className="h-3.5 w-3.5" /> View Submissions
@@ -289,14 +289,14 @@ function WebformCard({ source, onDelete, onRefresh }: { source: any; onDelete: (
             <button
               onClick={() => { setShowEmbed(s => !s); setShowSubmissions(false); }}
               className={cn("flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-all",
-                showEmbed ? "border-violet-500/30 bg-violet-500/10 text-violet-400" : "border-border text-muted-foreground hover:text-foreground hover:bg-muted"
+                showEmbed ? "border-violet-500/30 bg-violet-500/10 text-violet-400 light:text-violet-800" : "border-border text-muted-foreground hover:text-foreground hover:bg-muted"
               )}
             >
               <Code className="h-3.5 w-3.5" /> Embed Code
             </button>
             <button
               onClick={() => onDelete(source.id)}
-              className="flex items-center gap-1.5 rounded-lg border border-red-500/20 px-3 py-2 text-xs font-medium text-red-400/70 hover:text-red-400 hover:bg-red-500/10 transition-all"
+              className="flex items-center gap-1.5 rounded-lg border border-red-500/20 px-3 py-2 text-xs font-medium text-red-400/70 light:text-red-800 hover:text-red-400 hover:bg-red-500/10 transition-all"
             >
               <Trash2 className="h-3.5 w-3.5" /> Delete
             </button>
@@ -323,9 +323,9 @@ function WebformCard({ source, onDelete, onRefresh }: { source: any; onDelete: (
                 {embedHtml}
               </pre>
               <div className="mt-3 rounded-lg border border-blue-500/15 bg-blue-500/[0.04] p-3">
-                <p className="text-[11px] text-blue-400 font-medium mb-1">Connect via Zapier / Make</p>
-                <p className="text-[11px] text-muted-foreground/70">Use a <strong>Webhook</strong> action and POST JSON to:</p>
-                <code className="text-[10px] text-violet-400 font-mono mt-1 block">{endpointUrl}</code>
+                <p className="text-[11px] text-blue-400 light:text-blue-800 font-medium mb-1">Connect via Zapier / Make</p>
+                <p className="text-[11px] text-muted-foreground/70 light:text-muted-foreground">Use a <strong>Webhook</strong> action and POST JSON to:</p>
+                <code className="text-[10px] text-violet-400 light:text-violet-800 font-mono mt-1 block">{endpointUrl}</code>
               </div>
             </div>
           )}
@@ -382,7 +382,7 @@ function WebformsPage() {
       {/* Header */}
       <div className="sticky top-0 z-20 border-b border-border bg-[hsl(var(--background))]/95 backdrop-blur-sm px-5 py-3 flex items-center gap-3">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/20 ring-1 ring-blue-500/30 shrink-0">
-          <Globe className="h-4 w-4 text-blue-400" />
+          <Globe className="h-4 w-4 text-blue-400 light:text-blue-800" />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold">Webform Connectors</p>
@@ -401,12 +401,12 @@ function WebformsPage() {
         {/* Stats row */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label: "Active Forms",    value: stats.activeForms, icon: Globe,     color: "text-blue-400" },
-            { label: "Leads (30d)",     value: stats.leads30d,    icon: Zap,       color: "text-emerald-400" },
-            { label: "Duplicates (30d)",value: stats.duplicates30d,icon: RefreshCw, color: "text-amber-400" },
-            { label: "Total (30d)",     value: stats.total30d,    icon: BarChart3, color: "text-violet-400" },
+            { label: "Active Forms",    value: stats.activeForms, icon: Globe,     color: "text-blue-400 light:text-blue-800" },
+            { label: "Leads (30d)",     value: stats.leads30d,    icon: Zap,       color: "text-emerald-400 light:text-emerald-800" },
+            { label: "Duplicates (30d)",value: stats.duplicates30d,icon: RefreshCw, color: "text-amber-400 light:text-amber-800" },
+            { label: "Total (30d)",     value: stats.total30d,    icon: BarChart3, color: "text-violet-400 light:text-violet-800" },
           ].map(({ label, value, icon: Icon, color }) => (
-            <div key={label} className="rounded-xl border border-border bg-[hsl(var(--card))] px-4 py-3">
+            <div key={label} className="rounded-xl border border-border bg-card px-4 py-3">
               <div className="flex items-center gap-2 mb-1">
                 <Icon className={cn("h-3.5 w-3.5", color)} />
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{label}</p>
@@ -418,7 +418,7 @@ function WebformsPage() {
 
         {/* How it works */}
         <div className="rounded-xl border border-blue-500/15 bg-blue-500/[0.04] p-4">
-          <p className="text-xs font-semibold text-blue-400 mb-2">How to connect your website form</p>
+          <p className="text-xs font-semibold text-blue-400 light:text-blue-800 mb-2">How to connect your website form</p>
           <ol className="space-y-1.5">
             {[
               "Create a Webform Endpoint below.",
@@ -428,7 +428,7 @@ function WebformsPage() {
               "Every submission creates a lead in your WEBEE Leads section.",
             ].map((step, i) => (
               <li key={i} className="flex gap-2 text-[11px] text-foreground/70">
-                <span className="text-blue-400 font-semibold shrink-0 w-4">{i + 1}.</span>
+                <span className="text-blue-400 light:text-blue-800 font-semibold shrink-0 w-4">{i + 1}.</span>
                 {step}
               </li>
             ))}
@@ -443,7 +443,7 @@ function WebformsPage() {
         ) : sources.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="h-12 w-12 rounded-full bg-blue-500/10 flex items-center justify-center mb-3">
-              <Globe className="h-5 w-5 text-blue-400" />
+              <Globe className="h-5 w-5 text-blue-400 light:text-blue-800" />
             </div>
             <p className="text-sm font-medium">No webform endpoints yet</p>
             <p className="text-xs text-muted-foreground mt-1 max-w-xs">
@@ -451,7 +451,7 @@ function WebformsPage() {
             </p>
             <button
               onClick={() => setShowCreate(true)}
-              className="mt-4 flex items-center gap-1.5 rounded-lg bg-blue-500/15 border border-blue-500/30 px-4 py-2 text-xs font-medium text-blue-400 hover:bg-blue-500/25 transition-all"
+              className="mt-4 flex items-center gap-1.5 rounded-lg bg-blue-500/15 border border-blue-500/30 px-4 py-2 text-xs font-medium text-blue-400 light:text-blue-800 hover:bg-blue-500/25 transition-all"
             >
               <Plus className="h-3.5 w-3.5" /> Create your first endpoint
             </button>

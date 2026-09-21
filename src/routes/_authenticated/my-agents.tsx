@@ -181,7 +181,7 @@ function MyAgentsPage() {
         <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-base font-semibold tracking-tight text-foreground">Agents</h1>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">
+            <p className="mt-0.5 text-caption text-muted-foreground">
               Voice agents you've designed, deployed, and shipped.
             </p>
           </div>
@@ -191,8 +191,8 @@ function MyAgentsPage() {
               {(
                 [
                   { value: "ALL", label: "All" },
-                  { value: "RETELL", label: "OmniVoice", icon: <Radio className="h-3 w-3 text-sky-400" /> },
-                  { value: "OPENAI_REALTIME", label: "HyperStream", icon: <Zap className="h-3 w-3 text-violet-400" /> },
+                  { value: "RETELL", label: "OmniVoice", icon: <Radio className="h-3 w-3 text-sky-700 dark:text-sky-400" /> },
+                  { value: "OPENAI_REALTIME", label: "HyperStream", icon: <Zap className="h-3 w-3 text-violet-700 dark:text-violet-400" /> },
                 ] as const
               ).map(({ value, label, icon }) => (
                 <button
@@ -204,16 +204,17 @@ function MyAgentsPage() {
                       replace: true,
                     })
                   }
-                  className={`inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[11px] font-medium transition-all ${
+                  aria-pressed={voiceFilter === value}
+                  className={`inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                     voiceFilter === value
                       ? "bg-card text-foreground shadow-sm ring-1 ring-border"
-                      : "text-muted-foreground hover:text-foreground"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   }`}
                 >
                   {icon}
                   {label}
                   {value !== "ALL" && (
-                    <span className={`rounded px-1 py-px text-[10px] font-semibold tabular-nums leading-none ${
+                    <span className={`rounded px-1 py-px text-metadata font-semibold tabular-nums leading-none ${
                       voiceFilter === value
                         ? "bg-brand/15 text-brand"
                         : "bg-muted text-muted-foreground"
@@ -231,7 +232,8 @@ function MyAgentsPage() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search agents…"
-                className="h-9 w-56 border-border bg-muted/40 pl-8 text-sm"
+                aria-label="Search agents"
+                className="h-9 w-full border-border bg-muted/40 pl-8 text-sm sm:w-56"
               />
             </div>
             <Button asChild size="sm" variant="outline" className="h-9 gap-1.5">
@@ -250,8 +252,21 @@ function MyAgentsPage() {
         </div>
 
         {agentsQ.isLoading ? (
-          <div className="flex items-center justify-center gap-2 py-20 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading your agents…
+          <div role="status" aria-label="Loading your agents" className="grid grid-cols-1 gap-5 md:grid-cols-2">
+            <span className="sr-only">Loading your agents…</span>
+            {[0, 1, 2, 3].map((index) => (
+              <div key={index} aria-hidden="true" className="space-y-5 rounded-2xl border border-border bg-card/60 p-6 md:p-7">
+                <div className="h-5 w-24 rounded-full skeleton-shimmer" />
+                <div className="h-6 w-2/3 rounded-md skeleton-shimmer" />
+                <div className="grid grid-cols-2 gap-5 sm:grid-cols-4">
+                  {[0, 1, 2, 3].map((metric) => <div key={metric} className="h-12 rounded-md skeleton-shimmer" />)}
+                </div>
+                <div className="flex justify-between border-t border-border pt-4">
+                  <div className="h-8 w-16 rounded-lg skeleton-shimmer" />
+                  <div className="h-9 w-24 rounded-lg skeleton-shimmer" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : agents.length === 0 ? (
           <div className="rounded-xl bg-card/60 p-8 text-center ring-1 ring-border">

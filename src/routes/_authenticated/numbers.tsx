@@ -189,7 +189,7 @@ function NumbersPage() {
             <Button
               type="submit"
               disabled={searchMut.isPending}
-              className="self-start gap-1.5 bg-brand text-brand-foreground shadow-none hover:bg-brand/90 hover:brightness-100"
+              className="self-start gap-1.5 bg-brand text-white dark:text-brand-foreground shadow-none hover:bg-brand/90 hover:brightness-100"
             >
               <Search className="h-3.5 w-3.5" />
               {searchMut.isPending ? "Searching…" : "Search numbers"}
@@ -252,12 +252,17 @@ function NumbersPage() {
             <CardTitle className="text-base">Your numbers</CardTitle>
             <CardDescription>Numbers connected to this workspace.</CardDescription>
           </div>
-          <Button variant="outline" size="sm" onClick={() => refetchNumbers()} disabled={numbersLoading}>
+          <Button variant="outline" size="sm" onClick={() => refetchNumbers()} disabled={numbersLoading} aria-label="Refresh phone numbers">
             <RefreshCw className={`h-3.5 w-3.5 ${numbersLoading ? "animate-spin" : ""}`} />
           </Button>
         </CardHeader>
         <CardContent>
-          {numbers.length === 0 && !numbersLoading ? (
+          {numbers.length === 0 && numbersLoading ? (
+            <div role="status" aria-label="Loading phone numbers" className="space-y-3 rounded-lg border border-border p-4">
+              <span className="sr-only">Loading phone numbers…</span>
+              {[0, 1, 2].map((index) => <div key={index} aria-hidden="true" className="h-10 rounded-md skeleton-shimmer" />)}
+            </div>
+          ) : numbers.length === 0 ? (
             <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border px-5 py-8 text-center">
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-muted text-muted-foreground">
                 <Phone className="h-5 w-5" />

@@ -1,3 +1,4 @@
+import { LeadStatusSelect } from "@/components/leads/LeadStatusSelect";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -132,9 +133,9 @@ function fmtCallDate(iso: string | null | undefined, isWbah = false) {
 function sentimentBadge(s: string | null) {
   if (!s) return null;
   const map: Record<string, string> = {
-    positive: "bg-emerald-500/15 text-emerald-400",
-    neutral: "bg-amber-500/15 text-amber-400",
-    negative: "bg-red-500/15 text-red-400",
+    positive: "bg-emerald-500/15 text-emerald-400 light:text-emerald-800",
+    neutral: "bg-amber-500/15 text-amber-400 light:text-amber-800",
+    negative: "bg-red-500/15 text-red-400 light:text-red-800",
   };
   return (
     <span className={`rounded-full px-2 py-0.5 text-[11px] ${map[s] ?? "bg-muted text-muted-foreground"}`}>
@@ -147,19 +148,19 @@ function scoreBadge(score: number | null) {
   if (score == null) return <span className="text-muted-foreground">—</span>;
   const color =
     score >= 70
-      ? "text-emerald-400"
+      ? "text-emerald-400 light:text-emerald-800"
       : score >= 40
-        ? "text-amber-400"
-        : "text-red-400";
+        ? "text-amber-400 light:text-amber-800"
+        : "text-red-400 light:text-red-800";
   return <span className={`font-semibold ${color}`}>{score}</span>;
 }
 
 function interestBadge(level: string | null) {
   if (!level) return null;
   const map: Record<string, string> = {
-    high: "bg-emerald-500/15 text-emerald-400",
-    medium: "bg-amber-500/15 text-amber-400",
-    low: "bg-red-500/15 text-red-400",
+    high: "bg-emerald-500/15 text-emerald-400 light:text-emerald-800",
+    medium: "bg-amber-500/15 text-amber-400 light:text-amber-800",
+    low: "bg-red-500/15 text-red-400 light:text-red-800",
   };
   return (
     <span className={`rounded-full px-2 py-0.5 text-[11px] ${map[level] ?? "bg-muted text-muted-foreground"}`}>
@@ -213,16 +214,16 @@ function leadOriginBadgeSpec(lead: any): LeadBadgeSpec | null {
     campaign:   "Campaign",
   };
   const TONES: Record<string, string> = {
-    whatsapp:   "text-emerald-400 bg-emerald-500/10",
-    voice_call: "text-blue-400 bg-blue-500/10",
-    web_form:   "text-sky-400 bg-sky-500/10",
-    crm:        "text-violet-400 bg-violet-500/10",
-    csv_import: "text-amber-400 bg-amber-500/10",
-    manual:     "text-slate-400 bg-slate-500/10",
-    api:        "text-emerald-400 bg-emerald-500/10",
-    email:      "text-orange-400 bg-orange-500/10",
+    whatsapp:   "text-emerald-400 light:text-emerald-800 bg-emerald-500/10",
+    voice_call: "text-blue-400 light:text-blue-800 bg-blue-500/10",
+    web_form:   "text-sky-400 light:text-sky-800 bg-sky-500/10",
+    crm:        "text-violet-400 light:text-violet-800 bg-violet-500/10",
+    csv_import: "text-amber-400 light:text-amber-800 bg-amber-500/10",
+    manual:     "text-slate-400 light:text-slate-800 bg-slate-500/10",
+    api:        "text-emerald-400 light:text-emerald-800 bg-emerald-500/10",
+    email:      "text-orange-400 light:text-orange-800 bg-orange-500/10",
     sms:        "text-fuchsia-400 bg-fuchsia-500/10",
-    campaign:   "text-pink-400 bg-pink-500/10",
+    campaign:   "text-pink-400 light:text-pink-800 bg-pink-500/10",
   };
   const label  = LABELS[origin]  ?? origin;
   const tone   = TONES[origin]   ?? "text-muted-foreground bg-muted/40";
@@ -254,11 +255,11 @@ function preferredContactBadgeSpec(lead: any): LeadBadgeSpec | null {
     "",
   ).toLowerCase().trim();
   if (!raw) return null;
-  if (raw === "phone" || raw === "call") return { Icon: Phone, label: "Prefers phone", tone: "text-blue-400 bg-blue-500/10" };
-  if (raw === "email") return { Icon: Mail, label: "Prefers email", tone: "text-orange-400 bg-orange-500/10" };
-  if (raw === "whatsapp") return { Icon: MessageCircle, label: "Prefers WhatsApp", tone: "text-emerald-400 bg-emerald-500/10" };
+  if (raw === "phone" || raw === "call") return { Icon: Phone, label: "Prefers phone", tone: "text-blue-400 light:text-blue-800 bg-blue-500/10" };
+  if (raw === "email") return { Icon: Mail, label: "Prefers email", tone: "text-orange-400 light:text-orange-800 bg-orange-500/10" };
+  if (raw === "whatsapp") return { Icon: MessageCircle, label: "Prefers WhatsApp", tone: "text-emerald-400 light:text-emerald-800 bg-emerald-500/10" };
   if (raw === "sms" || raw === "text") return { Icon: MessageSquareText, label: "Prefers SMS", tone: "text-fuchsia-400 bg-fuchsia-500/10" };
-  if (raw === "any" || raw === "no_preference") return { Icon: Contact, label: "No contact preference", tone: "text-slate-400 bg-slate-500/10" };
+  if (raw === "any" || raw === "no_preference") return { Icon: Contact, label: "No contact preference", tone: "text-slate-400 light:text-slate-800 bg-slate-500/10" };
   return null;
 }
 
@@ -310,7 +311,7 @@ function BookingFailedBadge({ lead, detailed = false }: { lead: any; detailed?: 
   return (
     <span
       title={err ? `Booking failed — follow up. Error: ${err}` : "Booking failed — follow up"}
-      className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-500/15 px-1.5 py-0.5 text-[10px] font-medium text-red-400 ring-1 ring-red-500/30 whitespace-nowrap"
+      className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-500/15 px-1.5 py-0.5 text-[10px] font-medium text-red-400 light:text-red-800 ring-1 ring-red-500/30 whitespace-nowrap"
     >
       <AlertTriangle className="h-2.5 w-2.5" />
       {detailed ? "Booking failed — follow up" : "Booking failed"}
@@ -319,14 +320,14 @@ function BookingFailedBadge({ lead, detailed = false }: { lead: any; detailed?: 
 }
 
 const STATUS_OPTIONS = [
-  { value: "interested", label: "Open", color: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30" },
-  { value: "qualified", label: "Qualified", color: "bg-violet-500/15 text-violet-400 ring-violet-500/30" },
-  { value: "callback_requested", label: "Callback Requested", color: "bg-amber-500/15 text-amber-400 ring-amber-500/30" },
-  { value: "need_to_call", label: "Needs to Call", color: "bg-sky-500/15 text-sky-400 ring-sky-500/30" },
-  { value: "not_interested", label: "Closed", color: "bg-red-500/15 text-red-400 ring-red-500/30" },
-  { value: "completed", label: "Completed", color: "bg-blue-500/15 text-blue-400 ring-blue-500/30" },
-  { value: "no_answer", label: "No Answer", color: "bg-orange-500/15 text-orange-400 ring-orange-500/30" },
-  { value: "scheduled", label: "Scheduled", color: "bg-purple-500/15 text-purple-400 ring-purple-500/30" },
+  { value: "interested", label: "Open", color: "bg-emerald-500/15 text-emerald-400 light:text-emerald-800 ring-emerald-500/30" },
+  { value: "qualified", label: "Qualified", color: "bg-violet-500/15 text-violet-400 light:text-violet-800 ring-violet-500/30" },
+  { value: "callback_requested", label: "Callback Requested", color: "bg-amber-500/15 text-amber-400 light:text-amber-800 ring-amber-500/30" },
+  { value: "need_to_call", label: "Needs to Call", color: "bg-sky-500/15 text-sky-400 light:text-sky-800 ring-sky-500/30" },
+  { value: "not_interested", label: "Closed", color: "bg-red-500/15 text-red-400 light:text-red-800 ring-red-500/30" },
+  { value: "completed", label: "Completed", color: "bg-blue-500/15 text-blue-400 light:text-blue-800 ring-blue-500/30" },
+  { value: "no_answer", label: "No Answer", color: "bg-orange-500/15 text-orange-400 light:text-orange-800 ring-orange-500/30" },
+  { value: "scheduled", label: "Scheduled", color: "bg-purple-500/15 text-purple-400 light:text-purple-800 ring-purple-500/30" },
 ] as const;
 
 function statusDisplay(status: string | null) {
@@ -911,13 +912,13 @@ function LeadsPage() {
 
       {/* KPI strip */}
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-        <KpiCard label="Total Leads" value={leads.length} icon={Users} iconBg="bg-blue-500/15" iconColor="text-blue-400" />
+        <KpiCard label="Total Leads" value={leads.length} icon={Users} iconBg="bg-blue-500/15" iconColor="text-blue-400 light:text-blue-800" />
         <KpiCard
           label="Positive Sentiment"
           value={positive}
           icon={TrendingUp}
           iconBg="bg-emerald-500/15"
-          iconColor="text-emerald-400"
+          iconColor="text-emerald-400 light:text-emerald-800"
           hint={leads.length > 0 ? `${Math.round((positive / leads.length) * 100)}%` : undefined}
         />
         <KpiCard
@@ -925,9 +926,9 @@ function LeadsPage() {
           value={avgScore ?? "—"}
           icon={Target}
           iconBg="bg-violet-500/15"
-          iconColor="text-violet-400"
+          iconColor="text-violet-400 light:text-violet-800"
         />
-        <KpiCard label="Meetings Req." value={meetingsReq} icon={CalendarCheck} iconBg="bg-amber-500/15" iconColor="text-amber-400" />
+        <KpiCard label="Meetings Req." value={meetingsReq} icon={CalendarCheck} iconBg="bg-amber-500/15" iconColor="text-amber-400 light:text-amber-800" />
       </div>
 
       {/* Campaign stats mini strip */}
@@ -968,7 +969,7 @@ function LeadsPage() {
       {/* Lead Intelligence Tab */}
       {tab === "leads" && (
         <div className="min-w-0 overflow-hidden rounded-xl border border-border bg-card/60">
-          <div className="flex flex-col gap-1.5 border-b border-border px-2.5 py-1.5 sm:px-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col gap-3 border-b border-border p-4">
             <p className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
               {isWbah ? "Positive / Neutral Leads" : "Lead Records"}
               {hasLeadFilters && (
@@ -977,10 +978,10 @@ function LeadsPage() {
                 </span>
               )}
               {selectedIds.size > 0 && (
-                <span className="ml-2 normal-case text-xs font-normal text-blue-400 tracking-normal">{selectedIds.size} selected</span>
+                <span className="ml-2 normal-case text-xs font-normal text-blue-400 light:text-blue-800 tracking-normal">{selectedIds.size} selected</span>
               )}
             </p>
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+            <div className="crm-filter-bar flex min-w-0 flex-1 flex-wrap items-center gap-3">
               {selectedIds.size > 0 && (
                 <Button
                   size="sm"
@@ -995,8 +996,11 @@ function LeadsPage() {
                 placeholder="Search name, phone, email…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-6 min-w-0 flex-1 basis-28 max-w-[180px] text-[11px] sm:flex-none sm:w-36"
+                className="h-10 min-w-0 w-full text-sm sm:w-72 sm:flex-none"
               />
+              <details className="w-full rounded-lg border border-border bg-card p-3">
+                <summary className="cursor-pointer text-sm font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">Filters</summary>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
               <select
                 aria-label="Lead Status"
                 value={leadStatusCat}
@@ -1136,6 +1140,8 @@ function LeadsPage() {
                   ))}
                 </select>
               )}
+                </div>
+              </details>
               {hasLeadFilters && (
                 <Button
                   size="sm"
@@ -1246,7 +1252,7 @@ function LeadsPage() {
                               <LeadSourceBadge lead={lead} />
                               <BookingFailedBadge lead={lead} />
                               {!isWbah && lead.has_buzzchat_reply && (
-                                <span title="BuzzChat reply received" className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-semibold bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/30 whitespace-nowrap">
+                                <span title="BuzzChat reply received" className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-semibold bg-emerald-500/15 text-emerald-400 light:text-emerald-800 ring-1 ring-emerald-500/30 whitespace-nowrap">
                                   <MessageCircle className="h-2.5 w-2.5" />BuzzChat
                                 </span>
                               )}
@@ -1281,7 +1287,7 @@ function LeadsPage() {
                               type="button"
                               title={`Email ${lead.email}`}
                               onClick={() => setEmailDialogLead(lead)}
-                              className="block truncate max-w-[140px] text-left text-orange-400 hover:underline"
+                              className="block truncate max-w-[140px] text-left text-orange-400 light:text-orange-800 hover:underline"
                             >
                               {lead.email}
                             </button>
@@ -1297,33 +1303,25 @@ function LeadsPage() {
                                 // shorter neutral calls are just "Neutral".
                                 if (ns === "neutral") {
                                   return lead.meta?.partial_qualified
-                                    ? <span className="rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 bg-sky-500/15 text-sky-400 ring-sky-500/20">Partial Qualified</span>
-                                    : <span className="rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 bg-amber-500/15 text-amber-400 ring-amber-500/20">Neutral</span>;
+                                    ? <span className="rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 bg-sky-500/15 text-sky-400 light:text-sky-800 ring-sky-500/20">Partial Qualified</span>
+                                    : <span className="rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 bg-amber-500/15 text-amber-400 light:text-amber-800 ring-amber-500/20">Neutral</span>;
                                 }
                                 const cfg: Record<string, { label: string; cls: string }> = {
-                                  positive: { label: "Qualified",     cls: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/20" },
-                                  negative: { label: "Not Qualified", cls: "bg-red-500/15     text-red-400     ring-red-500/20"     },
+                                  positive: { label: "Qualified",     cls: "bg-emerald-500/15 text-emerald-400 light:text-emerald-800 ring-emerald-500/20" },
+                                  negative: { label: "Not Qualified", cls: "bg-red-500/15     text-red-400 light:text-red-800     ring-red-500/20"     },
                                   unknown:  { label: "Unknown",       cls: "bg-muted text-muted-foreground ring-border"            },
                                 };
                                 const { label, cls } = cfg[ns] ?? cfg.unknown;
                                 return <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ${cls}`}>{label}</span>;
                               }
-                              const sd = statusDisplay(lead.status);
-                              return <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ${sd.color}`}>{sd.label}</span>;
+                              return null;
                             })()}
                             {!isWbah && (
-                              <div className="flex gap-1 mt-0.5">
-                                {STATUS_OPTIONS.map((opt) => (
-                                  <button
-                                    key={opt.value}
-                                    title={`Mark as ${opt.label}`}
-                                    onClick={() => handleSetStatus(lead.id, opt.value)}
-                                    className={`rounded px-1.5 py-0.5 text-[10px] font-medium transition-opacity ring-1 ${opt.color} ${lead.status === opt.value ? "opacity-100" : "opacity-40 hover:opacity-80"}`}
-                                  >
-                                    {opt.label}
-                                  </button>
-                                ))}
-                              </div>
+                              <LeadStatusSelect
+                                value={lead.status}
+                                options={STATUS_OPTIONS}
+                                onChange={(value) => handleSetStatus(lead.id, value)}
+                              />
                             )}
                           </div>
                         </td>
@@ -1353,12 +1351,12 @@ function LeadsPage() {
                           <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{fmtDuration((lead.retell_call?.duration_seconds ?? 0) * 1000)}</td>
                           <td className="px-2 py-0.5">
                             {lead.retell_call?.recording_url
-                              ? <PlayRecordingButton url={lead.retell_call.recording_url} contact={lead.name ?? lead.phone ?? "Lead"} className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-blue-400/80 hover:text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 transition-colors whitespace-nowrap" />
+                              ? <PlayRecordingButton url={lead.retell_call.recording_url} contact={lead.name ?? lead.phone ?? "Lead"} className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-blue-400/80 light:text-blue-800 hover:text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 transition-colors whitespace-nowrap" />
                               : <span className="text-muted-foreground text-[11px]">—</span>}
                           </td>
                           <td className="px-2 py-0.5">
                             {lead.retell_call?.transcript
-                              ? <button onClick={() => setWbahTranscript(lead.retell_call.transcript)} className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-violet-400/80 hover:text-violet-400 hover:bg-violet-500/10 border border-violet-500/20 transition-colors whitespace-nowrap"><span>Transcript</span></button>
+                              ? <button onClick={() => setWbahTranscript(lead.retell_call.transcript)} className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-violet-400/80 light:text-violet-800 hover:text-violet-400 hover:bg-violet-500/10 border border-violet-500/20 transition-colors whitespace-nowrap"><span>Transcript</span></button>
                               : <span className="text-muted-foreground text-[11px]">—</span>}
                           </td>
                           <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">
@@ -1370,16 +1368,16 @@ function LeadsPage() {
                           <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{fmtDuration(lead.meta?.duration_ms)}</td>
                           <td className="px-2 py-0.5">
                             {lead.meta?.recording_url
-                              ? <PlayRecordingButton url={lead.meta.recording_url} contact={lead.name ?? lead.phone ?? "Lead"} className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-blue-400/80 hover:text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 transition-colors whitespace-nowrap" />
+                              ? <PlayRecordingButton url={lead.meta.recording_url} contact={lead.name ?? lead.phone ?? "Lead"} className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-blue-400/80 light:text-blue-800 hover:text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 transition-colors whitespace-nowrap" />
                               : <span className="text-muted-foreground text-[11px]">—</span>}
                           </td>
                           <td className="px-2 py-0.5">
                             {isWbah
                               ? (lead.meta?.has_transcript
-                                ? <button onClick={() => openWbahTranscriptFromLead(lead)} className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-violet-400/80 hover:text-violet-400 hover:bg-violet-500/10 border border-violet-500/20 transition-colors whitespace-nowrap"><span>Transcript</span></button>
+                                ? <button onClick={() => openWbahTranscriptFromLead(lead)} className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-violet-400/80 light:text-violet-800 hover:text-violet-400 hover:bg-violet-500/10 border border-violet-500/20 transition-colors whitespace-nowrap"><span>Transcript</span></button>
                                 : <span className="text-muted-foreground text-[11px]">—</span>)
                               : lead.call_summary
-                              ? <button onClick={() => setWbahTranscript(lead.call_summary)} className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-violet-400/80 hover:text-violet-400 hover:bg-violet-500/10 border border-violet-500/20 transition-colors whitespace-nowrap"><span>Transcript</span></button>
+                              ? <button onClick={() => setWbahTranscript(lead.call_summary)} className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-violet-400/80 light:text-violet-800 hover:text-violet-400 hover:bg-violet-500/10 border border-violet-500/20 transition-colors whitespace-nowrap"><span>Transcript</span></button>
                               : <span className="text-muted-foreground text-[11px]">—</span>}
                           </td>
                           <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{wbahAppointmentDate(lead) ?? "—"}</td>
@@ -1400,7 +1398,7 @@ function LeadsPage() {
                           <button
                             onClick={() => openLeadPanel(lead)}
                             title="Notes & appointment"
-                            className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-amber-400/80 hover:text-amber-400 hover:bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/40 transition-colors"
+                            className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-amber-400/80 light:text-amber-800 hover:text-amber-400 hover:bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/40 transition-colors"
                           >
                             <StickyNote className="h-3 w-3" />
                             <span>Notes</span>

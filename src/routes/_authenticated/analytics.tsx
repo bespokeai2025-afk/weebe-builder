@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createServerFn, useServerFn } from "@tanstack/react-start";
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { getDashboardLiveAgents } from "@/lib/agents/agents.functions";
@@ -51,6 +51,7 @@ import { getRetellAnalytics, listVoiceAgents } from "@/lib/dashboard/analytics.f
 import { getWbahCredits } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { useIsWbahWorkspace } from "@/hooks/useIsWbahWorkspace";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
+import { CHART, coloredSlices } from "@/components/dashboard/chart-model";
 
 export const Route = createFileRoute("/_authenticated/analytics")({
   head: () => ({ meta: [{ title: "Analytics — Webee" }] }),
@@ -152,19 +153,6 @@ function shortHourSlot(key: string): string {
 // instead of a second, disconnected color scale. grid/axis reference theme
 // vars so chart chrome isn't invisible in light mode (the old hardcoded
 // rgba(255,255,255,...) values were dark-mode-only).
-const CHART = {
-  primary:     "#5B5FC7",
-  primaryGlow: "#8B8FDE",
-  accent:      "#3D8A8C",
-  success:     "var(--success)",
-  warning:     "var(--warning)",
-  danger:      "var(--destructive)",
-  neutral:     "#64748B",
-  pink:        "#B0567E",
-  orange:      "#BD6B3A",
-  grid:        "var(--border)",
-  axis:        "var(--muted-foreground)",
-};
 
 const SENTIMENT_COLORS  = [CHART.success, CHART.warning, CHART.danger, CHART.neutral];
 const SUCCESS_COLORS    = [CHART.success, CHART.danger, CHART.neutral];
@@ -360,7 +348,14 @@ const getMarketingAnalytics = createServerFn({ method: "GET" })
 // ── Marketing helpers ──────────────────────────────────────────────────────────
 const PLATFORM_COLORS: Record<string, string> = { meta: "#1877f2", google: "#ea4335", tiktok: "#fe2c55" };
 const PLATFORM_LABELS: Record<string, string> = { meta: "Meta Ads", google: "Google Ads", tiktok: "TikTok Ads" };
-const STATUS_COLORS:   Record<string, string> = { active: "#22c55e", draft: "#94a3b8", paused: "#f59e0b", archived: "#64748b" };
+const STATUS_COLORS: Record<string, string> = { active: CHART.success, draft: CHART.axis, paused: CHART.warning, archived: CHART.axis };
+const MARKETING_TOOLTIP_STYLE = {
+  background: "var(--popover)",
+  color: "var(--popover-foreground)",
+  border: "1px solid var(--border)",
+  borderRadius: 8,
+  boxShadow: "var(--shadow-elevated-value)",
+};
 
 function fmtCurrency(n: number) { return `£${n.toLocaleString("en-GB", { maximumFractionDigits: 0 })}`; }
 function fmtNum(n: number) { return n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(1)}K` : String(n); }
@@ -592,6 +587,7 @@ const TAB_FILTER_SUPPORTS: Partial<Record<MainTabKey, { agent?: boolean; campaig
 };
 
 function AnalyticsPage() {
+  const queryClient = useQueryClient();
   const [mainTab, setMainTab] = useState<MainTabKey>("overview");
   const activeGroup: TabGroupKey = GROUP_OF[mainTab];
   const { state: filter, setState: setFilter } = useAnalyticsFilter("30d");
@@ -806,7 +802,7 @@ function AnalyticsPage() {
         title="Analytics Centre"
         subtitle="Executive BI hub — campaigns, agents, sentiment, bookings, financials & reports"
         icon={BarChart3}
-        onRefresh={() => mainTab === "calls" ? q.refetch() : mainTab === "credits" ? creditsQ.refetch() : mainTab === "marketing" ? mktQ.refetch() : undefined}
+        onRefresh={() => mainTab === "calls" ? q.refetch() : mainTab === "credits" ? creditsQ.refetch() : mainTab === "marketing" ? mktQ.refetch() : queryClient.invalidateQueries({ predicate: (query) => String(query.queryKey[0]).startsWith("analytics-") })}
       />
 
       {!isWbah && (
@@ -824,8 +820,9 @@ function AnalyticsPage() {
             <button
               key={key}
               onClick={() => setMainTab(GROUP_OF[mainTab] === key ? mainTab : firstTab.key)}
+              aria-pressed={activeGroup === key}
               className={cn(
-                "flex shrink-0 items-center gap-1.5 whitespace-nowrap px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
+                "flex shrink-0 items-center gap-1.5 whitespace-nowrap px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
                 activeGroup === key ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
               )}
             >
@@ -845,8 +842,9 @@ function AnalyticsPage() {
               <button
                 key={key}
                 onClick={() => setMainTab(key)}
+                aria-pressed={mainTab === key}
                 className={cn(
-                  "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors",
+                  "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                   mainTab === key
                     ? "border-primary/60 bg-primary/15 text-foreground"
                     : "border-border bg-card/40 text-muted-foreground hover:text-foreground hover:bg-card/70",
@@ -931,7 +929,7 @@ function AnalyticsPage() {
                       <div className="px-4 py-2.5 text-sm text-muted-foreground">Loading agents…</div>
                     )}
                     {!voiceAgentsQ.isPending && (voiceAgentsQ.isError || voiceAgentsQ.data?.error) && (
-                      <div className="px-4 py-2.5 text-sm text-amber-300">Couldn't load agents — showing all calls.</div>
+                      <div className="px-4 py-2.5 text-sm text-warning">Couldn't load agents — showing all calls.</div>
                     )}
                     {!voiceAgentsQ.isPending && !voiceAgentsQ.isError && !voiceAgentsQ.data?.error && agentList.length === 0 && (
                       <div className="px-4 py-2.5 text-sm text-muted-foreground">No Retell agents found for this workspace.</div>
@@ -939,7 +937,7 @@ function AnalyticsPage() {
                     {agentList.map((a) => (
                       <button key={a.id} className={`w-full px-4 py-2.5 text-left text-sm hover:bg-muted/60 ${selectedAgentId === a.id ? "text-primary font-medium" : "text-foreground"}`} onClick={() => { setSelectedAgentId(a.id); setSelectorOpen(false); }}>
                         {a.name}
-                        {a.agentType && <span className="ml-1.5 text-[10px] text-muted-foreground">· {agentTypeLabel(a.agentType)}</span>}
+                        {a.agentType && <span className="ml-1.5 text-metadata text-muted-foreground">· {agentTypeLabel(a.agentType)}</span>}
                       </button>
                     ))}
                   </div>
@@ -947,6 +945,7 @@ function AnalyticsPage() {
               </div>
             <button
               onClick={() => setVmOverride(!includeVm)}
+              aria-pressed={includeVm}
               title="Include or exclude voicemail calls in the totals below"
               className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${includeVm ? "border-primary/30 bg-primary/15 text-primary" : "border-border bg-card/60 text-muted-foreground hover:bg-card/80"}`}
             >
@@ -1004,13 +1003,13 @@ function AnalyticsPage() {
                 />
               </div>
               {customRangeInvalid && (
-                <p className="text-xs text-amber-300">Pick a valid start and end time (end must be after start, max 90 days).</p>
+                <p className="text-xs text-warning">Pick a valid start and end time (end must be after start, max 90 days).</p>
               )}
             </div>
           )}
 
           {result?.error && (
-            <div className="mx-6 mt-4 flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+            <div className="mx-6 mt-4 flex items-center gap-3 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
               <AlertTriangle className="h-4 w-4" />
               <span>
                 Voice analytics data is stale or unavailable — showing the most recent data we could load.
@@ -1092,8 +1091,8 @@ function AnalyticsPage() {
                         <AreaChart data={callsPerDayData} margin={{ top: 6, right: 6, left: -18, bottom: 0 }}>
                           <defs><linearGradient id="grad_calls" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={CHART.primary} stopOpacity={0.55} /><stop offset="100%" stopColor={CHART.primary} stopOpacity={0} /></linearGradient></defs>
                           <CartesianGrid stroke={CHART.grid} vertical={false} />
-                          <XAxis dataKey="day" stroke={CHART.axis} fontSize={10} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                          <YAxis stroke={CHART.axis} fontSize={10} tickLine={false} axisLine={false} allowDecimals={false} />
+                          <XAxis dataKey="day" stroke={CHART.axis} fontSize={12} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                          <YAxis stroke={CHART.axis} fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
                           <Tooltip content={<ChartTooltip />} />
                           <Area type="monotone" dataKey="calls" name="Calls" stroke={CHART.primaryGlow} strokeWidth={2} fill="url(#grad_calls)" />
                         </AreaChart>
@@ -1126,8 +1125,8 @@ function AnalyticsPage() {
                         <AreaChart data={durationTrendData} margin={{ top: 6, right: 6, left: -18, bottom: 0 }}>
                           <defs><linearGradient id="grad_dur" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={CHART.accent} stopOpacity={0.5} /><stop offset="100%" stopColor={CHART.accent} stopOpacity={0} /></linearGradient></defs>
                           <CartesianGrid stroke={CHART.grid} vertical={false} />
-                          <XAxis dataKey="day" stroke={CHART.axis} fontSize={10} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                          <YAxis stroke={CHART.axis} fontSize={10} tickLine={false} axisLine={false} />
+                          <XAxis dataKey="day" stroke={CHART.axis} fontSize={12} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                          <YAxis stroke={CHART.axis} fontSize={12} tickLine={false} axisLine={false} />
                           <Tooltip content={<ChartTooltip />} />
                           <Area type="monotone" dataKey="avg" name="Avg (s)" stroke={CHART.accent} strokeWidth={2} fill="url(#grad_dur)" />
                         </AreaChart>
@@ -1139,10 +1138,10 @@ function AnalyticsPage() {
                   {outcomeTrendData.length === 0 ? <NoData /> : (
                     <div className="h-48 w-full">
                       <ResponsiveContainer>
-                        <LineChart data={outcomeTrendData.map((d) => { const total = d.success + d.unsuccessful; return { day: d.day, rate: total ? Math.round((d.success / total) * 100) : 0 }; })} margin={{ top: 6, right: 6, left: -18, bottom: 0 }}>
+                        <LineChart data={outcomeTrendData.map((d) => { const total = d.success + d.unsuccessful; return { day: d.day, rate: total ? Math.round((d.success / total) * 100) : null }; })} margin={{ top: 6, right: 6, left: -18, bottom: 0 }}>
                           <CartesianGrid stroke={CHART.grid} vertical={false} />
-                          <XAxis dataKey="day" stroke={CHART.axis} fontSize={10} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                          <YAxis stroke={CHART.axis} fontSize={10} tickLine={false} axisLine={false} domain={[0, 100]} unit="%" />
+                          <XAxis dataKey="day" stroke={CHART.axis} fontSize={12} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                          <YAxis stroke={CHART.axis} fontSize={12} tickLine={false} axisLine={false} domain={[0, 100]} unit="%" />
                           <Tooltip content={<ChartTooltip />} />
                           <Line type="monotone" dataKey="rate" name="Success %" stroke={CHART.success} strokeWidth={2} dot={false} />
                         </LineChart>
@@ -1159,13 +1158,13 @@ function AnalyticsPage() {
                       <ResponsiveContainer>
                         <LineChart data={latencyTrendData} margin={{ top: 6, right: 6, left: -12, bottom: 0 }}>
                           <CartesianGrid stroke={CHART.grid} vertical={false} />
-                          <XAxis dataKey="day" stroke={CHART.axis} fontSize={10} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                          <YAxis stroke={CHART.axis} fontSize={10} tickLine={false} axisLine={false} unit="ms" />
+                          <XAxis dataKey="day" stroke={CHART.axis} fontSize={12} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                          <YAxis stroke={CHART.axis} fontSize={12} tickLine={false} axisLine={false} unit="ms" />
                           <Tooltip content={<ChartTooltip />} />
                           <Legend wrapperStyle={{ fontSize: 11, color: CHART.axis }} />
-                          <Line type="monotone" dataKey="LLM" stroke={CHART.primary}  strokeWidth={2} dot={false} connectNulls />
-                          <Line type="monotone" dataKey="TTS" stroke={CHART.accent}   strokeWidth={2} dot={false} connectNulls />
-                          <Line type="monotone" dataKey="E2E" stroke={CHART.warning}  strokeWidth={2} dot={false} connectNulls />
+                          <Line type="monotone" dataKey="LLM" stroke={CHART.primary}  strokeWidth={2} dot={false} connectNulls={false} />
+                          <Line type="monotone" dataKey="TTS" stroke={CHART.accent}   strokeWidth={2} dot={false} connectNulls={false} />
+                          <Line type="monotone" dataKey="E2E" stroke={CHART.warning}  strokeWidth={2} dot={false} connectNulls={false} />
                         </LineChart>
                       </ResponsiveContainer>
                     </div>
@@ -1180,8 +1179,8 @@ function AnalyticsPage() {
                       <ResponsiveContainer>
                         <BarChart data={outcomeTrendData} margin={{ top: 6, right: 6, left: -18, bottom: 0 }}>
                           <CartesianGrid stroke={CHART.grid} vertical={false} />
-                          <XAxis dataKey="day" stroke={CHART.axis} fontSize={10} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                          <YAxis stroke={CHART.axis} fontSize={10} tickLine={false} axisLine={false} allowDecimals={false} />
+                          <XAxis dataKey="day" stroke={CHART.axis} fontSize={12} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                          <YAxis stroke={CHART.axis} fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
                           <Tooltip content={<ChartTooltip />} />
                           <Legend wrapperStyle={{ fontSize: 11, color: CHART.axis }} />
                           <Bar dataKey="success"      name="Successful"   fill={CHART.success}  stackId="a" radius={[0,0,0,0]} />
@@ -1198,8 +1197,8 @@ function AnalyticsPage() {
                       <ResponsiveContainer>
                         <BarChart data={hourData} margin={{ top: 6, right: 6, left: -18, bottom: 0 }}>
                           <CartesianGrid stroke={CHART.grid} vertical={false} />
-                          <XAxis dataKey="hour" stroke={CHART.axis} fontSize={9} tickLine={false} axisLine={false} interval={3} />
-                          <YAxis stroke={CHART.axis} fontSize={10} tickLine={false} axisLine={false} allowDecimals={false} />
+                          <XAxis dataKey="hour" stroke={CHART.axis} fontSize={12} tickLine={false} axisLine={false} interval={3} />
+                          <YAxis stroke={CHART.axis} fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
                           <Tooltip content={<ChartTooltip />} />
                           <Bar dataKey="calls" name="Calls" fill={CHART.primary} radius={[3,3,0,0]} barSize={14} />
                         </BarChart>
@@ -1312,7 +1311,7 @@ function ChartCard({ title, icon: Icon, color, children }: { title: string; icon
     <div className="rounded-2xl border border-border bg-card/50 p-4 backdrop-blur-sm">
       <div className="mb-3 flex items-center gap-2">
         <Icon className="h-3.5 w-3.5" style={{ color }} />
-        <h3 className="text-xs font-semibold uppercase tracking-[0.10em] text-muted-foreground">{title}</h3>
+        <h3 className="text-label text-muted-foreground">{title}</h3>
       </div>
       {children}
     </div>
@@ -1322,7 +1321,7 @@ function ChartCard({ title, icon: Icon, color, children }: { title: string; icon
 function NoData() { return <p className="py-8 text-center text-xs text-muted-foreground">No data in this range.</p>; }
 
 function CompactDonut({ data, colors, centerLabel, centerValue }: { data: { name: string; value: number }[]; colors: string[]; centerLabel: string; centerValue: number }) {
-  const filtered = data.filter((d) => d.value > 0);
+  const filtered = coloredSlices(data, colors);
   if (filtered.length === 0) return <NoData />;
   return (
     <div className="w-full">
@@ -1333,12 +1332,12 @@ function CompactDonut({ data, colors, centerLabel, centerValue }: { data: { name
           <PieChart>
             <Tooltip content={<ChartTooltip />} />
             <Pie data={filtered} dataKey="value" nameKey="name" innerRadius={52} outerRadius={76} paddingAngle={2} stroke="none">
-              {filtered.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} />)}
+              {filtered.map((d) => <Cell key={d.name} fill={d.color} />)}
             </Pie>
           </PieChart>
         </ResponsiveContainer>
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-[9px] uppercase tracking-widest text-muted-foreground">{centerLabel}</span>
+          <span className="text-label text-muted-foreground">{centerLabel}</span>
           <span className="text-xl font-bold tabular-nums">{centerValue}</span>
         </div>
       </div>
@@ -1346,8 +1345,8 @@ function CompactDonut({ data, colors, centerLabel, centerValue }: { data: { name
           any number of slices, instead of recharts <Legend> squishing the pie. */}
       <div className="mt-3 flex flex-wrap justify-center gap-x-3 gap-y-1.5">
         {filtered.map((d, i) => (
-          <div key={d.name} className="flex items-center gap-1.5 text-[10px]">
-            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: colors[i % colors.length] }} />
+          <div key={d.name} className="flex items-center gap-1.5 text-caption">
+            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: d.color }} />
             <span className="text-muted-foreground">{d.name}</span>
             <span className="font-medium tabular-nums text-foreground/90">{d.value}</span>
           </div>
@@ -1365,8 +1364,8 @@ function HBarChart({ data, color = CHART.primary }: { data: { name: string; valu
       <ResponsiveContainer>
         <BarChart data={data} layout="vertical" margin={{ top: 2, right: 16, left: 0, bottom: 2 }}>
           <CartesianGrid stroke={CHART.grid} horizontal={false} />
-          <XAxis type="number" stroke={CHART.axis} fontSize={10} tickLine={false} axisLine={false} allowDecimals={false} />
-          <YAxis type="category" dataKey="name" stroke={CHART.axis} fontSize={10} tickLine={false} axisLine={false} width={130} />
+          <XAxis type="number" stroke={CHART.axis} fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
+          <YAxis type="category" dataKey="name" stroke={CHART.axis} fontSize={12} tickLine={false} axisLine={false} width={130} />
           <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(139,92,246,0.07)" }} />
           <Bar dataKey="value" fill={color} radius={[0, 5, 5, 0]} barSize={16} />
         </BarChart>
@@ -1378,7 +1377,7 @@ function HBarChart({ data, color = CHART.primary }: { data: { name: string; valu
 function LatencyTile({ label, value, color }: { label: string; value: string; color: string }) {
   return (
     <div className="rounded-xl border border-border bg-card/40 px-3 py-3">
-      <p className="text-[10px] font-medium uppercase tracking-[0.12em]" style={{ color }}>{label}</p>
+      <p className="text-label text-muted-foreground">{label}</p>
       <p className="mt-1.5 text-xl font-bold tabular-nums text-foreground">{value}</p>
     </div>
   );
@@ -1402,10 +1401,10 @@ function CreditCardTile({ label, value, sub, color, icon: Icon }: { label: strin
     <div className="rounded-2xl border border-border bg-card/50 p-4 backdrop-blur-sm">
       <div className="mb-2 flex items-center gap-2">
         <Icon className="h-3.5 w-3.5" style={{ color }} />
-        <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
+        <p className="text-label text-muted-foreground">{label}</p>
       </div>
-      <p className="text-2xl font-bold tabular-nums" style={{ color }}>{value}</p>
-      <p className="mt-1 text-[11px] text-muted-foreground">{sub}</p>
+      <p className="text-2xl font-bold tabular-nums text-foreground">{value}</p>
+      <p className="mt-1 text-caption text-muted-foreground">{sub}</p>
     </div>
   );
 }
@@ -1413,7 +1412,7 @@ function CreditCardTile({ label, value, sub, color, icon: Icon }: { label: strin
 function CreditsTab({ q }: { q: any }) {
   if (q.isLoading && !q.data) return <LoadingProgress label="Loading credits" estimatedMs={7000} />;
   if (q.error) return (
-    <div className="mx-6 mt-5 flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+    <div className="mx-6 mt-5 flex items-center gap-3 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
       <AlertTriangle className="h-4 w-4" /><span>Could not load credits: {String(q.error?.message ?? q.error)}</span>
     </div>
   );
@@ -1447,7 +1446,7 @@ function CreditsTab({ q }: { q: any }) {
         <div className="rounded-2xl border border-border bg-card/50 p-4 backdrop-blur-sm">
           <div className="mb-2 flex items-center gap-2">
             <TrendingUp className="h-3.5 w-3.5" style={{ color: usageColor }} />
-            <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Usage</p>
+            <p className="text-label text-muted-foreground">Usage</p>
           </div>
           <p className="text-2xl font-bold tabular-nums" style={{ color: usageColor }}>{pct}%</p>
           <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted">
@@ -1464,8 +1463,8 @@ function CreditsTab({ q }: { q: any }) {
               <AreaChart data={trendData} margin={{ top: 6, right: 6, left: -6, bottom: 0 }}>
                 <defs><linearGradient id="grad_credits" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={CHART.primary} stopOpacity={0.55} /><stop offset="100%" stopColor={CHART.primary} stopOpacity={0} /></linearGradient></defs>
                 <CartesianGrid stroke={CHART.grid} vertical={false} />
-                <XAxis dataKey="month" stroke={CHART.axis} fontSize={10} tickLine={false} axisLine={false} />
-                <YAxis stroke={CHART.axis} fontSize={10} tickLine={false} axisLine={false} unit=" min" width={60} />
+                <XAxis dataKey="month" stroke={CHART.axis} fontSize={12} tickLine={false} axisLine={false} />
+                <YAxis stroke={CHART.axis} fontSize={12} tickLine={false} axisLine={false} unit=" min" width={60} />
                 <Tooltip content={<ChartTooltip />} />
                 <Area type="monotone" dataKey="minutes" name="Minutes" stroke={CHART.primaryGlow} strokeWidth={2} fill="url(#grad_credits)" />
               </AreaChart>
@@ -1486,7 +1485,7 @@ function CreditsTab({ q }: { q: any }) {
                 {history.map((h: any, i: number) => (
                   <tr key={h.id ?? i} className="h-11 border-b border-border/60 transition-colors hover:bg-muted/40">
                     <td className="px-3 py-2.5">{fmtCreditDate(h.createdAt ?? h.allocated_at)}</td>
-                    <td className="px-3 py-2.5"><Badge className="border-emerald-500/20 bg-emerald-500/15 text-emerald-300">+{fmtMins(h.allocated_minutes)} min</Badge></td>
+                    <td className="px-3 py-2.5"><Badge className="border-success/20 bg-success/15 text-success hover:bg-success/20">+{fmtMins(h.allocated_minutes)} min</Badge></td>
                     <td className="px-3 py-2.5 text-muted-foreground">{h.notes ?? "—"}</td>
                     <td className="px-3 py-2.5">{h.allocated_by ?? "—"}</td>
                     <td className="px-3 py-2.5"><span className="text-xs capitalize text-muted-foreground">{h.status ?? "—"}</span></td>
@@ -1517,13 +1516,13 @@ function AdsTab({ data }: { data: AdsData }) {
   const barData = platforms.map((p) => ({ name: PLATFORM_LABELS[p] ?? p, spend: +data.byPlatform[p].spend.toFixed(2), clicks: data.byPlatform[p].clicks, conversions: data.byPlatform[p].conversions, fill: PLATFORM_COLORS[p] ?? "#7c3aed" }));
   return (
     <div className="space-y-6">
-      <div className={cn("grid gap-4", platforms.length >= 3 ? "grid-cols-3" : "grid-cols-2")}>
+      <div className={cn("grid grid-cols-1 gap-4 sm:grid-cols-2", platforms.length >= 3 && "xl:grid-cols-3")}>
         {platforms.map((p) => {
           const t = data.byPlatform[p];
           return (
             <MktPanel key={p}>
               <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-semibold" style={{ color: PLATFORM_COLORS[p] ?? "inherit" }}>{PLATFORM_LABELS[p] ?? p}</span>
+                <span className="flex min-w-0 items-center gap-2 text-sm font-semibold text-foreground"><span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full" style={{ background: PLATFORM_COLORS[p] ?? CHART.neutral }} />{PLATFORM_LABELS[p] ?? p}</span>
                 <span className="text-xs text-muted-foreground">{t.campaigns} campaign{t.campaigns !== 1 ? "s" : ""}</span>
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -1537,9 +1536,9 @@ function AdsTab({ data }: { data: AdsData }) {
                 {t.costPerConv != null && <MktMetric label="Cost / conv." value={`£${t.costPerConv.toFixed(2)}`} />}
               </div>
               {p === "google" && g?.connected && (
-                <p className="text-[10px] text-muted-foreground mt-2">{g.accountName ?? "Google Ads"} · {g.customerId ?? "—"}</p>
+                <p className="text-metadata text-muted-foreground mt-2">{g.accountName ?? "Google Ads"} · {g.customerId ?? "—"}</p>
               )}
-              {t.lastSyncedAt && <p className="text-[10px] text-muted-foreground mt-1">Synced {fmtDateShort(t.lastSyncedAt)}</p>}
+              {t.lastSyncedAt && <p className="text-metadata text-muted-foreground mt-1">Synced {fmtDateShort(t.lastSyncedAt)}</p>}
             </MktPanel>
           );
         })}
@@ -1547,10 +1546,10 @@ function AdsTab({ data }: { data: AdsData }) {
       <MktPanel title="Spend by platform (30 days)">
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={barData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-            <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#94a3b8" }} />
-            <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => `£${v}`} />
-            <Tooltip contentStyle={{ background: "#1e293b", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8 }} formatter={(v: number) => fmtCurrency(v)} />
+            <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} />
+            <XAxis dataKey="name" tick={{ fontSize: 12, fill: CHART.axis }} />
+            <YAxis tick={{ fontSize: 12, fill: CHART.axis }} tickFormatter={(v) => `£${v}`} />
+            <Tooltip contentStyle={MARKETING_TOOLTIP_STYLE} labelStyle={{ color: "var(--popover-foreground)" }} itemStyle={{ color: "var(--popover-foreground)" }} formatter={(v: number) => fmtCurrency(v)} />
             <Bar dataKey="spend" radius={[4, 4, 0, 0]}>{barData.map((d, i) => <Cell key={i} fill={d.fill} />)}</Bar>
           </BarChart>
         </ResponsiveContainer>
@@ -1568,7 +1567,7 @@ function AdsTab({ data }: { data: AdsData }) {
                 {data.topCampaigns.map((c, i) => (
                   <tr key={i} className="border-b border-border/60 hover:bg-muted/40">
                     <td className="py-2 pr-4 max-w-[200px] truncate font-medium">{c.name}</td>
-                    <td className="py-2 pr-4"><Badge variant="outline" className="text-[10px]" style={{ borderColor: PLATFORM_COLORS[c.platform] ?? "#7c3aed", color: PLATFORM_COLORS[c.platform] ?? "inherit" }}>{PLATFORM_LABELS[c.platform] ?? c.platform}</Badge></td>
+                    <td className="py-2 pr-4"><Badge variant="outline" className="gap-1.5 text-metadata text-foreground"><span aria-hidden="true" className="h-1.5 w-1.5 rounded-full" style={{ background: PLATFORM_COLORS[c.platform] ?? CHART.neutral }} />{PLATFORM_LABELS[c.platform] ?? c.platform}</Badge></td>
                     <td className="py-2 pr-4"><span className="text-xs capitalize text-muted-foreground">{c.status ?? "—"}</span></td>
                     <MTd align="right">{fmtCurrency(c.spend)}</MTd>
                     <MTd align="right">{fmtNum(c.impressions)}</MTd>
@@ -1589,7 +1588,7 @@ function SeoTab({ data }: { data: { sites: SeoSite[] } }) {
   if (data.sites.length === 0) return <EmptyState icon={Search} title="No SEO sites tracked" message="Add a site in GrowthMind → SEO and connect Google Search Console to pull keyword performance data." />;
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Sites tracked"      value={data.sites.length}                                                  tone="primary" />
         <StatCard label="Total keywords"     value={data.sites.reduce((a, s) => a + s.keywordCount, 0)}                 tone="info"    />
         <StatCard label="Total impressions"  value={fmtNum(data.sites.reduce((a, s) => a + s.totalImpressions, 0))}     tone="info"    />
@@ -1603,7 +1602,7 @@ function SeoTab({ data }: { data: { sites: SeoSite[] } }) {
             <MktMetric label="GSC clicks"       value={fmtNum(site.totalClicks)} />
             <MktMetric label="Avg position"     value={site.avgPosition != null ? `#${site.avgPosition}` : "—"} />
           </div>
-          {!site.hasGscData && <p className="text-xs text-amber-400/80">Connect Google Search Console in GrowthMind → SEO to pull live position data.</p>}
+          {!site.hasGscData && <p className="text-xs text-warning">Connect Google Search Console in GrowthMind → SEO to pull live position data.</p>}
           {site.hasGscData && site.avgPosition != null && (
             <div className="mt-2">
               <div className="flex items-center justify-between text-xs text-muted-foreground mb-1"><span>Average position</span><span>#{site.avgPosition}</span></div>
@@ -1623,18 +1622,18 @@ function EmailTab({ data }: { data: EmailData }) {
   const pieData = Object.entries(data.byStatus).map(([status, count]) => ({ name: status.charAt(0).toUpperCase() + status.slice(1), value: count, fill: STATUS_COLORS[status] ?? "#7c3aed" }));
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Total campaigns" value={data.total}                                                               tone="primary" />
         <StatCard label="Active"           value={data.byStatus.active  ?? 0}                                             tone="info"    />
         <StatCard label="Draft"            value={data.byStatus.draft   ?? 0}                                             tone="primary" />
         <StatCard label="Paused/archived"  value={(data.byStatus.paused ?? 0) + (data.byStatus.archived ?? 0)}            tone="primary" />
       </div>
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <MktPanel title="Status breakdown">
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
               <Pie data={pieData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={3} dataKey="value">{pieData.map((d, i) => <Cell key={i} fill={d.fill} />)}</Pie>
-              <Tooltip contentStyle={{ background: "#1e293b", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8 }} />
+              <Tooltip contentStyle={MARKETING_TOOLTIP_STYLE} labelStyle={{ color: "var(--popover-foreground)" }} itemStyle={{ color: "var(--popover-foreground)" }} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
             </PieChart>
           </ResponsiveContainer>
@@ -1644,11 +1643,11 @@ function EmailTab({ data }: { data: EmailData }) {
             {data.recentCampaigns.map((c) => {
               const Icon = EMAIL_STATUS_ICONS[c.status] ?? Mail;
               return (
-                <div key={c.id} className="flex items-center justify-between py-1.5 border-b border-border/60 last:border-0">
-                  <div className="flex items-center gap-2 min-w-0"><Icon className="h-3.5 w-3.5 shrink-0" style={{ color: STATUS_COLORS[c.status] ?? "#94a3b8" }} /><span className="text-sm truncate">{c.name}</span></div>
+                <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-1.5 border-b border-border/60 last:border-0">
+                  <div className="flex items-center gap-2 min-w-0"><Icon className="h-3.5 w-3.5 shrink-0" style={{ color: STATUS_COLORS[c.status] ?? CHART.axis }} /><span className="text-sm truncate">{c.name}</span></div>
                   <div className="flex items-center gap-3 shrink-0">
                     <span className="text-xs text-muted-foreground">{fmtDateShort(c.createdAt)}</span>
-                    <Badge variant="outline" className="text-[10px]" style={{ borderColor: STATUS_COLORS[c.status] ?? "#94a3b8", color: STATUS_COLORS[c.status] ?? "#94a3b8" }}>{c.status}</Badge>
+                    <Badge variant="outline" className="text-metadata" style={{ borderColor: STATUS_COLORS[c.status] ?? CHART.axis, color: STATUS_COLORS[c.status] ?? CHART.axis }}>{c.status}</Badge>
                   </div>
                 </div>
               );
@@ -1673,14 +1672,14 @@ function WhatsAppTab({ data }: { data: WhatsAppData }) {
         <StatCard label="Delivered"     value={`${deliveryRate}%`}     tone="info"    />
         <StatCard label="Read rate"     value={`${readRate}%`}         tone="primary" />
       </div>
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <MktPanel title="Campaign funnel (all time)">
           <ResponsiveContainer width="100%" height={200}>
             <BarChart layout="vertical" data={[{ stage: "Sent", count: data.totalSent, fill: "#7c3aed" }, { stage: "Delivered", count: data.totalDelivered, fill: "#22c55e" }, { stage: "Read", count: data.totalRead, fill: "#3b82f6" }, { stage: "Replied", count: data.totalReplied, fill: "#f59e0b" }]} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-              <XAxis type="number" tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={fmtNum} />
-              <YAxis type="category" dataKey="stage" tick={{ fontSize: 11, fill: "#94a3b8" }} width={68} />
-              <Tooltip contentStyle={{ background: "#1e293b", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8 }} formatter={(v: number) => fmtNum(v)} />
+              <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} />
+              <XAxis type="number" tick={{ fontSize: 12, fill: CHART.axis }} tickFormatter={fmtNum} />
+              <YAxis type="category" dataKey="stage" tick={{ fontSize: 12, fill: CHART.axis }} width={68} />
+              <Tooltip contentStyle={MARKETING_TOOLTIP_STYLE} labelStyle={{ color: "var(--popover-foreground)" }} itemStyle={{ color: "var(--popover-foreground)" }} formatter={(v: number) => fmtNum(v)} />
               <Bar dataKey="count" radius={[0, 4, 4, 0]}>{[0,1,2,3].map((i) => <Cell key={i} fill={["#7c3aed","#22c55e","#3b82f6","#f59e0b"][i]} />)}</Bar>
             </BarChart>
           </ResponsiveContainer>
@@ -1689,14 +1688,14 @@ function WhatsAppTab({ data }: { data: WhatsAppData }) {
           <div className="space-y-2">
             {data.recentCampaigns.map((c) => (
               <div key={c.id} className="border-b border-border/60 last:border-0 pb-2 last:pb-0">
-                <div className="flex items-center justify-between mb-1">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
                   <span className="text-sm font-medium truncate max-w-[160px]">{c.name}</span>
                   <div className="flex items-center gap-2 shrink-0">
-                    <Badge variant="outline" className="text-[10px]">{c.type}</Badge>
-                    <Badge variant="outline" className="text-[10px]" style={{ borderColor: STATUS_COLORS[c.status] ?? "#94a3b8", color: STATUS_COLORS[c.status] ?? "#94a3b8" }}>{c.status}</Badge>
+                    <Badge variant="outline" className="text-metadata">{c.type}</Badge>
+                    <Badge variant="outline" className="text-metadata" style={{ borderColor: STATUS_COLORS[c.status] ?? CHART.axis, color: STATUS_COLORS[c.status] ?? CHART.axis }}>{c.status}</Badge>
                   </div>
                 </div>
-                <div className="flex gap-4 text-[11px] text-muted-foreground">
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-caption text-muted-foreground">
                   <span>{c.stats.sent} sent</span><span>{c.stats.delivered} delivered</span><span>{c.stats.read} read</span>
                   {c.stats.replied > 0 && <span>{c.stats.replied} replied</span>}
                 </div>
@@ -1707,7 +1706,7 @@ function WhatsAppTab({ data }: { data: WhatsAppData }) {
       </div>
       <MktPanel title="Engagement rates">
         <div className="space-y-3">
-          {[{ label: "Delivery rate", pct: deliveryRate, color: "#22c55e" }, { label: "Read rate", pct: readRate, color: "#3b82f6" }, { label: "Reply rate", pct: replyRate, color: "#f59e0b" }].map(({ label, pct, color }) => (
+          {[{ label: "Delivery rate", pct: deliveryRate, color: CHART.success }, { label: "Read rate", pct: readRate, color: CHART.primary }, { label: "Reply rate", pct: replyRate, color: CHART.warning }].map(({ label, pct, color }) => (
             <div key={label}>
               <div className="flex justify-between text-xs text-muted-foreground mb-1"><span>{label}</span><span style={{ color }}>{pct}%</span></div>
               <div className="h-1.5 rounded-full bg-muted overflow-hidden"><div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }} /></div>
@@ -1723,13 +1722,13 @@ function WhatsAppTab({ data }: { data: WhatsAppData }) {
 function MktPanel({ title, children, className }: { title?: string; children: React.ReactNode; className?: string }) {
   return (
     <PanelCard className={className}>
-      {title && <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{title}</p>}
+      {title && <h3 className="mb-3 break-words text-label text-muted-foreground">{title}</h3>}
       {children}
     </PanelCard>
   );
 }
 function MktMetric({ label, value }: { label: string; value: string | number }) {
-  return <div><p className="text-[10px] text-muted-foreground uppercase tracking-wide">{label}</p><p className="text-sm font-semibold">{value}</p></div>;
+  return <div><p className="text-label text-muted-foreground">{label}</p><p className="text-sm font-semibold tabular-nums">{value}</p></div>;
 }
 function MTh({ children, align = "left" }: { children: React.ReactNode; align?: "left" | "right" }) {
   return <th className={cn("py-2 pr-4 text-xs font-medium text-muted-foreground uppercase tracking-wide", align === "right" && "text-right")}>{children}</th>;

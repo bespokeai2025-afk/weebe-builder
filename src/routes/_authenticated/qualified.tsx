@@ -611,14 +611,14 @@ function QualifiedPage() {
       })()}
 
       {/* Filter bar — WBAH matches Calls page layout */}
-      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+      <div className="crm-filter-bar flex min-w-0 flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-4">
           <div className="relative min-w-0 flex-shrink-0">
             <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search name or phone…"
-              className="h-6 min-w-0 flex-1 basis-28 max-w-[180px] pl-7 text-[11px] sm:flex-none sm:w-36"
+              className="h-10 min-w-0 w-full pl-7 text-sm sm:w-72"
             />
           </div>
           <select

@@ -15,7 +15,7 @@ import {
 } from "@/lib/hexmail/deliverability.server";
 
 function ScoreBadge({ score }: { score: number }) {
-  const color = score >= 80 ? "text-emerald-400" : score >= 60 ? "text-amber-400" : "text-red-400";
+  const color = score >= 80 ? "text-emerald-400 light:text-emerald-800" : score >= 60 ? "text-amber-400 light:text-amber-800" : "text-red-400 light:text-red-800";
   const grade = score >= 90 ? "A" : score >= 75 ? "B" : score >= 55 ? "C" : score >= 35 ? "D" : "F";
   return (
     <div className="flex items-end gap-1">
@@ -30,12 +30,12 @@ function StatCard({ icon: Icon, label, value, sub, color = "text-muted-foregroun
 }) {
   return (
     <div className="rounded-xl border border-border bg-muted/40 p-4 flex flex-col gap-2">
-      <div className="flex items-center gap-2 text-muted-foreground/60 text-xs">
+      <div className="flex items-center gap-2 text-muted-foreground/60 light:text-muted-foreground text-xs">
         <Icon className="h-3.5 w-3.5" />
         <span>{label}</span>
       </div>
       <div className={cn("text-2xl font-bold", color)}>{value}</div>
-      {sub && <div className="text-[11px] text-muted-foreground/40">{sub}</div>}
+      {sub && <div className="text-[11px] text-muted-foreground/40 light:text-muted-foreground">{sub}</div>}
     </div>
   );
 }
@@ -72,7 +72,7 @@ function WebhookPanel() {
 
   if (isLoading) {
     return (
-      <div className="rounded-xl border border-border bg-muted/40 p-4 flex items-center gap-2 text-xs text-muted-foreground/50">
+      <div className="rounded-xl border border-border bg-muted/40 p-4 flex items-center gap-2 text-xs text-muted-foreground/50 light:text-muted-foreground">
         <Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking Resend webhook status…
       </div>
     );
@@ -82,10 +82,10 @@ function WebhookPanel() {
     return (
       <div className="rounded-xl border border-border bg-muted/40 p-4 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <Webhook className="h-4 w-4 text-muted-foreground/40" />
+          <Webhook className="h-4 w-4 text-muted-foreground/40 light:text-muted-foreground" />
           <div>
             <p className="text-sm font-medium">Resend Webhook</p>
-            <p className="text-[11px] text-muted-foreground/50">Add your Resend API key in HexMail → Settings to auto-register the webhook.</p>
+            <p className="text-[11px] text-muted-foreground/50 light:text-muted-foreground">Add your Resend API key in HexMail → Settings to auto-register the webhook.</p>
           </div>
         </div>
         <Link to="/hexmail/settings" className="shrink-0 rounded-lg border border-border bg-muted/60 px-3 py-1.5 text-xs hover:bg-muted transition-colors">
@@ -99,16 +99,16 @@ function WebhookPanel() {
     return (
       <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <CheckCircle className="h-4 w-4 text-emerald-400 shrink-0" />
+          <CheckCircle className="h-4 w-4 text-emerald-400 light:text-emerald-800 shrink-0" />
           <div>
-            <p className="text-sm font-medium text-emerald-300">Resend Webhook Connected</p>
-            <p className="text-[11px] text-muted-foreground/60 font-mono mt-0.5 break-all">{wh.webhookEndpoint}</p>
+            <p className="text-sm font-medium text-emerald-300 light:text-emerald-800">Resend Webhook Connected</p>
+            <p className="text-[11px] text-muted-foreground/60 light:text-muted-foreground font-mono mt-0.5 break-all">{wh.webhookEndpoint}</p>
           </div>
         </div>
         <button
           onClick={() => deleteMut.mutate(wh.existing.id)}
           disabled={deleteMut.isPending}
-          className="shrink-0 flex items-center gap-1.5 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+          className="shrink-0 flex items-center gap-1.5 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-1.5 text-xs text-red-400 light:text-red-800 hover:bg-red-500/10 transition-colors disabled:opacity-50"
         >
           {deleteMut.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
           Remove
@@ -120,15 +120,15 @@ function WebhookPanel() {
   return (
     <div className="rounded-xl border border-border bg-muted/40 p-4 flex items-center justify-between gap-4">
       <div className="flex items-center gap-3">
-        <Webhook className="h-4 w-4 text-amber-400/70 shrink-0" />
+        <Webhook className="h-4 w-4 text-amber-400/70 light:text-amber-800 shrink-0" />
         <div>
           <p className="text-sm font-medium">Resend Webhook</p>
-          <p className="text-[11px] text-muted-foreground/50">
+          <p className="text-[11px] text-muted-foreground/50 light:text-muted-foreground">
             Auto-register so bounces &amp; complaints flow into Reputation Monitor.
           </p>
-          {wh?.error && <p className="text-[11px] text-red-400 mt-0.5">{wh.error}</p>}
+          {wh?.error && <p className="text-[11px] text-red-400 light:text-red-800 mt-0.5">{wh.error}</p>}
           {registerMut.error && (
-            <p className="text-[11px] text-red-400 mt-0.5">{(registerMut.error as Error).message}</p>
+            <p className="text-[11px] text-red-400 light:text-red-800 mt-0.5">{(registerMut.error as Error).message}</p>
           )}
         </div>
       </div>
@@ -178,19 +178,19 @@ export function HexMailDeliverability() {
       {/* Health Score */}
       <div className="rounded-xl border border-border bg-gradient-to-br from-white/[0.03] to-transparent p-6 flex flex-col sm:flex-row items-start sm:items-center gap-6">
         <div className="flex flex-col gap-1 min-w-[120px]">
-          <span className="text-xs text-muted-foreground/60 uppercase tracking-widest">Domain Health Score</span>
+          <span className="text-xs text-muted-foreground/60 light:text-muted-foreground uppercase tracking-widest">Domain Health Score</span>
           {isLoading
             ? <div className="h-10 w-20 animate-pulse rounded-lg bg-muted" />
             : <ScoreBadge score={stats?.avgHealthScore ?? 0} />}
         </div>
         <div className="flex-1 flex flex-wrap gap-3">
           {stats?.warnings?.slice(0, 4).map((w: string, i: number) => (
-            <div key={i} className="flex items-center gap-1.5 rounded-lg border border-amber-500/20 bg-amber-500/5 px-2.5 py-1.5 text-xs text-amber-400">
+            <div key={i} className="flex items-center gap-1.5 rounded-lg border border-amber-500/20 bg-amber-500/5 px-2.5 py-1.5 text-xs text-amber-400 light:text-amber-800">
               <AlertTriangle className="h-3 w-3 shrink-0" /> {w}
             </div>
           ))}
           {!isLoading && (stats?.warnings?.length ?? 0) === 0 && (
-            <div className="flex items-center gap-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-2.5 py-1.5 text-xs text-emerald-400">
+            <div className="flex items-center gap-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-2.5 py-1.5 text-xs text-emerald-400 light:text-emerald-800">
               <CheckCircle className="h-3 w-3" /> All DNS checks passing
             </div>
           )}
@@ -210,12 +210,12 @@ export function HexMailDeliverability() {
           <StatCard icon={Inbox}     label="Mailboxes"        value={stats?.totalMailboxes ?? 0}  sub="registered" />
           <StatCard icon={Flame}     label="Warmup Plans"     value={stats?.activePlans ?? 0}     sub="active" />
           <StatCard icon={Mail}      label="Sends Today"      value={stats?.sendsToday ?? 0}      sub={`of ${stats?.sendAllowance ?? 0} allowed`}
-            color={(stats?.sendsToday ?? 0) >= (stats?.sendAllowance ?? 1) * 0.9 ? "text-amber-400" : "text-foreground"} />
+            color={(stats?.sendsToday ?? 0) >= (stats?.sendAllowance ?? 1) * 0.9 ? "text-amber-400 light:text-amber-800" : "text-foreground"} />
           <StatCard icon={TrendingUp}  label="Bounce Rate"    value={`${stats?.bounceRate ?? 0}%`}
-            color={(stats?.bounceRate ?? 0) > 5 ? "text-red-400" : (stats?.bounceRate ?? 0) > 2 ? "text-amber-400" : "text-emerald-400"}
+            color={(stats?.bounceRate ?? 0) > 5 ? "text-red-400 light:text-red-800" : (stats?.bounceRate ?? 0) > 2 ? "text-amber-400 light:text-amber-800" : "text-emerald-400 light:text-emerald-800"}
             sub="last 30 days" />
           <StatCard icon={XCircle}   label="Complaints"       value={`${stats?.complaintRate ?? 0}%`}
-            color={(stats?.complaintRate ?? 0) > 0.1 ? "text-red-400" : "text-emerald-400"}
+            color={(stats?.complaintRate ?? 0) > 0.1 ? "text-red-400 light:text-red-800" : "text-emerald-400 light:text-emerald-800"}
             sub="last 30 days" />
           <StatCard icon={CheckCircle} label="Bounces"        value={stats?.bounceCount ?? 0}    sub="last 30 days" />
           <StatCard icon={AlertTriangle} label="Complaints (count)" value={stats?.complaintCount ?? 0} sub="last 30 days" />
@@ -231,10 +231,10 @@ export function HexMailDeliverability() {
               className="group flex items-center justify-between rounded-xl border border-border bg-muted/40 p-4 hover:border-foreground/20 hover:bg-muted transition-all"
             >
               <div className="flex items-center gap-3">
-                <link.icon className="h-4 w-4 text-muted-foreground/60 group-hover:text-foreground transition-colors" />
+                <link.icon className="h-4 w-4 text-muted-foreground/60 light:text-muted-foreground group-hover:text-foreground transition-colors" />
                 <div>
                   <div className="text-sm font-medium">{link.label}</div>
-                  <div className="text-[11px] text-muted-foreground/50">{link.sub}</div>
+                  <div className="text-[11px] text-muted-foreground/50 light:text-muted-foreground">{link.sub}</div>
                 </div>
               </div>
               <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors" />
@@ -252,16 +252,16 @@ export function HexMailDeliverability() {
               <div key={i} className="flex items-center justify-between px-4 py-2.5 text-xs">
                 <div className="flex items-center gap-2">
                   <span className={cn("capitalize font-medium",
-                    ev.severity === "critical" ? "text-red-400" : ev.severity === "warning" ? "text-amber-400" : "text-muted-foreground/70"
+                    ev.severity === "critical" ? "text-red-400 light:text-red-800" : ev.severity === "warning" ? "text-amber-400 light:text-amber-800" : "text-muted-foreground/70 light:text-muted-foreground"
                   )}>{ev.event_type.replace("_", " ")}</span>
-                  <span className="text-muted-foreground/40">{ev.description}</span>
+                  <span className="text-muted-foreground/40 light:text-muted-foreground">{ev.description}</span>
                 </div>
                 <span className="text-muted-foreground/30 ml-4 shrink-0">{new Date(ev.created_at).toLocaleDateString()}</span>
               </div>
             ))}
           </div>
           <div className="mt-2 flex justify-end">
-            <Link to="/hexmail/reputation" className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors flex items-center gap-1">
+            <Link to="/hexmail/reputation" className="text-xs text-muted-foreground/50 light:text-muted-foreground hover:text-muted-foreground transition-colors flex items-center gap-1">
               View all events <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
@@ -274,7 +274,7 @@ export function HexMailDeliverability() {
           <ShieldCheck className="h-8 w-8 text-muted-foreground/30" />
           <div>
             <p className="text-sm font-medium">No sender domains yet</p>
-            <p className="text-xs text-muted-foreground/50 mt-1">Add a sender domain to start verifying DNS and warming up your mailboxes.</p>
+            <p className="text-xs text-muted-foreground/50 light:text-muted-foreground mt-1">Add a sender domain to start verifying DNS and warming up your mailboxes.</p>
           </div>
           <Link to="/hexmail/sender-domains"
             className="mt-2 rounded-lg bg-primary px-4 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 transition-opacity"

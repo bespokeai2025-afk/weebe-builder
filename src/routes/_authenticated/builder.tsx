@@ -132,20 +132,20 @@ function BuilderPage() {
   }, []);
 
   const status = isDirty ? "Unsaved" : currentAgentRowId ? "Saved" : "Draft";
-  const statusTone = isDirty ? "text-amber-400" : currentAgentRowId ? "text-emerald-400" : "text-amber-400";
+  const statusTone = isDirty ? "text-amber-400 light:text-amber-800" : currentAgentRowId ? "text-emerald-400 light:text-emerald-800" : "text-amber-400 light:text-amber-800";
 
   const leading = (
-    <div className="flex items-center gap-2 pl-1">
+    <div className="flex shrink-0 items-center gap-2 whitespace-nowrap pl-1 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300">
       <span
         className={cn(
-          "inline-flex items-center gap-1 rounded-full border border-border bg-muted/60 px-1.5 py-0.5 text-[10px] font-medium",
+          "inline-flex items-center gap-1 rounded-full border border-border bg-muted/60 px-1.5 py-0.5 text-metadata font-medium",
           statusTone,
         )}
       >
         <CircleDot className="h-2.5 w-2.5" />
         {status}
       </span>
-      <span className="hidden items-center gap-1 text-[10px] text-muted-foreground md:inline-flex">
+      <span className="hidden items-center gap-1 text-metadata text-muted-foreground md:inline-flex">
         {saving ? (
           <>
             <Loader2 className="h-3 w-3 animate-spin" />
@@ -162,13 +162,14 @@ function BuilderPage() {
   );
 
   const trailing = (
-    <div className="flex items-center gap-0.5 rounded-md border border-border bg-muted/40 px-1 py-0.5">
+    <div className="ml-auto flex flex-wrap items-center gap-1 rounded-lg border border-border bg-card p-1 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300">
       <Button
         size="sm"
         variant="ghost"
         onClick={() => { restartTour(); }}
         title="Start walkthrough tour"
-        className="!hidden !h-8 !w-8 !p-0 text-muted-foreground/60 hover:text-foreground md:!flex"
+        aria-label="Start walkthrough tour"
+        className="!hidden !h-8 !w-8 !p-0 text-muted-foreground/60 light:text-muted-foreground hover:text-foreground md:!flex"
       >
         <MapPin className="h-3.5 w-3.5" />
       </Button>
@@ -178,7 +179,8 @@ function BuilderPage() {
         variant="ghost"
         onClick={() => setSaveTemplateOpen(true)}
         title="Save as template"
-        className="!h-8 !w-8 !p-0 text-muted-foreground/60 hover:text-foreground"
+        aria-label="Save as template"
+        className="!h-8 !w-8 !p-0 text-muted-foreground/60 light:text-muted-foreground hover:text-foreground"
       >
         <BookmarkPlus />
       </Button>
@@ -190,8 +192,9 @@ function BuilderPage() {
             variant="ghost"
             onClick={() => setDeployChecklistOpen(true)}
             title="Guided deployment checklist"
+            aria-label="Guided deployment checklist"
             data-testid="button-deploy-checklist"
-            className="!h-8 !w-8 !p-0 text-muted-foreground/60 hover:text-foreground"
+            className="!h-8 !w-8 !p-0 text-muted-foreground/60 light:text-muted-foreground hover:text-foreground"
           >
             <Rocket className="h-3.5 w-3.5" />
           </Button>
@@ -207,7 +210,7 @@ function BuilderPage() {
             onClick={handleSave}
             disabled={saving}
             title="Save & activate on WhatsApp (⌘S)"
-            className="!h-8 gap-1.5 px-3 text-[11px] font-semibold bg-green-600 hover:bg-green-500 text-white border-0"
+            className="!h-8 gap-1.5 px-3 text-xs font-semibold bg-green-700 hover:bg-green-800 text-white border-0"
           >
             {saving ? (
               <Loader2 className="h-3 w-3 animate-spin" />
@@ -224,10 +227,10 @@ function BuilderPage() {
             disabled={saving}
             title="Save agent (⌘S)"
             className={cn(
-              "!h-8 gap-1 px-2.5 text-[11px] font-medium hover:bg-muted",
+              "!h-8 gap-1 px-2.5 text-xs font-medium hover:bg-muted",
               isDirty
-                ? "text-amber-300 hover:text-amber-200"
-                : "text-muted-foreground/70 hover:text-foreground",
+                ? "text-amber-300 light:text-amber-800 hover:text-amber-200"
+                : "text-muted-foreground/70 light:text-muted-foreground hover:text-foreground",
             )}
           >
             {saving ? (

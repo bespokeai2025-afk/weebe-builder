@@ -57,16 +57,16 @@ const TRIGGER_LABELS: Record<string, string> = {
 };
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
-  active:   { label: "Active",   color: "border-emerald-500/30 text-emerald-400 bg-emerald-500/5",   icon: CheckCircle2 },
+  active:   { label: "Active",   color: "border-emerald-500/30 text-emerald-400 light:text-emerald-800 bg-emerald-500/5",   icon: CheckCircle2 },
   inactive: { label: "Inactive", color: "border-muted-foreground/30 text-muted-foreground",           icon: Clock },
-  paused:   { label: "Paused",   color: "border-amber-500/30 text-amber-400 bg-amber-500/5",          icon: Pause },
-  error:    { label: "Error",    color: "border-red-500/30 text-red-400 bg-red-500/5",                icon: AlertCircle },
+  paused:   { label: "Paused",   color: "border-amber-500/30 text-amber-400 light:text-amber-800 bg-amber-500/5",          icon: Pause },
+  error:    { label: "Error",    color: "border-red-500/30 text-red-400 light:text-red-800 bg-red-500/5",                icon: AlertCircle },
 };
 
 const RUN_STATUS_CONFIG: Record<string, { color: string; icon: React.ElementType }> = {
-  running:   { color: "text-blue-400",         icon: Loader2 },
-  completed: { color: "text-emerald-400",      icon: CheckCircle2 },
-  failed:    { color: "text-red-400",          icon: XCircle },
+  running:   { color: "text-blue-400 light:text-blue-800",         icon: Loader2 },
+  completed: { color: "text-emerald-400 light:text-emerald-800",      icon: CheckCircle2 },
+  failed:    { color: "text-red-400 light:text-red-800",          icon: XCircle },
   skipped:   { color: "text-muted-foreground", icon: Clock },
 };
 
@@ -202,7 +202,7 @@ export function WorkflowEnginePage() {
         <div className="flex items-center gap-2 shrink-0">
           <Button
             variant="outline"
-            className="gap-2 border-sky-500/30 text-sky-400 hover:text-sky-300"
+            className="gap-2 border-sky-500/30 text-sky-400 light:text-sky-800 hover:text-sky-300"
             onClick={() =>
               navigate({
                 to: "/systemmind/build",
@@ -224,11 +224,11 @@ export function WorkflowEnginePage() {
       {stats && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <StatCard label="Total Workflows"     value={stats.total_workflows}     icon={Zap}          color="bg-primary/10 text-primary" />
-          <StatCard label="Active"              value={stats.active_workflows}    icon={Activity}     color="bg-emerald-500/10 text-emerald-500" />
-          <StatCard label="Total Runs"          value={stats.total_runs}          icon={Play}         color="bg-blue-500/10 text-blue-500" />
-          <StatCard label="Successful"          value={stats.successful_runs}     icon={CheckCircle2} color="bg-emerald-500/10 text-emerald-500" />
-          <StatCard label="Failed"              value={stats.failed_runs}         icon={XCircle}      color="bg-red-500/10 text-red-500" />
-          <StatCard label="Templates Available" value={stats.published_templates} icon={TrendingUp}   color="bg-violet-500/10 text-violet-500" />
+          <StatCard label="Active"              value={stats.active_workflows}    icon={Activity}     color="bg-emerald-500/10 text-emerald-500 light:text-emerald-800" />
+          <StatCard label="Total Runs"          value={stats.total_runs}          icon={Play}         color="bg-blue-500/10 text-blue-500 light:text-blue-800" />
+          <StatCard label="Successful"          value={stats.successful_runs}     icon={CheckCircle2} color="bg-emerald-500/10 text-emerald-500 light:text-emerald-800" />
+          <StatCard label="Failed"              value={stats.failed_runs}         icon={XCircle}      color="bg-red-500/10 text-red-500 light:text-red-800" />
+          <StatCard label="Templates Available" value={stats.published_templates} icon={TrendingUp}   color="bg-violet-500/10 text-violet-500 light:text-violet-800" />
         </div>
       )}
 
@@ -290,7 +290,7 @@ export function WorkflowEnginePage() {
                           {TRIGGER_LABELS[wf.trigger_type] ?? wf.trigger_type}
                         </Badge>
                         {wf.source === "systemmind_build" && (
-                          <Badge variant="outline" className="text-[10px] gap-1 border-sky-500/30 text-sky-400 bg-sky-500/5">
+                          <Badge variant="outline" className="text-[10px] gap-1 border-sky-500/30 text-sky-400 light:text-sky-800 bg-sky-500/5">
                             <Hammer className="h-2.5 w-2.5" />
                             Built by SystemMind{wf.source_build_version ? ` v${wf.source_build_version}` : ""}
                           </Badge>
@@ -308,7 +308,7 @@ export function WorkflowEnginePage() {
                       {/* Edit with SystemMind (Build Workspace, edit mode) */}
                       <Button
                         size="sm" variant="outline"
-                        className="gap-1.5 h-7 text-xs border-sky-500/30 text-sky-400 hover:text-sky-300"
+                        className="gap-1.5 h-7 text-xs border-sky-500/30 text-sky-400 light:text-sky-800 hover:text-sky-300"
                         onClick={() =>
                           navigate({
                             to: "/systemmind/build",
@@ -556,10 +556,10 @@ function DeploymentsTab() {
   const rows = (depsQ.data ?? []) as Array<Record<string, any>>;
 
   const statusColor: Record<string, string> = {
-    live:        "border-emerald-500/30 text-emerald-400 bg-emerald-500/5",
+    live:        "border-emerald-500/30 text-emerald-400 light:text-emerald-800 bg-emerald-500/5",
     ready:       "border-primary/30 text-primary bg-primary/5",
-    blocked:     "border-red-500/30 text-red-400 bg-red-500/5",
-    in_progress: "border-amber-500/30 text-amber-400 bg-amber-500/5",
+    blocked:     "border-red-500/30 text-red-400 light:text-red-800 bg-red-500/5",
+    in_progress: "border-amber-500/30 text-amber-400 light:text-amber-800 bg-amber-500/5",
     abandoned:   "border-muted-foreground/30 text-muted-foreground",
   };
 
@@ -574,7 +574,7 @@ function DeploymentsTab() {
   if (rows.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-border p-10 text-center">
-        <Rocket className="h-8 w-8 mx-auto text-muted-foreground/40 mb-3" />
+        <Rocket className="h-8 w-8 mx-auto text-muted-foreground/40 light:text-muted-foreground mb-3" />
         <p className="text-sm text-muted-foreground">
           No guided deployments yet. Start one from the Agents page ("Guided deployment"), the
           agent builder, or the Deploy dialog.

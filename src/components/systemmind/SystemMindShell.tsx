@@ -90,15 +90,15 @@ const BASE_NAV_GROUPS: Array<{ title?: string; adminOnly?: boolean; items: NavIt
 function NavLink({ label, href, icon: Icon, active }: NavItem & { active: boolean }) {
   return (
     <Link
-      to={href}
+      to={href} aria-current={active ? "page" : undefined}
       className={cn(
         "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors",
         active
-          ? "bg-sky-500/15 text-sky-300"
+          ? "bg-brand/15 text-brand"
           : "text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
     >
-      <Icon className={cn("h-3.5 w-3.5 shrink-0", active && "text-sky-400")} />
+      <Icon className={cn("h-3.5 w-3.5 shrink-0", active && "text-brand")} />
       {label}
     </Link>
   );
@@ -157,13 +157,13 @@ export function SystemMindShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex h-full min-h-0 w-full">
+    <div className="mind-workspace flex h-full min-h-0 w-full flex-col md:flex-row">
       {/* Left sidebar */}
-      <aside className="hidden md:flex w-56 shrink-0 flex-col border-r border-border bg-[hsl(var(--sidebar-background))] py-4 overflow-y-auto">
+      <aside className="hidden md:flex w-56 shrink-0 flex-col border-r border-border bg-sidebar py-4 overflow-y-auto">
         <div className="px-4 mb-5">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-sky-500/20 ring-1 ring-sky-500/30">
-              <Server className="h-3.5 w-3.5 text-sky-400" />
+            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-brand/20 ring-1 ring-brand/30">
+              <Server className="h-3.5 w-3.5 text-brand" />
             </div>
             <div>
               <p className="text-xs font-semibold">SystemMind</p>
@@ -176,7 +176,7 @@ export function SystemMindShell({ children }: { children: React.ReactNode }) {
           {visibleGroups.map((group, gi) => (
             <div key={gi} className={gi > 0 ? "mt-3" : ""}>
               {group.title && (
-                <p className="px-2.5 mb-1 text-[9px] font-semibold uppercase tracking-widest text-muted-foreground/50">
+                <p className="px-2.5 mb-1 text-[9px] font-semibold uppercase tracking-widest text-muted-foreground/50 light:text-muted-foreground">
                   {group.title}
                 </p>
               )}
@@ -190,11 +190,11 @@ export function SystemMindShell({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="px-3 mt-4">
-          <div className="flex items-center gap-2 rounded-lg border border-sky-500/20 bg-sky-500/[0.06] px-2.5 py-2">
-            <ShieldCheck className="h-3.5 w-3.5 text-sky-400 shrink-0" />
+          <div className="flex items-center gap-2 rounded-lg border border-brand/20 bg-brand/[0.06] px-2.5 py-2">
+            <ShieldCheck className="h-3.5 w-3.5 text-brand shrink-0" />
             <div className="min-w-0">
-              <p className="text-[10px] text-sky-300 font-semibold leading-none">Reports to HiveMind</p>
-              <p className="text-[10px] text-sky-400/60 mt-0.5 leading-tight truncate">Technical advisor</p>
+              <p className="text-[10px] text-brand font-semibold leading-none">Reports to HiveMind</p>
+              <p className="text-[10px] text-brand mt-0.5 leading-tight truncate">Technical advisor</p>
             </div>
           </div>
         </div>
@@ -205,10 +205,10 @@ export function SystemMindShell({ children }: { children: React.ReactNode }) {
         {allItems.map(({ label, href, icon: Icon }) => {
           const active = isActive(href);
           return (
-            <Link key={href} to={href}
+            <Link key={href} to={href} aria-current={active ? "page" : undefined}
               className={cn(
                 "flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium whitespace-nowrap border-b-2 -mb-px transition-colors shrink-0",
-                active ? "border-sky-400 text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+                active ? "border-brand text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
               )}>
               <Icon className="h-3 w-3" />
               {label}

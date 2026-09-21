@@ -80,13 +80,13 @@ function saveDismissed(map: Record<string, number>) {
 // ── Sub-components ─────────────────────────────────────────────────────────────
 function Count({ n, color = "violet" }: { n: number; color?: string }) {
   const cls: Record<string, string> = {
-    violet: "bg-violet-500/20 text-violet-300",
-    amber:  "bg-amber-500/20 text-amber-300",
-    emerald:"bg-emerald-500/20 text-emerald-300",
-    red:    "bg-red-500/20 text-red-300",
-    blue:   "bg-blue-500/20 text-blue-300",
-    green:  "bg-green-500/20 text-green-300",
-    sky:    "bg-sky-500/20 text-sky-300",
+    violet: "bg-brand/20 text-brand",
+    amber:  "bg-amber-500/20 text-amber-300 light:text-amber-800",
+    emerald:"bg-emerald-500/20 text-emerald-300 light:text-emerald-800",
+    red:    "bg-red-500/20 text-red-300 light:text-red-800",
+    blue:   "bg-blue-500/20 text-blue-300 light:text-blue-800",
+    green:  "bg-green-500/20 text-green-300 light:text-green-800",
+    sky:    "bg-sky-500/20 text-sky-300 light:text-sky-800",
   };
   return <span className={cn("ml-1.5 rounded-full px-1.5 py-0 text-[10px] font-bold tabular-nums", cls[color] ?? cls.violet)}>{n}</span>;
 }
@@ -100,11 +100,11 @@ function Toggle({ label, checked, onChange, icon: Icon, color }: {
       "flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium border transition-all",
       checked
         ? color === "violet"
-          ? "bg-violet-500/15 text-violet-300 border-violet-500/30"
-          : "bg-amber-500/15 text-amber-300 border-amber-500/30"
+          ? "bg-brand/15 text-brand border-brand/30"
+          : "bg-amber-500/15 text-amber-300 light:text-amber-800 border-amber-500/30"
         : "bg-muted/40 text-muted-foreground border-border hover:text-foreground",
     )}>
-      <Icon className={cn("h-3.5 w-3.5 shrink-0", checked && (color === "violet" ? "text-violet-400" : "text-amber-400"))} />
+      <Icon className={cn("h-3.5 w-3.5 shrink-0", checked && (color === "violet" ? "text-brand" : "text-amber-400 light:text-amber-800"))} />
       {label}
     </button>
   );
@@ -137,8 +137,8 @@ function EmptyState({ icon: Icon, text }: { icon: React.ElementType; text: strin
 function AllClear({ text }: { text: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-12 gap-3">
-      <CheckCircle2 className="h-9 w-9 text-emerald-400/50" />
-      <p className="text-sm font-semibold text-emerald-300">All clear</p>
+      <CheckCircle2 className="h-9 w-9 text-emerald-400/50 light:text-emerald-800" />
+      <p className="text-sm font-semibold text-emerald-300 light:text-emerald-800">All clear</p>
       <p className="text-xs text-muted-foreground">{text}</p>
     </div>
   );
@@ -148,9 +148,9 @@ function AllClear({ text }: { text: string }) {
 function ErrorCard({ message }: { message: string }) {
   return (
     <div className="rounded-xl border border-red-500/20 bg-red-500/[0.04] px-4 py-4 flex items-center gap-3">
-      <XCircle className="h-4 w-4 text-red-400 shrink-0" />
+      <XCircle className="h-4 w-4 text-red-400 light:text-red-800 shrink-0" />
       <div>
-        <p className="text-xs font-semibold text-red-300">Failed to load briefing data</p>
+        <p className="text-xs font-semibold text-red-300 light:text-red-800">Failed to load briefing data</p>
         <p className="text-[11px] text-muted-foreground mt-0.5">{message}</p>
       </div>
     </div>
@@ -159,7 +159,7 @@ function ErrorCard({ message }: { message: string }) {
 
 function NewPill() {
   return (
-    <span className="rounded-full bg-violet-500/25 text-violet-300 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide animate-pulse">
+    <span className="rounded-full bg-brand/25 text-brand px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide animate-pulse">
       New
     </span>
   );
@@ -169,7 +169,7 @@ function NewPill() {
 function MoreNotice({ total, shown, noun }: { total: number; shown: number; noun: string }) {
   if (total <= shown) return null;
   return (
-    <p className="text-[11px] text-muted-foreground/60 px-4 pt-1.5">
+    <p className="text-[11px] text-muted-foreground/60 light:text-muted-foreground px-4 pt-1.5">
       + {total - shown} more {noun} not shown
     </p>
   );
@@ -184,14 +184,14 @@ function LiveIndicator({ lastUpdated, loading }: { lastUpdated: Date | null; loa
   return (
     <div className="flex items-center gap-1.5 text-[11px]">
       {loading ? (
-        <Loader2 className="h-3 w-3 animate-spin text-violet-400" />
+        <Loader2 className="h-3 w-3 animate-spin text-brand" />
       ) : (
         <span className="relative flex h-2 w-2">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-50" />
           <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
         </span>
       )}
-      <span className={cn("font-medium", loading ? "text-violet-400" : "text-emerald-400")}>
+      <span className={cn("font-medium", loading ? "text-brand" : "text-emerald-400 light:text-emerald-800")}>
         {loading ? "Checking…" : "Live"}
       </span>
       {lastUpdated && !loading && (
@@ -216,7 +216,7 @@ function Dropdown<T extends string | number>({ value, options, onChange, renderL
           {options.map((o, i) => (
             <button key={i} className={cn(
               "w-full px-3 py-2 text-left text-xs hover:bg-muted whitespace-nowrap",
-              o === value && "text-violet-400 font-medium"
+              o === value && "text-brand font-medium"
             )} onClick={() => { onChange(o); setOpen(false); }}>
               {renderLabel(o)}
             </button>
@@ -234,8 +234,8 @@ function OverviewEventStrip({ events, onMarkRead }: { events: HiveMindEvent[]; o
   if (!unread.length || dismissed) return null;
   const hasCritical = unread.some(e => e.severity === "critical");
   const hasWarning  = unread.some(e => e.severity === "warning");
-  const color = hasCritical ? "border-red-500/30 bg-red-500/[0.05]" : hasWarning ? "border-amber-500/30 bg-amber-500/[0.05]" : "border-violet-500/20 bg-violet-500/[0.04]";
-  const iconColor = hasCritical ? "text-red-400" : hasWarning ? "text-amber-400" : "text-violet-400";
+  const color = hasCritical ? "border-red-500/30 bg-red-500/[0.05]" : hasWarning ? "border-amber-500/30 bg-amber-500/[0.05]" : "border-brand/20 bg-brand/[0.04]";
+  const iconColor = hasCritical ? "text-red-400 light:text-red-800" : hasWarning ? "text-amber-400 light:text-amber-800" : "text-brand";
   return (
     <div className={cn("rounded-xl border px-4 py-3 flex items-start gap-3", color)}>
       <Bell className={cn("h-4 w-4 shrink-0 mt-0.5", iconColor)} />
@@ -426,7 +426,7 @@ function HiveMindOverview() {
           <div className="flex items-center gap-2">
             <Link
               to="/hivemind/chat"
-              className="inline-flex items-center gap-1.5 rounded-md border border-violet-500/30 bg-violet-500/[0.06] px-3 py-1.5 text-xs font-medium text-violet-300 hover:bg-violet-500/15 hover:text-violet-200 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-md border border-brand/30 bg-brand/[0.06] px-3 py-1.5 text-xs font-medium text-brand hover:bg-brand/15 hover:text-violet-200 transition-colors"
             >
               <Brain className="h-3.5 w-3.5" />
               Activate HiveMind
@@ -449,18 +449,18 @@ function HiveMindOverview() {
         {/* EXECUTIVE BRIEFING BANNER */}
         <Link
           to="/hivemind/briefing"
-          className="flex items-center gap-3 rounded-xl border border-violet-500/20 bg-gradient-to-r from-violet-500/[0.07] to-transparent px-4 py-3 hover:from-violet-500/[0.12] transition-all group"
+          className="flex items-center gap-3 rounded-xl border border-brand/20 bg-gradient-to-r from-violet-500/[0.07] to-transparent px-4 py-3 hover:from-violet-500/[0.12] transition-all group"
         >
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/20 ring-1 ring-violet-500/30 shrink-0">
-            <Newspaper className="h-4 w-4 text-violet-400" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand/20 ring-1 ring-brand/30 shrink-0">
+            <Newspaper className="h-4 w-4 text-brand" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-violet-200">Executive Briefing</p>
-            <p className="text-[11px] text-violet-400/60 mt-0.5">
+            <p className="text-xs font-semibold text-brand">Executive Briefing</p>
+            <p className="text-[11px] text-brand mt-0.5">
               Monthly stats · lead velocity · costs · risks · recommendations
             </p>
           </div>
-          <div className="flex items-center gap-1 text-[11px] text-violet-400/60 group-hover:text-violet-300 transition-colors shrink-0">
+          <div className="flex items-center gap-1 text-[11px] text-brand group-hover:text-brand transition-colors shrink-0">
             View briefing
             <ArrowRight className="h-3 w-3" />
           </div>
@@ -469,9 +469,9 @@ function HiveMindOverview() {
         {/* OBSERVE MODE BANNER */}
         {mode === "observe" && (
           <div className="rounded-xl border border-slate-500/20 bg-slate-500/[0.04] px-4 py-3 flex items-start gap-3">
-            <Eye className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
+            <Eye className="h-4 w-4 text-slate-400 light:text-slate-800 shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-slate-300">Observe mode — monitoring only</p>
+              <p className="text-xs font-semibold text-slate-300 light:text-slate-800">Observe mode — monitoring only</p>
               <p className="text-[11px] text-muted-foreground mt-0.5">
                 HiveMind is watching your platform but is not surfacing proactive recommendations.
                 Switch to <strong>Recommend</strong> or <strong>Assistant</strong> mode to see next-step suggestions.
@@ -493,16 +493,16 @@ function HiveMindOverview() {
 
         {/* RECOMMENDED NEXT ACTIONS — always visible when recs exist and not in observe mode */}
         {mode !== "observe" && sysRecs.length > 0 && (
-          <div className="rounded-xl border border-violet-500/15 bg-violet-500/[0.03] overflow-hidden">
+          <div className="rounded-xl border border-brand/15 bg-brand/[0.03] overflow-hidden">
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
               <div className="flex items-center gap-2">
-                <Lightbulb className="h-3.5 w-3.5 text-violet-400" />
+                <Lightbulb className="h-3.5 w-3.5 text-brand" />
                 <span className="text-xs font-semibold">Recommended Next Actions</span>
                 <Count n={sysRecs.length} color="violet" />
               </div>
               <Link
                 to="/hivemind/recommendations"
-                className="text-[11px] text-violet-400/60 hover:text-violet-300 transition-colors"
+                className="text-[11px] text-brand hover:text-brand transition-colors"
               >
                 View all →
               </Link>
@@ -537,7 +537,7 @@ function HiveMindOverview() {
               <div className="px-4 py-2 border-t border-border/60">
                 <Link
                   to="/hivemind/recommendations"
-                  className="text-[11px] text-violet-400/60 hover:text-violet-300 transition-colors"
+                  className="text-[11px] text-brand hover:text-brand transition-colors"
                 >
                   + {sysRecs.length - 5} more recommendation{sysRecs.length - 5 !== 1 ? "s" : ""} →
                 </Link>
@@ -555,7 +555,7 @@ function HiveMindOverview() {
             <div className="flex items-center gap-2 min-w-0">
               <Settings2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               <span className="text-xs font-medium text-muted-foreground shrink-0">What to watch</span>
-              <span className="text-[10px] text-muted-foreground/50 truncate">
+              <span className="text-[10px] text-muted-foreground/50 light:text-muted-foreground truncate">
                 ({[
                   prefs.newLeads     && "Leads",
                   prefs.newBookings  && "Bookings",
@@ -573,7 +573,7 @@ function HiveMindOverview() {
           {configOpen && (
             <div className="border-t border-border px-4 pb-4 pt-3 space-y-3">
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-violet-400/70 mb-2">Business</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-brand mb-2">Business</p>
                 <div className="flex flex-wrap gap-2">
                   <Toggle label="New Leads"        checked={prefs.newLeads}     onChange={() => togglePref("newLeads")}     icon={Users}         color="violet" />
                   <Toggle label="New Bookings"      checked={prefs.newBookings}  onChange={() => togglePref("newBookings")}  icon={CalendarCheck} color="violet" />
@@ -584,7 +584,7 @@ function HiveMindOverview() {
                 </div>
               </div>
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-400/70 mb-2">System</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-400/70 light:text-amber-800 mb-2">System</p>
                 <div className="flex flex-wrap gap-2">
                   <Toggle label="Platform Issues" checked={prefs.systemIssues} onChange={() => togglePref("systemIssues")} icon={AlertTriangle} color="amber" />
                 </div>
@@ -626,7 +626,7 @@ function HiveMindOverview() {
         {/* Initial load */}
         {briefingQ.isLoading && !b && (
           <div className="flex items-center justify-center py-16 gap-2 text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin text-violet-400" />
+            <Loader2 className="h-4 w-4 animate-spin text-brand" />
             <span className="text-sm">Scanning your platform…</span>
           </div>
         )}
@@ -644,14 +644,14 @@ function HiveMindOverview() {
                 <button key={id} onClick={() => setActiveTab(id)} className={cn(
                   "flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 -mb-px transition-colors whitespace-nowrap",
                   activeTab === id
-                    ? color === "violet" ? "border-violet-400 text-foreground" : "border-amber-400 text-foreground"
+                    ? color === "violet" ? "border-brand text-foreground" : "border-amber-400 text-foreground"
                     : "border-transparent text-muted-foreground hover:text-foreground",
                 )}>
                   {label}
                   {cnt > 0 && <Count n={cnt} color={color} />}
                 </button>
               ))}
-              <div className="ml-auto flex items-center gap-1.5 text-[10px] text-muted-foreground/50 py-2 shrink-0">
+              <div className="ml-auto flex items-center gap-1.5 text-[10px] text-muted-foreground/50 light:text-muted-foreground py-2 shrink-0">
                 <Clock className="h-3 w-3" />
                 {lastUpdated ? <RelativeTime date={lastUpdated} short /> : "Checking…"}
               </div>
@@ -664,7 +664,7 @@ function HiveMindOverview() {
                 {/* NEW LEADS */}
                 {prefs.newLeads && (
                   <section>
-                    <SectionHead icon={Users} label={`New Leads (${sinceLabel.toLowerCase()})`} count={b?.newLeads?.length} color="text-violet-400" />
+                    <SectionHead icon={Users} label={`New Leads (${sinceLabel.toLowerCase()})`} count={b?.newLeads?.length} color="text-brand" />
                     {!b?.newLeads?.length ? (
                       <EmptyState icon={Users} text={`No new leads ${sinceLabel.toLowerCase()}`} />
                     ) : (
@@ -673,9 +673,9 @@ function HiveMindOverview() {
                           {b.newLeads.map((lead: any) => (
                             <div key={lead.id} className={cn(
                               "flex items-center gap-3 px-4 py-2.5 hover:bg-muted/25 transition-colors",
-                              newLeadIds.has(lead.id) && "bg-violet-500/[0.06]"
+                              newLeadIds.has(lead.id) && "bg-brand/[0.06]"
                             )}>
-                              <div className="h-7 w-7 rounded-full bg-violet-500/15 flex items-center justify-center shrink-0 text-xs font-bold text-violet-300">
+                              <div className="h-7 w-7 rounded-full bg-brand/15 flex items-center justify-center shrink-0 text-xs font-bold text-brand">
                                 {(lead.name || "?")[0]?.toUpperCase()}
                               </div>
                               <div className="flex-1 min-w-0">
@@ -702,7 +702,7 @@ function HiveMindOverview() {
                 {/* NEW BOOKINGS */}
                 {prefs.newBookings && (
                   <section>
-                    <SectionHead icon={CalendarCheck} label={`New Bookings (${sinceLabel.toLowerCase()})`} count={b?.newBookings?.length} color="text-emerald-400" />
+                    <SectionHead icon={CalendarCheck} label={`New Bookings (${sinceLabel.toLowerCase()})`} count={b?.newBookings?.length} color="text-emerald-400 light:text-emerald-800" />
                     {!b?.newBookings?.length ? (
                       <EmptyState icon={CalendarCheck} text={`No new bookings ${sinceLabel.toLowerCase()}`} />
                     ) : (
@@ -712,7 +712,7 @@ function HiveMindOverview() {
                             <div key={bk.id} className={cn(
                               "rounded-xl border p-3.5 transition-colors",
                               newBookingIds.has(bk.id)
-                                ? "border-violet-500/30 bg-violet-500/[0.07]"
+                                ? "border-brand/30 bg-brand/[0.07]"
                                 : "border-emerald-500/15 bg-emerald-500/[0.03]",
                             )}>
                               <div className="flex items-start justify-between gap-2 mb-1.5">
@@ -722,8 +722,8 @@ function HiveMindOverview() {
                                 </div>
                                 <span className={cn(
                                   "rounded-full px-1.5 py-0.5 text-[10px] font-medium capitalize shrink-0",
-                                  bk.status === "confirmed" ? "bg-emerald-500/15 text-emerald-400" :
-                                  bk.status === "cancelled" ? "bg-red-500/15 text-red-400" :
+                                  bk.status === "confirmed" ? "bg-emerald-500/15 text-emerald-400 light:text-emerald-800" :
+                                  bk.status === "cancelled" ? "bg-red-500/15 text-red-400 light:text-red-800" :
                                   "bg-muted text-muted-foreground"
                                 )}>{bk.status ?? "booked"}</span>
                               </div>
@@ -734,17 +734,17 @@ function HiveMindOverview() {
                                 </p>
                               )}
                               <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
-                                <CalendarCheck className="h-3 w-3 text-emerald-400 shrink-0" />
+                                <CalendarCheck className="h-3 w-3 text-emerald-400 light:text-emerald-800 shrink-0" />
                                 {bk.start_at ? fmtDateTime(bk.start_at) : "Time TBC"}
                               </div>
                               {bk.agent_name && (
                                 <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                                  <Bot className="h-3 w-3 text-violet-400 shrink-0" />
+                                  <Bot className="h-3 w-3 text-brand shrink-0" />
                                   Booked by {bk.agent_name}
                                 </div>
                               )}
                               {bk.notes && (
-                                <p className="text-[11px] text-muted-foreground/70 mt-1.5 italic border-t border-border/60 pt-1.5 line-clamp-2">{bk.notes}</p>
+                                <p className="text-[11px] text-muted-foreground/70 light:text-muted-foreground mt-1.5 italic border-t border-border/60 pt-1.5 line-clamp-2">{bk.notes}</p>
                               )}
                             </div>
                           ))}
@@ -758,7 +758,7 @@ function HiveMindOverview() {
                 {/* STALE PIPELINE */}
                 {prefs.staleClients && (
                   <section>
-                    <SectionHead icon={Timer} label={`Stale Clients (${staleDays}+ days no movement)`} count={visibleStale.length} color="text-amber-400" />
+                    <SectionHead icon={Timer} label={`Stale Clients (${staleDays}+ days no movement)`} count={visibleStale.length} color="text-amber-400 light:text-amber-800" />
                     {!visibleStale.length ? (
                       <EmptyState icon={Timer} text={
                         (b?.staleClients?.length ?? 0) > 0
@@ -770,7 +770,7 @@ function HiveMindOverview() {
                         <div className="rounded-xl border border-amber-500/15 overflow-hidden divide-y divide-white/[0.04]">
                           {visibleStale.map((c: any) => (
                             <div key={c.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/25 group">
-                              <div className="h-7 w-7 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0 text-xs font-bold text-amber-300">
+                              <div className="h-7 w-7 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0 text-xs font-bold text-amber-300 light:text-amber-800">
                                 {(c.name || "?")[0]?.toUpperCase()}
                               </div>
                               <div className="flex-1 min-w-0">
@@ -778,7 +778,7 @@ function HiveMindOverview() {
                                 <p className="text-[11px] text-muted-foreground">{fmtStatus(c.status)}{c.pipeline_stage ? " · " + fmtStatus(c.pipeline_stage) : ""}</p>
                               </div>
                               <div className="text-right shrink-0">
-                                <p className={cn("text-xs font-bold tabular-nums", c.days > staleDays * 2 ? "text-red-400" : "text-amber-400")}>
+                                <p className={cn("text-xs font-bold tabular-nums", c.days > staleDays * 2 ? "text-red-400 light:text-red-800" : "text-amber-400 light:text-amber-800")}>
                                   {c.days}d idle
                                 </p>
                                 <p className="text-[10px] text-muted-foreground">{c.phone ?? c.email ?? ""}</p>
@@ -801,7 +801,7 @@ function HiveMindOverview() {
                         {dismissed && Object.keys(dismissed).length > 0 && (
                           <button
                             onClick={() => { setDismissed({}); saveDismissed({}); }}
-                            className="text-[11px] text-muted-foreground/50 hover:text-muted-foreground mt-1.5 block"
+                            className="text-[11px] text-muted-foreground/50 light:text-muted-foreground hover:text-muted-foreground mt-1.5 block"
                           >
                             Clear all dismissed ({Object.keys(dismissed).length})
                           </button>
@@ -814,7 +814,7 @@ function HiveMindOverview() {
                 {/* PIPELINE ACTIVITY */}
                 {prefs.pipeline && (
                   <section>
-                    <SectionHead icon={Zap} label={`Pipeline Activity (${sinceLabel.toLowerCase()})`} count={b?.recentPipelineChanges?.length} color="text-blue-400" />
+                    <SectionHead icon={Zap} label={`Pipeline Activity (${sinceLabel.toLowerCase()})`} count={b?.recentPipelineChanges?.length} color="text-blue-400 light:text-blue-800" />
                     {!b?.recentPipelineChanges?.length ? (
                       <EmptyState icon={Zap} text={`No pipeline changes ${sinceLabel.toLowerCase()}`} />
                     ) : (
@@ -823,7 +823,7 @@ function HiveMindOverview() {
                           {b.recentPipelineChanges.map((c: any) => (
                             <div key={c.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/25">
                               <div className="h-7 w-7 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0">
-                                <Zap className="h-3.5 w-3.5 text-blue-400" />
+                                <Zap className="h-3.5 w-3.5 text-blue-400 light:text-blue-800" />
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className="text-xs font-semibold">{c.name}</p>
@@ -847,7 +847,7 @@ function HiveMindOverview() {
                 {/* WHATSAPP — Fix #12: show actual message previews */}
                 {prefs.whatsapp && (
                   <section>
-                    <SectionHead icon={MessageSquare} label={`WhatsApp Inbound (${sinceLabel.toLowerCase()})`} count={b?.inboundWA?.length || undefined} color="text-green-400" />
+                    <SectionHead icon={MessageSquare} label={`WhatsApp Inbound (${sinceLabel.toLowerCase()})`} count={b?.inboundWA?.length || undefined} color="text-green-400 light:text-green-800" />
                     {!b?.inboundWA?.length ? (
                       <EmptyState icon={MessageSquare} text={`No new inbound WhatsApp messages ${sinceLabel.toLowerCase()}`} />
                     ) : (
@@ -855,7 +855,7 @@ function HiveMindOverview() {
                         {b.inboundWA.map((m: any) => (
                           <div key={m.id} className="flex items-start gap-3 px-4 py-2.5 hover:bg-muted/25">
                             <div className="h-7 w-7 rounded-full bg-green-500/10 flex items-center justify-center shrink-0">
-                              <MessageSquare className="h-3.5 w-3.5 text-green-400" />
+                              <MessageSquare className="h-3.5 w-3.5 text-green-400 light:text-green-800" />
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="text-xs font-semibold">{m.contact_name ?? m.contact_phone ?? "Unknown"}</p>
@@ -892,7 +892,7 @@ function HiveMindOverview() {
                 {/* EMAIL CAMPAIGNS — Fix #11 */}
                 {prefs.email && (
                   <section>
-                    <SectionHead icon={MailOpen} label={`Email Campaign Activity (${sinceLabel.toLowerCase()})`} count={b?.recentEmailCampaigns?.length} color="text-sky-400" />
+                    <SectionHead icon={MailOpen} label={`Email Campaign Activity (${sinceLabel.toLowerCase()})`} count={b?.recentEmailCampaigns?.length} color="text-sky-400 light:text-sky-800" />
                     {!b?.recentEmailCampaigns?.length ? (
                       <EmptyState icon={MailOpen} text={`No email campaign activity ${sinceLabel.toLowerCase()}`} />
                     ) : (
@@ -900,7 +900,7 @@ function HiveMindOverview() {
                         {b.recentEmailCampaigns.map((c: any) => (
                           <div key={c.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/25">
                             <div className="h-7 w-7 rounded-full bg-sky-500/10 flex items-center justify-center shrink-0">
-                              <MailOpen className="h-3.5 w-3.5 text-sky-400" />
+                              <MailOpen className="h-3.5 w-3.5 text-sky-400 light:text-sky-800" />
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
@@ -923,7 +923,7 @@ function HiveMindOverview() {
                 {businessCount === 0 && !briefingQ.isLoading && (
                   mode !== "observe" && sysRecs.length > 0 ? (
                     <div className="rounded-xl border border-dashed border-border px-4 py-5 text-center space-y-1.5">
-                      <CheckCircle2 className="h-6 w-6 text-emerald-400/50 mx-auto" />
+                      <CheckCircle2 className="h-6 w-6 text-emerald-400/50 light:text-emerald-800 mx-auto" />
                       <p className="text-sm font-semibold">Nothing new in the pipeline {sinceLabel.toLowerCase()}</p>
                       <p className="text-xs text-muted-foreground">
                         {sysRecs.length} recommended action{sysRecs.length !== 1 ? "s" : ""}{" "}
@@ -945,7 +945,7 @@ function HiveMindOverview() {
                   <EmptyState icon={Settings2} text='System Issues are off — enable in "What to watch" above.' />
                 ) : platformQ.isLoading && !sysIssues.length ? (
                   <div className="flex items-center justify-center py-12 gap-2 text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin text-amber-400" />
+                    <Loader2 className="h-4 w-4 animate-spin text-amber-400 light:text-amber-800" />
                     <span className="text-sm">Checking platform…</span>
                   </div>
                 ) : sysIssues.length === 0 ? (
@@ -957,11 +957,11 @@ function HiveMindOverview() {
                         "rounded-xl border px-4 py-3.5 flex items-start gap-3",
                         r.priority === "critical" ? "border-red-500/20 bg-red-500/[0.03]" : "border-amber-500/15 bg-amber-500/[0.03]",
                       )}>
-                        <AlertTriangle className={cn("h-4 w-4 shrink-0 mt-0.5", r.priority === "critical" ? "text-red-400" : "text-amber-400")} />
+                        <AlertTriangle className={cn("h-4 w-4 shrink-0 mt-0.5", r.priority === "critical" ? "text-red-400 light:text-red-800" : "text-amber-400 light:text-amber-800")} />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase",
-                              r.priority === "critical" ? "bg-red-500/15 text-red-400" : "bg-amber-500/15 text-amber-400"
+                              r.priority === "critical" ? "bg-red-500/15 text-red-400 light:text-red-800" : "bg-amber-500/15 text-amber-400 light:text-amber-800"
                             )}>{r.priority}</span>
                             <span className="text-[10px] text-muted-foreground bg-muted rounded px-1.5 py-0.5">{r.category}</span>
                           </div>

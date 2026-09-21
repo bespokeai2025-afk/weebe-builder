@@ -24,10 +24,10 @@ const KB_ICON: Record<string, React.ElementType> = {
   shared:     Globe,
 };
 const KB_ACCENT: Record<string, string> = {
-  hivemind:   "text-violet-400 bg-violet-500/15 ring-violet-500/30",
-  growthmind: "text-emerald-400 bg-emerald-500/15 ring-emerald-500/30",
-  systemmind: "text-sky-400 bg-sky-500/15 ring-sky-500/30",
-  shared:     "text-amber-400 bg-amber-500/15 ring-amber-500/30",
+  hivemind:   "text-violet-400 light:text-violet-800 bg-violet-500/15 ring-violet-500/30",
+  growthmind: "text-emerald-400 light:text-emerald-800 bg-emerald-500/15 ring-emerald-500/30",
+  systemmind: "text-sky-400 light:text-sky-800 bg-sky-500/15 ring-sky-500/30",
+  shared:     "text-amber-400 light:text-amber-800 bg-amber-500/15 ring-amber-500/30",
 };
 // Icon and accent for platform KB slugs (strip the "platform_" prefix for lookup)
 function platformIcon(slug: string): React.ElementType {
@@ -44,10 +44,10 @@ const MIND_LABEL: Record<string, string> = {
   shared:     "Shared",
 };
 const MIND_COLOR: Record<string, string> = {
-  hivemind:   "text-violet-400",
-  growthmind: "text-emerald-400",
-  systemmind: "text-sky-400",
-  shared:     "text-amber-400",
+  hivemind:   "text-violet-400 light:text-violet-800",
+  growthmind: "text-emerald-400 light:text-emerald-800",
+  systemmind: "text-sky-400 light:text-sky-800",
+  shared:     "text-amber-400 light:text-amber-800",
 };
 
 function Stat({
@@ -149,7 +149,7 @@ export function KnowledgeCentreDashboard() {
 
       {/* Seeding banner */}
       {seeding && (
-        <div className="flex items-center gap-2.5 rounded-xl border border-violet-500/20 bg-violet-500/[0.06] px-4 py-3 text-xs text-violet-200">
+        <div className="flex items-center gap-2.5 rounded-xl border border-violet-500/20 bg-violet-500/[0.06] px-4 py-3 text-xs text-violet-200 light:text-violet-800">
           <Sparkles className="h-4 w-4 animate-pulse" />
           <span>
             Preparing starter knowledge — {seeding.total - seeding.remaining}/{seeding.total} ready…
@@ -264,17 +264,17 @@ export function KnowledgeCentreDashboard() {
                     <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground line-clamp-2">{kb.description}</p>
                     <div className="mt-3 flex items-center gap-4 text-[11px] text-muted-foreground">
                       <span>{stat?.documentCount ?? 0} docs</span>
-                      <span className="text-emerald-400/80">{stat?.indexedCount ?? 0} indexed</span>
+                      <span className="text-emerald-400/80 light:text-emerald-800">{stat?.indexedCount ?? 0} indexed</span>
                       {(stat?.pendingCount ?? 0) > 0 && (
-                        <span className="text-amber-400/80">{stat.pendingCount} pending</span>
+                        <span className="text-amber-400/80 light:text-amber-800">{stat.pendingCount} pending</span>
                       )}
                       {(stat?.failedCount ?? 0) > 0 && (
-                        <span className="text-red-400/80">{stat.failedCount} failed</span>
+                        <span className="text-red-400/80 light:text-red-800">{stat.failedCount} failed</span>
                       )}
                       <span className="ml-auto">{stat?.chunkCount ?? 0} chunks</span>
                     </div>
                     {stat?.lastUpload && (
-                      <p className="mt-1 text-[10px] text-muted-foreground/50">
+                      <p className="mt-1 text-[10px] text-muted-foreground/50 light:text-muted-foreground">
                         Last upload {formatRelative(stat.lastUpload)}
                       </p>
                     )}
@@ -287,11 +287,11 @@ export function KnowledgeCentreDashboard() {
           {/* ── Platform Knowledge (Provided by WEBEE) ────────────────── */}
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <ShieldCheck className="h-3.5 w-3.5 text-violet-400" />
+              <ShieldCheck className="h-3.5 w-3.5 text-violet-400 light:text-violet-800" />
               <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                 Platform Knowledge — Provided by WEBEE
               </h2>
-              <span className="ml-auto text-[10px] rounded-full border border-violet-500/30 bg-violet-500/[0.08] px-2 py-0.5 text-violet-300">
+              <span className="ml-auto text-[10px] rounded-full border border-violet-500/30 bg-violet-500/[0.08] px-2 py-0.5 text-violet-300 light:text-violet-800">
                 Read-only
               </span>
             </div>
@@ -318,7 +318,7 @@ export function KnowledgeCentreDashboard() {
                         <div className={cn("flex h-9 w-9 items-center justify-center rounded-lg ring-1", platformAccent(kb.slug))}>
                           <Icon className="h-4 w-4" />
                         </div>
-                        <span className="text-[10px] rounded-full border border-violet-500/30 bg-violet-500/[0.08] px-2 py-0.5 text-violet-300">
+                        <span className="text-[10px] rounded-full border border-violet-500/30 bg-violet-500/[0.08] px-2 py-0.5 text-violet-300 light:text-violet-800">
                           WEBEE
                         </span>
                       </div>
@@ -326,9 +326,9 @@ export function KnowledgeCentreDashboard() {
                       <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground line-clamp-2">{kb.description}</p>
                       <div className="mt-3 flex items-center gap-4 text-[11px] text-muted-foreground">
                         <span>{stat?.docCount ?? 0} docs</span>
-                        <span className="text-emerald-400/80">{stat?.indexed ?? 0} indexed</span>
+                        <span className="text-emerald-400/80 light:text-emerald-800">{stat?.indexed ?? 0} indexed</span>
                         {(stat?.pending ?? 0) > 0 && (
-                          <span className="text-amber-400/80">{stat.pending} pending</span>
+                          <span className="text-amber-400/80 light:text-amber-800">{stat.pending} pending</span>
                         )}
                         <span className="ml-auto">{stat?.chunkCount ?? 0} chunks</span>
                       </div>
@@ -353,7 +353,7 @@ export function KnowledgeCentreDashboard() {
                       {MIND_LABEL[q.mind_type] ?? q.mind_type}
                     </span>
                     <span className="truncate text-muted-foreground">{q.query}</span>
-                    <span className="ml-auto shrink-0 text-muted-foreground/60">{q.matched_count} hits</span>
+                    <span className="ml-auto shrink-0 text-muted-foreground/60 light:text-muted-foreground">{q.matched_count} hits</span>
                   </div>
                 ))}
               </div>

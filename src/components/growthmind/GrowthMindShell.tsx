@@ -68,7 +68,7 @@ function NavItem({ label, href, icon: Icon, highlight, active, badge }: {
 }) {
   return (
     <Link
-      to={href}
+      to={href} aria-current={active ? "page" : undefined}
       className={cn(
         "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors",
         active
@@ -113,9 +113,9 @@ export function GrowthMindShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex h-full min-h-0 w-full">
+    <div className="mind-workspace flex h-full min-h-0 w-full flex-col md:flex-row">
       {/* Left sidebar */}
-      <aside className="hidden md:flex w-56 shrink-0 flex-col border-r border-border bg-[hsl(var(--sidebar-background))] py-4 overflow-y-auto">
+      <aside className="hidden md:flex w-56 shrink-0 flex-col border-r border-border bg-sidebar py-4 overflow-y-auto">
         {/* Brand */}
         <div className="px-4 mb-5">
           <div className="flex items-center gap-2.5">
@@ -143,7 +143,7 @@ export function GrowthMindShell({ children }: { children: React.ReactNode }) {
 
         {/* Strategy nav */}
         <div className="mt-4 px-4 mb-1.5">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/50">Strategy & Campaigns</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/50 light:text-muted-foreground">Strategy & Campaigns</p>
         </div>
         <nav className="flex flex-col gap-0.5 px-2">
           {STRATEGY_NAV.map(item => (
@@ -153,7 +153,7 @@ export function GrowthMindShell({ children }: { children: React.ReactNode }) {
 
         {/* Intelligence nav */}
         <div className="mt-4 px-4 mb-1.5">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/50">Intelligence</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/50 light:text-muted-foreground">Intelligence</p>
         </div>
         <nav className="flex flex-col gap-0.5 px-2 flex-1">
           {INTELLIGENCE_NAV.map(item => (
@@ -187,7 +187,7 @@ export function GrowthMindShell({ children }: { children: React.ReactNode }) {
           const active = isActive(href);
           const isProposals = href === "/growthmind/proposals";
           return (
-            <Link key={href} to={href}
+            <Link key={href} to={href} aria-current={active ? "page" : undefined}
               className={cn(
                 "flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium whitespace-nowrap border-b-2 -mb-px transition-colors shrink-0",
                 active ? "border-brand text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",

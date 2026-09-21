@@ -78,9 +78,9 @@ function fmtDateTime(iso: string) {
   return new Date(iso).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 function statusBadge(status: string) {
-  if (status === "confirmed") return "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30";
-  if (status === "pending")   return "bg-amber-500/15 text-amber-400 ring-amber-500/30";
-  if (status === "cancelled") return "bg-red-500/15 text-red-400 ring-red-500/30";
+  if (status === "confirmed") return "bg-emerald-500/15 text-emerald-400 light:text-emerald-800 ring-emerald-500/30";
+  if (status === "pending")   return "bg-amber-500/15 text-amber-400 light:text-amber-800 ring-amber-500/30";
+  if (status === "cancelled") return "bg-red-500/15 text-red-400 light:text-red-800 ring-red-500/30";
   return "bg-muted text-muted-foreground ring-border";
 }
 
@@ -198,17 +198,17 @@ function BookingDetailDialog({
               </span>
               {/* Appointment type badge */}
               {booking.agent_name ? (
-                <span className="rounded-full px-2 py-0.5 text-[11px] ring-1 bg-blue-500/10 text-blue-400 ring-blue-500/20 flex items-center gap-1">
+                <span className="rounded-full px-2 py-0.5 text-[11px] ring-1 bg-blue-500/10 text-blue-400 light:text-blue-800 ring-blue-500/20 flex items-center gap-1">
                   <Bot className="h-3 w-3" />
                   {booking.agent_name}
                 </span>
               ) : booking.source === "wbah" ? (
-                <span className="rounded-full px-2 py-0.5 text-[11px] ring-1 bg-emerald-500/10 text-emerald-400 ring-emerald-500/20 flex items-center gap-1">
+                <span className="rounded-full px-2 py-0.5 text-[11px] ring-1 bg-emerald-500/10 text-emerald-400 light:text-emerald-800 ring-emerald-500/20 flex items-center gap-1">
                   <CalendarCheck className="h-3 w-3" />
                   Calendly booking
                 </span>
               ) : (
-                <span className="rounded-full px-2 py-0.5 text-[11px] ring-1 bg-slate-500/10 text-slate-400 ring-slate-500/20 flex items-center gap-1">
+                <span className="rounded-full px-2 py-0.5 text-[11px] ring-1 bg-slate-500/10 text-slate-400 light:text-slate-800 ring-slate-500/20 flex items-center gap-1">
                   <PenLine className="h-3 w-3" />
                   Manual booking
                 </span>
@@ -216,7 +216,7 @@ function BookingDetailDialog({
             </div>
             {booking.meeting_url && (
               <a href={booking.meeting_url} target="_blank" rel="noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 hover:underline">
+                className="inline-flex items-center gap-1.5 text-xs text-blue-400 light:text-blue-800 hover:text-blue-300 hover:underline">
                 <ExternalLink className="h-3 w-3" />
                 {booking.source === "wbah" ? "Open Calendly booking" : "Open meeting link"}
               </a>
@@ -277,7 +277,7 @@ function BookingDetailDialog({
               <div className="flex items-center gap-2">
                 {booking.status !== "cancelled" && (
                   <Button size="sm" variant="outline"
-                    className="h-7 text-xs border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                    className="h-7 text-xs border-red-500/30 text-red-400 light:text-red-800 hover:bg-red-500/10 hover:text-red-300"
                     onClick={handleCancel} disabled={cancelling || saving}>
                     {cancelling ? <Loader2 className="mr-1.5 h-3 w-3 animate-spin" /> : <XCircle className="mr-1.5 h-3 w-3" />}
                     {cancelling ? "Cancelling…" : "Cancel Appt"}
@@ -452,10 +452,10 @@ function CalendarPage() {
       <>
       {/* KPI strip */}
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <KpiCard label="Total Bookings" value={bookings.length} icon={CalendarCheck} iconBg="bg-blue-500/15" iconColor="text-blue-400" />
-        <KpiCard label="Upcoming" value={upcoming.length} icon={CalendarDays} iconBg="bg-violet-500/15" iconColor="text-violet-400" />
-        <KpiCard label="Pending" value={pending} icon={Clock} iconBg="bg-amber-500/15" iconColor="text-amber-400" />
-        <KpiCard label="Past" value={past.length} icon={CheckCircle2} iconBg="bg-emerald-500/15" iconColor="text-emerald-400" />
+        <KpiCard label="Total Bookings" value={bookings.length} icon={CalendarCheck} iconBg="bg-blue-500/15" iconColor="text-blue-400 light:text-blue-800" />
+        <KpiCard label="Upcoming" value={upcoming.length} icon={CalendarDays} iconBg="bg-violet-500/15" iconColor="text-violet-400 light:text-violet-800" />
+        <KpiCard label="Pending" value={pending} icon={Clock} iconBg="bg-amber-500/15" iconColor="text-amber-400 light:text-amber-800" />
+        <KpiCard label="Past" value={past.length} icon={CheckCircle2} iconBg="bg-emerald-500/15" iconColor="text-emerald-400 light:text-emerald-800" />
       </div>
 
       {data?.isWbah && allBookings.length === 0 && (
@@ -478,7 +478,7 @@ function CalendarPage() {
                 className={cn(
                   "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ring-1 transition-all",
                   entry.style.bg, entry.style.text, entry.style.ring,
-                  !active && "opacity-35 grayscale",
+                  !active && "bg-muted text-muted-foreground ring-border",
                 )}
               >
                 {entry.isManual
@@ -559,7 +559,7 @@ function CalendarPage() {
                           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); setSelected(d); openDetail(b); } }}
                           className={cn(
                             "w-full truncate rounded px-1 py-[1px] text-[10px] text-left cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-1",
-                            b.status === "cancelled" ? "bg-red-500/15 text-red-400 line-through" : `${style.bg} ${style.text}`,
+                            b.status === "cancelled" ? "bg-red-500/15 text-red-400 light:text-red-800 line-through" : `${style.bg} ${style.text}`,
                           )}
                         >
                           <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", b.status === "cancelled" ? "bg-red-400" : style.dot)} />
@@ -587,9 +587,9 @@ function CalendarPage() {
 
           {dayBookings.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-12 text-center px-6">
-              <CalendarCheck className="h-7 w-7 text-muted-foreground/40" />
+              <CalendarCheck className="h-7 w-7 text-muted-foreground/40 light:text-muted-foreground" />
               <p className="text-sm font-medium text-muted-foreground">No bookings</p>
-              <p className="text-xs text-muted-foreground/60">Nothing scheduled for this day.</p>
+              <p className="text-xs text-muted-foreground/60 light:text-muted-foreground">Nothing scheduled for this day.</p>
             </div>
           ) : (
             <ul className="divide-y divide-white/[0.04]">
@@ -621,14 +621,14 @@ function CalendarPage() {
                             </p>
                           )}
                           {b.notes && (
-                            <p className="mt-1 truncate text-[11px] text-muted-foreground/70 italic">📝 {b.notes}</p>
+                            <p className="mt-1 truncate text-[11px] text-muted-foreground/70 light:text-muted-foreground italic">📝 {b.notes}</p>
                           )}
                         </div>
                         <div className="flex flex-col items-end gap-1 shrink-0">
                           <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 capitalize", statusBadge(b.status))}>
                             {b.status}
                           </span>
-                          <span className="text-[10px] text-muted-foreground/50 group-hover:text-muted-foreground transition-colors">
+                          <span className="text-[10px] text-muted-foreground/50 light:text-muted-foreground group-hover:text-muted-foreground transition-colors">
                             Click for details →
                           </span>
                         </div>

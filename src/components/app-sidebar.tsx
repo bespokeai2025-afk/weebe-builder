@@ -51,6 +51,7 @@ import {
 import {
   DndContext,
   PointerSensor,
+  KeyboardSensor,
   TouchSensor,
   useSensor,
   useSensors,
@@ -64,6 +65,7 @@ import {
   verticalListSortingStrategy,
   useSortable,
   arrayMove,
+  sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { restartTour } from "@/components/onboarding/useOnboarding";
@@ -170,7 +172,7 @@ type NavItem = {
 
 const DEFAULT_NAV_ITEMS: NavItem[] = [
   { title: "Dashboard",   url: "/dashboard",   icon: LayoutDashboard },
-  { title: "HiveMind",    url: "/hivemind",    icon: Brain,      moduleId: "hivemind" },
+  { title: "HiveMind",     url: "/hivemind",    icon: Brain,      moduleId: "hivemind" },
   { title: "GrowthMind",  url: "/growthmind",  icon: TrendingUp, moduleId: "growthmind" },
   { title: "SystemMind",  url: "/systemmind",  icon: Server,     moduleId: "systemmind" },
   { title: "Knowledge Centre", url: "/knowledge-centre", icon: BookOpen },
@@ -199,6 +201,14 @@ const DEFAULT_NAV_ITEMS: NavItem[] = [
   { title: "Reseller Portal", url: "/reseller", icon: Building2 },
 ];
 
+const NAV_GROUPS = [
+  { title: "Overview", urls: ["/dashboard", "/analytics", "/hivemind"] },
+  { title: "Conversations", urls: ["/calls", "/contacts", "/leads", "/qualified", "/calendar", "/pipeline", "/receptionist", "/follow-up"] },
+  { title: "Automation", urls: ["/my-agents", "/builder", "/templates", "/workflow-engine", "/knowledge-centre", "/data", "/leads/webforms"] },
+  { title: "Growth tools", urls: ["/growthmind", "/template-studio", "/hexmail", "/hexmail/deliverability", "/hexmail/domain-warming", "/whatsapp"] },
+  { title: "Workspace", urls: ["/numbers", "/billing", "/reseller", "/systemmind"] },
+];
+const navGroupFor = (url: string) => NAV_GROUPS.find(group => group.urls.includes(url))?.title;
 const STORAGE_KEY = "sidebar-nav-order-v5";
 
 function loadOrder(): NavItem[] {
@@ -264,14 +274,15 @@ function SortableNavItem({
           <button
             {...attributes}
             {...listeners}
-            tabIndex={-1}
-            className="absolute -left-4 flex items-center justify-center opacity-0 group-hover/item:opacity-40 hover:!opacity-80 transition-opacity cursor-grab active:cursor-grabbing"
-            aria-label="Drag to reorder"
+            tabIndex={0}
+            className="absolute -left-4 flex items-center justify-center opacity-0 group-hover/item:opacity-60 focus-visible:opacity-100 hover:!opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+            aria-label={`Reorder ${item.title} within its group`}
           >
             <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
           </button>
           <SidebarMenuButton
             tooltip={item.title}
+            aria-label={`${item.title} — upgrade required`}
             className={buttonClass}
             onClick={() => onLockedClick(item)}
           >
@@ -307,13 +318,13 @@ function SortableNavItem({
         <SidebarMenuButton
           asChild
           tooltip={item.title}
-          className={cn(buttonClass, "cursor-grab active:cursor-grabbing")}
+          className={buttonClass}
         >
           <Link
             to={item.url}
             className="flex items-center gap-3"
-            {...attributes}
-            {...listeners}
+            aria-label={item.title}
+            aria-current={active ? "page" : undefined}
           >
             <item.icon
               className={cn(
@@ -329,15 +340,15 @@ function SortableNavItem({
           <button
             {...attributes}
             {...listeners}
-            tabIndex={-1}
-            className="absolute -left-4 flex items-center justify-center opacity-0 group-hover/item:opacity-40 hover:!opacity-80 transition-opacity cursor-grab active:cursor-grabbing"
-            aria-label="Drag to reorder"
+            tabIndex={0}
+            className="absolute -left-4 flex items-center justify-center opacity-0 group-hover/item:opacity-60 focus-visible:opacity-100 hover:!opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+            aria-label={`Reorder ${item.title} within its group`}
           >
             <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
           </button>
 
           <SidebarMenuButton asChild tooltip={item.title} className={buttonClass}>
-            <Link to={item.url} className="flex items-center gap-3">
+            <Link to={item.url} aria-current={active ? "page" : undefined} className="flex items-center gap-3">
               <item.icon
                 className={cn(
                   "h-[18px] w-[18px] shrink-0 transition-colors",
@@ -377,6 +388,7 @@ export function AppSidebar() {
   const [email, setEmail] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
   const [navItems, setNavItems] = useState<NavItem[]>(DEFAULT_NAV_ITEMS);
+  const [navSearch, setNavSearch] = useState("");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeModules, setActiveModules] = useState<string[]>([]);
   const [upgradeItem, setUpgradeItem] = useState<NavItem | null>(null);
@@ -487,10 +499,10 @@ export function AppSidebar() {
     }
   };
 
-  const isActive = (path: string) =>
-    path === "/builder"
-      ? currentPath.startsWith("/builder")
-      : currentPath === path || currentPath.startsWith(path + "/");
+  const isActive = (path: string) => {
+    const matches = currentPath === path || currentPath.startsWith(path + "/");
+    return matches && !DEFAULT_NAV_ITEMS.some(item => item.url !== path && item.url.startsWith(path + "/") && (currentPath === item.url || currentPath.startsWith(item.url + "/")));
+  };
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -506,23 +518,23 @@ export function AppSidebar() {
 
   const navButtonClasses = (active: boolean) =>
     cn(
-      "group/nav relative h-9 rounded-lg px-2.5 text-sm transition-all duration-200",
+      "group/nav relative h-10 rounded-lg px-2.5 text-sm motion-safe:transition-colors motion-safe:duration-150",
       "text-muted-foreground hover:text-foreground hover:bg-primary/[0.06]",
-      "hover:shadow-[0_0_0_1px_rgba(79,140,255,0.08),0_0_18px_-6px_rgba(79,140,255,0.35)]",
+      "focus-visible:ring-2 focus-visible:ring-brand",
       "group-data-[collapsible=icon]:!h-9 group-data-[collapsible=icon]:!w-9",
       "group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:justify-center",
       "group-data-[collapsible=icon]:mx-auto",
       active && [
-        "text-foreground font-medium bg-primary/[0.08]",
-        "shadow-[inset_0_0_0_1px_rgba(79,140,255,0.14),0_0_22px_-8px_rgba(79,140,255,0.35)]",
+        "text-foreground font-semibold bg-brand/10",
         "before:content-[''] before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2",
-        "before:h-5 before:w-[2px] before:rounded-r-full before:bg-primary",
+        "before:h-5 before:w-[2px] before:rounded-r-full before:bg-brand",
         "group-data-[collapsible=icon]:before:left-[-3px]",
       ],
     );
 
   // ── dnd-kit sensors ────────────────────────────────────────────────────────
   const sensors = useSensors(
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
   );
@@ -533,7 +545,7 @@ export function AppSidebar() {
 
   const handleDragOver = useCallback((e: DragOverEvent) => {
     const { active, over } = e;
-    if (!over || active.id === over.id) return;
+    if (!over || active.id === over.id || navGroupFor(String(active.id)) !== navGroupFor(String(over.id))) return;
     setNavItems((prev) => {
       const fi = prev.findIndex((i) => i.url === active.id);
       const ti = prev.findIndex((i) => i.url === over.id);
@@ -616,39 +628,33 @@ export function AppSidebar() {
         <SidebarGroup>
           {!collapsed && (
             <SidebarGroupLabel className="px-2 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/70">
-              Workspace
+              Navigation
             </SidebarGroupLabel>
           )}
           <SidebarGroupContent>
+            {!collapsed && <input aria-label="Find a page" placeholder="Find a page…" value={navSearch} onChange={e => setNavSearch(e.target.value)} className="mb-4 h-10 w-full rounded-lg border border-input bg-sidebar px-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand" />}
             <DndContext
               sensors={sensors}
               onDragStart={handleDragStart}
               onDragOver={handleDragOver}
               onDragEnd={handleDragEnd}
             >
-              <SortableContext
-                items={navItems.map((i) => i.url)}
-                strategy={verticalListSortingStrategy}
-              >
-                <SidebarMenu className="gap-1 pl-4 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:pl-0">
-                  {navItems.filter((item) => !isRoleHidden(item)).map((item) => {
-                    const isLocked =
-                      (!isAdmin && !!(item.moduleId && !activeModules.includes(item.moduleId))) ||
-                      isPackageLocked(item);
-                    return (
-                      <SortableNavItem
-                        key={item.url}
-                        item={item}
-                        collapsed={collapsed}
-                        active={isActive(item.url)}
-                        buttonClass={navButtonClasses(isActive(item.url))}
-                        isLocked={isLocked}
-                        onLockedClick={handleLockedClick}
-                      />
-                    );
-                  })}
-                </SidebarMenu>
-              </SortableContext>
+              {NAV_GROUPS.map(group => {
+                const items = navItems.filter(item => group.urls.includes(item.url) && !isRoleHidden(item) && (collapsed || item.title.toLowerCase().includes(navSearch.toLowerCase())));
+                if (!items.length) return null;
+                const menu = <SortableContext items={items.map(item => item.url)} strategy={verticalListSortingStrategy}>
+                  <SidebarMenu className="gap-1 pl-4 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:pl-0">
+                    {items.map(item => <SortableNavItem key={item.url} item={item} collapsed={collapsed} active={isActive(item.url)} buttonClass={navButtonClasses(isActive(item.url))}
+                      isLocked={(!isAdmin && !!(item.moduleId && !activeModules.includes(item.moduleId))) || isPackageLocked(item)} onLockedClick={handleLockedClick} />)}
+                  </SidebarMenu>
+                </SortableContext>;
+                return collapsed ? <div key={group.title} className="mb-3 border-b border-sidebar-border pb-3" role="group" aria-label={group.title}>{menu}</div>
+                  : <details key={group.title} open={!!navSearch || group.title === "Overview" || group.title === "Conversations" || items.some(item => isActive(item.url))} className="mb-4">
+                    <summary className="mb-2 cursor-pointer rounded px-2 py-1 text-xs font-semibold text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">{group.title}</summary>
+                    {menu}
+                  </details>;
+              })}
+              {!collapsed && navSearch && !navItems.some(item => !isRoleHidden(item) && item.title.toLowerCase().includes(navSearch.toLowerCase())) && <p role="status" className="px-2 py-4 text-sm text-muted-foreground">No matching pages.</p>}
 
               <DragOverlay dropAnimation={null}>
                 {activeItem ? (

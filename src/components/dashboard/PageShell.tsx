@@ -11,7 +11,7 @@ import {
 /** Shared compact page shell for Calls / Leads / Data dashboard routes */
 export function DashboardPage({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={cn("w-full min-w-0 max-w-full space-y-3 px-3 py-3 text-sm leading-snug sm:px-4", className)}>
+    <div className={cn("crm-page w-full min-w-0 max-w-full space-y-5 px-4 py-5 text-sm leading-snug sm:px-4", className)}>
       {children}
     </div>
   );
@@ -21,7 +21,7 @@ export function DashboardPage({ children, className }: { children: React.ReactNo
 export const stickyHead =
   "sticky z-20 bg-card/95 backdrop-blur-sm after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-muted";
 export const stickyCell =
-  "sticky z-10 bg-card/95 backdrop-blur-sm group-hover:bg-[#141a24] after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-muted";
+  "sticky z-10 bg-card/95 backdrop-blur-sm group-hover:bg-muted after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-muted";
 
 export function PageHeader({
   title,
@@ -40,7 +40,7 @@ export function PageHeader({
     <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-border sm:px-4">
       <div className="flex items-center gap-2.5">
         {Icon && (
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/15 text-primary">
+          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-brand-fill/25 text-brand">
             <Icon className="h-3.5 w-3.5" />
           </div>
         )}
@@ -73,7 +73,7 @@ export function KpiCard({
   hint,
   sparkline,
   size = "sm",
-  iconTone = "custom",
+  iconTone = "brand",
 }: {
   label: string;
   value: string | number;
@@ -93,14 +93,14 @@ export function KpiCard({
    * for the small number of places (e.g. the dashboard's primary KPI row)
    * where the metric itself should be the visual anchor, not a list item. */
   size?: "sm" | "lg";
-  /** "custom" (default, unchanged) uses the passed iconBg/iconColor as-is —
+  /** "custom" uses the passed iconBg/iconColor as-is —
    * every existing consumer keeps its current per-metric decorative colors.
-   * "brand" overrides to the shared WEBEE gold icon treatment (Phase 2A.3),
+   * "brand" (default) overrides to the shared WEBEE gold icon treatment (Phase 2A.3),
    * for the small set of places where the icon is identity/decoration, not
    * a semantic signal — currently only the dashboard's primary KPI row. */
   iconTone?: "custom" | "brand";
 }) {
-  const effectiveIconBg    = iconTone === "brand" ? "bg-brand/15" : iconBg;
+  const effectiveIconBg    = iconTone === "brand" ? "bg-brand-fill/25" : iconBg;
   const effectiveIconColor = iconTone === "brand" ? "text-brand"  : iconColor;
 
   if (size === "lg") {
@@ -109,7 +109,7 @@ export function KpiCard({
     // the icon row and the value block (gap-4 vs gap-3) so the number reads
     // as clearly dominant without bumping any font size.
     return (
-      <div className="hover-elevate flex min-w-0 flex-col gap-4 rounded-xl border border-border bg-card/60 p-5 backdrop-blur">
+      <div className="hover-elevate flex min-w-0 flex-col gap-4 rounded-xl border border-border bg-card p-5 backdrop-blur">
         <div className="flex items-center justify-between">
           <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", effectiveIconBg)}>
             <Icon className={cn("h-4 w-4", effectiveIconColor)} />

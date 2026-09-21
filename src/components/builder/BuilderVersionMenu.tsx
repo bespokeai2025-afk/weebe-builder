@@ -25,14 +25,14 @@ export function BuilderVersionMenu() {
           size="sm"
           variant="ghost"
           title={published ? `Published v${published.version}` : "Versions"}
-          className="!h-8 gap-1 px-2 text-[11px] text-muted-foreground/70 hover:text-foreground"
+          className="!h-8 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
         >
           <History className="h-3.5 w-3.5" />
           {published ? `v${published.version}` : "Draft"}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64">
-        <DropdownMenuLabel className="text-[11px]">Versions</DropdownMenuLabel>
+        <DropdownMenuLabel className="text-label">Versions</DropdownMenuLabel>
         <DropdownMenuItem
           onClick={() => {
             const v = publishFlow();
@@ -57,7 +57,7 @@ export function BuilderVersionMenu() {
         )}
         <DropdownMenuSeparator />
         {(history ?? []).length === 0 ? (
-          <p className="px-2 py-3 text-[11px] text-muted-foreground">No snapshots yet. Save or publish to create one.</p>
+          <p className="px-2 py-3 text-caption text-muted-foreground">No snapshots yet. Save or publish to create one.</p>
         ) : (
           [...(history ?? [])].reverse().map((snap) => (
             <DropdownMenuItem
@@ -74,7 +74,7 @@ export function BuilderVersionMenu() {
                   v{snap.version} · {snap.label}
                   {published?.version === snap.version ? " · live" : ""}
                 </span>
-                <span className="text-[10px] text-muted-foreground">
+                <span className="text-metadata text-muted-foreground">
                   {new Date(snap.createdAt).toLocaleString()}
                 </span>
               </span>

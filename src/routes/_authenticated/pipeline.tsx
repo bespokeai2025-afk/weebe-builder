@@ -217,7 +217,7 @@ function LeadCard({
       {/* Funding (only when not showing sale amount) */}
       {!isSaleDone && funding && (
         <div className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-foreground">
-          <TrendingUp className="h-2.5 w-2.5 text-green-500 shrink-0" />
+          <TrendingUp className="h-2.5 w-2.5 text-green-500 light:text-green-800 shrink-0" />
           {funding}
           <span className="text-muted-foreground font-normal">ask</span>
         </div>
@@ -262,15 +262,15 @@ function LeadCard({
             <span className="text-[9px] text-muted-foreground">{lastContact}</span>
           )}
           {lead.hasNotes && (
-            <StickyNote className="h-3.5 w-3.5 text-amber-500" title="Has notes" />
+            <StickyNote className="h-3.5 w-3.5 text-amber-500 light:text-amber-800" title="Has notes" />
           )}
           {lead.hasBooking && (
-            <CalendarCheck className="h-3.5 w-3.5 text-green-500" title="Appointment booked" />
+            <CalendarCheck className="h-3.5 w-3.5 text-green-500 light:text-green-800" title="Appointment booked" />
           )}
           {lead.hasDocuments && lead.effective_stage === "documentation" ? (
-            <CheckCircle2 className="h-3.5 w-3.5 text-teal-500" title="Client documents received" />
+            <CheckCircle2 className="h-3.5 w-3.5 text-teal-500 light:text-teal-800" title="Client documents received" />
           ) : lead.hasDocuments ? (
-            <FolderOpen className="h-3.5 w-3.5 text-blue-400" title="Has documents" />
+            <FolderOpen className="h-3.5 w-3.5 text-blue-400 light:text-blue-800" title="Has documents" />
           ) : null}
           {onMove && !overlay && (() => {
             const idx = stageOrder.findIndex((s) => s.id === lead.effective_stage);
@@ -389,7 +389,7 @@ function PipelineColumn({
 
         {leads.length === 0 && (
           <div className="flex items-center justify-center h-16">
-            <p className="text-[10px] text-muted-foreground/40">Drop here</p>
+            <p className="text-[10px] text-muted-foreground/40 light:text-muted-foreground">Drop here</p>
           </div>
         )}
       </div>
@@ -428,7 +428,7 @@ function SaleAmountDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-full bg-green-500/15 flex items-center justify-center">
-              <DollarSign className="h-4 w-4 text-green-500" />
+              <DollarSign className="h-4 w-4 text-green-500 light:text-green-800" />
             </div>
             Record Sale Amount
           </DialogTitle>
@@ -501,7 +501,7 @@ function KpiStrip({ leads }: { leads: PipelineLead[] }) {
       value: totalRevenue > 0 ? fmt$Full(totalRevenue) : "—",
       sub:   withAmount.length > 0 ? `${withAmount.length} deal${withAmount.length !== 1 ? "s" : ""} recorded` : "No amounts recorded yet",
       icon:  <DollarSign className="h-4 w-4" />,
-      cls:   "text-green-500",
+      cls:   "text-green-500 light:text-green-800",
       bg:    "bg-green-500/10 border-green-500/20",
     },
     {
@@ -509,7 +509,7 @@ function KpiStrip({ leads }: { leads: PipelineLead[] }) {
       value: saleDoneLeads.length,
       sub:   `${convRate}% conversion rate`,
       icon:  <Trophy className="h-4 w-4" />,
-      cls:   "text-amber-500",
+      cls:   "text-amber-500 light:text-amber-800",
       bg:    "bg-amber-500/10 border-amber-500/20",
     },
     {
@@ -517,7 +517,7 @@ function KpiStrip({ leads }: { leads: PipelineLead[] }) {
       value: avgDeal > 0 ? fmt$Full(avgDeal) : "—",
       sub:   avgDeal > 0 ? "per closed deal" : "Enter amounts to track",
       icon:  <BarChart3 className="h-4 w-4" />,
-      cls:   "text-blue-500",
+      cls:   "text-blue-500 light:text-blue-800",
       bg:    "bg-blue-500/10 border-blue-500/20",
     },
   ];

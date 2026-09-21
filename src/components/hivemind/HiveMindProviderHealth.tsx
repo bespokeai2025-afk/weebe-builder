@@ -27,18 +27,18 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
-  llm:         "text-violet-400",
-  voice:       "text-blue-400",
-  telephony:   "text-emerald-400",
-  whatsapp:    "text-green-400",
-  email:       "text-amber-400",
-  crm:         "text-cyan-400",
-  calendar:    "text-rose-400",
+  llm:         "text-violet-400 light:text-violet-800",
+  voice:       "text-blue-400 light:text-blue-800",
+  telephony:   "text-emerald-400 light:text-emerald-800",
+  whatsapp:    "text-green-400 light:text-green-800",
+  email:       "text-amber-400 light:text-amber-800",
+  crm:         "text-cyan-400 light:text-cyan-800",
+  calendar:    "text-rose-400 light:text-rose-800",
   knowledge:   "text-indigo-400",
-  video:       "text-pink-400",
-  image:       "text-orange-400",
-  analytics:   "text-teal-400",
-  advertising: "text-yellow-400",
+  video:       "text-pink-400 light:text-pink-800",
+  image:       "text-orange-400 light:text-orange-800",
+  analytics:   "text-teal-400 light:text-teal-800",
+  advertising: "text-yellow-400 light:text-yellow-800",
 };
 
 export function HiveMindProviderHealth() {
@@ -62,14 +62,14 @@ export function HiveMindProviderHealth() {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-2">
-          <Zap className="h-4 w-4 text-violet-400" />
+          <Zap className="h-4 w-4 text-violet-400 light:text-violet-800" />
           <h3 className="text-sm font-semibold">Provider Health</h3>
           {isLoading && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
         </div>
         <div className="flex items-center gap-3">
           {data && (
             <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-              <span className="text-emerald-400 font-medium">{totalConnected} connected</span>
+              <span className="text-emerald-400 light:text-emerald-800 font-medium">{totalConnected} connected</span>
               <span>·</span>
               <span>{totalProviders - totalConnected} pending</span>
               {totalSpend > 0 && (
@@ -84,7 +84,7 @@ export function HiveMindProviderHealth() {
               {recentErrors > 0 && (
                 <>
                   <span>·</span>
-                  <span className="text-red-400 flex items-center gap-0.5">
+                  <span className="text-red-400 light:text-red-800 flex items-center gap-0.5">
                     <AlertTriangle className="h-2.5 w-2.5" />
                     {recentErrors} errors
                   </span>
@@ -104,7 +104,7 @@ export function HiveMindProviderHealth() {
 
       {isLoading ? (
         <div className="flex items-center justify-center py-8 gap-2 text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin text-violet-400" />
+          <Loader2 className="h-4 w-4 animate-spin text-violet-400 light:text-violet-800" />
           <span className="text-xs">Loading providers…</span>
         </div>
       ) : (
@@ -130,10 +130,10 @@ export function HiveMindProviderHealth() {
                   <div className="flex items-center gap-1.5 mb-1.5">
                     <Icon className={cn("h-3 w-3 shrink-0", color)} />
                     {allConnected
-                      ? <CheckCircle2 className="h-2.5 w-2.5 text-emerald-400 ml-auto shrink-0" />
+                      ? <CheckCircle2 className="h-2.5 w-2.5 text-emerald-400 light:text-emerald-800 ml-auto shrink-0" />
                       : noneConnected
-                        ? <XCircle className="h-2.5 w-2.5 text-muted-foreground/40 ml-auto shrink-0" />
-                        : <AlertTriangle className="h-2.5 w-2.5 text-amber-400 ml-auto shrink-0" />
+                        ? <XCircle className="h-2.5 w-2.5 text-muted-foreground/40 light:text-muted-foreground ml-auto shrink-0" />
+                        : <AlertTriangle className="h-2.5 w-2.5 text-amber-400 light:text-amber-800 ml-auto shrink-0" />
                     }
                   </div>
                   <p className="text-[10px] font-medium text-foreground capitalize leading-tight">{cat.replace(/_/g, " ")}</p>
@@ -169,7 +169,7 @@ export function HiveMindProviderHealth() {
                       <span className="text-foreground font-medium">{p.label}</span>
                       <div className="flex items-center gap-3 text-muted-foreground">
                         {p.requests > 0 && <span>{p.requests.toLocaleString()} req</span>}
-                        {p.errors > 0 && <span className="text-red-400">{p.errors} err</span>}
+                        {p.errors > 0 && <span className="text-red-400 light:text-red-800">{p.errors} err</span>}
                         <span className="text-foreground font-semibold tabular-nums">${p.totalCostUsd.toFixed(4)}</span>
                       </div>
                     </div>

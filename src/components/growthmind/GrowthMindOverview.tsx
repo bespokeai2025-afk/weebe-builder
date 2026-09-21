@@ -573,7 +573,7 @@ export function GrowthMindOverview() {
                     <Link
                       key={item.href}
                       to={item.href}
-                      className="rounded-lg border border-border bg-muted/40 hover:bg-emerald-500/[0.05] hover:border-emerald-500/20 p-3 transition-all group"
+                      className="rounded-lg border border-border bg-card hover:bg-emerald-500/[0.05] hover:border-emerald-500/20 p-3 transition-all group"
                     >
                       <item.icon className="h-4 w-4 text-emerald-400 mb-2" />
                       <p className="text-xs font-medium leading-snug">{item.label}</p>

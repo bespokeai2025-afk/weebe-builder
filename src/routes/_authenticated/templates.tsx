@@ -477,7 +477,7 @@ function TemplateGrid({
               {t.settings?.voiceProvider === "OPENAI_REALTIME" ? (
                 <Badge
                   variant="outline"
-                  className="shrink-0 border-violet-500/40 bg-violet-500/10 text-violet-300 text-xs gap-1 px-1.5 py-0.5"
+                  className="shrink-0 border-violet-500/40 bg-violet-500/10 text-violet-300 light:text-violet-800 text-xs gap-1 px-1.5 py-0.5"
                 >
                   <Zap className="h-3 w-3" />
                   HyperStream
@@ -485,7 +485,7 @@ function TemplateGrid({
               ) : (
                 <Badge
                   variant="outline"
-                  className="shrink-0 border-sky-500/40 bg-sky-500/10 text-sky-300 text-xs gap-1 px-1.5 py-0.5"
+                  className="shrink-0 border-sky-500/40 bg-sky-500/10 text-sky-300 light:text-sky-800 text-xs gap-1 px-1.5 py-0.5"
                 >
                   <Radio className="h-3 w-3" />
                   OmniVoice

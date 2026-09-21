@@ -92,18 +92,18 @@ function wbahTranscriptLoadable(c: Record<string, unknown>): boolean {
 }
 
 function sentimentClass(v?: string | null) {
-  if (v === "positive") return "bg-emerald-500/15 text-emerald-400";
+  if (v === "positive") return "bg-emerald-500/15 text-emerald-400 light:text-emerald-800";
   if (v === "negative") return "bg-destructive/15 text-destructive";
   if (v === "neutral") return "bg-muted text-muted-foreground";
   return "bg-muted/40 text-muted-foreground";
 }
 
 function statusClass(s?: string | null) {
-  if (s === "completed") return "bg-emerald-500/15 text-emerald-400";
+  if (s === "completed") return "bg-emerald-500/15 text-emerald-400 light:text-emerald-800";
   if (s === "in_progress" || s === "ringing") return "bg-primary/15 text-primary";
   if (s === "failed" || s === "no_answer" || s === "busy")
     return "bg-destructive/15 text-destructive";
-  if (s === "voicemail") return "bg-amber-500/15 text-amber-400";
+  if (s === "voicemail") return "bg-amber-500/15 text-amber-400 light:text-amber-800";
   return "bg-muted text-muted-foreground";
 }
 
@@ -706,14 +706,14 @@ function CallsPage() {
               className={cn(
                 "flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium transition-colors",
                 tab === "test"
-                  ? "bg-violet-500/15 text-violet-300"
+                  ? "bg-violet-500/15 text-violet-300 light:text-violet-800"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
               <FlaskConical className="h-3 w-3" />
               Test Calls
               {testRows.length > 0 && (
-                <span className="rounded-full bg-violet-500/20 px-1.5 py-0.5 text-[9px] font-bold text-violet-300">
+                <span className="rounded-full bg-violet-500/20 px-1.5 py-0.5 text-[9px] font-bold text-violet-300 light:text-violet-800">
                   {testRows.length}
                 </span>
               )}
@@ -740,19 +740,19 @@ function CallsPage() {
         <>
           {/* KPI strip */}
           <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-            <KpiCard label="Total Calls" value={rows.length} icon={Phone} iconBg="bg-blue-500/15" iconColor="text-blue-400" />
-            <KpiCard label="Completed" value={completed} icon={Phone} iconBg="bg-emerald-500/15" iconColor="text-emerald-400" />
-            <KpiCard label="Failed" value={failed} icon={Phone} iconBg="bg-red-500/15" iconColor="text-red-400" />
-            <KpiCard label="Total Talk" value={fmtDuration(totalSec)} icon={Phone} iconBg="bg-violet-500/15" iconColor="text-violet-400" />
+            <KpiCard label="Total Calls" value={rows.length} icon={Phone} iconBg="bg-blue-500/15" iconColor="text-blue-400 light:text-blue-800" />
+            <KpiCard label="Completed" value={completed} icon={Phone} iconBg="bg-emerald-500/15" iconColor="text-emerald-400 light:text-emerald-800" />
+            <KpiCard label="Failed" value={failed} icon={Phone} iconBg="bg-red-500/15" iconColor="text-red-400 light:text-red-800" />
+            <KpiCard label="Total Talk" value={fmtDuration(totalSec)} icon={Phone} iconBg="bg-violet-500/15" iconColor="text-violet-400 light:text-violet-800" />
           </div>
 
           {/* Filter bar */}
-          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+          <div className="crm-filter-bar flex min-w-0 flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-4">
             <Input
               placeholder="Search name or phone…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="h-6 min-w-0 flex-1 basis-28 max-w-[180px] text-[11px] sm:flex-none sm:w-36"
+              className="h-10 min-w-0 w-full sm:w-72 sm:flex-none text-sm"
             />
             <select
               value={statusFilter}
@@ -787,8 +787,9 @@ function CallsPage() {
               <option value="neutral">Neutral</option>
               <option value="negative">Negative</option>
             </select>
-            {(isWbah || wbahAgentOptions.length > 0) && (
+            {(isWbah || workspaceAgents.length === 0) && wbahAgentOptions.length > 0 && (
               <select
+                aria-label="Filter calls by agent name"
                 value={wbahAgentFilter}
                 onChange={(e) => setWbahAgentFilter(e.target.value)}
                 className="h-6 rounded-md border border-border bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
@@ -801,6 +802,7 @@ function CallsPage() {
             )}
             {!isWbah && workspaceAgents.length > 0 && (
               <select
+                aria-label="Filter calls by workspace agent"
                 value={agentFilter}
                 onChange={(e) => setAgentFilter(e.target.value)}
                 className="h-6 rounded-md border border-border bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
@@ -888,7 +890,7 @@ function CallsPage() {
                       "rounded px-2 py-1 text-[10px] font-medium transition-colors whitespace-nowrap",
                       voicemailFilter === opt.value
                         ? opt.value === "only"
-                          ? "bg-amber-500/20 text-amber-300"
+                          ? "bg-amber-500/20 text-amber-300 light:text-amber-800"
                           : "bg-primary/20 text-primary"
                         : "text-muted-foreground hover:text-foreground",
                     )}
@@ -1056,7 +1058,7 @@ function CallsPage() {
                             <td className={cn("px-2 py-0.5 text-[11px] font-medium whitespace-nowrap", isVmMode && "border-l-2 border-l-amber-500/50")}>
                               {contact}
                               {c.is_voicemail && (
-                                <span className="ml-1.5 inline-block rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-400">Voicemail</span>
+                                <span className="ml-1.5 inline-block rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-400 light:text-amber-800">Voicemail</span>
                               )}
                             </td>
                             <td className="px-2 py-0.5">
@@ -1065,10 +1067,10 @@ function CallsPage() {
                                 {inbound ? "Inbound" : "Outbound"}
                               </span>
                               {(c.provider as string | null) === "ELEVENLABS" && (
-                                <span className="ml-1 inline-block rounded-full bg-violet-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-violet-400">VoxStream</span>
+                                <span className="ml-1 inline-block rounded-full bg-violet-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-violet-400 light:text-violet-800">VoxStream</span>
                               )}
                               {(c.to_number as string | null)?.startsWith("web:") && (
-                                <span className="ml-1 inline-block rounded-full bg-sky-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-sky-400">Web</span>
+                                <span className="ml-1 inline-block rounded-full bg-sky-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-sky-400 light:text-sky-800">Web</span>
                               )}
                             </td>
                             <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap">{c.agent_name ?? "—"}</td>
@@ -1108,7 +1110,7 @@ function CallsPage() {
                                   <div className="relative group/callback">
                                     <a
                                       href={`tel:${callbackPhone}`}
-                                      className="inline-flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 transition-colors whitespace-nowrap"
+                                      className="inline-flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium text-amber-400 light:text-amber-800 bg-amber-500/10 hover:bg-amber-500/20 transition-colors whitespace-nowrap"
                                       onClick={(e) => e.stopPropagation()}
                                     >
                                       <PhoneCall className="h-3 w-3" />
@@ -1117,7 +1119,7 @@ function CallsPage() {
                                   </div>
                                 )}
                                 <div className="relative group/notes flex justify-center">
-                                  <button onClick={() => openPanel(c)} className="rounded p-1.5 text-amber-400/60 hover:text-amber-400 hover:bg-amber-500/10 transition-colors">
+                                  <button onClick={() => openPanel(c)} className="rounded p-1.5 text-amber-400/60 light:text-amber-800 hover:text-amber-400 hover:bg-amber-500/10 transition-colors">
                                     <StickyNote className="h-3.5 w-3.5" />
                                   </button>
                                   <span className="pointer-events-none absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-popover border border-border px-2 py-1 text-[10px] text-foreground shadow opacity-0 group-hover/notes:opacity-100 transition-opacity z-50">Notes</span>
@@ -1128,7 +1130,7 @@ function CallsPage() {
                           {transcriptSnippet && (
                             <tr className={cn("border-b border-border/60 bg-amber-500/[0.015]")}>
                               <td colSpan={12} className="border-l-2 border-l-amber-500/50 px-2.5 pb-2 pt-0">
-                                <div className="flex items-start gap-1.5 text-[11px] text-amber-400/70">
+                                <div className="flex items-start gap-1.5 text-[11px] text-amber-400/70 light:text-amber-800">
                                   <MessageSquare className="mt-0.5 h-3 w-3 shrink-0" />
                                   <span className="italic leading-relaxed">{transcriptSnippet}</span>
                                 </div>
@@ -1154,21 +1156,21 @@ function CallsPage() {
               value={testRows.length}
               icon={FlaskConical}
               iconBg="bg-violet-500/15"
-              iconColor="text-violet-400"
+              iconColor="text-violet-400 light:text-violet-800"
             />
             <KpiCard
               label="With Recording"
               value={testRows.filter((r) => r.recording_url).length}
               icon={PlayCircle}
               iconBg="bg-sky-500/15"
-              iconColor="text-sky-400"
+              iconColor="text-sky-400 light:text-sky-800"
             />
             <KpiCard
               label="Total Talk"
               value={fmtDuration(testRows.reduce((a, r) => a + (r.duration_seconds ?? 0), 0))}
               icon={Phone}
               iconBg="bg-emerald-500/15"
-              iconColor="text-emerald-400"
+              iconColor="text-emerald-400 light:text-emerald-800"
             />
           </div>
 

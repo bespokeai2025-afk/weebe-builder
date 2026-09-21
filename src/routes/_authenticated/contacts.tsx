@@ -96,7 +96,7 @@ function ContactDocsDialog({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <FolderOpen className="h-4 w-4 text-blue-400" />
+            <FolderOpen className="h-4 w-4 text-blue-400 light:text-blue-800" />
             Documents — {target?.contactName}
           </DialogTitle>
           <DialogDescription className="sr-only">
@@ -126,11 +126,11 @@ function leadStatusClass(s?: string | null) {
   if (!s) return "bg-muted text-muted-foreground";
   const v = s.toLowerCase();
   if (v === "completed" || v === "answered" || v === "called" || v === "new" || v === "new_lead" || v === "new lead")
-    return "bg-emerald-500/15 text-emerald-400";
+    return "bg-emerald-500/15 text-emerald-400 light:text-emerald-800";
   if (v === "not connected" || v === "not_connected" || v === "failed" || v === "no_answer" || v === "busy" || v === "disqualified" || v === "dis-qualified" || v === "dis_qualified")
     return "bg-destructive/15 text-destructive";
   if (v === "callback" || v === "pending" || v === "tried_to_contact" || v === "tried to contact" || v === "rebooking" || v === "re_booking" || v === "re-booking")
-    return "bg-amber-500/15 text-amber-400";
+    return "bg-amber-500/15 text-amber-400 light:text-amber-800";
   if (v === "in_progress" || v === "ringing")
     return "bg-primary/15 text-primary";
   return "bg-muted text-muted-foreground";
@@ -139,7 +139,7 @@ function leadStatusClass(s?: string | null) {
 function leadSentimentClass(v?: string | null) {
   if (!v || v === "N/A" || v === "n/a") return null;
   const l = v.toLowerCase();
-  if (l === "positive") return "bg-emerald-500/15 text-emerald-400";
+  if (l === "positive") return "bg-emerald-500/15 text-emerald-400 light:text-emerald-800";
   if (l === "negative") return "bg-destructive/15 text-destructive";
   return "bg-muted text-muted-foreground";
 }
@@ -355,10 +355,10 @@ function WbahLeadsSection() {
       {/* KPI strip */}
       {records.length > 0 && (
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4 mb-1">
-          <KpiCard label="Total Leads"     value={records.length}  icon={Phone}         iconBg="bg-blue-500/15"    iconColor="text-blue-400"    />
-          <KpiCard label="Positive"        value={kpiPositive}     icon={TrendingUp}    iconBg="bg-emerald-500/15" iconColor="text-emerald-400" />
-          <KpiCard label="Appointments"    value={kpiAppointed}    icon={Calendar}      iconBg="bg-violet-500/15"  iconColor="text-violet-400"  />
-          <KpiCard label="Bookings"        value={kpiBooked}       icon={CheckCircle2}  iconBg="bg-amber-500/15"   iconColor="text-amber-400"   />
+          <KpiCard label="Total Leads"     value={records.length}  icon={Phone}         iconBg="bg-blue-500/15"    iconColor="text-blue-400 light:text-blue-800"    />
+          <KpiCard label="Positive"        value={kpiPositive}     icon={TrendingUp}    iconBg="bg-emerald-500/15" iconColor="text-emerald-400 light:text-emerald-800" />
+          <KpiCard label="Appointments"    value={kpiAppointed}    icon={Calendar}      iconBg="bg-violet-500/15"  iconColor="text-violet-400 light:text-violet-800"  />
+          <KpiCard label="Bookings"        value={kpiBooked}       icon={CheckCircle2}  iconBg="bg-amber-500/15"   iconColor="text-amber-400 light:text-amber-800"   />
         </div>
       )}
 
@@ -585,7 +585,7 @@ function WbahLeadsSection() {
                     <td className="px-3 py-1.5 text-[11px] text-muted-foreground tabular-nums">{r.srNo ?? idx + 1}</td>
                     <td className="px-3 py-1.5">
                       {(r.callCount ?? 1) > 1 ? (
-                        <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-400 tabular-nums">×{r.callCount}</span>
+                        <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-400 light:text-amber-800 tabular-nums">×{r.callCount}</span>
                       ) : (
                         <span className="text-[11px] text-muted-foreground tabular-nums">1</span>
                       )}
@@ -810,9 +810,9 @@ function ContactsPage() {
           <div className="mb-4 grid grid-cols-3 gap-3">
             <KpiCard label="Total Contacts" value={total} icon={BookUser} />
             <KpiCard label="With Address" value={withAddress} icon={BookUser}
-              iconBg="bg-blue-500/15" iconColor="text-blue-400" />
+              iconBg="bg-blue-500/15" iconColor="text-blue-400 light:text-blue-800" />
             <KpiCard label="With Email" value={withEmail} icon={BookUser}
-              iconBg="bg-violet-500/15" iconColor="text-violet-400" />
+              iconBg="bg-violet-500/15" iconColor="text-violet-400 light:text-violet-800" />
           </div>
 
           {/* Table card */}
@@ -880,21 +880,21 @@ function ContactsPage() {
                         <td className="px-3 py-1.5 text-[11px] text-muted-foreground max-w-[200px]">
                           {r.notes
                             ? <span className="line-clamp-1">{r.notes}</span>
-                            : <span className="text-muted-foreground/40">—</span>}
+                            : <span className="text-muted-foreground/40 light:text-muted-foreground">—</span>}
                         </td>
                         <td className="px-3 py-1.5">
                           <div className="flex items-center gap-1.5">
                             <button
                               onClick={() => openNotes(r)}
                               title="Notes & appointment"
-                              className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-amber-400/80 hover:text-amber-400 hover:bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/40 transition-colors"
+                              className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-amber-400/80 light:text-amber-800 hover:text-amber-400 hover:bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/40 transition-colors"
                             >
                               <StickyNote className="h-3 w-3" />
                             </button>
                             <button
                               onClick={() => openDocs(r)}
                               title="Documents"
-                              className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-blue-400/80 hover:text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 hover:border-blue-500/40 transition-colors"
+                              className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-blue-400/80 light:text-blue-800 hover:text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 hover:border-blue-500/40 transition-colors"
                             >
                               <FolderOpen className="h-3 w-3" />
                             </button>
