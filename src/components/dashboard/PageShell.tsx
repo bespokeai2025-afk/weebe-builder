@@ -19,9 +19,9 @@ export function DashboardPage({ children, className }: { children: React.ReactNo
 
 /** Sticky left columns for wide WBAH tables (layout-only) */
 export const stickyHead =
-  "sticky z-20 bg-card/95 backdrop-blur-sm after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-white/[0.08]";
+  "sticky z-20 bg-card/95 backdrop-blur-sm after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-muted dark:bg-white/[0.08]";
 export const stickyCell =
-  "sticky z-10 bg-card/95 backdrop-blur-sm group-hover:bg-[#141a24] after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-white/[0.06]";
+  "sticky z-10 bg-card/95 backdrop-blur-sm group-hover:bg-[#141a24] after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-muted dark:bg-white/[0.06]";
 
 export function PageHeader({
   title,
@@ -37,7 +37,7 @@ export function PageHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-white/[0.06] sm:px-4">
+    <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-border dark:border-white/[0.06] sm:px-4">
       <div className="flex items-center gap-2.5">
         {Icon && (
           <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/15 text-primary">
@@ -71,6 +71,7 @@ export function KpiCard({
   iconBg = "bg-blue-500/15",
   iconColor = "text-blue-400",
   hint,
+  size = "sm",
 }: {
   label: string;
   value: string | number;
@@ -80,9 +81,36 @@ export function KpiCard({
   iconBg?: string;
   iconColor?: string;
   hint?: string;
+  /** "sm" (default, unchanged) is the compact icon-left row used everywhere
+   * today. "lg" gives the number more room to breathe — for the small
+   * number of places (e.g. a dashboard's primary KPI row) where the metric
+   * itself should read as the page's main content, not a list item. */
+  size?: "sm" | "lg";
 }) {
+  if (size === "lg") {
+    return (
+      <div className="flex min-w-0 flex-col gap-3 rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-4 backdrop-blur">
+        <div className="flex items-center justify-between">
+          <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", iconBg)}>
+            <Icon className={cn("h-4 w-4", iconColor)} />
+          </div>
+          {delta != null && (
+            <span className={cn("text-xs font-semibold shrink-0", deltaUp ? "text-emerald-400" : "text-red-400")}>
+              {delta}
+            </span>
+          )}
+        </div>
+        <div className="min-w-0">
+          <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground">{label}</p>
+          <p className="mt-1.5 text-2xl font-bold leading-none tabular-nums text-foreground">{value}</p>
+          {hint && <p className="mt-1 text-[10px] text-muted-foreground leading-tight">{hint}</p>}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex min-w-0 items-center gap-2 rounded-lg border border-white/[0.06] bg-card/60 px-2.5 py-2 backdrop-blur">
+    <div className="flex min-w-0 items-center gap-2 rounded-lg border border-border dark:border-white/[0.06] bg-card/60 px-2.5 py-2 backdrop-blur">
       <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-md", iconBg)}>
         <Icon className={cn("h-3 w-3", iconColor)} />
       </div>
@@ -113,7 +141,7 @@ export function MiniKpiCard({
   hint?: string;
 }) {
   return (
-    <div className="min-w-0 rounded-lg border border-dashed border-white/[0.08] bg-card/30 px-2.5 py-2">
+    <div className="min-w-0 rounded-lg border border-dashed border-border dark:border-white/[0.08] bg-card/30 px-2.5 py-2">
       <p className="text-[9px] font-medium uppercase tracking-[0.1em] text-muted-foreground">{label}</p>
       <p className="mt-0.5 text-sm font-bold leading-none tabular-nums">{value}</p>
       {hint && <p className="text-[9px] text-muted-foreground mt-0.5 leading-tight">{hint}</p>}
@@ -142,7 +170,7 @@ export function StatCard({
   icon?: React.ComponentType<{ className?: string }>;
 }) {
   return (
-    <div className={cn("relative min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60 p-3 backdrop-blur", toneStyles[tone].split(" ").slice(2).join(" "))}>
+    <div className={cn("relative min-w-0 overflow-hidden rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-3 backdrop-blur", toneStyles[tone].split(" ").slice(2).join(" "))}>
       <div className={cn("absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r", toneStyles[tone].split(" ").slice(0, 2).join(" "))} />
       <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
       <p className="mt-0.5 text-xl font-bold tracking-tight text-foreground tabular-nums">{value}</p>
@@ -153,7 +181,7 @@ export function StatCard({
 
 export function PanelCard({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={cn("min-w-0 rounded-xl border border-white/[0.06] bg-card/50 p-3 backdrop-blur sm:p-4", className)}>
+    <div className={cn("min-w-0 rounded-xl border border-border dark:border-white/[0.06] bg-card/50 p-3 backdrop-blur sm:p-4", className)}>
       {children}
     </div>
   );
@@ -169,7 +197,7 @@ export function EmptyState({
   message: string;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-white/[0.08] bg-card/30 px-6 py-10 text-center">
+    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border dark:border-white/[0.08] bg-card/30 px-6 py-10 text-center">
       <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
         <Icon className="h-4 w-4" />
       </div>
@@ -183,7 +211,7 @@ export function EmptyState({
 export function TableHead({ children }: { children: React.ReactNode }) {
   return (
     <thead>
-      <tr className="border-b border-white/[0.06] bg-card/30">
+      <tr className="border-b border-border dark:border-white/[0.06] bg-card/30">
         {children}
       </tr>
     </thead>
@@ -216,7 +244,7 @@ export function SummaryTooltip({
         </TooltipTrigger>
         <TooltipContent
           side="left"
-          className="max-w-sm rounded-lg border border-white/[0.08] bg-[#111827] p-3 text-xs leading-relaxed text-foreground shadow-2xl"
+          className="max-w-sm rounded-lg border border-border dark:border-white/[0.08] bg-[#111827] p-3 text-xs leading-relaxed text-foreground shadow-2xl"
         >
           <p className="whitespace-pre-wrap">{text}</p>
         </TooltipContent>

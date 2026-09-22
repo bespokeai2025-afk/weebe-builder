@@ -116,9 +116,9 @@ function DashboardPage() {
   return (
     <div className="mx-auto w-full max-w-7xl px-6 py-5">
       {/* Page header */}
-      <div className="mb-5">
-        <h1 className="text-base font-semibold tracking-tight">Dashboard</h1>
-        <p className="text-[11px] text-muted-foreground mt-0.5">Overview of your receptionist activity</p>
+      <div className="mb-6">
+        <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
+        <p className="text-sm text-muted-foreground mt-1">Overview of your receptionist activity</p>
       </div>
 
       {/* Live call banner — only visible when agents are actively on calls */}
@@ -136,11 +136,16 @@ function DashboardPage() {
         </div>
       )}
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 mb-3">
+      {/* KPI cards — "lg" size gives these primary business metrics real
+          visual weight, so they read as the page's main content rather
+          than list items (contrast with the WBAH breakdown below, which
+          stays the compact "sm" default since it's a secondary detail
+          view of the same numbers). */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 mb-8">
         {kpis.map((kpi) => (
           <KpiCard
             key={kpi.title}
+            size="lg"
             label={kpi.title}
             value={kpi.value}
             icon={kpi.icon}
@@ -153,7 +158,7 @@ function DashboardPage() {
 
       {/* WBAH CRM lead breakdown */}
       {!isLoading && data?.isWbah && data?.wbahBreakdown && (
-        <div className="mb-5">
+        <div className="mb-8">
           <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
             CRM Lead Breakdown
           </p>
@@ -211,7 +216,7 @@ function DashboardPage() {
 
       {/* Agents */}
       {(agentsQ.isLoading || agents.length > 0) && (
-        <div className="mb-5">
+        <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
               Agents
@@ -233,7 +238,7 @@ function DashboardPage() {
                   className={`flex items-center gap-3 rounded-xl border px-4 py-2.5 transition-colors ${
                     agent.isLive
                       ? "border-emerald-500/20 bg-emerald-500/5"
-                      : "border-white/[0.06] bg-card/60"
+                      : "border-border dark:border-white/[0.06] bg-card/60"
                   }`}
                 >
                   <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
@@ -279,8 +284,8 @@ function DashboardPage() {
 
       {/* Recent leads — hidden for WBAH (summaries managed separately) */}
       {!data?.isWbah && data?.recentLeads && data.recentLeads.length > 0 && (
-        <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden mb-4">
-          <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06]">
+        <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 overflow-hidden mb-4">
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-border dark:border-white/[0.06]">
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               Recent Leads
             </p>
@@ -292,7 +297,7 @@ function DashboardPage() {
           </div>
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-white/[0.04]">
+              <tr className="border-b border-border/60 dark:border-white/[0.04]">
                 <th className="px-4 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
                 <th className="px-4 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Phone</th>
                 <th className="px-4 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
@@ -300,7 +305,7 @@ function DashboardPage() {
             </thead>
             <tbody>
               {data.recentLeads.map((lead: any) => (
-                <tr key={lead.id} className="h-11 border-b border-white/[0.03] last:border-0 hover:bg-white/[0.02] transition-colors">
+                <tr key={lead.id} className="h-11 border-b border-border/50 dark:border-white/[0.03] last:border-0 hover:bg-muted/40 dark:hover:bg-white/[0.02] transition-colors">
                   <td className="px-4 py-2.5 font-medium text-sm">{lead.full_name?.trim() || "—"}</td>
                   <td className="px-4 py-2.5 text-xs text-muted-foreground font-mono">{lead.phone || "—"}</td>
                   <td className="px-4 py-2.5">
