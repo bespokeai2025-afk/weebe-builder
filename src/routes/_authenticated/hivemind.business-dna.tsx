@@ -29,7 +29,7 @@ function ConfidenceBar({ score, source }: { score: number; source?: string }) {
 
   return (
     <div className="flex items-center gap-2 min-w-0">
-      <div className="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden" style={{ minWidth: 60 }}>
+      <div className="flex-1 h-1.5 rounded-full bg-muted dark:bg-white/[0.06] overflow-hidden" style={{ minWidth: 60 }}>
         <div className={cn("h-full rounded-full transition-all", color)} style={{ width: `${pct}%` }} />
       </div>
       <span className={cn("text-[10px] font-medium shrink-0", pct >= 80 ? "text-emerald-400" : pct >= 50 ? "text-amber-400" : "text-muted-foreground/60")}>
@@ -69,7 +69,7 @@ function DnaField({
   }
 
   return (
-    <div className="group border border-white/[0.06] rounded-xl bg-white/[0.02] p-3 hover:bg-white/[0.035] transition-colors">
+    <div className="group border border-border dark:border-white/[0.06] rounded-xl bg-muted/40 dark:bg-white/[0.02] p-3 hover:bg-muted/60 dark:hover:bg-white/[0.035] transition-colors">
       <div className="flex items-start justify-between gap-2 mb-1.5">
         <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">{label}</p>
         <div className="flex items-center gap-1.5 shrink-0">
@@ -81,7 +81,7 @@ function DnaField({
           {!editing && (
             <button
               onClick={startEdit}
-              className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-white/[0.08]"
+              className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted dark:hover:bg-white/[0.08]"
             >
               <Edit3 className="h-3 w-3 text-muted-foreground/60" />
             </button>
@@ -94,7 +94,7 @@ function DnaField({
           {multiline ? (
             <textarea
               autoFocus
-              className="w-full bg-white/[0.04] border border-violet-500/30 rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-violet-500/60 resize-none"
+              className="w-full bg-muted dark:bg-white/[0.04] border border-violet-500/30 rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-violet-500/60 resize-none"
               rows={3}
               value={draft}
               onChange={e => setDraft(e.target.value)}
@@ -103,7 +103,7 @@ function DnaField({
             <input
               autoFocus
               type={numeric ? "number" : "text"}
-              className="w-full bg-white/[0.04] border border-violet-500/30 rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-violet-500/60"
+              className="w-full bg-muted dark:bg-white/[0.04] border border-violet-500/30 rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-violet-500/60"
               value={draft}
               onChange={e => setDraft(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter") commitSave(); if (e.key === "Escape") setEditing(false); }}
@@ -141,10 +141,10 @@ function DnaSection({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="rounded-2xl border border-white/[0.07] bg-[hsl(var(--card))] overflow-hidden">
+    <div className="rounded-2xl border border-border dark:border-white/[0.07] bg-[hsl(var(--card))] overflow-hidden">
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-3 px-5 py-4 hover:bg-white/[0.02] transition-colors"
+        className="w-full flex items-center gap-3 px-5 py-4 hover:bg-muted/40 dark:hover:bg-white/[0.02] transition-colors"
       >
         <div className={cn("flex h-7 w-7 items-center justify-center rounded-lg shrink-0", color)}>
           <Icon className="h-3.5 w-3.5" />
@@ -299,7 +299,7 @@ function BusinessDnaPage() {
         )}
 
         {/* Stats row */}
-        <div className="flex items-center gap-6 rounded-2xl border border-white/[0.07] bg-[hsl(var(--card))] px-6 py-5">
+        <div className="flex items-center gap-6 rounded-2xl border border-border dark:border-white/[0.07] bg-[hsl(var(--card))] px-6 py-5">
           <CompletenessRing pct={pct} grade={grade} />
           <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div>

@@ -455,7 +455,7 @@ function VoiceSettingsPanel({ settings, onChange, onClose, voices }: {
   voices:   { id: string; name: string; category: string }[];
 }) {
   return (
-    <div className="border-b border-white/[0.07] bg-[hsl(var(--card))] px-5 py-4 space-y-4">
+    <div className="border-b border-border dark:border-white/[0.07] bg-[hsl(var(--card))] px-5 py-4 space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.1em]">Voice Settings</p>
         <button onClick={onClose} className="p-1 rounded text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
@@ -476,7 +476,7 @@ function VoiceSettingsPanel({ settings, onChange, onClose, voices }: {
                     "text-left px-2.5 py-1.5 rounded-lg border text-xs transition-all",
                     settings.voiceId === v.id
                       ? "border-violet-500/40 bg-violet-500/15 text-violet-300"
-                      : "border-white/[0.08] bg-white/[0.02] text-muted-foreground hover:text-foreground",
+                      : "border-border dark:border-white/[0.08] bg-muted/40 dark:bg-white/[0.02] text-muted-foreground hover:text-foreground",
                   )}
                 >
                   <p className="font-medium truncate">{v.name}</p>
@@ -497,7 +497,7 @@ function VoiceSettingsPanel({ settings, onChange, onClose, voices }: {
           {SPEED_OPTIONS.map(s => (
             <button key={s} onClick={() => onChange({ ...settings, speed: s })} className={cn(
               "flex-1 py-1 rounded-md border text-xs transition-all",
-              settings.speed === s ? "border-violet-500/40 bg-violet-500/15 text-violet-300" : "border-white/[0.08] text-muted-foreground hover:text-foreground",
+              settings.speed === s ? "border-violet-500/40 bg-violet-500/15 text-violet-300" : "border-border dark:border-white/[0.08] text-muted-foreground hover:text-foreground",
             )}>{s}×</button>
           ))}
         </div>
@@ -510,21 +510,21 @@ function VoiceSettingsPanel({ settings, onChange, onClose, voices }: {
           {PERSONALITIES.map(p => (
             <button key={p} onClick={() => onChange({ ...settings, personality: p })} className={cn(
               "flex-1 py-1.5 rounded-lg border text-xs capitalize transition-all",
-              settings.personality === p ? "border-violet-500/40 bg-violet-500/15 text-violet-300" : "border-white/[0.08] text-muted-foreground hover:text-foreground",
+              settings.personality === p ? "border-violet-500/40 bg-violet-500/15 text-violet-300" : "border-border dark:border-white/[0.08] text-muted-foreground hover:text-foreground",
             )}>{p}</button>
           ))}
         </div>
       </div>
 
       {/* Auto-play toggle */}
-      <div className="flex items-center justify-between pt-1 border-t border-white/[0.05]">
+      <div className="flex items-center justify-between pt-1 border-t border-border dark:border-white/[0.05]">
         <div>
           <p className="text-xs font-medium">Auto-play responses</p>
           <p className="text-[11px] text-muted-foreground">Speak each reply automatically</p>
         </div>
         <button
           onClick={() => onChange({ ...settings, autoPlay: !settings.autoPlay })}
-          className={cn("w-9 h-5 rounded-full relative transition-all", settings.autoPlay ? "bg-violet-500" : "bg-white/[0.1]")}
+          className={cn("w-9 h-5 rounded-full relative transition-all", settings.autoPlay ? "bg-violet-500" : "bg-muted dark:bg-white/[0.1]")}
         >
           <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all", settings.autoPlay ? "left-[18px]" : "left-0.5")} />
         </button>
@@ -538,9 +538,9 @@ function HintPanel({ onSelect, onClose }: { onSelect: (q: string) => void; onClo
   const [activeIdx, setActiveIdx] = useState(0);
   const group = HINT_GROUPS[activeIdx];
   return (
-    <div className="border-t border-white/[0.07] bg-[hsl(var(--background))] flex flex-col max-h-72">
+    <div className="border-t border-border dark:border-white/[0.07] bg-[hsl(var(--background))] flex flex-col max-h-72">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-white/[0.05] shrink-0">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border dark:border-white/[0.05] shrink-0">
         <div className="flex items-center gap-1.5">
           <Lightbulb className="h-3.5 w-3.5 text-violet-400" />
           <span className="text-[11px] font-semibold text-violet-300">Suggested Questions</span>
@@ -550,7 +550,7 @@ function HintPanel({ onSelect, onClose }: { onSelect: (q: string) => void; onClo
         </button>
       </div>
       {/* Category tabs */}
-      <div className="flex overflow-x-auto gap-1 px-3 py-1.5 border-b border-white/[0.04] shrink-0 scrollbar-none" style={{ scrollbarWidth: "none" }}>
+      <div className="flex overflow-x-auto gap-1 px-3 py-1.5 border-b border-border/60 dark:border-white/[0.04] shrink-0 scrollbar-none" style={{ scrollbarWidth: "none" }}>
         {HINT_GROUPS.map((g, i) => (
           <button
             key={g.label}
@@ -572,7 +572,7 @@ function HintPanel({ onSelect, onClose }: { onSelect: (q: string) => void; onClo
           <button
             key={q}
             onClick={() => { onSelect(q); onClose(); }}
-            className="text-left rounded-lg border border-white/[0.06] bg-white/[0.02] hover:bg-violet-500/[0.08] hover:border-violet-500/20 px-3 py-2 transition-all group"
+            className="text-left rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] hover:bg-violet-500/[0.08] hover:border-violet-500/20 px-3 py-2 transition-all group"
           >
             <p className="text-xs font-medium group-hover:text-violet-300 transition-colors">{q}</p>
             <p className="text-[11px] text-muted-foreground mt-0.5">{desc}</p>
@@ -591,7 +591,7 @@ function stepDot(status: string) {
   if (status === "running") return <Loader2 className="h-3 w-3 text-violet-400 animate-spin shrink-0" />;
   if (status === "failed")  return <AlertTriangle className="h-3 w-3 text-red-400 shrink-0" />;
   if (status === "blocked") return <AlertTriangle className="h-3 w-3 text-amber-400 shrink-0" />;
-  return <span className="h-3 w-3 rounded-full border border-white/20 shrink-0" />;
+  return <span className="h-3 w-3 rounded-full border border-border dark:border-white/20 shrink-0" />;
 }
 
 function WorkOrderProposalCard({ wo }: { wo: WorkOrderProposal }) {
@@ -707,7 +707,7 @@ function WorkOrderProposalCard({ wo }: { wo: WorkOrderProposal }) {
       )}
 
       {linkedAction && (
-        <div className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-2 space-y-1.5">
+        <div className="rounded-lg border border-border dark:border-white/[0.08] bg-muted/60 dark:bg-white/[0.03] px-2.5 py-2 space-y-1.5">
           <p className="text-[11px] text-foreground/90 flex items-center gap-1.5">
             <ShieldCheck className="h-3.5 w-3.5 text-amber-400 shrink-0" />
             {linkedAction.title}
@@ -755,7 +755,7 @@ function MessageBubble({ msg, onPlay, onStop, isPlaying, ttsLoading }: {
     <div className={cn("flex gap-2.5 max-w-[85%]", isHive ? "self-start" : "self-end flex-row-reverse")}>
       <div className={cn(
         "h-7 w-7 shrink-0 rounded-full flex items-center justify-center mt-0.5",
-        isHive ? "bg-violet-500/20 ring-1 ring-violet-500/30" : "bg-white/[0.08]",
+        isHive ? "bg-violet-500/20 ring-1 ring-violet-500/30" : "bg-muted dark:bg-white/[0.08]",
       )}>
         {isHive ? <Brain className="h-3.5 w-3.5 text-violet-400" /> : <User className="h-3.5 w-3.5 text-muted-foreground" />}
       </div>
@@ -763,7 +763,7 @@ function MessageBubble({ msg, onPlay, onStop, isPlaying, ttsLoading }: {
       <div className={cn("flex flex-col gap-0.5", isHive ? "items-start" : "items-end")}>
         <div className={cn(
           "rounded-xl px-3.5 py-2.5",
-          isHive ? "bg-violet-500/[0.08] border border-violet-500/15" : "bg-white/[0.07] border border-white/[0.08]",
+          isHive ? "bg-violet-500/[0.08] border border-violet-500/15" : "bg-muted dark:bg-white/[0.07] border border-border dark:border-white/[0.08]",
         )}>
           {isEmpty
             ? <div className="flex gap-1 items-center py-1">
@@ -1049,7 +1049,7 @@ function HiveMindChat() {
   return (
     <HiveMindShell>
       {/* ── STICKY HEADER ── */}
-      <div className="sticky top-0 z-20 border-b border-white/[0.07] bg-[hsl(var(--background))]/95 backdrop-blur-sm px-5 py-3 flex items-center gap-3">
+      <div className="sticky top-0 z-20 border-b border-border dark:border-white/[0.07] bg-[hsl(var(--background))]/95 backdrop-blur-sm px-5 py-3 flex items-center gap-3">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/20 ring-1 ring-violet-500/30 shrink-0">
           <Brain className="h-4 w-4 text-violet-400" />
         </div>
@@ -1068,7 +1068,7 @@ function HiveMindChat() {
             "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium border transition-all",
             liveActive
               ? "bg-red-500/15 text-red-400 border-red-500/30 hover:bg-red-500/20"
-              : "bg-white/[0.04] text-muted-foreground border-white/[0.08] hover:text-foreground",
+              : "bg-muted dark:bg-white/[0.04] text-muted-foreground border-border dark:border-white/[0.08] hover:text-foreground",
           )}
         >
           {connecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Radio className="h-3.5 w-3.5" />}
@@ -1077,7 +1077,7 @@ function HiveMindChat() {
 
         <button
           onClick={() => setSettingsOpen(p => !p)}
-          className={cn("p-1.5 rounded-lg transition-colors", settingsOpen ? "bg-white/[0.06] text-violet-400" : "hover:bg-white/[0.06] text-muted-foreground")}
+          className={cn("p-1.5 rounded-lg transition-colors", settingsOpen ? "bg-muted dark:bg-white/[0.06] text-violet-400" : "hover:bg-muted dark:hover:bg-white/[0.06] text-muted-foreground")}
         >
           <Settings2 className="h-4 w-4" />
         </button>
@@ -1148,7 +1148,7 @@ function HiveMindChat() {
         {mode === "live" && (
           <div className={cn(
             "ml-9 rounded-xl border px-4 py-3 flex items-center gap-3",
-            liveActive ? "border-red-500/20 bg-red-500/[0.04]" : "border-white/[0.07] bg-white/[0.02]",
+            liveActive ? "border-red-500/20 bg-red-500/[0.04]" : "border-border dark:border-white/[0.07] bg-muted/40 dark:bg-white/[0.02]",
           )}>
             {liveActive ? (
               <>
@@ -1187,7 +1187,7 @@ function HiveMindChat() {
             />
           )}
 
-          <div className="border-t border-white/[0.07] px-4 py-3">
+          <div className="border-t border-border dark:border-white/[0.07] px-4 py-3">
             <div className="flex items-end gap-2">
               {/* Mic */}
               <button
@@ -1197,7 +1197,7 @@ function HiveMindChat() {
                   "h-9 w-9 rounded-xl border flex items-center justify-center shrink-0 transition-all",
                   isRecording
                     ? "bg-red-500/20 border-red-500/40 text-red-400 animate-pulse"
-                    : "border-white/[0.08] bg-white/[0.03] text-muted-foreground hover:text-foreground hover:bg-white/[0.06]",
+                    : "border-border dark:border-white/[0.08] bg-muted/60 dark:bg-white/[0.03] text-muted-foreground hover:text-foreground hover:bg-muted dark:hover:bg-white/[0.06]",
                 )}
               >
                 {isRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
@@ -1211,7 +1211,7 @@ function HiveMindChat() {
                 placeholder={isRecording ? "Listening…" : "Ask HiveMind anything…"}
                 rows={1}
                 disabled={isThinking}
-                className="flex-1 resize-none rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-violet-500/40 focus:ring-1 focus:ring-violet-500/20 disabled:opacity-60 max-h-32 leading-relaxed"
+                className="flex-1 resize-none rounded-xl border border-border dark:border-white/[0.08] bg-muted dark:bg-white/[0.04] px-3.5 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-violet-500/40 focus:ring-1 focus:ring-violet-500/20 disabled:opacity-60 max-h-32 leading-relaxed"
                 style={{ scrollbarWidth: "none" }}
               />
 
@@ -1223,7 +1223,7 @@ function HiveMindChat() {
                   "h-9 w-9 rounded-xl border flex items-center justify-center shrink-0 transition-all",
                   hintsOpen
                     ? "border-violet-500/40 bg-violet-500/15 text-violet-400"
-                    : "border-white/[0.08] bg-white/[0.03] text-muted-foreground hover:text-foreground hover:bg-white/[0.06]",
+                    : "border-border dark:border-white/[0.08] bg-muted/60 dark:bg-white/[0.03] text-muted-foreground hover:text-foreground hover:bg-muted dark:hover:bg-white/[0.06]",
                 )}
               >
                 <Lightbulb className="h-4 w-4" />

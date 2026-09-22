@@ -105,7 +105,7 @@ function ExecStatusChip({ status }: { status?: string | null }) {
   return (
     <span className={cn(
       "inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ring-1",
-      EXEC_STATUS_STYLES[status] ?? "bg-white/[0.06] text-muted-foreground ring-white/[0.1]",
+      EXEC_STATUS_STYLES[status] ?? "bg-muted dark:bg-white/[0.06] text-muted-foreground ring-border dark:ring-white/[0.1]",
     )}>
       {label}
     </span>
@@ -197,7 +197,7 @@ function EventStrip({ events, onMarkRead }: { events: HiveMindEvent[]; onMarkRea
   const [dismissed, setDismissed] = useState(false);
   if (!unread.length || dismissed) return null;
   return (
-    <div className="border-b border-white/[0.06] bg-[hsl(var(--card))] px-5 py-3 space-y-2">
+    <div className="border-b border-border dark:border-white/[0.06] bg-[hsl(var(--card))] px-5 py-3 space-y-2">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Bell className="h-3.5 w-3.5 text-violet-400" />
@@ -318,8 +318,8 @@ function TaskCard({
     <div className={cn(
       "rounded-xl border transition-all",
       task.status === "completed"
-        ? "bg-white/[0.01] border-white/[0.05] opacity-60"
-        : "bg-[hsl(var(--card))] border-white/[0.08]",
+        ? "bg-muted/20 dark:bg-white/[0.01] border-border dark:border-white/[0.05] opacity-60"
+        : "bg-[hsl(var(--card))] border-border dark:border-white/[0.08]",
     )}>
       {/* Card header */}
       <div className="px-4 py-3 flex items-start gap-3">
@@ -335,7 +335,7 @@ function TaskCard({
                 onChange={e => setTitleVal(e.target.value)}
                 onBlur={saveTitle}
                 onKeyDown={e => e.key === "Enter" && saveTitle()}
-                className="flex-1 bg-white/[0.06] border border-white/[0.12] rounded px-2 py-1 text-xs focus:outline-none focus:border-violet-500/40"
+                className="flex-1 bg-muted dark:bg-white/[0.06] border border-border dark:border-white/[0.12] rounded px-2 py-1 text-xs focus:outline-none focus:border-violet-500/40"
               />
             </div>
           ) : (
@@ -351,7 +351,7 @@ function TaskCard({
               {p.label}
             </span>
             {task.trigger_type && (
-              <span className="text-[10px] text-muted-foreground/60 bg-white/[0.04] rounded-full px-1.5 py-0.5">
+              <span className="text-[10px] text-muted-foreground/60 bg-muted dark:bg-white/[0.04] rounded-full px-1.5 py-0.5">
                 {TRIGGER_LABELS[task.trigger_type] ?? task.trigger_type}
               </span>
             )}
@@ -416,7 +416,7 @@ function TaskCard({
             <button
               onClick={() => onAcknowledge(task.id)}
               disabled={isMutating}
-              className="flex items-center gap-1 rounded-lg border border-white/[0.1] bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-all disabled:opacity-40"
+              className="flex items-center gap-1 rounded-lg border border-border dark:border-white/[0.1] bg-muted dark:bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-all disabled:opacity-40"
             >
               <Check className="h-3 w-3" />
               Acknowledge
@@ -434,7 +434,7 @@ function TaskCard({
           )}
           <button
             onClick={() => setOpen(o => !o)}
-            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/[0.04] transition-colors"
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted dark:hover:bg-white/[0.04] transition-colors"
           >
             {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
           </button>
@@ -443,7 +443,7 @@ function TaskCard({
 
       {/* Expanded detail */}
       {open && (
-        <div className="border-t border-white/[0.06] px-4 py-3 space-y-4">
+        <div className="border-t border-border dark:border-white/[0.06] px-4 py-3 space-y-4">
           {/* Description */}
           {task.description && (
             <p className="text-xs text-muted-foreground leading-relaxed">{task.description}</p>
@@ -474,7 +474,7 @@ function TaskCard({
             <div className="flex flex-wrap gap-2">
               {Object.entries(task.metadata).map(([k, v]) =>
                 typeof v !== "object" ? (
-                  <span key={k} className="text-[11px] bg-white/[0.04] rounded px-2 py-0.5 text-muted-foreground">
+                  <span key={k} className="text-[11px] bg-muted dark:bg-white/[0.04] rounded px-2 py-0.5 text-muted-foreground">
                     <span className="capitalize">{k.replace(/_/g," ")}</span>: <span className="text-foreground font-medium">{String(v)}</span>
                   </span>
                 ) : null
@@ -493,7 +493,7 @@ function TaskCard({
                     value={assignVal}
                     onChange={e => setAssignVal(e.target.value)}
                     placeholder="Name or email"
-                    className="flex-1 bg-white/[0.06] border border-white/[0.12] rounded px-2 py-1 text-xs focus:outline-none focus:border-violet-500/40"
+                    className="flex-1 bg-muted dark:bg-white/[0.06] border border-border dark:border-white/[0.12] rounded px-2 py-1 text-xs focus:outline-none focus:border-violet-500/40"
                     onKeyDown={e => e.key === "Enter" && saveAssign()}
                   />
                   <button onClick={saveAssign} className="px-2 py-1 rounded bg-violet-500/20 text-violet-400 text-xs hover:bg-violet-500/30">Save</button>
@@ -514,7 +514,7 @@ function TaskCard({
                     type="date"
                     value={dueVal}
                     onChange={e => setDueVal(e.target.value)}
-                    className="flex-1 bg-white/[0.06] border border-white/[0.12] rounded px-2 py-1 text-xs focus:outline-none focus:border-violet-500/40"
+                    className="flex-1 bg-muted dark:bg-white/[0.06] border border-border dark:border-white/[0.12] rounded px-2 py-1 text-xs focus:outline-none focus:border-violet-500/40"
                   />
                   <button onClick={saveDue} className="px-2 py-1 rounded bg-violet-500/20 text-violet-400 text-xs hover:bg-violet-500/30">Save</button>
                 </div>
@@ -539,7 +539,7 @@ function TaskCard({
                     "flex-1 py-1 rounded border text-[10px] font-medium capitalize transition-all",
                     task.priority === pr
                       ? PRIORITY_STYLES[pr].badge + " ring-1"
-                      : "border-white/[0.08] text-muted-foreground hover:text-foreground",
+                      : "border-border dark:border-white/[0.08] text-muted-foreground hover:text-foreground",
                   )}
                 >
                   {pr}
@@ -562,7 +562,7 @@ function TaskCard({
                     "flex-1 py-1 rounded border text-[10px] font-medium capitalize transition-all disabled:opacity-40",
                     task.status === key
                       ? "border-violet-500/40 bg-violet-500/15 text-violet-300"
-                      : "border-white/[0.08] text-muted-foreground hover:text-foreground",
+                      : "border-border dark:border-white/[0.08] text-muted-foreground hover:text-foreground",
                   )}
                 >
                   {label}
@@ -580,7 +580,7 @@ function TaskCard({
             {task.comments.length > 0 && (
               <div className="space-y-2 mb-3">
                 {task.comments.map(c => (
-                  <div key={c.id} className="rounded-lg bg-white/[0.03] border border-white/[0.06] px-3 py-2">
+                  <div key={c.id} className="rounded-lg bg-muted/60 dark:bg-white/[0.03] border border-border dark:border-white/[0.06] px-3 py-2">
                     <div className="flex items-center justify-between mb-0.5">
                       <span className="text-[11px] font-medium">{c.author}</span>
                       <span className="text-[10px] text-muted-foreground/50"><RelativeTime date={c.ts} short /></span>
@@ -596,7 +596,7 @@ function TaskCard({
                 onChange={e => setComment(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && !e.shiftKey && submitComment()}
                 placeholder="Add a comment…"
-                className="flex-1 bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-violet-500/30 placeholder:text-muted-foreground/40"
+                className="flex-1 bg-muted dark:bg-white/[0.04] border border-border dark:border-white/[0.08] rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-violet-500/30 placeholder:text-muted-foreground/40"
               />
               <button
                 onClick={submitComment}
@@ -609,7 +609,7 @@ function TaskCard({
           </div>
 
           {/* Delete */}
-          <div className="flex justify-end pt-1 border-t border-white/[0.04]">
+          <div className="flex justify-end pt-1 border-t border-border/60 dark:border-white/[0.04]">
             <button
               onClick={() => onDelete(task.id)}
               disabled={isMutating}
@@ -656,8 +656,8 @@ function CreateTaskModal({ onClose, onCreate }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="w-full max-w-md rounded-xl border border-white/[0.12] bg-[hsl(var(--card))] shadow-2xl">
-        <div className="flex items-center justify-between border-b border-white/[0.07] px-5 py-4">
+      <div className="w-full max-w-md rounded-xl border border-border dark:border-white/[0.12] bg-[hsl(var(--card))] shadow-2xl">
+        <div className="flex items-center justify-between border-b border-border dark:border-white/[0.07] px-5 py-4">
           <p className="text-sm font-semibold">Create Task</p>
           <button onClick={onClose} className="p-1 rounded text-muted-foreground hover:text-foreground transition-colors"><X className="h-4 w-4" /></button>
         </div>
@@ -669,7 +669,7 @@ function CreateTaskModal({ onClose, onCreate }: {
               value={title}
               onChange={e => setTitle(e.target.value)}
               placeholder="What needs to be done?"
-              className="w-full bg-white/[0.04] border border-white/[0.10] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500/40"
+              className="w-full bg-muted dark:bg-white/[0.04] border border-border dark:border-white/[0.10] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500/40"
             />
           </div>
           <div>
@@ -679,7 +679,7 @@ function CreateTaskModal({ onClose, onCreate }: {
               onChange={e => setDesc(e.target.value)}
               placeholder="Optional context or steps…"
               rows={3}
-              className="w-full bg-white/[0.04] border border-white/[0.10] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500/40 resize-none"
+              className="w-full bg-muted dark:bg-white/[0.04] border border-border dark:border-white/[0.10] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500/40 resize-none"
             />
           </div>
           <div>
@@ -688,7 +688,7 @@ function CreateTaskModal({ onClose, onCreate }: {
               {(["low","medium","high","critical"] as TaskPriority[]).map(pr => (
                 <button key={pr} onClick={() => setPri(pr)} className={cn(
                   "flex-1 py-1.5 rounded-lg border text-xs font-medium capitalize transition-all",
-                  pri === pr ? PRIORITY_STYLES[pr].badge + " ring-1" : "border-white/[0.08] text-muted-foreground hover:text-foreground",
+                  pri === pr ? PRIORITY_STYLES[pr].badge + " ring-1" : "border-border dark:border-white/[0.08] text-muted-foreground hover:text-foreground",
                 )}>{pr}</button>
               ))}
             </div>
@@ -696,15 +696,15 @@ function CreateTaskModal({ onClose, onCreate }: {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-[11px] text-muted-foreground mb-1.5 block">Assign to</label>
-              <input value={assignee} onChange={e => setAssignee(e.target.value)} placeholder="Name or email" className="w-full bg-white/[0.04] border border-white/[0.10] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-violet-500/40" />
+              <input value={assignee} onChange={e => setAssignee(e.target.value)} placeholder="Name or email" className="w-full bg-muted dark:bg-white/[0.04] border border-border dark:border-white/[0.10] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-violet-500/40" />
             </div>
             <div>
               <label className="text-[11px] text-muted-foreground mb-1.5 block">Due date</label>
-              <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full bg-white/[0.04] border border-white/[0.10] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-violet-500/40" />
+              <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full bg-muted dark:bg-white/[0.04] border border-border dark:border-white/[0.10] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-violet-500/40" />
             </div>
           </div>
         </div>
-        <div className="flex items-center justify-end gap-2 border-t border-white/[0.07] px-5 py-3">
+        <div className="flex items-center justify-end gap-2 border-t border-border dark:border-white/[0.07] px-5 py-3">
           <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
           <Button size="sm" onClick={submit} disabled={!title.trim()} className="bg-violet-600 hover:bg-violet-700 text-white">
             Create Task
@@ -730,7 +730,7 @@ const WO_STATUS_STYLES: Record<string, string> = {
 function WorkOrderRow({ wo }: { wo: WorkOrderSummary }) {
   const pct = workOrderProgressPct(wo);
   const label = workOrderStatusLabel(wo.status);
-  const style = WO_STATUS_STYLES[wo.status] ?? "bg-white/[0.05] text-muted-foreground border-white/[0.1]";
+  const style = WO_STATUS_STYLES[wo.status] ?? "bg-muted dark:bg-white/[0.05] text-muted-foreground border-border dark:border-white/[0.1]";
   const hasBlockers = wo.blocker_count > 0;
   const approvableStages = wo.stage_tasks.filter(
     (t) => t.readiness_state &&
@@ -740,7 +740,7 @@ function WorkOrderRow({ wo }: { wo: WorkOrderSummary }) {
   );
 
   return (
-    <div className="rounded-xl border border-white/[0.07] bg-[hsl(var(--card))] hover:border-violet-500/20 transition-all">
+    <div className="rounded-xl border border-border dark:border-white/[0.07] bg-[hsl(var(--card))] hover:border-violet-500/20 transition-all">
       <div className="px-4 py-3 flex items-start gap-3">
         <div className={cn(
           "h-9 w-9 rounded-lg flex items-center justify-center shrink-0",
@@ -754,7 +754,7 @@ function WorkOrderRow({ wo }: { wo: WorkOrderSummary }) {
               {label}
             </span>
             {wo.channel_kind && (
-              <span className="text-[10px] text-muted-foreground/60 bg-white/[0.04] rounded-full px-1.5 py-0.5 capitalize">
+              <span className="text-[10px] text-muted-foreground/60 bg-muted dark:bg-white/[0.04] rounded-full px-1.5 py-0.5 capitalize">
                 {wo.channel_kind.replace(/_/g, " ")}
               </span>
             )}
@@ -784,7 +784,7 @@ function WorkOrderRow({ wo }: { wo: WorkOrderSummary }) {
             )}
             {wo.stage_count > 0 && (
               <div className="flex items-center gap-1.5">
-                <div className="h-1 w-20 rounded-full bg-white/[0.06] overflow-hidden">
+                <div className="h-1 w-20 rounded-full bg-muted dark:bg-white/[0.06] overflow-hidden">
                   <div className="h-full rounded-full bg-violet-500/50" style={{ width: `${pct}%` }} />
                 </div>
                 <span className="text-[10px] text-muted-foreground/50">{pct}%</span>
@@ -798,7 +798,7 @@ function WorkOrderRow({ wo }: { wo: WorkOrderSummary }) {
         <Link
           to="/hivemind/work-orders/$id"
           params={{ id: wo.id }}
-          className="flex items-center gap-1 rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:border-violet-500/30 transition-all shrink-0"
+          className="flex items-center gap-1 rounded-lg border border-border dark:border-white/[0.08] bg-muted/60 dark:bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:border-violet-500/30 transition-all shrink-0"
         >
           Details
           <ChevronRight className="h-3 w-3" />
@@ -990,7 +990,7 @@ function HiveMindTasks() {
   return (
     <HiveMindShell>
       {/* Header */}
-      <div className="sticky top-0 z-20 border-b border-white/[0.07] bg-[hsl(var(--background))]/95 backdrop-blur-sm px-5 py-3 flex items-center gap-3">
+      <div className="sticky top-0 z-20 border-b border-border dark:border-white/[0.07] bg-[hsl(var(--background))]/95 backdrop-blur-sm px-5 py-3 flex items-center gap-3">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/20 ring-1 ring-violet-500/30 shrink-0">
           <CheckCircle2 className="h-4 w-4 text-violet-400" />
         </div>
@@ -1007,7 +1007,7 @@ function HiveMindTasks() {
           <button
             onClick={handleScan}
             disabled={scanning}
-            className="flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-all disabled:opacity-40"
+            className="flex items-center gap-1.5 rounded-lg border border-border dark:border-white/[0.08] bg-muted dark:bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-all disabled:opacity-40"
           >
             {scanning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
             Scan
@@ -1034,7 +1034,7 @@ function HiveMindTasks() {
       <EventStrip events={events} onMarkRead={handleMarkRead} />
 
       {/* Tabs */}
-      <div className="border-b border-white/[0.06] px-5">
+      <div className="border-b border-border dark:border-white/[0.06] px-5">
         <div className="flex gap-0">
           {STATUS_TABS.map(({ key, label, icon: Icon, color }) => {
             const count = tabCounts[key];
@@ -1056,7 +1056,7 @@ function HiveMindTasks() {
                     "rounded-full px-1.5 py-0.5 text-[9px] font-semibold leading-none",
                     activeTab === key
                       ? "bg-violet-500/20 text-violet-400"
-                      : "bg-white/[0.08] text-muted-foreground",
+                      : "bg-muted dark:bg-white/[0.08] text-muted-foreground",
                   )}>
                     {count}
                   </span>

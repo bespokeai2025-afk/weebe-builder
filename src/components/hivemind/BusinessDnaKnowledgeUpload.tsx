@@ -122,7 +122,7 @@ export function BusinessDnaKnowledgeUpload({
     : { bg: "bg-violet-500/15", ring: "ring-violet-500/25", text: "text-violet-400" };
 
   return (
-    <div className="rounded-2xl border border-white/[0.07] bg-[hsl(var(--card))] overflow-hidden">
+    <div className="rounded-2xl border border-border dark:border-white/[0.07] bg-[hsl(var(--card))] overflow-hidden">
       <div className="flex items-center gap-3 px-5 py-4">
         <div className={cn("flex h-7 w-7 items-center justify-center rounded-lg shrink-0", accentClasses.bg, "ring-1", accentClasses.ring)}>
           <BookOpen className={cn("h-3.5 w-3.5", accentClasses.text)} />
@@ -143,7 +143,7 @@ export function BusinessDnaKnowledgeUpload({
         <button
           onClick={() => fileRef.current?.click()}
           disabled={uploading}
-          className="flex w-full flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-white/[0.12] bg-white/[0.02] py-6 transition-colors hover:border-white/[0.2] hover:bg-white/[0.04] disabled:opacity-60"
+          className="flex w-full flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-border dark:border-white/[0.12] bg-muted/40 dark:bg-white/[0.02] py-6 transition-colors hover:border-foreground/25 dark:hover:border-white/[0.2] hover:bg-muted dark:hover:bg-white/[0.04] disabled:opacity-60"
         >
           {uploading ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : <Upload className="h-5 w-5 text-muted-foreground" />}
           <span className="text-xs font-medium">{uploading ? "Uploading & indexing…" : "Upload documents"}</span>
@@ -155,13 +155,13 @@ export function BusinessDnaKnowledgeUpload({
             <Loader2 className="h-4 w-4 animate-spin" />
           </div>
         ) : (docs?.length ?? 0) === 0 ? (
-          <p className="rounded-xl border border-white/[0.06] bg-white/[0.02] py-6 text-center text-xs text-muted-foreground">
+          <p className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] py-6 text-center text-xs text-muted-foreground">
             No documents yet. Upload reference material to sharpen your Business DNA and GrowthMind's knowledge.
           </p>
         ) : (
           <div className="space-y-1.5">
             {docs!.map((d: any) => (
-              <div key={d.id} className="flex items-center gap-2.5 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+              <div key={d.id} className="flex items-center gap-2.5 rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] px-3 py-2.5">
                 <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-xs font-medium">{d.title}</p>
@@ -173,7 +173,7 @@ export function BusinessDnaKnowledgeUpload({
                     ) : null}
                   </div>
                 </div>
-                <button onClick={() => handleReindex(d.id)} title="Re-index" className="rounded-md p-1 text-muted-foreground hover:bg-white/[0.06] hover:text-foreground">
+                <button onClick={() => handleReindex(d.id)} title="Re-index" className="rounded-md p-1 text-muted-foreground hover:bg-muted dark:hover:bg-white/[0.06] hover:text-foreground">
                   <RefreshCw className="h-3 w-3" />
                 </button>
                 <button onClick={() => handleDelete(d.id)} title="Delete" className="rounded-md p-1 text-muted-foreground hover:bg-red-500/10 hover:text-red-400">

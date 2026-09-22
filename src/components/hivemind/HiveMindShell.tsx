@@ -114,7 +114,7 @@ function ModeSelector({ mode, onModeChange }: { mode: HiveMindMode; onModeChange
       </button>
 
       {open && (
-        <div className="absolute bottom-full mb-1 left-0 right-0 rounded-xl border border-white/[0.10] bg-[hsl(var(--card))] shadow-xl overflow-hidden z-50">
+        <div className="absolute bottom-full mb-1 left-0 right-0 rounded-xl border border-border dark:border-white/[0.10] bg-[hsl(var(--card))] shadow-xl overflow-hidden z-50">
           {(Object.entries(MODE_CONFIG) as [HiveMindMode, typeof cfg][]).map(([key, m]) => {
             const MIcon = m.icon;
             return (
@@ -122,8 +122,8 @@ function ModeSelector({ mode, onModeChange }: { mode: HiveMindMode; onModeChange
                 key={key}
                 onClick={() => { onModeChange(key); setOpen(false); }}
                 className={cn(
-                  "w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-white/[0.04]",
-                  key === mode && "bg-white/[0.03]",
+                  "w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-muted dark:hover:bg-white/[0.04]",
+                  key === mode && "bg-muted/60 dark:bg-white/[0.03]",
                 )}
               >
                 <div className={cn("flex h-6 w-6 items-center justify-center rounded-md shrink-0", m.bg)}>
@@ -176,7 +176,7 @@ export function HiveMindShell({ children }: { children: React.ReactNode }) {
     <HiveMindModeCtx.Provider value={mode}>
       <div className="flex h-full min-h-0 w-full">
         {/* Left sidebar */}
-        <aside className="hidden md:flex w-56 shrink-0 flex-col border-r border-white/[0.06] bg-[hsl(var(--sidebar-background))] py-4">
+        <aside className="hidden md:flex w-56 shrink-0 flex-col border-r border-border dark:border-white/[0.06] bg-[hsl(var(--sidebar-background))] py-4">
           {/* Brand + mode badge */}
           <div className="px-4 mb-5">
             <div className="flex items-center gap-2.5 mb-2">
@@ -204,7 +204,7 @@ export function HiveMindShell({ children }: { children: React.ReactNode }) {
                       ? "bg-violet-500/15 text-violet-300"
                       : highlight
                         ? "text-violet-400/80 hover:bg-violet-500/[0.08] hover:text-violet-300"
-                        : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
+                        : "text-muted-foreground hover:bg-muted dark:hover:bg-white/[0.04] hover:text-foreground",
                   )}
                 >
                   <Icon className={cn("h-3.5 w-3.5 shrink-0", (active || highlight) && "text-violet-400")} />
@@ -242,7 +242,7 @@ export function HiveMindShell({ children }: { children: React.ReactNode }) {
         </aside>
 
         {/* Mobile nav */}
-        <div className="flex md:hidden border-b border-white/[0.06] overflow-x-auto shrink-0">
+        <div className="flex md:hidden border-b border-border dark:border-white/[0.06] overflow-x-auto shrink-0">
           {nav.map(({ label, href, icon: Icon }) => {
             const active = href === "/hivemind" ? path === "/hivemind" : path.startsWith(href);
             return (

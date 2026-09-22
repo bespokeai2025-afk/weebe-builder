@@ -248,7 +248,7 @@ function HiveMindReports() {
           <div className="space-y-5">
 
             {/* Score card */}
-            <div className="rounded-xl border border-white/[0.06] bg-card/60 p-5 flex items-center gap-6 flex-wrap">
+            <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-5 flex items-center gap-6 flex-wrap">
               <div className="text-center">
                 <div className={cn(
                   "text-5xl font-bold tabular-nums",
@@ -257,7 +257,7 @@ function HiveMindReports() {
                 <p className="text-[10px] text-muted-foreground mt-1 font-semibold uppercase tracking-[0.1em]">Platform Score</p>
               </div>
               <div className="flex-1 min-w-[200px] space-y-2">
-                <div className="h-2 rounded-full bg-white/[0.06] overflow-hidden">
+                <div className="h-2 rounded-full bg-muted dark:bg-white/[0.06] overflow-hidden">
                   <div
                     className={cn("h-full rounded-full transition-all", score >= 70 ? "bg-emerald-500" : score >= 40 ? "bg-amber-500" : "bg-red-500")}
                     style={{ width: `${score}%` }}
@@ -284,8 +284,8 @@ function HiveMindReports() {
             <MarketingExecutiveSummary />
 
             {/* Report sections preview */}
-            <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
-              <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between">
+            <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 overflow-hidden">
+              <div className="px-4 py-3 border-b border-border dark:border-white/[0.06] flex items-center justify-between">
                 <p className="text-sm font-semibold">Report Contents</p>
                 <p className="text-[11px] text-muted-foreground">Click any section to preview</p>
               </div>
@@ -296,7 +296,7 @@ function HiveMindReports() {
                   return (
                     <div key={section.id}>
                       <button
-                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/[0.02] transition-colors text-left"
+                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/40 dark:hover:bg-white/[0.02] transition-colors text-left"
                         onClick={() => toggleSection(section.id)}
                       >
                         <Icon className="h-4 w-4 text-violet-400 shrink-0" />
@@ -305,7 +305,7 @@ function HiveMindReports() {
                         {open ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                       </button>
                       {open && (
-                        <div className="border-t border-white/[0.04] bg-black/20 px-4 py-3">
+                        <div className="border-t border-border/60 dark:border-white/[0.04] bg-black/20 px-4 py-3">
                           <pre className="text-[11px] text-muted-foreground leading-relaxed font-mono whitespace-pre-wrap">
                             {section.content.join("\n")}
                           </pre>

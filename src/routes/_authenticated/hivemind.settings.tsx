@@ -97,8 +97,8 @@ function Section({ icon: Icon, title, desc, children }: {
   icon: React.ElementType; title: string; desc?: string; children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-white/[0.07] bg-[hsl(var(--card))] overflow-hidden">
-      <div className="px-5 py-4 border-b border-white/[0.06] flex items-start gap-3">
+    <div className="rounded-xl border border-border dark:border-white/[0.07] bg-[hsl(var(--card))] overflow-hidden">
+      <div className="px-5 py-4 border-b border-border dark:border-white/[0.06] flex items-start gap-3">
         <div className="flex h-7 w-7 items-center justify-center rounded-md bg-violet-500/15 ring-1 ring-violet-500/20 shrink-0 mt-0.5">
           <Icon className="h-3.5 w-3.5 text-violet-400" />
         </div>
@@ -240,7 +240,7 @@ function HiveMindSettings() {
                   onChange={e => setUserNameInput(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && saveName()}
                   placeholder="e.g. Alex"
-                  className="flex-1 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-violet-500/40"
+                  className="flex-1 rounded-lg border border-border dark:border-white/[0.08] bg-muted/60 dark:bg-white/[0.03] px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-violet-500/40"
                 />
                 <button
                   onClick={saveName}
@@ -283,7 +283,7 @@ function HiveMindSettings() {
                     "w-full flex items-start gap-3 rounded-lg border px-3.5 py-3 text-left transition-all",
                     active
                       ? `${cfg.ring} ${cfg.bg} border-current/20`
-                      : "border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.02]",
+                      : "border-border dark:border-white/[0.06] hover:border-foreground/20 dark:hover:border-white/[0.12] hover:bg-muted/40 dark:hover:bg-white/[0.02]",
                     operatorLocked && "opacity-50 cursor-not-allowed",
                   )}
                 >
@@ -346,7 +346,7 @@ function HiveMindSettings() {
                           title={!canManageOperator ? "Only a workspace owner or admin can change operator permissions" : undefined}
                           className={cn(
                             "w-9 h-5 rounded-full relative transition-all shrink-0",
-                            enabled ? "bg-amber-500" : "bg-white/[0.1]",
+                            enabled ? "bg-amber-500" : "bg-muted dark:bg-white/[0.1]",
                             (modeSaving || !canManageOperator) && "opacity-50 cursor-not-allowed",
                           )}
                         >
@@ -357,7 +357,7 @@ function HiveMindSettings() {
                   })}
                 </div>
                 {(modeData?.operatorEnabledBy || modeData?.operatorEnabledAt) && (
-                  <div className="px-3.5 py-2 border-t border-amber-500/10 bg-white/[0.01]">
+                  <div className="px-3.5 py-2 border-t border-amber-500/10 bg-muted/20 dark:bg-white/[0.01]">
                     <p className="text-[10px] text-muted-foreground/60">
                       Operator mode enabled
                       {modeData?.operatorEnabledBy && <> by <span className="text-amber-300/80 font-medium">{modeData.operatorEnabledBy}</span></>}
@@ -407,7 +407,7 @@ function HiveMindSettings() {
                           "relative text-left px-2.5 py-2 rounded-lg border text-xs transition-all cursor-pointer group",
                           isSelected
                             ? "border-violet-500/40 bg-violet-500/15 text-violet-300"
-                            : "border-white/[0.08] bg-white/[0.02] text-muted-foreground hover:text-foreground hover:border-white/[0.15]",
+                            : "border-border dark:border-white/[0.08] bg-muted/40 dark:bg-white/[0.02] text-muted-foreground hover:text-foreground hover:border-foreground/20 dark:hover:border-white/[0.15]",
                         )}
                       >
                         <p className="font-medium truncate pr-5">{v.name}</p>
@@ -420,7 +420,7 @@ function HiveMindSettings() {
                             "absolute top-1.5 right-1.5 flex h-5 w-5 items-center justify-center rounded-full transition-all",
                             isPlaying
                               ? "bg-violet-500 text-white opacity-100"
-                              : "opacity-0 group-hover:opacity-100 bg-white/10 text-muted-foreground hover:bg-white/20 hover:text-foreground",
+                              : "opacity-0 group-hover:opacity-100 bg-muted dark:bg-white/10 text-muted-foreground hover:bg-muted dark:hover:bg-white/20 hover:text-foreground",
                           )}
                         >
                           {isLoading
@@ -448,7 +448,7 @@ function HiveMindSettings() {
                     "flex-1 py-1.5 rounded-md border text-xs transition-all",
                     voiceSettings.speed === s
                       ? "border-violet-500/40 bg-violet-500/15 text-violet-300"
-                      : "border-white/[0.08] text-muted-foreground hover:text-foreground",
+                      : "border-border dark:border-white/[0.08] text-muted-foreground hover:text-foreground",
                   )}>{s}×</button>
                 ))}
               </div>
@@ -466,14 +466,14 @@ function HiveMindSettings() {
                       "w-full flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-all",
                       voiceSettings.personality === p.key
                         ? "border-violet-500/30 bg-violet-500/[0.08]"
-                        : "border-white/[0.06] hover:border-white/[0.12]",
+                        : "border-border dark:border-white/[0.06] hover:border-foreground/20 dark:hover:border-white/[0.12]",
                     )}
                   >
                     <div className={cn(
                       "h-3.5 w-3.5 rounded-full border-2 shrink-0 mt-0.5",
                       voiceSettings.personality === p.key
                         ? "border-violet-400 bg-violet-400"
-                        : "border-white/20",
+                        : "border-border dark:border-white/20",
                     )} />
                     <div>
                       <p className="text-xs font-medium">{p.label}</p>
@@ -485,14 +485,14 @@ function HiveMindSettings() {
             </div>
 
             {/* Auto-play */}
-            <div className="flex items-center justify-between py-1 border-t border-white/[0.05]">
+            <div className="flex items-center justify-between py-1 border-t border-border dark:border-white/[0.05]">
               <div>
                 <p className="text-xs font-medium">Auto-play responses</p>
                 <p className="text-[11px] text-muted-foreground/60">Speak each reply automatically in text chat mode</p>
               </div>
               <button
                 onClick={() => updateVoice({ autoPlay: !voiceSettings.autoPlay })}
-                className={cn("w-9 h-5 rounded-full relative transition-all", voiceSettings.autoPlay ? "bg-violet-500" : "bg-white/[0.1]")}
+                className={cn("w-9 h-5 rounded-full relative transition-all", voiceSettings.autoPlay ? "bg-violet-500" : "bg-muted dark:bg-white/[0.1]")}
               >
                 <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all", voiceSettings.autoPlay ? "left-[18px]" : "left-0.5")} />
               </button>
@@ -503,10 +503,10 @@ function HiveMindSettings() {
         {/* ── COST BREAKDOWN ── */}
         <Section icon={DollarSign} title="Session Cost Breakdown" desc="Estimated cost per minute of an active HiveMind voice session.">
           <div className="space-y-3">
-            <div className="rounded-lg border border-white/[0.06] overflow-hidden">
+            <div className="rounded-lg border border-border dark:border-white/[0.06] overflow-hidden">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-white/[0.06] bg-white/[0.02]">
+                  <tr className="border-b border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02]">
                     <th className="text-left px-3 py-2 text-muted-foreground font-medium">Service</th>
                     <th className="text-left px-3 py-2 text-muted-foreground font-medium hidden sm:table-cell">Provider</th>
                     <th className="text-right px-3 py-2 text-muted-foreground font-medium">Cost</th>
@@ -517,7 +517,7 @@ function HiveMindSettings() {
                     <tr
                       key={i}
                       className={cn(
-                        "border-b border-white/[0.04] last:border-0",
+                        "border-b border-border/60 dark:border-white/[0.04] last:border-0",
                         row.highlight && "bg-violet-500/[0.04] border-t border-violet-500/10",
                       )}
                     >
@@ -536,7 +536,7 @@ function HiveMindSettings() {
               </table>
             </div>
 
-            <div className="flex items-start gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+            <div className="flex items-start gap-2 rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] px-3 py-2.5">
               <Info className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0 mt-0.5" />
               <p className="text-[11px] text-muted-foreground/60 leading-relaxed">
                 Cost only applies while Live Voice is active. Text chat is significantly cheaper (~$0.002/message). ElevenLabs TTS cost depends on your plan — Starter is $5/mo for 10k chars; Creator is $22/mo for 100k chars.

@@ -39,9 +39,9 @@ function SectionCard({
 }) {
   const [open, setOpen] = useState(true);
   return (
-    <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] overflow-hidden">
+    <div className="rounded-xl border border-border dark:border-white/[0.07] bg-muted/40 dark:bg-white/[0.02] overflow-hidden">
       <button
-        className="w-full flex items-center gap-2.5 px-4 py-3 hover:bg-white/[0.02]"
+        className="w-full flex items-center gap-2.5 px-4 py-3 hover:bg-muted/40 dark:hover:bg-white/[0.02]"
         onClick={() => setOpen(o => !o)}
       >
         <Icon className={cn("h-3.5 w-3.5 shrink-0", color)} />
@@ -81,7 +81,7 @@ function CampaignsList({ items }: { items: Array<{ title: string; rationale: str
   return (
     <div className="space-y-2">
       {items.map((c: any, i: number) => (
-        <div key={i} className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+        <div key={i} className="rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-3">
           <div className="flex items-center gap-2 mb-1">
             <p className="text-xs font-semibold flex-1">{c.title}</p>
             <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded border", urgencyColor[c.urgency] ?? "text-muted-foreground")}>
@@ -108,7 +108,7 @@ function MetricsRow({ metrics }: { metrics: Record<string, number> }) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-1">
       {items.map(({ label, val }) => (
-        <div key={label} className="rounded-lg bg-white/[0.03] border border-white/[0.06] p-2.5 text-center">
+        <div key={label} className="rounded-lg bg-muted/60 dark:bg-white/[0.03] border border-border dark:border-white/[0.06] p-2.5 text-center">
           <p className="text-base font-bold">{val}</p>
           <p className="text-[9px] text-muted-foreground mt-0.5 uppercase tracking-wide">{label}</p>
         </div>
@@ -123,7 +123,7 @@ function VerifiedKpiGrid({ metrics }: { metrics: any[] }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
       {metrics.map((m: any) => (
-        <div key={m.key} className="rounded-lg bg-white/[0.03] border border-white/[0.06] p-2.5">
+        <div key={m.key} className="rounded-lg bg-muted/60 dark:bg-white/[0.03] border border-border dark:border-white/[0.06] p-2.5">
           <div className="flex items-baseline gap-2">
             <p className="text-base font-bold">
               {m.unit === "percent" ? `${m.value}%` : m.unit === "gbp" ? `£${Number(m.value).toLocaleString()}` : m.unit === "usd" ? `$${Number(m.value).toLocaleString()}` : Number(m.value).toLocaleString()}
@@ -169,7 +169,7 @@ function ValidatedRecommendations({ briefingId, recs }: { briefingId: string; re
   return (
     <div className="space-y-2">
       {recs.map((r: any) => (
-        <div key={r.id} className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+        <div key={r.id} className="rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-3">
           <div className="flex items-start gap-2">
             <div className="flex-1">
               <p className="text-xs font-semibold">{r.title}</p>
@@ -183,7 +183,7 @@ function ValidatedRecommendations({ briefingId, recs }: { briefingId: string; re
               variant="outline"
               disabled={mut.isPending || created[r.id]}
               onClick={() => mut.mutate(r.id)}
-              className="h-7 text-[11px] px-2.5 gap-1 border-white/[0.08] hover:bg-white/[0.05] shrink-0"
+              className="h-7 text-[11px] px-2.5 gap-1 border-border dark:border-white/[0.08] hover:bg-muted dark:hover:bg-white/[0.05] shrink-0"
             >
               {created[r.id] ? <CheckCircle2 className="h-3 w-3 text-emerald-400" /> : mut.isPending && mut.variables === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
               {created[r.id] ? "Task created" : "Create task"}
@@ -322,8 +322,8 @@ function BriefingCard({ briefing, onSelect }: { briefing: BriefingRow; onSelect:
     <button
       onClick={onSelect}
       className={cn(
-        "w-full text-left rounded-xl border p-4 transition-all hover:bg-white/[0.03] group",
-        briefing.is_read ? "border-white/[0.07] bg-white/[0.01]" : "border-violet-500/20 bg-violet-500/[0.04]",
+        "w-full text-left rounded-xl border p-4 transition-all hover:bg-muted/60 dark:hover:bg-white/[0.03] group",
+        briefing.is_read ? "border-border dark:border-white/[0.07] bg-muted/20 dark:bg-white/[0.01]" : "border-violet-500/20 bg-violet-500/[0.04]",
       )}
     >
       <div className="flex items-center gap-2.5 mb-2">
@@ -407,7 +407,7 @@ function HiveMindBriefingsPage() {
                     variant="outline"
                     onClick={() => genMut.mutate(t)}
                     disabled={genMut.isPending}
-                    className="h-7 text-[11px] px-2.5 gap-1 border-white/[0.08] hover:bg-white/[0.05]"
+                    className="h-7 text-[11px] px-2.5 gap-1 border-border dark:border-white/[0.08] hover:bg-muted dark:hover:bg-white/[0.05]"
                   >
                     {genMut.isPending && genMut.variables === t
                       ? <Loader2 className="h-2.5 w-2.5 animate-spin" />
@@ -419,7 +419,7 @@ function HiveMindBriefingsPage() {
             </div>
 
             {/* Filter tabs */}
-            <div className="flex gap-1 border border-white/[0.07] rounded-xl p-1 w-fit bg-white/[0.02]">
+            <div className="flex gap-1 border border-border dark:border-white/[0.07] rounded-xl p-1 w-fit bg-muted/40 dark:bg-white/[0.02]">
               {(["all", "daily", "weekly", "monthly"] as const).map(f => (
                 <button
                   key={f}
@@ -428,7 +428,7 @@ function HiveMindBriefingsPage() {
                     "px-3 py-1.5 rounded-lg text-[11px] font-medium capitalize transition-all",
                     filter === f
                       ? "bg-violet-500/20 text-violet-300"
-                      : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]",
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted dark:hover:bg-white/[0.04]",
                   )}
                 >
                   {f}
@@ -452,7 +452,7 @@ function HiveMindBriefingsPage() {
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
             ) : briefings.length === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.02] py-16 text-center">
+              <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] py-16 text-center">
                 <Newspaper className="h-9 w-9 text-muted-foreground/30" />
                 <div>
                   <p className="text-sm font-medium">No briefings yet</p>

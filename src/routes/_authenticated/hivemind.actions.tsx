@@ -51,7 +51,7 @@ const ACTION_STYLES: Record<string, { label: string; color: string; bg: string; 
 };
 
 function getActionStyle(type: string) {
-  return ACTION_STYLES[type] ?? { label: type, color: "text-muted-foreground", bg: "bg-white/[0.04] border-white/[0.08]", icon: Zap };
+  return ACTION_STYLES[type] ?? { label: type, color: "text-muted-foreground", bg: "bg-muted dark:bg-white/[0.04] border-border dark:border-white/[0.08]", icon: Zap };
 }
 
 const VIDEO_TYPE_LABELS_SHORT: Record<string, string> = {
@@ -97,7 +97,7 @@ function PayloadSummary({ type, payload }: { type: string; payload: Record<strin
   return (
     <div className="flex flex-wrap gap-1.5 mt-2">
       {items.map((item, i) => (
-        <span key={i} className="text-[10px] bg-white/[0.04] border border-white/[0.07] rounded px-2 py-0.5 text-muted-foreground">
+        <span key={i} className="text-[10px] bg-muted dark:bg-white/[0.04] border border-border dark:border-white/[0.07] rounded px-2 py-0.5 text-muted-foreground">
           {item}
         </span>
       ))}
@@ -146,7 +146,7 @@ const OUTCOME_STYLES: Record<string, { label: string; color: string; bg: string 
   partial:      { label: "Outcome: Partial",      color: "text-amber-400",   bg: "bg-amber-500/15 border-amber-500/25" },
   no_change:    { label: "Outcome: No Change",    color: "text-slate-400",   bg: "bg-slate-500/15 border-slate-500/25" },
   unsuccessful: { label: "Outcome: Unsuccessful", color: "text-red-400",     bg: "bg-red-500/15 border-red-500/25" },
-  inconclusive: { label: "Outcome: Inconclusive", color: "text-muted-foreground", bg: "bg-white/[0.05] border-white/[0.10]" },
+  inconclusive: { label: "Outcome: Inconclusive", color: "text-muted-foreground", bg: "bg-muted dark:bg-white/[0.05] border-border dark:border-white/[0.10]" },
 };
 
 function OutcomeBadge({ classification }: { classification: string | null | undefined }) {
@@ -170,7 +170,7 @@ function OutcomeSection({ action }: { action: HiveMindAction }) {
     const due = new Date(action.reassess_at);
     const pastDue = due.getTime() <= Date.now();
     return (
-      <div className="flex items-start gap-2 rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2">
+      <div className="flex items-start gap-2 rounded-lg border border-border dark:border-white/[0.07] bg-muted/40 dark:bg-white/[0.02] px-3 py-2">
         <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
         <p className="text-[11px] text-muted-foreground leading-relaxed">
           {pastDue
@@ -211,7 +211,7 @@ function OutcomeSection({ action }: { action: HiveMindAction }) {
           <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Actual (measured)</p>
           <div className="flex flex-wrap gap-1.5">
             {detailItems.map(([k, v]) => (
-              <span key={k} className="text-[10px] bg-white/[0.05] border border-white/[0.08] rounded px-2 py-0.5 text-foreground/70">
+              <span key={k} className="text-[10px] bg-muted dark:bg-white/[0.05] border border-border dark:border-white/[0.08] rounded px-2 py-0.5 text-foreground/70">
                 {k.replace(/_/g, " ")}: {String(v)}
               </span>
             ))}
@@ -262,21 +262,21 @@ function LearningSummaryPanel({ adjustments }: { adjustments: ConfidenceAdjustme
       </button>
 
       {open && (
-        <div className="border-t border-white/[0.06] px-4 py-3">
+        <div className="border-t border-border dark:border-white/[0.06] px-4 py-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {adjustments.map((adj) => {
               const positive = adj.adjustment > 0;
               const negative = adj.adjustment < 0;
               const total = adj.successes + adj.partials + adj.failures + adj.inconclusive;
               return (
-                <div key={adj.adjustment_key} className="rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2.5">
+                <div key={adj.adjustment_key} className="rounded-lg border border-border dark:border-white/[0.07] bg-muted/40 dark:bg-white/[0.02] px-3 py-2.5">
                   <div className="flex items-center justify-between gap-2 mb-1.5">
                     <p className="text-[11px] font-medium truncate">{adjustmentKeyLabel(adj.adjustment_key)}</p>
                     <span className={cn(
                       "text-[10px] font-semibold rounded-full px-1.5 py-0.5 border shrink-0",
                       positive ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" :
                       negative ? "text-red-400 bg-red-500/10 border-red-500/20" :
-                      "text-muted-foreground bg-white/[0.04] border-white/[0.08]",
+                      "text-muted-foreground bg-muted dark:bg-white/[0.04] border-border dark:border-white/[0.08]",
                     )}>
                       {positive ? "+" : ""}{(adj.adjustment * 100).toFixed(1)}% confidence
                     </span>
@@ -330,10 +330,10 @@ function ActionCard({
     <div className={cn(
       "rounded-xl border transition-all",
       action.status === "rejected" || action.status === "failed"
-        ? "opacity-50 bg-white/[0.01] border-white/[0.05]"
+        ? "opacity-50 bg-muted/20 dark:bg-white/[0.01] border-border dark:border-white/[0.05]"
         : action.status === "executed"
           ? "bg-emerald-500/[0.03] border-emerald-500/10"
-          : "bg-[hsl(var(--card))] border-white/[0.08]",
+          : "bg-[hsl(var(--card))] border-border dark:border-white/[0.08]",
     )}>
       <div className="px-4 py-3 flex items-start gap-3">
         {/* Type icon */}
@@ -390,7 +390,7 @@ function ActionCard({
               <button
                 onClick={() => onReject(action.id)}
                 disabled={isMutating}
-                className="flex items-center gap-1 rounded-lg border border-white/[0.08] bg-white/[0.03] px-2 py-1.5 text-[11px] text-muted-foreground hover:text-red-400 hover:border-red-500/30 transition-all disabled:opacity-40"
+                className="flex items-center gap-1 rounded-lg border border-border dark:border-white/[0.08] bg-muted/60 dark:bg-white/[0.03] px-2 py-1.5 text-[11px] text-muted-foreground hover:text-red-400 hover:border-red-500/30 transition-all disabled:opacity-40"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -398,7 +398,7 @@ function ActionCard({
           )}
           <button
             onClick={() => setOpen(o => !o)}
-            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/[0.04] transition-colors"
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted dark:hover:bg-white/[0.04] transition-colors"
           >
             {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
           </button>
@@ -407,7 +407,7 @@ function ActionCard({
 
       {/* Expanded */}
       {open && (
-        <div className="border-t border-white/[0.06] px-4 py-3 space-y-3">
+        <div className="border-t border-border dark:border-white/[0.06] px-4 py-3 space-y-3">
           <div className="text-[11px] text-muted-foreground space-y-1">
             <p>Proposed by <span className="text-foreground font-medium">{action.proposed_by}</span> · <RelativeTime date={action.created_at} short /></p>
             {(action.approved_by || action.authorised_by_email) && (
@@ -437,7 +437,7 @@ function ActionCard({
           {/* Full payload */}
           <div>
             <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Action payload</p>
-            <pre className="text-[10px] text-muted-foreground bg-white/[0.02] rounded-lg p-2 overflow-x-auto border border-white/[0.05]">
+            <pre className="text-[10px] text-muted-foreground bg-muted/40 dark:bg-white/[0.02] rounded-lg p-2 overflow-x-auto border border-border dark:border-white/[0.05]">
               {JSON.stringify(action.action_payload, null, 2)}
             </pre>
           </div>
@@ -462,7 +462,7 @@ function ActionCard({
             </div>
           )}
 
-          <div className="flex justify-end pt-1 border-t border-white/[0.04]">
+          <div className="flex justify-end pt-1 border-t border-border/60 dark:border-white/[0.04]">
             <button
               onClick={() => onDelete(action.id)}
               disabled={isMutating}
@@ -511,8 +511,8 @@ function CreateActionModal({ onClose, onCreate }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="w-full max-w-lg rounded-xl border border-white/[0.12] bg-[hsl(var(--card))] shadow-2xl">
-        <div className="flex items-center justify-between border-b border-white/[0.07] px-5 py-4">
+      <div className="w-full max-w-lg rounded-xl border border-border dark:border-white/[0.12] bg-[hsl(var(--card))] shadow-2xl">
+        <div className="flex items-center justify-between border-b border-border dark:border-white/[0.07] px-5 py-4">
           <p className="text-sm font-semibold">Propose Action</p>
           <button onClick={onClose} className="p-1 rounded text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
         </div>
@@ -520,17 +520,17 @@ function CreateActionModal({ onClose, onCreate }: {
           <div>
             <label className="text-[11px] text-muted-foreground mb-1.5 block">Title *</label>
             <input autoFocus value={title} onChange={e => setTitle(e.target.value)} placeholder="What should HiveMind do?"
-              className="w-full bg-white/[0.04] border border-white/[0.10] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500/40" />
+              className="w-full bg-muted dark:bg-white/[0.04] border border-border dark:border-white/[0.10] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500/40" />
           </div>
           <div>
             <label className="text-[11px] text-muted-foreground mb-1.5 block">Description</label>
             <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={2} placeholder="Why is this action needed?"
-              className="w-full bg-white/[0.04] border border-white/[0.10] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500/40 resize-none" />
+              className="w-full bg-muted dark:bg-white/[0.04] border border-border dark:border-white/[0.10] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500/40 resize-none" />
           </div>
           <div>
             <label className="text-[11px] text-muted-foreground mb-1.5 block">Action type</label>
             <select value={type} onChange={e => setType(e.target.value)}
-              className="w-full bg-white/[0.04] border border-white/[0.10] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500/40">
+              className="w-full bg-muted dark:bg-white/[0.04] border border-border dark:border-white/[0.10] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500/40">
               {Object.entries(ACTION_STYLES).map(([k, v]) => (
                 <option key={k} value={k}>{v.label}</option>
               ))}
@@ -539,11 +539,11 @@ function CreateActionModal({ onClose, onCreate }: {
           <div>
             <label className="text-[11px] text-muted-foreground mb-1.5 block">Payload (JSON)</label>
             <textarea value={payload} onChange={e => setPayload(e.target.value)} rows={4} spellCheck={false}
-              className="w-full bg-white/[0.04] border border-white/[0.10] rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-violet-500/40 resize-none" />
+              className="w-full bg-muted dark:bg-white/[0.04] border border-border dark:border-white/[0.10] rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-violet-500/40 resize-none" />
             {payErr && <p className="text-[11px] text-red-400 mt-1">{payErr}</p>}
           </div>
         </div>
-        <div className="flex items-center justify-end gap-2 border-t border-white/[0.07] px-5 py-3">
+        <div className="flex items-center justify-end gap-2 border-t border-border dark:border-white/[0.07] px-5 py-3">
           <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
           <Button size="sm" onClick={submit} disabled={!title.trim()} className="bg-violet-600 hover:bg-violet-700 text-white">
             Propose Action
@@ -575,7 +575,7 @@ function ProposalCard({
   return (
     <div className={cn(
       "rounded-xl border bg-[hsl(var(--card))] transition-all",
-      proposal.status === "draft" ? "border-violet-500/20" : "border-white/[0.07]",
+      proposal.status === "draft" ? "border-violet-500/20" : "border-border dark:border-white/[0.07]",
     )}>
       <div className="flex items-start gap-3 p-4">
         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-violet-500/15 ring-1 ring-violet-500/25 mt-0.5">
@@ -588,14 +588,14 @@ function ProposalCard({
               "text-[10px] font-medium px-1.5 py-0.5 rounded border",
               proposal.status === "draft"    ? "text-violet-400 bg-violet-500/10 border-violet-500/20" :
               proposal.status === "approved" ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" :
-              "text-muted-foreground bg-white/[0.04] border-white/[0.08]",
+              "text-muted-foreground bg-muted dark:bg-white/[0.04] border-border dark:border-white/[0.08]",
             )}>
               {proposal.status}
             </span>
             {channels.slice(0, 3).map((ch: string) => {
               const Icon = CHANNEL_ICONS[ch] ?? Zap;
               return (
-                <span key={ch} className="flex items-center gap-1 text-[9px] text-muted-foreground/60 bg-white/[0.03] border border-white/[0.06] px-1.5 py-0.5 rounded">
+                <span key={ch} className="flex items-center gap-1 text-[9px] text-muted-foreground/60 bg-muted/60 dark:bg-white/[0.03] border border-border dark:border-white/[0.06] px-1.5 py-0.5 rounded">
                   <Icon className="h-2.5 w-2.5" />{ch}
                 </span>
               );
@@ -638,7 +638,7 @@ function ProposalCard({
           )}
           <button
             onClick={() => setOpen(o => !o)}
-            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/[0.04] transition-colors"
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted dark:hover:bg-white/[0.04] transition-colors"
           >
             {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
           </button>
@@ -646,7 +646,7 @@ function ProposalCard({
       </div>
 
       {open && (
-        <div className="border-t border-white/[0.06] px-4 py-4 space-y-4">
+        <div className="border-t border-border dark:border-white/[0.06] px-4 py-4 space-y-4">
           {/* Core sections */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
             {proposal.audience && (
@@ -708,7 +708,7 @@ function ProposalCard({
               <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1.5">Email Sequence ({proposal.email_sequence.length} emails)</p>
               <div className="space-y-2">
                 {proposal.email_sequence.map((e: any, i: number) => (
-                  <div key={i} className="rounded-lg bg-white/[0.02] border border-white/[0.05] p-2.5">
+                  <div key={i} className="rounded-lg bg-muted/40 dark:bg-white/[0.02] border border-border dark:border-white/[0.05] p-2.5">
                     <p className="text-[10px] text-amber-400 font-medium">Day {e.day}</p>
                     <p className="text-xs font-medium mt-0.5">{e.subject}</p>
                     <p className="text-[11px] text-muted-foreground/70 mt-0.5 line-clamp-2">{e.body}</p>
@@ -775,7 +775,7 @@ function ProposalCard({
             </div>
           )}
 
-          <div className="text-[10px] text-muted-foreground/40 pt-1 border-t border-white/[0.04]">
+          <div className="text-[10px] text-muted-foreground/40 pt-1 border-t border-border/60 dark:border-white/[0.04]">
             Generated <RelativeTime date={proposal.generated_at} />
             {proposal.package_complete && " · Full 15-section package"}
           </div>
@@ -790,7 +790,7 @@ const REC_PRIORITY_STYLES: Record<string, string> = {
   critical: "text-red-400 bg-red-500/10 border-red-500/20",
   high:     "text-amber-400 bg-amber-500/10 border-amber-500/20",
   medium:   "text-blue-400 bg-blue-500/10 border-blue-500/20",
-  low:      "text-muted-foreground bg-white/[0.04] border-white/[0.08]",
+  low:      "text-muted-foreground bg-muted dark:bg-white/[0.04] border-border dark:border-white/[0.08]",
 };
 
 const REC_OPEN_STATES = ["new", "acknowledged", "under_review", "reopened"];
@@ -812,7 +812,7 @@ function RecommendationCard({
   return (
     <div className={cn(
       "rounded-xl border transition-all",
-      isOpen ? "bg-[hsl(var(--card))] border-white/[0.08]" : "opacity-60 bg-white/[0.01] border-white/[0.05]",
+      isOpen ? "bg-[hsl(var(--card))] border-border dark:border-white/[0.08]" : "opacity-60 bg-muted/20 dark:bg-white/[0.01] border-border dark:border-white/[0.05]",
     )}>
       <div className="px-4 py-3 flex items-start gap-3">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg border shrink-0 mt-0.5 bg-violet-500/10 border-violet-500/20">
@@ -824,10 +824,10 @@ function RecommendationCard({
               REC_PRIORITY_STYLES[rec.priority] ?? REC_PRIORITY_STYLES.low)}>
               {rec.priority}
             </span>
-            <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-white/[0.04] border border-white/[0.08] text-muted-foreground capitalize">
+            <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-muted dark:bg-white/[0.04] border border-border dark:border-white/[0.08] text-muted-foreground capitalize">
               {rec.department}
             </span>
-            <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-white/[0.04] border border-white/[0.08] text-muted-foreground capitalize">
+            <span className="text-[10px] rounded-full px-1.5 py-0.5 bg-muted dark:bg-white/[0.04] border border-border dark:border-white/[0.08] text-muted-foreground capitalize">
               {rec.status.replace(/_/g, " ")}
             </span>
             {linked && (
@@ -856,21 +856,21 @@ function RecommendationCard({
               <button
                 onClick={() => onDismiss(rec.id)}
                 disabled={isMutating}
-                className="flex items-center gap-1 rounded-lg border border-white/[0.08] bg-white/[0.03] px-2 py-1.5 text-[11px] text-muted-foreground hover:text-red-400 hover:border-red-500/30 transition-all disabled:opacity-40"
+                className="flex items-center gap-1 rounded-lg border border-border dark:border-white/[0.08] bg-muted/60 dark:bg-white/[0.03] px-2 py-1.5 text-[11px] text-muted-foreground hover:text-red-400 hover:border-red-500/30 transition-all disabled:opacity-40"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
             </>
           )}
           <button onClick={() => setOpen(o => !o)}
-            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/[0.04] transition-colors">
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted dark:hover:bg-white/[0.04] transition-colors">
             {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
           </button>
         </div>
       </div>
 
       {open && (
-        <div className="border-t border-white/[0.06] px-4 py-3 space-y-3 text-xs">
+        <div className="border-t border-border dark:border-white/[0.06] px-4 py-3 space-y-3 text-xs">
           <div>
             <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Recommended action</p>
             <p className="text-foreground/85 leading-relaxed">{rec.recommended_action}</p>
@@ -885,7 +885,7 @@ function RecommendationCard({
           {Object.keys(metrics).length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {Object.entries(metrics).slice(0, 8).map(([k, v]) => (
-                <span key={k} className="text-[10px] bg-white/[0.04] border border-white/[0.07] rounded px-2 py-0.5 text-muted-foreground">
+                <span key={k} className="text-[10px] bg-muted dark:bg-white/[0.04] border border-border dark:border-white/[0.07] rounded px-2 py-0.5 text-muted-foreground">
                   {k}: {String(v)}
                 </span>
               ))}
@@ -946,7 +946,7 @@ function OrchestrationPanel({ mode }: { mode: string }) {
   }
 
   return (
-    <div className="border-b border-white/[0.06] px-5 py-3">
+    <div className="border-b border-border dark:border-white/[0.06] px-5 py-3">
       <button onClick={() => setOpen(o => !o)} className="flex w-full items-center gap-2 text-left">
         <div className="flex h-6 w-6 items-center justify-center rounded-md bg-fuchsia-500/20 ring-1 ring-fuchsia-500/30 shrink-0">
           <Zap className="h-3.5 w-3.5 text-fuchsia-400" />
@@ -968,7 +968,7 @@ function OrchestrationPanel({ mode }: { mode: string }) {
         <div className="mt-3 space-y-3">
           <div className="grid gap-2 sm:grid-cols-3">
             {ORCH_PLAYBOOKS.map(pb => (
-              <div key={pb.key} className="rounded-lg border border-white/[0.08] bg-white/[0.03] p-3 flex flex-col gap-2">
+              <div key={pb.key} className="rounded-lg border border-border dark:border-white/[0.08] bg-muted/60 dark:bg-white/[0.03] p-3 flex flex-col gap-2">
                 <p className="text-xs font-medium">{pb.title}</p>
                 <p className="text-[11px] text-muted-foreground flex-1">{pb.description}</p>
                 <button
@@ -993,7 +993,7 @@ function OrchestrationPanel({ mode }: { mode: string }) {
             ) : (
               <div className="space-y-1.5">
                 {runs.slice(0, 6).map((r: any) => (
-                  <div key={r.id} className="rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+                  <div key={r.id} className="rounded-md border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] px-3 py-2">
                     <div className="flex items-center gap-2">
                       <span className={cn("text-[11px] font-medium",
                         r.status === "completed" ? "text-emerald-400" : r.status === "no_findings" ? "text-muted-foreground" : "text-red-400")}>
@@ -1184,7 +1184,7 @@ function HiveMindActionsPage() {
   return (
     <HiveMindShell>
       {/* Header */}
-      <div className="sticky top-0 z-20 border-b border-white/[0.07] bg-[hsl(var(--background))]/95 backdrop-blur-sm px-5 py-3 flex items-center gap-3">
+      <div className="sticky top-0 z-20 border-b border-border dark:border-white/[0.07] bg-[hsl(var(--background))]/95 backdrop-blur-sm px-5 py-3 flex items-center gap-3">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/20 ring-1 ring-amber-500/30 shrink-0">
           <Zap className="h-4 w-4 text-amber-400" />
         </div>
@@ -1239,7 +1239,7 @@ function HiveMindActionsPage() {
       <OrchestrationPanel mode={mode} />
 
       {/* Tabs */}
-      <div className="border-b border-white/[0.06] px-5">
+      <div className="border-b border-border dark:border-white/[0.06] px-5">
         <div className="flex gap-0">
           {TABS.map(({ key, label }) => (
             <button key={key} onClick={() => setTab(key)}
@@ -1250,7 +1250,7 @@ function HiveMindActionsPage() {
               {label}
               {tabCounts[key] > 0 && (
                 <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-semibold leading-none",
-                  tab === key ? "bg-amber-500/20 text-amber-400" : "bg-white/[0.08] text-muted-foreground")}>
+                  tab === key ? "bg-amber-500/20 text-amber-400" : "bg-muted dark:bg-white/[0.08] text-muted-foreground")}>
                   {tabCounts[key]}
                 </span>
               )}
@@ -1280,7 +1280,7 @@ function HiveMindActionsPage() {
           ) : (
             <div className="space-y-3">
               {mode === "observe" && (
-                <p className="text-[11px] text-muted-foreground rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2">
+                <p className="text-[11px] text-muted-foreground rounded-lg border border-border dark:border-white/[0.07] bg-muted/40 dark:bg-white/[0.02] px-3 py-2">
                   Observe mode: recommendations are read-only. Switch to Recommend, Assistant or Operator mode to act on them.
                 </p>
               )}

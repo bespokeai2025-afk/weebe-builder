@@ -354,7 +354,7 @@ function MiniChat({ onClose, onCollapse, onStateChange }: {
                   "flex h-5 w-5 shrink-0 items-center justify-center rounded-full mt-0.5",
                   m.role === "hm"
                     ? "bg-sky-500/10 ring-1 ring-sky-500/20"
-                    : "bg-white/[0.06]",
+                    : "bg-muted dark:bg-white/[0.06]",
                 )}>
                   {m.role === "hm"
                     ? <div className="h-2 w-2 rounded-full bg-sky-400 shadow-[0_0_4px_2px_rgba(14,165,233,0.5)]" />
