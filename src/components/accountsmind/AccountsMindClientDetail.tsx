@@ -34,7 +34,7 @@ function MarginBar({ pct }: { pct: number }) {
   const color =
     pct >= 40 ? "bg-emerald-500" : pct >= 20 ? "bg-yellow-500" : pct >= 0 ? "bg-orange-500" : "bg-red-500";
   return (
-    <div className="w-full bg-gray-800 rounded-full h-2">
+    <div className="w-full bg-muted dark:bg-gray-800 rounded-full h-2">
       <div className={cn("h-2 rounded-full transition-all", color)} style={{ width: `${clamped}%` }} />
     </div>
   );
@@ -60,7 +60,7 @@ export function AccountsMindClientDetail({ workspaceId }: Props) {
 
   if (isLoading) {
     return (
-      <div className="p-8 flex items-center gap-3 text-gray-400">
+      <div className="p-8 flex items-center gap-3 text-muted-foreground dark:text-gray-400">
         <RefreshCw className="w-4 h-4 animate-spin" /> Loading client…
       </div>
     );
@@ -83,12 +83,12 @@ export function AccountsMindClientDetail({ workspaceId }: Props) {
     <div className="p-6 space-y-5">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Link to="/admin/accounts/clients" className="text-gray-400 hover:text-white">
+        <Link to="/admin/accounts/clients" className="text-muted-foreground hover:text-foreground dark:text-gray-400 dark:hover:text-white">
           <ChevronLeft className="w-5 h-5" />
         </Link>
         <div className="flex-1">
-          <h1 className="text-xl font-bold text-white">{ws?.name ?? "Client"}</h1>
-          <p className="text-xs text-gray-500">Workspace ID: {workspaceId}</p>
+          <h1 className="text-xl font-bold text-foreground dark:text-white">{ws?.name ?? "Client"}</h1>
+          <p className="text-xs text-muted-foreground dark:text-gray-500">Workspace ID: {workspaceId}</p>
         </div>
         <Link
           to="/admin/accounts/invoices"
@@ -109,22 +109,22 @@ export function AccountsMindClientDetail({ workspaceId }: Props) {
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-          <div className="text-xs text-gray-500 mb-1">Monthly Charge</div>
+        <div className="bg-card border border-border dark:bg-gray-900 dark:border-gray-800 rounded-xl p-4">
+          <div className="text-xs text-muted-foreground dark:text-gray-500 mb-1">Monthly Charge</div>
           <div className="text-lg font-bold text-emerald-400">{currency}{(chargeCents / 100).toFixed(2)}</div>
         </div>
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-          <div className="text-xs text-gray-500 mb-1">Month Cost (so far)</div>
+        <div className="bg-card border border-border dark:bg-gray-900 dark:border-gray-800 rounded-xl p-4">
+          <div className="text-xs text-muted-foreground dark:text-gray-500 mb-1">Month Cost (so far)</div>
           <div className="text-lg font-bold text-red-400">{currency}{(totalCents / 100).toFixed(2)}</div>
         </div>
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-          <div className="text-xs text-gray-500 mb-1">Gross Profit</div>
+        <div className="bg-card border border-border dark:bg-gray-900 dark:border-gray-800 rounded-xl p-4">
+          <div className="text-xs text-muted-foreground dark:text-gray-500 mb-1">Gross Profit</div>
           <div className={cn("text-lg font-bold", profitCents >= 0 ? "text-emerald-400" : "text-red-400")}>
             {currency}{(profitCents / 100).toFixed(2)}
           </div>
         </div>
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-          <div className="text-xs text-gray-500 mb-1">Gross Margin</div>
+        <div className="bg-card border border-border dark:bg-gray-900 dark:border-gray-800 rounded-xl p-4">
+          <div className="text-xs text-muted-foreground dark:text-gray-500 mb-1">Gross Margin</div>
           <div className={cn("text-lg font-bold", marginPct >= 30 ? "text-emerald-400" : marginPct >= 0 ? "text-yellow-400" : "text-red-400")}>
             {marginPct.toFixed(1)}%
           </div>
@@ -132,23 +132,23 @@ export function AccountsMindClientDetail({ workspaceId }: Props) {
       </div>
 
       {/* Margin bar + forecast */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 space-y-3">
+      <div className="bg-card border border-border dark:bg-gray-900 dark:border-gray-800 rounded-xl p-4 space-y-3">
         <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-400">Margin</span>
-          <span className="text-white font-semibold">{marginPct.toFixed(1)}%</span>
+          <span className="text-muted-foreground dark:text-gray-400">Margin</span>
+          <span className="text-foreground dark:text-white font-semibold">{marginPct.toFixed(1)}%</span>
         </div>
         <MarginBar pct={marginPct} />
-        <div className="flex items-center justify-between text-xs text-gray-500">
+        <div className="flex items-center justify-between text-xs text-muted-foreground dark:text-gray-500">
           <span>Month-end forecast: {currency}{((curr?.forecast_month_end_cents ?? totalCents) / 100).toFixed(2)}</span>
           <span>{forecastPct}% of charge</span>
         </div>
       </div>
 
       {/* Cost breakdown */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-        <h3 className="text-sm font-semibold text-white mb-3">Cost Breakdown</h3>
+      <div className="bg-card border border-border dark:bg-gray-900 dark:border-gray-800 rounded-xl p-4">
+        <h3 className="text-sm font-semibold text-foreground dark:text-white mb-3">Cost Breakdown</h3>
         {!curr && (
-          <p className="text-xs text-gray-500">No cost data for this month. Click Recompute to generate.</p>
+          <p className="text-xs text-muted-foreground dark:text-gray-500">No cost data for this month. Click Recompute to generate.</p>
         )}
         <div className="space-y-2">
           {COST_CATEGORIES.map(({ key, label, icon: Icon, color }) => {
@@ -158,14 +158,14 @@ export function AccountsMindClientDetail({ workspaceId }: Props) {
             return (
               <div key={key} className="flex items-center gap-3">
                 <Icon className={cn("w-3.5 h-3.5 shrink-0", color)} />
-                <span className="text-xs text-gray-400 w-24">{label}</span>
-                <div className="flex-1 bg-gray-800 rounded-full h-1.5">
+                <span className="text-xs text-muted-foreground dark:text-gray-400 w-24">{label}</span>
+                <div className="flex-1 bg-muted dark:bg-gray-800 rounded-full h-1.5">
                   <div
                     className={cn("h-1.5 rounded-full", color.replace("text-", "bg-"))}
                     style={{ width: `${barPct}%` }}
                   />
                 </div>
-                <span className="text-xs text-gray-300 w-16 text-right">{currency}{(cents / 100).toFixed(2)}</span>
+                <span className="text-xs text-foreground/80 dark:text-gray-300 w-16 text-right">{currency}{(cents / 100).toFixed(2)}</span>
               </div>
             );
           })}
@@ -174,8 +174,8 @@ export function AccountsMindClientDetail({ workspaceId }: Props) {
 
       {/* Alerts */}
       {alerts.length > 0 && (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 space-y-2">
-          <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+        <div className="bg-card border border-border dark:bg-gray-900 dark:border-gray-800 rounded-xl p-4 space-y-2">
+          <h3 className="text-sm font-semibold text-foreground dark:text-white flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-yellow-400" /> Open Alerts
           </h3>
           {alerts.map((a: any) => (
@@ -186,8 +186,8 @@ export function AccountsMindClientDetail({ workspaceId }: Props) {
                 "bg-blue-500/20 text-blue-400"
               )}>{a.severity}</Badge>
               <div>
-                <div className="text-gray-200">{a.title}</div>
-                <div className="text-xs text-gray-500">{a.message}</div>
+                <div className="text-foreground/90 dark:text-gray-200">{a.title}</div>
+                <div className="text-xs text-muted-foreground dark:text-gray-500">{a.message}</div>
               </div>
             </div>
           ))}
@@ -196,12 +196,12 @@ export function AccountsMindClientDetail({ workspaceId }: Props) {
 
       {/* History */}
       {history.length > 1 && (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-          <h3 className="text-sm font-semibold text-white mb-3">Monthly History</h3>
+        <div className="bg-card border border-border dark:bg-gray-900 dark:border-gray-800 rounded-xl p-4">
+          <h3 className="text-sm font-semibold text-foreground dark:text-white mb-3">Monthly History</h3>
           <div className="overflow-x-auto">
-            <table className="w-full text-xs text-gray-300">
+            <table className="w-full text-xs text-foreground/80 dark:text-gray-300">
               <thead>
-                <tr className="text-gray-500 border-b border-gray-800">
+                <tr className="text-muted-foreground border-b border-border dark:text-gray-500 dark:border-gray-800">
                   <th className="text-left pb-2">Month</th>
                   <th className="text-right pb-2">Charge</th>
                   <th className="text-right pb-2">Cost</th>
@@ -211,7 +211,7 @@ export function AccountsMindClientDetail({ workspaceId }: Props) {
               </thead>
               <tbody>
                 {history.map((h: any) => (
-                  <tr key={h.id} className="border-b border-gray-800/50 last:border-0">
+                  <tr key={h.id} className="border-b border-border/50 dark:border-gray-800/50 last:border-0">
                     <td className="py-1.5">{new Date(h.month).toLocaleDateString("en-GB", { month: "short", year: "numeric" })}</td>
                     <td className="text-right">{currency}{(h.monthly_charge_cents / 100).toFixed(0)}</td>
                     <td className="text-right text-red-400">{currency}{(h.total_cost_cents / 100).toFixed(0)}</td>
