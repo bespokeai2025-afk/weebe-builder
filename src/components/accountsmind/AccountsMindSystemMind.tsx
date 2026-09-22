@@ -145,17 +145,17 @@ export function AccountsMindSystemMind() {
       {/* Header + workspace selector */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-white flex items-center gap-2">
+          <h1 className="text-xl font-bold text-foreground dark:text-white flex items-center gap-2">
             <Hammer className="w-5 h-5 text-sky-400" /> SystemMind Usage
           </h1>
-          <p className="text-sm text-gray-400 mt-0.5">
+          <p className="text-sm text-muted-foreground dark:text-gray-400 mt-0.5">
             Build Workspace runs, tokens, elapsed time and customer charges — current month
           </p>
         </div>
         <select
           value={workspaceId}
           onChange={(e) => setWorkspaceId(e.target.value)}
-          className="bg-gray-900 border border-gray-800 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500/50"
+          className="bg-card border border-border rounded-md px-3 py-2 text-sm text-foreground dark:bg-gray-900 dark:border-gray-800 dark:text-white focus:outline-none focus:border-sky-500/50"
         >
           {clients.map((c) => (
             <option key={c.id} value={c.id}>{c.name ?? c.id}</option>
@@ -164,7 +164,7 @@ export function AccountsMindSystemMind() {
       </div>
 
       {usageQ.isLoading && (
-        <div className="flex items-center gap-2 text-gray-400 text-sm">
+        <div className="flex items-center gap-2 text-muted-foreground dark:text-gray-400 text-sm">
           <RefreshCw className="w-4 h-4 animate-spin" /> Loading usage…
         </div>
       )}
@@ -199,15 +199,15 @@ export function AccountsMindSystemMind() {
                         (usage.pricing.included_seconds_per_month ?? 0) > 0 ||
                         (usage.pricing.included_tokens_per_month ?? 0) > 0)
                     ? "text-amber-400"
-                    : "text-gray-400"
+                    : "text-muted-foreground dark:text-gray-400"
               }
             />
-            <Kpi icon={TrendingUp}  label="Billable charge" value={fmtUsd(usage.billableChargeUsd)} accent="text-white" />
+            <Kpi icon={TrendingUp}  label="Billable charge" value={fmtUsd(usage.billableChargeUsd)} accent="text-foreground dark:text-white" />
           </div>
 
           {/* Margin strip */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex items-center justify-between">
-            <span className="text-sm text-gray-400">
+          <div className="bg-card border border-border dark:bg-gray-900 dark:border-gray-800 rounded-xl p-4 flex items-center justify-between">
+            <span className="text-sm text-muted-foreground dark:text-gray-400">
               Margin this month (billable charge − provider cost)
             </span>
             <span className={cn(
@@ -219,18 +219,18 @@ export function AccountsMindSystemMind() {
           </div>
 
           {/* Events table */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-            <h3 className="text-sm font-semibold text-white mb-3">
+          <div className="bg-card border border-border dark:bg-gray-900 dark:border-gray-800 rounded-xl p-4">
+            <h3 className="text-sm font-semibold text-foreground dark:text-white mb-3">
               Usage events ({events.length})
             </h3>
             {events.length === 0 && (
-              <p className="text-xs text-gray-500">No SystemMind usage recorded for this workspace this month.</p>
+              <p className="text-xs text-muted-foreground dark:text-gray-500">No SystemMind usage recorded for this workspace this month.</p>
             )}
             {events.length > 0 && (
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
-                    <tr className="text-gray-500 text-left border-b border-gray-800">
+                    <tr className="text-muted-foreground text-left border-b border-border dark:text-gray-500 dark:border-gray-800">
                       <th className="py-1.5 pr-3 font-medium">When</th>
                       <th className="py-1.5 pr-3 font-medium">Task</th>
                       <th className="py-1.5 pr-3 font-medium">Model</th>
@@ -243,16 +243,16 @@ export function AccountsMindSystemMind() {
                   </thead>
                   <tbody>
                     {events.slice(0, 100).map((ev) => (
-                      <tr key={ev.id} className="border-b border-gray-800/50 last:border-0 text-gray-300">
+                      <tr key={ev.id} className="border-b border-border/50 dark:border-gray-800/50 last:border-0 text-foreground/80 dark:text-gray-300">
                         <td className="py-1.5 pr-3 whitespace-nowrap">
                           {new Date(ev.created_at).toLocaleString()}
                         </td>
                         <td className="py-1.5 pr-3">{TASK_LABELS[ev.task_type] ?? ev.task_type}</td>
-                        <td className="py-1.5 pr-3 text-gray-500">{ev.model_id ?? "—"}</td>
+                        <td className="py-1.5 pr-3 text-muted-foreground dark:text-gray-500">{ev.model_id ?? "—"}</td>
                         <td className="py-1.5 pr-3 text-right">{(ev.total_tokens ?? 0).toLocaleString()}</td>
                         <td className="py-1.5 pr-3 text-right">{fmtMs(ev.elapsed_ms ?? 0)}</td>
                         <td className="py-1.5 pr-3 text-right">{fmtUsd(ev.estimated_provider_cost_usd)}</td>
-                        <td className="py-1.5 pr-3 text-right text-white">{fmtUsd(ev.customer_charge_usd)}</td>
+                        <td className="py-1.5 pr-3 text-right text-foreground dark:text-white">{fmtUsd(ev.customer_charge_usd)}</td>
                         <td className="py-1.5">
                           <span className={ev.success ? "text-emerald-400" : "text-red-400"}>
                             {ev.success ? "✓" : "✗"}
@@ -269,18 +269,18 @@ export function AccountsMindSystemMind() {
       )}
 
       {/* Pricing editor */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 space-y-4">
+      <div className="bg-card border border-border dark:bg-gray-900 dark:border-gray-800 rounded-xl p-4 space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-white">Pricing configuration</h3>
-            <p className="text-xs text-gray-500 mt-0.5">
+            <h3 className="text-sm font-semibold text-foreground dark:text-white">Pricing configuration</h3>
+            <p className="text-xs text-muted-foreground dark:text-gray-500 mt-0.5">
               Platform-wide rates for SystemMind Build Workspace usage. Saving creates a new
               current config — existing events keep the rates they were billed at.
             </p>
           </div>
           <button
             onClick={() => setShowHistory((v) => !v)}
-            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground dark:text-gray-400 dark:hover:text-white transition-colors"
           >
             <History className="w-3.5 h-3.5" />
             {showHistory ? "Hide history" : "History"}
@@ -292,22 +292,22 @@ export function AccountsMindSystemMind() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
               {PRICING_FIELDS.map((f) => (
                 <label key={f.key} className="block">
-                  <span className="text-xs text-gray-400">{f.label}</span>
+                  <span className="text-xs text-muted-foreground dark:text-gray-400">{f.label}</span>
                   <input
                     type="number"
                     min="0"
                     step={f.step}
                     value={form[f.key]}
                     onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
-                    className="mt-1 w-full bg-gray-950 border border-gray-800 rounded-md px-2.5 py-1.5 text-sm text-white focus:outline-none focus:border-sky-500/50"
+                    className="mt-1 w-full bg-muted border border-border rounded-md px-2.5 py-1.5 text-sm text-foreground dark:bg-gray-950 dark:border-gray-800 dark:text-white focus:outline-none focus:border-sky-500/50"
                   />
-                  {f.hint && <span className="text-[10px] text-gray-600">{f.hint}</span>}
+                  {f.hint && <span className="text-[10px] text-muted-foreground/70 dark:text-gray-600">{f.hint}</span>}
                 </label>
               ))}
             </div>
 
             <div className="flex flex-wrap items-center gap-4">
-              <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer">
+              <label className="flex items-center gap-2 text-xs text-muted-foreground dark:text-gray-400 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={exposeProviderCost}
@@ -321,7 +321,7 @@ export function AccountsMindSystemMind() {
                 placeholder="Change note (optional)"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                className="flex-1 min-w-48 bg-gray-950 border border-gray-800 rounded-md px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-sky-500/50"
+                className="flex-1 min-w-48 bg-muted border border-border rounded-md px-2.5 py-1.5 text-xs text-foreground dark:bg-gray-950 dark:border-gray-800 dark:text-white focus:outline-none focus:border-sky-500/50"
               />
               <button
                 onClick={() => saveMut.mutate()}
@@ -338,26 +338,26 @@ export function AccountsMindSystemMind() {
         )}
 
         {showHistory && (
-          <div className="border-t border-gray-800 pt-3">
+          <div className="border-t border-border dark:border-gray-800 pt-3">
             {historyQ.isLoading && (
-              <p className="text-xs text-gray-500">Loading history…</p>
+              <p className="text-xs text-muted-foreground dark:text-gray-500">Loading history…</p>
             )}
             {((historyQ.data ?? []) as any[]).map((h) => (
-              <div key={h.id} className="flex items-center justify-between py-1.5 border-b border-gray-800/50 last:border-0 text-xs">
-                <div className="text-gray-400">
+              <div key={h.id} className="flex items-center justify-between py-1.5 border-b border-border/50 dark:border-gray-800/50 last:border-0 text-xs">
+                <div className="text-muted-foreground dark:text-gray-400">
                   {new Date(h.created_at).toLocaleString()}
                   {h.is_current && (
                     <span className="ml-2 text-emerald-400 font-medium">current</span>
                   )}
-                  {h.notes && <span className="ml-2 text-gray-600">{h.notes}</span>}
+                  {h.notes && <span className="ml-2 text-muted-foreground/70 dark:text-gray-600">{h.notes}</span>}
                 </div>
-                <div className="text-gray-300">
+                <div className="text-foreground/80 dark:text-gray-300">
                   run {fmtUsd(h.base_charge_per_run_usd)} · min {fmtUsd(h.charge_per_minute_usd)} · 1k tok {fmtUsd(h.charge_per_1k_tokens_usd)} · ×{Number(h.overage_multiplier ?? 1)}
                 </div>
               </div>
             ))}
             {!historyQ.isLoading && ((historyQ.data ?? []) as any[]).length === 0 && (
-              <p className="text-xs text-gray-500">No pricing configs saved yet.</p>
+              <p className="text-xs text-muted-foreground dark:text-gray-500">No pricing configs saved yet.</p>
             )}
           </div>
         )}
@@ -373,12 +373,12 @@ function Kpi({ icon: Icon, label, value, accent }: {
   accent?: string;
 }) {
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+    <div className="bg-card border border-border dark:bg-gray-900 dark:border-gray-800 rounded-xl p-4">
       <div className="flex items-center gap-2 mb-2">
-        <Icon className="w-3.5 h-3.5 text-gray-500" />
-        <span className="text-xs text-gray-400">{label}</span>
+        <Icon className="w-3.5 h-3.5 text-muted-foreground dark:text-gray-500" />
+        <span className="text-xs text-muted-foreground dark:text-gray-400">{label}</span>
       </div>
-      <div className={cn("text-lg font-bold", accent ?? "text-white")}>{value}</div>
+      <div className={cn("text-lg font-bold", accent ?? "text-foreground dark:text-white")}>{value}</div>
     </div>
   );
 }
