@@ -85,7 +85,7 @@ export function SystemMindSetupAssistantPage() {
         </div>
 
         {/* Generate plan */}
-        <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 space-y-3">
+        <div className="rounded-xl border border-border dark:border-white/[0.07] bg-muted/40 dark:bg-white/[0.02] p-4 space-y-3">
           <p className="text-sm font-semibold flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-sky-400" /> Describe your business
           </p>
@@ -111,7 +111,7 @@ export function SystemMindSetupAssistantPage() {
         </div>
 
         {/* Active checklist (derived completion) */}
-        <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 space-y-3">
+        <div className="rounded-xl border border-border dark:border-white/[0.07] bg-muted/40 dark:bg-white/[0.02] p-4 space-y-3">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <p className="text-sm font-semibold flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 text-sky-400" /> Setup checklist
@@ -137,7 +137,7 @@ export function SystemMindSetupAssistantPage() {
               )}
               <div className="space-y-1.5">
                 {checklist.items.map((item: any, i: number) => (
-                  <div key={i} className="flex items-start gap-2.5 rounded-lg border border-white/[0.04] bg-white/[0.015] px-3 py-2">
+                  <div key={i} className="flex items-start gap-2.5 rounded-lg border border-border/60 dark:border-white/[0.04] bg-muted/25 dark:bg-white/[0.015] px-3 py-2">
                     {item.done ? (
                       <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
                     ) : (
@@ -167,7 +167,7 @@ export function SystemMindSetupAssistantPage() {
         </div>
 
         {/* Health check */}
-        <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 space-y-3">
+        <div className="rounded-xl border border-border dark:border-white/[0.07] bg-muted/40 dark:bg-white/[0.02] p-4 space-y-3">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <p className="text-sm font-semibold flex items-center gap-2">
               <HeartPulse className="h-4 w-4 text-rose-400" /> Workspace health

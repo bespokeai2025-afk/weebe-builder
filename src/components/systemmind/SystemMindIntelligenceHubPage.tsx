@@ -35,7 +35,7 @@ function OverviewTab() {
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {NAV_CARDS.map((c) => (
-          <Link key={c.to} to={c.to} className="group rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 hover:bg-white/[0.04] hover:border-sky-500/30 transition-colors">
+          <Link key={c.to} to={c.to} className="group rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-4 hover:bg-muted dark:hover:bg-white/[0.04] hover:border-sky-500/30 transition-colors">
             <div className="flex items-center gap-2 mb-1.5">
               <div className="flex h-7 w-7 items-center justify-center rounded-md bg-sky-500/15 ring-1 ring-sky-500/25">
                 <c.icon className="h-3.5 w-3.5 text-sky-400" />
@@ -128,7 +128,7 @@ function VersionHistoryTab() {
               <button
                 key={t.id}
                 onClick={() => setSelected(t.id)}
-                className={cn("w-full text-left rounded-lg border p-2.5 transition-colors", selected === t.id ? "border-sky-500/40 bg-sky-500/[0.08]" : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04]")}
+                className={cn("w-full text-left rounded-lg border p-2.5 transition-colors", selected === t.id ? "border-sky-500/40 bg-sky-500/[0.08]" : "border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] hover:bg-muted dark:hover:bg-white/[0.04]")}
               >
                 <p className="text-xs font-medium truncate">{t.name}</p>
                 <div className="flex items-center gap-1.5 mt-1">
@@ -141,7 +141,7 @@ function VersionHistoryTab() {
         )}
       </div>
 
-      <div className="rounded-xl border border-white/[0.06] bg-white/[0.01] p-4">
+      <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/20 dark:bg-white/[0.01] p-4">
         {!selected ? (
           <EmptyState icon={History} title="Select a template" hint="Pick a template to view its version history." />
         ) : isFetching ? (
@@ -158,7 +158,7 @@ function VersionHistoryTab() {
             {(detail.versions ?? []).length === 0 ? (
               <p className="text-[11px] text-muted-foreground/60">No prior versions recorded yet.</p>
             ) : (
-              <ol className="relative border-l border-white/[0.08] ml-1.5 space-y-3">
+              <ol className="relative border-l border-border dark:border-white/[0.08] ml-1.5 space-y-3">
                 {(detail.versions ?? []).map((v: any) => (
                   <li key={v.id} className="ml-4">
                     <span className="absolute -left-[5px] mt-1 h-2 w-2 rounded-full bg-sky-400" />
@@ -224,7 +224,7 @@ function DependenciesTab() {
               <button
                 key={n.id}
                 onClick={() => setSelected(n.id)}
-                className={cn("w-full text-left rounded-lg border p-2 transition-colors", selected === n.id ? "border-sky-500/40 bg-sky-500/[0.08]" : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04]")}
+                className={cn("w-full text-left rounded-lg border p-2 transition-colors", selected === n.id ? "border-sky-500/40 bg-sky-500/[0.08]" : "border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] hover:bg-muted dark:hover:bg-white/[0.04]")}
               >
                 <p className="text-[11px] font-medium truncate">{n.label}</p>
                 <Chip className="mt-0.5">{String(n.node_type).replace(/_/g, " ")}</Chip>
@@ -234,7 +234,7 @@ function DependenciesTab() {
         )}
       </div>
 
-      <div className="rounded-xl border border-white/[0.06] bg-white/[0.01] p-4">
+      <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/20 dark:bg-white/[0.01] p-4">
         {!selected ? (
           <EmptyState icon={Network} title="Select a node" hint="Pick a node to trace its dependencies (2 hops)." />
         ) : isFetching ? (

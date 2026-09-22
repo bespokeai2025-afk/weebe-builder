@@ -6,7 +6,7 @@ export const MIGRATION_FILE = "SYSTEMMIND_DEPLOYMENT_PLANNER_MIGRATION.sql";
 
 export function Chip({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <span className={cn("text-[10px] border border-white/[0.08] rounded px-1.5 py-0.5 text-muted-foreground", className)}>
+    <span className={cn("text-[10px] border border-border dark:border-white/[0.08] rounded px-1.5 py-0.5 text-muted-foreground", className)}>
       {children}
     </span>
   );
@@ -14,7 +14,7 @@ export function Chip({ children, className }: { children: ReactNode; className?:
 
 export function Section({ icon: Icon, title, children, className }: { icon: ElementType; title: string; children: ReactNode; className?: string }) {
   return (
-    <div className={cn("rounded-lg border border-white/[0.06] bg-white/[0.02] p-3", className)}>
+    <div className={cn("rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-3", className)}>
       <p className="text-[11px] font-semibold flex items-center gap-1.5 mb-2">
         <Icon className="h-3.5 w-3.5 text-sky-400" /> {title}
       </p>
@@ -53,7 +53,7 @@ export function ScoreBar({ value, label }: { value: number; label?: string }) {
           <span className="text-[10px] text-foreground/80 tabular-nums">{value}</span>
         </div>
       )}
-      <div className="h-1.5 w-full rounded-full bg-white/[0.06] overflow-hidden">
+      <div className="h-1.5 w-full rounded-full bg-muted dark:bg-white/[0.06] overflow-hidden">
         <div className={cn("h-full rounded-full transition-all", scoreColor(value))} style={{ width: `${Math.max(2, Math.min(100, value))}%` }} />
       </div>
     </div>
@@ -64,7 +64,7 @@ export function StatCard({ label, value, hint, tone }: { label: string; value: R
   const toneCls =
     tone === "emerald" ? "text-emerald-400" : tone === "amber" ? "text-amber-400" : tone === "red" ? "text-red-400" : "text-sky-400";
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+    <div className="rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-3">
       <p className="text-[10px] uppercase tracking-widest text-muted-foreground/50">{label}</p>
       <p className={cn("text-xl font-semibold mt-1 tabular-nums", toneCls)}>{value}</p>
       {hint && <p className="text-[10px] text-muted-foreground/60 mt-0.5">{hint}</p>}

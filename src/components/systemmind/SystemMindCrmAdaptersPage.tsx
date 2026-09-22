@@ -25,12 +25,12 @@ const ACTIONS: UniversalAction[] = listUniversalActions();
 const STATUS_CLS: Record<string, string> = {
   available: "border-emerald-500/30 bg-emerald-500/[0.08] text-emerald-400",
   beta: "border-amber-500/30 bg-amber-500/[0.08] text-amber-400",
-  planned: "border-white/[0.1] text-muted-foreground",
+  planned: "border-border dark:border-white/[0.1] text-muted-foreground",
 };
 
 function Chip({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <span className={cn("text-[10px] border border-white/[0.08] rounded px-1.5 py-0.5 text-muted-foreground", className)}>
+    <span className={cn("text-[10px] border border-border dark:border-white/[0.08] rounded px-1.5 py-0.5 text-muted-foreground", className)}>
       {children}
     </span>
   );
@@ -38,7 +38,7 @@ function Chip({ children, className }: { children: ReactNode; className?: string
 
 function Section({ icon: Icon, title, children }: { icon: ElementType; title: string; children: ReactNode }) {
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+    <div className="rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-3">
       <p className="text-[11px] font-semibold flex items-center gap-1.5 mb-2">
         <Icon className="h-3.5 w-3.5 text-indigo-400" /> {title}
       </p>
@@ -184,7 +184,7 @@ function ActionsCatalog() {
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {actions.map((a) => (
-              <div key={a.id} className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-2.5">
+              <div key={a.id} className="rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-2.5">
                 <div className="flex items-center gap-1.5">
                   <Zap className="h-3.5 w-3.5 text-lime-400 shrink-0" />
                   <span className="text-[11px] font-semibold">{a.label}</span>
@@ -273,7 +273,7 @@ export function SystemMindCrmAdaptersPage() {
                       "w-full text-left rounded-lg border p-2.5 transition-colors",
                       selected === s.name
                         ? "border-indigo-500/40 bg-indigo-500/[0.08]"
-                        : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04]",
+                        : "border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] hover:bg-muted dark:hover:bg-white/[0.04]",
                     )}
                   >
                     <div className="flex items-center justify-between gap-2">
@@ -299,7 +299,7 @@ export function SystemMindCrmAdaptersPage() {
             </div>
 
             {/* Detail */}
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.01] p-4">
+            <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/20 dark:bg-white/[0.01] p-4">
               {selectedDef ? <AdapterDetail def={selectedDef} /> : (
                 <p className="text-xs text-muted-foreground">Select a CRM to view its mapping.</p>
               )}

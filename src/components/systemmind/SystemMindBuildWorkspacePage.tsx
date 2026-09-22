@@ -237,7 +237,7 @@ export function SystemMindBuildWorkspacePage({ embedded = false }: { embedded?: 
                   "group relative w-full rounded-lg border transition-colors",
                   s.id === sessionId
                     ? "border-sky-500/40 bg-sky-500/[0.08]"
-                    : "border-white/[0.05] bg-white/[0.02] hover:bg-white/[0.05]",
+                    : "border-border dark:border-white/[0.05] bg-muted/40 dark:bg-white/[0.02] hover:bg-muted dark:hover:bg-white/[0.05]",
                   s.status === "archived" && "opacity-50",
                 )}
               >
@@ -277,7 +277,7 @@ export function SystemMindBuildWorkspacePage({ embedded = false }: { embedded?: 
 
         {/* ── Main ── */}
         {!sessionId ? (
-          <div className="flex min-h-0 flex-1 flex-col items-center gap-3 overflow-y-auto rounded-xl border border-white/[0.05] bg-white/[0.01] p-8 text-center [&>:first-child]:mt-auto [&>:last-child]:mb-auto">
+          <div className="flex min-h-0 flex-1 flex-col items-center gap-3 overflow-y-auto rounded-xl border border-border dark:border-white/[0.05] bg-muted/20 dark:bg-white/[0.01] p-8 text-center [&>:first-child]:mt-auto [&>:last-child]:mb-auto">
             <Hammer className="h-8 w-8 text-sky-400/60" />
             <div>
               <p className="text-sm font-semibold">SystemMind Build Workspace</p>
@@ -307,7 +307,7 @@ export function SystemMindBuildWorkspacePage({ embedded = false }: { embedded?: 
             </p>
 
             {/* ── Quick-start (merged Workflow Generator) ── */}
-            <div className="mt-2 w-full max-w-md space-y-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 text-left">
+            <div className="mt-2 w-full max-w-md space-y-2 rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-4 text-left">
               <p className="flex items-center gap-1.5 text-xs font-semibold">
                 <Wand2 className="h-3.5 w-3.5 text-sky-400" /> Quick-start a workflow
               </p>
@@ -356,7 +356,7 @@ export function SystemMindBuildWorkspacePage({ embedded = false }: { embedded?: 
                       key={ex.value}
                       disabled={quickStart.isPending}
                       onClick={() => { setQuickType(ex.value); setQuickDesc(ex.prompt); }}
-                      className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-left transition-colors hover:border-sky-500/30 hover:bg-sky-500/[0.06] disabled:opacity-50"
+                      className="rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] px-3 py-2 text-left transition-colors hover:border-sky-500/30 hover:bg-sky-500/[0.06] disabled:opacity-50"
                     >
                       <p className="text-[10px] font-medium text-sky-300">{ex.label}</p>
                       <p className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">{ex.prompt}</p>

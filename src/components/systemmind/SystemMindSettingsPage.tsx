@@ -35,7 +35,7 @@ const PROVIDER_LABELS: Record<string, string> = {
 
 function Row({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-start gap-3 py-4 border-b border-white/[0.05] last:border-0">
+    <div className="flex flex-col sm:flex-row sm:items-start gap-3 py-4 border-b border-border dark:border-white/[0.05] last:border-0">
       <div className="sm:w-52 shrink-0">
         <p className="text-xs font-medium">{label}</p>
         {hint && <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{hint}</p>}
@@ -53,7 +53,7 @@ function SelectField({ value, onChange, options }: {
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-sky-500/50"
+      className="rounded-lg border border-border dark:border-white/[0.08] bg-muted/60 dark:bg-white/[0.03] px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-sky-500/50"
     >
       {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
@@ -66,7 +66,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
       onClick={() => onChange(!checked)}
       className={cn(
         "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
-        checked ? "bg-sky-500" : "bg-white/[0.12]",
+        checked ? "bg-sky-500" : "bg-muted dark:bg-white/[0.12]",
       )}
     >
       <span className={cn(
@@ -93,7 +93,7 @@ function ProviderPriorityList({
   return (
     <div className="space-y-1.5 max-w-sm">
       {list.map((id, idx) => (
-        <div key={id} className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+        <div key={id} className="flex items-center gap-2 rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] px-3 py-2">
           <span className="text-[10px] text-muted-foreground/50 w-5 shrink-0 text-right">{idx + 1}</span>
           <span className="flex-1 text-xs truncate">{PROVIDER_LABELS[id] ?? id}</span>
           <div className="flex gap-0.5 shrink-0">
@@ -187,7 +187,7 @@ export function SystemMindSettingsPage() {
         ) : (
           <div className="space-y-4">
             {/* AI Persona */}
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-5">
+            <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] px-5">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 pt-4 pb-2">AI Persona</p>
 
               <Row label="Chat style" hint="How SystemMind responds in the Chat view.">
@@ -216,7 +216,7 @@ export function SystemMindSettingsPage() {
             </div>
 
             {/* Automation */}
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-5">
+            <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] px-5">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 pt-4 pb-2">Automation</p>
 
               <Row label="Morning briefing" hint="Generate a daily technical briefing on first login.">
@@ -241,7 +241,7 @@ export function SystemMindSettingsPage() {
             </div>
 
             {/* Alert Thresholds */}
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-5">
+            <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] px-5">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 pt-4 pb-2">Alert Thresholds</p>
 
               <Row label="Error rate threshold" hint="Flag providers with an error rate above this percentage.">
@@ -250,7 +250,7 @@ export function SystemMindSettingsPage() {
                     type="number" min={1} max={100}
                     value={form.errorRateThreshold}
                     onChange={(e) => set("errorRateThreshold", Number(e.target.value))}
-                    className="w-20 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-sky-500/50"
+                    className="w-20 rounded-lg border border-border dark:border-white/[0.08] bg-muted/60 dark:bg-white/[0.03] px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-sky-500/50"
                   />
                   <span className="text-xs text-muted-foreground">%</span>
                 </div>
@@ -263,7 +263,7 @@ export function SystemMindSettingsPage() {
                     type="number" min={1}
                     value={form.costDailyThreshold}
                     onChange={(e) => set("costDailyThreshold", Number(e.target.value))}
-                    className="w-24 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-sky-500/50"
+                    className="w-24 rounded-lg border border-border dark:border-white/[0.08] bg-muted/60 dark:bg-white/[0.03] px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-sky-500/50"
                   />
                   <span className="text-xs text-muted-foreground">per day</span>
                 </div>
@@ -271,7 +271,7 @@ export function SystemMindSettingsPage() {
             </div>
 
             {/* Provider Priority */}
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-5">
+            <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] px-5">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 pt-4 pb-2">Provider Priority</p>
               <div className="pb-4">
                 <p className="text-[11px] text-muted-foreground mb-3">
@@ -286,7 +286,7 @@ export function SystemMindSettingsPage() {
           </div>
         )}
 
-        <div className="mt-6 rounded-xl border border-white/[0.06] bg-white/[0.02] px-5 py-4">
+        <div className="mt-6 rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] px-5 py-4">
           <p className="text-xs font-semibold mb-1">About SystemMind</p>
           <p className="text-xs text-muted-foreground leading-relaxed">
             SystemMind is your AI Chief Technology Officer. It monitors platform reliability, provider health, agent workflows, runtime costs, and security posture. It reports to HiveMind (COO) and coordinates technical recommendations across the executive layer.

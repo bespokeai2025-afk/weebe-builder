@@ -45,7 +45,7 @@ function IssueCard({ issue, onFixPlan }: { issue: SystemMindIssue; onFixPlan: (i
           <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide", SEVERITY_BADGE[issue.severity])}>
             {issue.severity}
           </span>
-          <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-medium capitalize", CATEGORY_BADGE[issue.category] ?? "bg-white/[0.05] text-muted-foreground")}>
+          <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-medium capitalize", CATEGORY_BADGE[issue.category] ?? "bg-muted dark:bg-white/[0.05] text-muted-foreground")}>
             {issue.category}
           </span>
         </div>
@@ -123,7 +123,7 @@ export function SystemMindIssuesPage() {
             <button key={s} onClick={() => setFilter(s)}
               className={cn(
                 "rounded-full px-3 py-1 text-[11px] font-medium transition-colors",
-                filter === s ? "bg-sky-500/20 text-sky-300" : "bg-white/[0.04] text-muted-foreground hover:bg-white/[0.08]",
+                filter === s ? "bg-sky-500/20 text-sky-300" : "bg-muted dark:bg-white/[0.04] text-muted-foreground hover:bg-muted dark:hover:bg-white/[0.08]",
               )}>
               {s === "all" ? `All (${(issues ?? []).length})` : `${s} (${counts[s as keyof typeof counts] ?? 0})`}
             </button>

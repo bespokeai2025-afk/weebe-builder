@@ -218,7 +218,7 @@ export function SystemMindVariableEnginePage() {
         </div>
 
         {/* Agent picker + scan */}
-        <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 space-y-3">
+        <div className="rounded-xl border border-border dark:border-white/[0.07] bg-muted/40 dark:bg-white/[0.02] p-4 space-y-3">
           <p className="text-sm font-semibold flex items-center gap-2">
             <ScanSearch className="h-4 w-4 text-sky-400" /> Scan an agent
           </p>
@@ -253,7 +253,7 @@ export function SystemMindVariableEnginePage() {
 
         {/* Detected requirements report */}
         {agentId && report && (
-          <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 space-y-2">
+          <div className="rounded-xl border border-border dark:border-white/[0.07] bg-muted/40 dark:bg-white/[0.02] p-4 space-y-2">
             <p className="text-sm font-semibold">Detected requirements — {report.agentName}</p>
             <div className="flex flex-wrap gap-1.5">
               {report.requiredIntegrations.map((i: string) => (
@@ -272,7 +272,7 @@ export function SystemMindVariableEnginePage() {
 
         {/* Variable registry */}
         {agentId && (
-          <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 space-y-3">
+          <div className="rounded-xl border border-border dark:border-white/[0.07] bg-muted/40 dark:bg-white/[0.02] p-4 space-y-3">
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold">Variable registry</p>
               <p className="text-[11px] text-muted-foreground">
@@ -290,7 +290,7 @@ export function SystemMindVariableEnginePage() {
             ) : (
               <div className="space-y-2">
                 {variables.map((v: any) => (
-                  <div key={v.id} className="rounded-lg border border-white/[0.06] p-3 space-y-2">
+                  <div key={v.id} className="rounded-lg border border-border dark:border-white/[0.06] p-3 space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <code className="text-xs font-mono text-sky-300">{`{{${v.name}}}`}</code>
                       {statusBadge(v.status)}
@@ -386,7 +386,7 @@ export function SystemMindVariableEnginePage() {
 
         {/* Variable mappings */}
         {agentId && (
-          <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 space-y-3">
+          <div className="rounded-xl border border-border dark:border-white/[0.07] bg-muted/40 dark:bg-white/[0.02] p-4 space-y-3">
             <p className="text-sm font-semibold">Field mappings</p>
             <p className="text-[11px] text-muted-foreground">
               Connect a variable to a destination field, optionally passing it through a transformation rule.
@@ -403,7 +403,7 @@ export function SystemMindVariableEnginePage() {
                   const v = variables.find((x: any) => x.id === m.variableId);
                   const rule = (rules ?? []).find((r: any) => r.id === m.transformationRuleId);
                   return (
-                    <div key={m.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.06] p-2.5 text-xs">
+                    <div key={m.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-border dark:border-white/[0.06] p-2.5 text-xs">
                       <code className="font-mono text-sky-300">{v ? `{{${v.name}}}` : m.variableId}</code>
                       <Badge variant="outline" className="text-[10px]">{DIRECTIONS.find((d) => d.value === m.direction)?.label ?? m.direction}</Badge>
                       <span className="text-muted-foreground flex items-center gap-1">
@@ -459,7 +459,7 @@ export function SystemMindVariableEnginePage() {
         )}
 
         {/* Rule library */}
-        <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 space-y-3">
+        <div className="rounded-xl border border-border dark:border-white/[0.07] bg-muted/40 dark:bg-white/[0.02] p-4 space-y-3">
           <p className="text-sm font-semibold">Transformation rule library</p>
           {rulesError ? (
             <p className="text-xs text-red-400 flex items-center gap-1.5">
@@ -472,7 +472,7 @@ export function SystemMindVariableEnginePage() {
           ) : (
             <div className="space-y-1.5">
               {(rules ?? []).map((r: any) => (
-                <div key={r.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.06] p-2.5 text-xs">
+                <div key={r.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-border dark:border-white/[0.06] p-2.5 text-xs">
                   <span className="font-medium">{r.name}</span>
                   <Badge variant="outline" className="text-[10px]">{r.ruleType}</Badge>
                   {r.description && <span className="text-muted-foreground">{r.description}</span>}
@@ -487,7 +487,7 @@ export function SystemMindVariableEnginePage() {
         </div>
 
         {/* Transformation tester */}
-        <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 space-y-3">
+        <div className="rounded-xl border border-border dark:border-white/[0.07] bg-muted/40 dark:bg-white/[0.02] p-4 space-y-3">
           <p className="text-sm font-semibold flex items-center gap-2">
             <FlaskConical className="h-4 w-4 text-sky-400" /> Test a transformation
           </p>
@@ -532,7 +532,7 @@ export function SystemMindVariableEnginePage() {
             </Button>
           </div>
           {testResult && (
-            <div className="rounded-lg border border-white/[0.06] p-3 text-xs space-y-1 font-mono">
+            <div className="rounded-lg border border-border dark:border-white/[0.06] p-3 text-xs space-y-1 font-mono">
               <p>input: {JSON.stringify(testResult.sourceValue)}</p>
               <p className={testResult.transformed.ok ? "text-emerald-300" : "text-red-300"}>
                 transformed: {testResult.transformed.ok ? JSON.stringify(testResult.transformed.value) : `✗ ${testResult.transformed.error}`}

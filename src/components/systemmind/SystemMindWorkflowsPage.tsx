@@ -225,7 +225,7 @@ function LibraryTab({ initialHealth = "all" }: { initialHealth?: string }) {
                     : f.value === "healthy"
                     ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300"
                     : "bg-sky-500/20 border-sky-500/40 text-sky-300"
-                  : "bg-white/[0.02] border-white/[0.08] text-muted-foreground hover:text-foreground",
+                  : "bg-muted/40 dark:bg-white/[0.02] border-border dark:border-white/[0.08] text-muted-foreground hover:text-foreground",
               )}
             >
               {f.label}
@@ -237,7 +237,7 @@ function LibraryTab({ initialHealth = "all" }: { initialHealth?: string }) {
       {isLoading && <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>}
 
       {!isLoading && rows.length === 0 && (
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] py-14 text-center">
+        <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] py-14 text-center">
           <GitBranch className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">No workflows scanned yet</p>
           <p className="text-xs text-muted-foreground/60 mt-1">Click "Scan Agents" to extract your workflow library</p>
@@ -248,10 +248,10 @@ function LibraryTab({ initialHealth = "all" }: { initialHealth?: string }) {
         {rows.map((row) => {
           const intel = intellMap[row.agent_id];
           const score: number = intel?.score ?? 0;
-          const health = intel?.health ?? { label: "—", badgeClass: "bg-white/[0.04] text-muted-foreground" };
+          const health = intel?.health ?? { label: "—", badgeClass: "bg-muted dark:bg-white/[0.04] text-muted-foreground" };
           const complexity = intel?.complexity ?? { label: "—", color: "text-muted-foreground" };
           return (
-            <div key={row.id} className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-4 py-3">
+            <div key={row.id} className="rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] px-4 py-3">
               <div className="flex items-start gap-3">
                 <Bot className="h-4 w-4 text-sky-400 mt-0.5 shrink-0" />
                 <div className="flex-1 min-w-0">
@@ -263,7 +263,7 @@ function LibraryTab({ initialHealth = "all" }: { initialHealth?: string }) {
                       </span>
                     )}
                     {row.category && (
-                      <span className="text-[10px] border border-white/[0.08] rounded px-1.5 py-0.5 text-muted-foreground">
+                      <span className="text-[10px] border border-border dark:border-white/[0.08] rounded px-1.5 py-0.5 text-muted-foreground">
                         {row.category}
                       </span>
                     )}
@@ -291,7 +291,7 @@ function LibraryTab({ initialHealth = "all" }: { initialHealth?: string }) {
                   {(row.node_types ?? []).length > 0 && (
                     <div className="mt-1 flex gap-1 flex-wrap">
                       {(row.node_types as string[]).slice(0, 5).map((t) => (
-                        <code key={t} className="text-[9px] bg-white/[0.04] border border-white/[0.05] rounded px-1 py-0.5 text-muted-foreground">{t}</code>
+                        <code key={t} className="text-[9px] bg-muted dark:bg-white/[0.04] border border-border dark:border-white/[0.05] rounded px-1 py-0.5 text-muted-foreground">{t}</code>
                       ))}
                     </div>
                   )}
@@ -377,7 +377,7 @@ function ScoreHealthTab() {
       {isLoading && <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>}
 
       {!isLoading && rows.length === 0 && (
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] py-14 text-center">
+        <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] py-14 text-center">
           <BarChart2 className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">No workflows to score yet</p>
           <p className="text-xs text-muted-foreground/60 mt-1">Scan agents on the Library tab first</p>
@@ -396,7 +396,7 @@ function ScoreHealthTab() {
               { label: "Needs Attn",     value: attention,                                     unit: "",    cls: "text-amber-400" },
               { label: "Critical",       value: critical,                                      unit: "",    cls: "text-red-400" },
             ].map((s) => (
-              <div key={s.label} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 text-center">
+              <div key={s.label} className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-3 text-center">
                 <p className={cn("text-xl font-bold", s.cls)}>{s.value}<span className="text-xs font-normal text-muted-foreground">{s.unit}</span></p>
                 <p className="text-[10px] text-muted-foreground mt-0.5">{s.label}</p>
               </div>
@@ -404,14 +404,14 @@ function ScoreHealthTab() {
           </div>
 
           {/* Health distribution bar */}
-          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+          <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-4">
             <p className="text-xs font-semibold mb-3">Health Distribution</p>
             <div className="flex h-3 rounded-full overflow-hidden gap-px">
               {healthy   > 0 && <div className="bg-emerald-500/70 transition-all" style={{ flex: healthy   }} title={`Healthy: ${healthy}`} />}
               {good      > 0 && <div className="bg-sky-500/70 transition-all"     style={{ flex: good      }} title={`Good: ${good}`} />}
               {attention > 0 && <div className="bg-amber-500/70 transition-all"   style={{ flex: attention }} title={`Needs attention: ${attention}`} />}
               {critical  > 0 && <div className="bg-red-500/70 transition-all"     style={{ flex: critical  }} title={`Critical: ${critical}`} />}
-              {rows.length === 0 && <div className="bg-white/10 flex-1" />}
+              {rows.length === 0 && <div className="bg-muted dark:bg-white/10 flex-1" />}
             </div>
             <div className="flex gap-4 mt-2 flex-wrap">
               {[
@@ -430,7 +430,7 @@ function ScoreHealthTab() {
 
           <div className="grid sm:grid-cols-2 gap-4">
             {/* Top 5 */}
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-2">
+            <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-4 space-y-2">
               <p className="text-xs font-semibold flex items-center gap-1.5">
                 <TrendingUp className="h-3.5 w-3.5 text-emerald-400" /> Top Workflows
               </p>
@@ -444,7 +444,7 @@ function ScoreHealthTab() {
             </div>
 
             {/* Bottom 5 */}
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-2">
+            <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-4 space-y-2">
               <p className="text-xs font-semibold flex items-center gap-1.5">
                 <AlertTriangle className="h-3.5 w-3.5 text-amber-400" /> Needs Attention
               </p>
@@ -459,8 +459,8 @@ function ScoreHealthTab() {
           </div>
 
           {/* Full table */}
-          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
-            <div className="grid grid-cols-[1fr_60px_80px_70px_60px_80px] gap-2 px-4 py-2 border-b border-white/[0.05] text-[10px] text-muted-foreground font-semibold uppercase tracking-wide">
+          <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] overflow-hidden">
+            <div className="grid grid-cols-[1fr_60px_80px_70px_60px_80px] gap-2 px-4 py-2 border-b border-border dark:border-white/[0.05] text-[10px] text-muted-foreground font-semibold uppercase tracking-wide">
               <span>Workflow</span>
               <span className="text-right">Score</span>
               <span>Health</span>
@@ -469,7 +469,7 @@ function ScoreHealthTab() {
               <span className="text-right" title="Completion rate: calls with status 'completed' / total calls">Success Rate</span>
             </div>
             {sorted.map((r) => (
-              <div key={r.id} className="grid grid-cols-[1fr_60px_80px_70px_60px_80px] gap-2 px-4 py-2.5 border-b border-white/[0.03] last:border-0 items-center">
+              <div key={r.id} className="grid grid-cols-[1fr_60px_80px_70px_60px_80px] gap-2 px-4 py-2.5 border-b border-border/50 dark:border-white/[0.03] last:border-0 items-center">
                 <div className="min-w-0">
                   <p className="text-xs truncate">{r.workflow_name}</p>
                   <p className="text-[10px] text-muted-foreground truncate">{r.category}</p>
@@ -633,7 +633,7 @@ function GenerateTab({
               "rounded-lg px-3 py-1.5 text-xs font-medium border transition-colors",
               mode === m
                 ? "bg-sky-500/20 border-sky-500/40 text-sky-300"
-                : "bg-white/[0.02] border-white/[0.08] text-muted-foreground hover:text-foreground",
+                : "bg-muted/40 dark:bg-white/[0.02] border-border dark:border-white/[0.08] text-muted-foreground hover:text-foreground",
             )}
           >
             {m === "examples" ? "Example Templates" : "Custom Generate"}
@@ -657,11 +657,11 @@ function GenerateTab({
                     "rounded-xl border p-4 text-left space-y-2 transition-all",
                     selectedKey === ex.key
                       ? "border-sky-500/50 bg-sky-500/[0.08]"
-                      : "border-white/[0.07] bg-white/[0.02] hover:border-white/[0.12] hover:bg-white/[0.04]",
+                      : "border-border dark:border-white/[0.07] bg-muted/40 dark:bg-white/[0.02] hover:border-foreground/20 dark:hover:border-white/[0.12] hover:bg-muted dark:hover:bg-white/[0.04]",
                   )}
                 >
                   <div className="flex items-center gap-2">
-                    <div className={cn("rounded-lg p-1.5", selectedKey === ex.key ? "bg-sky-500/20" : "bg-white/[0.05]")}>
+                    <div className={cn("rounded-lg p-1.5", selectedKey === ex.key ? "bg-sky-500/20" : "bg-muted dark:bg-white/[0.05]")}>
                       <Icon className={cn("h-4 w-4", selectedKey === ex.key ? "text-sky-400" : "text-muted-foreground")} />
                     </div>
                     <div>
@@ -674,7 +674,7 @@ function GenerateTab({
                     <span className="text-[10px] text-muted-foreground/60">{ex.complexity} · ~{ex.estimatedNodes} nodes</span>
                     <div className="flex gap-1">
                       {ex.tags.slice(0, 2).map((t) => (
-                        <span key={t} className="text-[9px] border border-white/[0.08] rounded px-1 py-0.5 text-muted-foreground">{t}</span>
+                        <span key={t} className="text-[9px] border border-border dark:border-white/[0.08] rounded px-1 py-0.5 text-muted-foreground">{t}</span>
                       ))}
                     </div>
                   </div>
@@ -684,7 +684,7 @@ function GenerateTab({
           </div>
 
           {selectedKey && (
-            <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 space-y-3">
+            <div className="rounded-xl border border-border dark:border-white/[0.07] bg-muted/40 dark:bg-white/[0.02] p-4 space-y-3">
               <p className="text-xs font-semibold">Additional requirements (optional)</p>
               <Textarea
                 value={customDesc}
@@ -710,7 +710,7 @@ function GenerateTab({
       )}
 
       {mode === "custom" && (
-        <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 space-y-3">
+        <div className="rounded-xl border border-border dark:border-white/[0.07] bg-muted/40 dark:bg-white/[0.02] p-4 space-y-3">
           <p className="text-xs font-semibold">Custom Workflow Description</p>
           <Textarea
             value={description}
@@ -747,7 +747,7 @@ function GenerateTab({
       {isLoading && <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>}
 
       {!isLoading && draftList.length === 0 && (
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] py-10 text-center">
+        <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] py-10 text-center">
           <Sparkles className="h-7 w-7 text-muted-foreground mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">No drafts yet</p>
           <p className="text-xs text-muted-foreground/60 mt-1">Pick a template above to generate your first draft</p>
@@ -759,7 +759,7 @@ function GenerateTab({
           const isOpen = openDraftId === d.id;
           const draftData = isOpen && lastDraft ? lastDraft : d;
           return (
-            <div key={d.id} className="rounded-xl border border-white/[0.07] bg-white/[0.02] overflow-hidden">
+            <div key={d.id} className="rounded-xl border border-border dark:border-white/[0.07] bg-muted/40 dark:bg-white/[0.02] overflow-hidden">
               <div className="flex items-center gap-3 px-4 py-3">
                 <GitBranch className="h-4 w-4 text-sky-400 shrink-0" />
                 <div className="flex-1 min-w-0">
@@ -775,14 +775,14 @@ function GenerateTab({
               </div>
 
               {isOpen && (
-                <div className="border-t border-white/[0.06] px-4 py-3 space-y-3">
+                <div className="border-t border-border dark:border-white/[0.06] px-4 py-3 space-y-3">
                   {(draftData.nodes ?? []).length > 0 && (
                     <section>
                       <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Nodes ({(draftData.nodes as any[]).length})</p>
                       <div className="space-y-1">
                         {(draftData.nodes as any[]).map((n: any, i: number) => (
                           <div key={i} className="flex items-center gap-2">
-                            <code className="text-[9px] bg-white/[0.04] border border-white/[0.05] rounded px-1 py-0.5 text-sky-300 shrink-0">{n.type ?? n.id}</code>
+                            <code className="text-[9px] bg-muted dark:bg-white/[0.04] border border-border dark:border-white/[0.05] rounded px-1 py-0.5 text-sky-300 shrink-0">{n.type ?? n.id}</code>
                             <span className="text-xs text-muted-foreground truncate">{n.name ?? n.description ?? n.instruction ?? ""}</span>
                           </div>
                         ))}
@@ -794,7 +794,7 @@ function GenerateTab({
                       <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Variables</p>
                       <div className="flex flex-wrap gap-1">
                         {(draftData.variables as any[]).map((v: any, i: number) => (
-                          <span key={i} className="text-[10px] border border-white/[0.08] rounded px-1.5 py-0.5 text-muted-foreground">
+                          <span key={i} className="text-[10px] border border-border dark:border-white/[0.08] rounded px-1.5 py-0.5 text-muted-foreground">
                             {"{{"}{v.name}{"}}"} <span className="opacity-50">{v.type}</span>
                           </span>
                         ))}
@@ -909,14 +909,14 @@ function CompareTab() {
       </Button>
 
       {comparing && (
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] py-14 text-center">
+        <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] py-14 text-center">
           <Loader2 className="h-6 w-6 animate-spin text-sky-400 mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">Running AI comparison…</p>
         </div>
       )}
 
       {!comparing && !result && (
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] py-14 text-center">
+        <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] py-14 text-center">
           <ArrowLeftRight className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">Select two workflows and click Compare</p>
         </div>
@@ -932,7 +932,7 @@ function CompareTab() {
             ] as any[]).map((w, i) => (
               <div key={i} className={cn(
                 "rounded-xl border p-4 space-y-1",
-                w.winner ? "border-sky-500/40 bg-sky-500/[0.06]" : "border-white/[0.07] bg-white/[0.02]",
+                w.winner ? "border-sky-500/40 bg-sky-500/[0.06]" : "border-border dark:border-white/[0.07] bg-muted/40 dark:bg-white/[0.02]",
               )}>
                 <div className="flex items-center gap-2">
                   <p className="text-xs font-semibold truncate flex-1">{w.name}</p>
@@ -950,7 +950,7 @@ function CompareTab() {
 
           {/* Similarities */}
           {result.similarities?.length > 0 && (
-            <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 space-y-2">
+            <div className="rounded-xl border border-border dark:border-white/[0.07] bg-muted/40 dark:bg-white/[0.02] p-4 space-y-2">
               <p className="text-xs font-semibold text-muted-foreground">Similarities</p>
               {result.similarities.map((s: string, i: number) => (
                 <p key={i} className="text-xs text-muted-foreground">• {s}</p>
@@ -964,7 +964,7 @@ function CompareTab() {
               { label: `${result.agentAName} unique strengths`, items: result.differencesA, color: "text-sky-400", border: "border-sky-500/20" },
               { label: `${result.agentBName} unique strengths`, items: result.differencesB, color: "text-violet-400", border: "border-violet-500/20" },
             ].map((col) => (
-              <div key={col.label} className={cn("rounded-xl border bg-white/[0.02] p-4 space-y-2", col.border)}>
+              <div key={col.label} className={cn("rounded-xl border bg-muted/40 dark:bg-white/[0.02] p-4 space-y-2", col.border)}>
                 <p className={cn("text-xs font-semibold", col.color)}>{col.label}</p>
                 {(col.items as string[]).length === 0
                   ? <p className="text-xs text-muted-foreground">None identified</p>
@@ -1024,7 +1024,7 @@ function PatternsTab({ onGenerateFromPattern }: { onGenerateFromPattern: (descri
       {isLoading && <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>}
 
       {!isLoading && patterns.length === 0 && (
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] py-14 text-center">
+        <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] py-14 text-center">
           <Sparkles className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">No patterns yet</p>
           <p className="text-xs text-muted-foreground/60 mt-1">Scan agents first, then extract patterns to find reusable structures</p>
@@ -1033,13 +1033,13 @@ function PatternsTab({ onGenerateFromPattern }: { onGenerateFromPattern: (descri
 
       <div className="grid gap-3 sm:grid-cols-2">
         {patterns.map((p) => (
-          <div key={p.id} className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 space-y-2">
+          <div key={p.id} className="rounded-xl border border-border dark:border-white/[0.07] bg-muted/40 dark:bg-white/[0.02] p-4 space-y-2">
             <div className="flex items-start justify-between gap-2">
               <div>
                 <p className="text-xs font-semibold">{p.pattern_name}</p>
                 <p className="text-[10px] text-muted-foreground">{p.category}</p>
               </div>
-              <span className="text-[10px] border border-white/[0.08] rounded px-1.5 py-0.5 text-muted-foreground shrink-0">
+              <span className="text-[10px] border border-border dark:border-white/[0.08] rounded px-1.5 py-0.5 text-muted-foreground shrink-0">
                 {Math.round((p.confidence_score ?? 0) * 100)}% confidence
               </span>
             </div>
@@ -1048,7 +1048,7 @@ function PatternsTab({ onGenerateFromPattern }: { onGenerateFromPattern: (descri
               <div className="flex items-center gap-1 flex-wrap">
                 {(p.node_sequence as string[]).map((n, i) => (
                   <span key={i} className="flex items-center gap-1">
-                    <code className="text-[9px] bg-white/[0.04] border border-white/[0.05] rounded px-1 py-0.5 text-sky-300">{n}</code>
+                    <code className="text-[9px] bg-muted dark:bg-white/[0.04] border border-border dark:border-white/[0.05] rounded px-1 py-0.5 text-sky-300">{n}</code>
                     {i < (p.node_sequence as string[]).length - 1 && <ArrowRight className="h-2.5 w-2.5 text-muted-foreground/40" />}
                   </span>
                 ))}
@@ -1261,7 +1261,7 @@ function RepairTab() {
       </div>
 
       {inspecting && (
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] py-14 text-center">
+        <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] py-14 text-center">
           <Loader2 className="h-6 w-6 animate-spin text-sky-400 mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">Running structural analysis…</p>
         </div>
@@ -1269,7 +1269,7 @@ function RepairTab() {
 
       {result && !inspecting && (
         <div className="space-y-4">
-          <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 space-y-2">
+          <div className="rounded-xl border border-border dark:border-white/[0.07] bg-muted/40 dark:bg-white/[0.02] p-4 space-y-2">
             <div className="flex items-center justify-between gap-2">
               <p className="text-xs font-semibold">"{result.agentName}" — Repair Report</p>
               <div className="flex items-center gap-1.5">
@@ -1358,7 +1358,7 @@ function RepairTab() {
       )}
 
       {!result && !inspecting && (
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] py-14 text-center">
+        <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] py-14 text-center">
           <Wrench className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">Select an agent and click Inspect</p>
           <p className="text-xs text-muted-foreground/60 mt-1">Runs 7 structural checks + AI repair analysis · low/medium issues can be auto-fixed</p>
@@ -1390,7 +1390,7 @@ export function SystemMindWorkflowsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-white/[0.06] gap-4 overflow-x-auto no-scrollbar">
+      <div className="flex border-b border-border dark:border-white/[0.06] gap-4 overflow-x-auto no-scrollbar">
         {TABS.map((tab) => (
           <button
             key={tab}

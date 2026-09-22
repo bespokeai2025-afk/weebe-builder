@@ -50,7 +50,7 @@ function ThresholdControl() {
   });
 
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+    <div className="rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-3">
       <p className="text-[11px] font-semibold flex items-center gap-1.5 mb-2">
         <Sliders className="h-3.5 w-3.5 text-sky-400" /> Confidence threshold
       </p>
@@ -107,7 +107,7 @@ function DashboardTab() {
               return (
                 <div key={r} className="flex items-center gap-2">
                   <RiskPill rating={r} />
-                  <div className="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                  <div className="flex-1 h-1.5 rounded-full bg-muted dark:bg-white/[0.06] overflow-hidden">
                     <div className={cn("h-full rounded-full", r === "low" ? "bg-emerald-400" : r === "medium" ? "bg-amber-400" : "bg-red-400")} style={{ width: `${pct}%` }} />
                   </div>
                   <span className="text-[10px] text-muted-foreground tabular-nums w-6 text-right">{n}</span>
@@ -142,7 +142,7 @@ function DashboardTab() {
 function ConfidenceRow({ row }: { row: TemplateConfidenceRow }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02]">
+    <div className="rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02]">
       <button className="w-full flex items-center gap-3 p-2.5 text-left" onClick={() => setOpen((o) => !o)}>
         {open ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />}
         <div className="min-w-0 flex-1">
@@ -158,7 +158,7 @@ function ConfidenceRow({ row }: { row: TemplateConfidenceRow }) {
         <span className="text-sm font-semibold tabular-nums w-8 text-right text-foreground/90">{row.overall_score}</span>
       </button>
       {open && (
-        <div className="px-3 pb-3 pt-1 border-t border-white/[0.04] grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+        <div className="px-3 pb-3 pt-1 border-t border-border/60 dark:border-white/[0.04] grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
           {DIMENSIONS.map((d) => {
             const score = row[d.key] as number;
             const sig = (row.signals as any)?.[d.key];

@@ -24,7 +24,7 @@ import {
 const STATUS_COLORS: Record<string, string> = {
   active: "text-emerald-400 border-emerald-500/30",
   paused: "text-orange-400 border-orange-500/30",
-  hidden: "text-muted-foreground border-white/10",
+  hidden: "text-muted-foreground border-border dark:border-white/10",
 };
 
 function formatMetric(value: number | null | undefined, format: string): string {
@@ -50,7 +50,7 @@ function ConfigItemRow({
   const label = item.label ?? item.title;
   const key = item.field_key ?? item.stat_key ?? item.widget_key;
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-white/[0.05] bg-white/[0.02] px-3 py-2 flex-wrap">
+    <div className="flex items-center gap-2 rounded-lg border border-border dark:border-white/[0.05] bg-muted/40 dark:bg-white/[0.02] px-3 py-2 flex-wrap">
       <Badge variant="outline" className="text-[10px] font-mono shrink-0">{key}</Badge>
       <span className="text-xs font-medium">{label}</span>
       {item.metric_key && (
@@ -62,7 +62,7 @@ function ConfigItemRow({
         </span>
       )}
       {item.field_type && <span className="text-[10px] text-muted-foreground">{item.field_type} · {item.entity_type}</span>}
-      <Badge variant="outline" className={cn("text-[9px]", STATUS_COLORS[item.status] ?? "text-muted-foreground border-white/10")}>
+      <Badge variant="outline" className={cn("text-[9px]", STATUS_COLORS[item.status] ?? "text-muted-foreground border-border dark:border-white/10")}>
         {item.status}{item.version > 1 ? ` · v${item.version}` : ""}
       </Badge>
       {item.client_visible && (
@@ -178,7 +178,7 @@ export function SystemMindAccountsMindSetupPage() {
         </div>
 
         {/* Generate */}
-        <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 space-y-3">
+        <div className="rounded-xl border border-border dark:border-white/[0.07] bg-muted/40 dark:bg-white/[0.02] p-4 space-y-3">
           <p className="text-sm font-semibold flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-emerald-400" /> Describe what you need
           </p>
@@ -218,7 +218,7 @@ export function SystemMindAccountsMindSetupPage() {
           ) : (
             <>
               {(config?.fields?.length ?? 0) + (config?.stats?.length ?? 0) + (config?.widgets?.length ?? 0) === 0 && (
-                <p className="text-xs text-muted-foreground rounded-lg border border-white/[0.05] bg-white/[0.02] p-4">
+                <p className="text-xs text-muted-foreground rounded-lg border border-border dark:border-white/[0.05] bg-muted/40 dark:bg-white/[0.02] p-4">
                   No configuration is live yet. Draft one above, then approve it on the Automation page.
                 </p>
               )}
@@ -252,7 +252,7 @@ export function SystemMindAccountsMindSetupPage() {
 
         {/* Available metrics */}
         {availableMetrics && availableMetrics.length > 0 && (
-          <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
+          <div className="rounded-xl border border-border dark:border-white/[0.07] bg-muted/40 dark:bg-white/[0.02] p-4">
             <p className="text-sm font-semibold flex items-center gap-2 mb-2">
               <ListChecks className="h-4 w-4 text-emerald-400" /> Available metrics
             </p>

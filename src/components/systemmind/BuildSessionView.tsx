@@ -108,7 +108,7 @@ function BuildProgress({ phases }: { phases: string[] }) {
     return () => clearInterval(t);
   }, [phases]);
   return (
-    <div className="max-w-[85%] space-y-1.5 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2.5">
+    <div className="max-w-[85%] space-y-1.5 rounded-lg border border-border dark:border-white/[0.06] bg-muted/60 dark:bg-white/[0.03] px-3 py-2.5">
       <p className="mb-1 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
         SystemMind is building
       </p>
@@ -119,7 +119,7 @@ function BuildProgress({ phases }: { phases: string[] }) {
           ) : i === step ? (
             <Loader2 className="h-3 w-3 shrink-0 animate-spin text-sky-300" />
           ) : (
-            <span className="h-3 w-3 shrink-0 rounded-full border border-white/[0.12]" />
+            <span className="h-3 w-3 shrink-0 rounded-full border border-border dark:border-white/[0.12]" />
           )}
           <p className={cn(
             "text-[11px]",
@@ -155,20 +155,20 @@ export function RiskBadge({ risk }: { risk?: string | null }) {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  draft:            "border-white/20 text-muted-foreground",
+  draft:            "border-border dark:border-white/20 text-muted-foreground",
   testing:          "border-sky-500/40 text-sky-400",
-  revised:          "border-white/15 text-muted-foreground/70",
+  revised:          "border-border dark:border-white/15 text-muted-foreground/70",
   pending_approval: "border-amber-500/40 text-amber-400",
   applied:          "border-green-500/40 text-green-400",
   deployed:         "border-emerald-500/50 text-emerald-300",
   rejected:         "border-red-500/40 text-red-400",
-  archived:         "border-white/15 text-muted-foreground/60",
+  archived:         "border-border dark:border-white/15 text-muted-foreground/60",
 };
 
 export function StatusBadge({ status }: { status?: string | null }) {
   if (!status) return null;
   return (
-    <Badge variant="outline" className={cn("text-[10px]", STATUS_STYLES[status] ?? "border-white/20")}>
+    <Badge variant="outline" className={cn("text-[10px]", STATUS_STYLES[status] ?? "border-border dark:border-white/20")}>
       {status.replace(/_/g, " ")}
     </Badge>
   );
@@ -190,7 +190,7 @@ export function fmtMs(ms: number) {
 
 function Section({ icon: Icon, title, children }: { icon: React.ElementType; title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3 space-y-2">
+    <div className="rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-3 space-y-2">
       <div className="flex items-center gap-1.5">
         <Icon className="h-3.5 w-3.5 text-sky-400" />
         <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
@@ -218,7 +218,7 @@ function ConfigPreview({ config }: { config: Record<string, any> }) {
         <p className="text-[10px] text-muted-foreground/70">Trigger: <span className="text-sky-300">{wf.trigger_type}</span></p>
         <div className="space-y-1">
           {steps.map((s: any) => (
-            <div key={s.id} className="flex items-start gap-2 rounded border border-white/[0.05] bg-white/[0.02] px-2 py-1.5">
+            <div key={s.id} className="flex items-start gap-2 rounded border border-border dark:border-white/[0.05] bg-muted/40 dark:bg-white/[0.02] px-2 py-1.5">
               <Badge variant="secondary" className="text-[9px] shrink-0 mt-0.5">{s.id}</Badge>
               <div className="min-w-0">
                 <p className="text-[11px] font-medium">{s.type}{s.title ? ` — ${s.title}` : ""}{s.status ? ` → ${s.status}` : ""}{s.template ? ` (${s.template})` : ""}</p>
@@ -382,7 +382,7 @@ export function ChangeSummary({
 }: { diff: ConfigDiff; versionNumber: number; compact?: boolean }) {
   if (diff.lines.length === 0) {
     return compact ? null : (
-      <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+      <div className="rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-3">
         <p className="text-[11px] text-muted-foreground">
           v{versionNumber}: no structural changes detected against the previous version
           (wording-only or metadata tweaks).
@@ -456,7 +456,7 @@ export function WorkflowFlowDiagram({
                       ? "border-sky-500/40 bg-sky-500/[0.06]"
                       : s.type === "branch"
                         ? "border-violet-500/40 bg-violet-500/[0.05]"
-                        : "border-white/[0.08] bg-white/[0.03]",
+                        : "border-border dark:border-white/[0.08] bg-muted/60 dark:bg-white/[0.03]",
               )}
             >
               <div className="flex items-center gap-2">
@@ -471,7 +471,7 @@ export function WorkflowFlowDiagram({
               {s.status && <p className="mt-0.5 text-[10px] text-muted-foreground">sets status → {s.status}</p>}
               {s.template && <p className="mt-0.5 text-[10px] text-muted-foreground">template: {s.template}</p>}
               {s.type === "branch" && conditions.length > 0 && (
-                <div className="mt-1.5 space-y-1 border-t border-white/[0.06] pt-1.5">
+                <div className="mt-1.5 space-y-1 border-t border-border dark:border-white/[0.06] pt-1.5">
                   {conditions.map((c: any, ci: number) => (
                     <p key={ci} className="flex items-center gap-1 text-[10px] text-violet-200/80">
                       <GitBranch className="h-2.5 w-2.5 shrink-0" />
@@ -490,7 +490,7 @@ export function WorkflowFlowDiagram({
             </div>
             {i < steps.length - 1 && (
               <div className="my-0.5 flex h-4 items-center justify-center">
-                <div className="h-full w-px bg-white/[0.15]" />
+                <div className="h-full w-px bg-muted dark:bg-white/[0.15]" />
               </div>
             )}
           </div>
@@ -524,7 +524,7 @@ function SimulationView({ sim }: { sim: Record<string, any> }) {
           <div className="flex flex-wrap items-center gap-1">
             {p.steps.map((s: any, j: number) => (
               <span key={j} className="inline-flex items-center gap-1">
-                <span className="rounded bg-white/[0.05] border border-white/[0.06] px-1.5 py-0.5 text-[10px]" title={s.description}>
+                <span className="rounded bg-muted dark:bg-white/[0.05] border border-border dark:border-white/[0.06] px-1.5 py-0.5 text-[10px]" title={s.description}>
                   {s.type}
                 </span>
                 {j < p.steps.length - 1 && <ArrowRight className="h-2.5 w-2.5 text-muted-foreground/50" />}
@@ -593,7 +593,7 @@ function ConversionReportView({ conversion }: { conversion: Record<string, any> 
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-3">
         <Import className="h-4 w-4 text-sky-400" />
         <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold">
@@ -604,7 +604,7 @@ function ConversionReportView({ conversion }: { conversion: Record<string, any> 
             {fmtTime(conversion.created_at)} · original untouched — nothing goes live until Apply
           </p>
         </div>
-        <Badge variant="outline" className={cn("text-[10px] font-semibold", FIDELITY_STYLES[fidelity] ?? "border-white/20")}>
+        <Badge variant="outline" className={cn("text-[10px] font-semibold", FIDELITY_STYLES[fidelity] ?? "border-border dark:border-white/20")}>
           {fidelity === "full" ? "full fidelity" : fidelity === "partial" ? "partial fidelity" : "AI-assisted"}
         </Badge>
         <RiskBadge risk={conversion.risk_level ?? r.risk_level} />
@@ -749,7 +749,7 @@ function VariablesPanel({ config }: { config: Record<string, any> | null }) {
     );
   }
   const row = (v: any, kind: "variable" | "extracted", i: number) => (
-    <div key={`${kind}${i}`} className="flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.05] bg-white/[0.02] px-3 py-2">
+    <div key={`${kind}${i}`} className="flex flex-wrap items-center gap-2 rounded-lg border border-border dark:border-white/[0.05] bg-muted/40 dark:bg-white/[0.02] px-3 py-2">
       <Variable className="h-3 w-3 shrink-0 text-sky-300" />
       <p className="text-[11px] font-medium">{v.name ?? v.key ?? "unnamed"}</p>
       <Badge variant="secondary" className="text-[9px]">{kind === "variable" ? "runtime variable" : "extracted from call"}</Badge>
@@ -905,7 +905,7 @@ function LeadSourcePanel({
             "rounded-full border px-2.5 py-1 text-[10px] transition-colors",
             choice === "crm"
               ? "border-violet-400/60 bg-violet-500/20 text-violet-200"
-              : "border-white/[0.1] bg-white/[0.02] text-muted-foreground hover:text-foreground",
+              : "border-border dark:border-white/[0.1] bg-muted/40 dark:bg-white/[0.02] text-muted-foreground hover:text-foreground",
           )}
         >
           CRM / Leads page
@@ -923,7 +923,7 @@ function LeadSourcePanel({
                 "rounded-full border px-2.5 py-1 text-[10px] transition-colors",
                 choice === v
                   ? "border-violet-400/60 bg-violet-500/20 text-violet-200"
-                  : "border-white/[0.1] bg-white/[0.02] text-muted-foreground hover:text-foreground",
+                  : "border-border dark:border-white/[0.1] bg-muted/40 dark:bg-white/[0.02] text-muted-foreground hover:text-foreground",
               )}
             >
               Webform: {String(f.name)}
@@ -996,7 +996,7 @@ function PreCallInputsPanel({
       </div>
       <p className="text-[10px] text-muted-foreground">
         Pick what the agent should already know before it dials. Each becomes a{" "}
-        <code className="rounded bg-white/[0.06] px-1">{"{{variable}}"}</code> in the script, filled
+        <code className="rounded bg-muted dark:bg-white/[0.06] px-1">{"{{variable}}"}</code> in the script, filled
         automatically from the matching place in your WEBEE data — so the script stays personalised
         without you hard-coding anything. Post-call captured data is mapped separately below.
       </p>
@@ -1020,7 +1020,7 @@ function PreCallInputsPanel({
                       ? "cursor-default border-emerald-500/30 bg-emerald-500/10 text-emerald-300/80"
                       : on
                         ? "border-sky-400/60 bg-sky-500/20 text-sky-200"
-                        : "border-white/[0.1] bg-white/[0.02] text-muted-foreground hover:text-foreground",
+                        : "border-border dark:border-white/[0.1] bg-muted/40 dark:bg-white/[0.02] text-muted-foreground hover:text-foreground",
                   )}
                 >
                   {already ? "✓ " : ""}{i.label}
@@ -1108,7 +1108,7 @@ function ChatRequiredInputsPanel({
           {unmapped.map((f) => {
             const n = nameOf(f);
             return (
-              <div key={n} className="flex flex-wrap items-center gap-2 rounded-md border border-white/[0.06] bg-white/[0.02] px-2.5 py-2">
+              <div key={n} className="flex flex-wrap items-center gap-2 rounded-md border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] px-2.5 py-2">
                 <p className="min-w-[110px] text-[11px] font-medium">{n}</p>
                 <div className="flex items-center gap-1">
                   <span className="text-[11px] text-rose-400">*</span>
@@ -1140,7 +1140,7 @@ function ChatRequiredInputsPanel({
               </div>
             );
           })}
-          <div className="flex flex-wrap items-center gap-2 rounded-md border border-white/[0.06] bg-white/[0.02] px-2.5 py-2">
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] px-2.5 py-2">
             <p className="text-[11px] font-medium">Also sync to an external CRM?</p>
             <span className="text-[10px] text-muted-foreground">(optional — WEBEE stores everything either way)</span>
             <div className="flex items-center gap-1.5">
@@ -1246,10 +1246,10 @@ function MappingPanel({
           <ChatRequiredInputsPanel config={config} busy={!!busy} onSend={onSend} />
         </>
       )}
-      <div className="overflow-x-auto rounded-lg border border-white/[0.06]">
+      <div className="overflow-x-auto rounded-lg border border-border dark:border-white/[0.06]">
         <table className="w-full text-left text-[11px]">
           <thead>
-            <tr className="border-b border-white/[0.06] bg-white/[0.02] text-[10px] uppercase tracking-wide text-muted-foreground">
+            <tr className="border-b border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] text-[10px] uppercase tracking-wide text-muted-foreground">
               <th className="px-3 py-2 font-medium">Extracted field</th>
               <th className="px-3 py-2 font-medium">CRM destination</th>
               <th className="px-3 py-2 font-medium">CRM field</th>
@@ -1258,7 +1258,7 @@ function MappingPanel({
           </thead>
           <tbody>
             {rows.map((r, i) => (
-              <tr key={i} className="border-b border-white/[0.04] last:border-0">
+              <tr key={i} className="border-b border-border/60 dark:border-white/[0.04] last:border-0">
                 <td className="px-3 py-2 font-medium">{r.field}</td>
                 <td className="px-3 py-2">
                   {r.destination
@@ -1309,7 +1309,7 @@ function ReviewPanel({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-3">
         <ShieldCheck className="h-4 w-4 text-emerald-400" />
         <p className="text-xs font-medium">Pre-apply review</p>
         <RiskBadge risk={report.riskLevel} />
@@ -1853,7 +1853,7 @@ export function BuildSessionView({
       <div className="flex min-h-0 flex-1 gap-3">
         {/* Chat column */}
         <div className={cn(
-          "flex min-h-0 flex-col rounded-xl border border-white/[0.05] bg-white/[0.01]",
+          "flex min-h-0 flex-col rounded-xl border border-border dark:border-white/[0.05] bg-muted/20 dark:bg-white/[0.01]",
           embedded ? "w-[38%] min-w-[260px]" : "w-[42%] min-w-[300px]",
         )}>
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
@@ -1867,7 +1867,7 @@ export function BuildSessionView({
                     <button
                       key={p}
                       onClick={() => setPrompt(p)}
-                      className="w-full rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-left text-[11px] leading-relaxed text-muted-foreground transition-colors hover:border-sky-500/30 hover:bg-sky-500/[0.06] hover:text-foreground"
+                      className="w-full rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] px-3 py-2 text-left text-[11px] leading-relaxed text-muted-foreground transition-colors hover:border-sky-500/30 hover:bg-sky-500/[0.06] hover:text-foreground"
                     >
                       <Lightbulb className="mr-1.5 inline h-3 w-3 text-sky-300" />
                       {p}
@@ -1881,7 +1881,7 @@ export function BuildSessionView({
                 <div className={cn(
                   "max-w-[85%] rounded-lg px-3 py-2 text-xs leading-relaxed",
                   m.role === "user" && "bg-sky-500/15 text-sky-100",
-                  m.role === "systemmind" && "border border-white/[0.06] bg-white/[0.03]",
+                  m.role === "systemmind" && "border border-border dark:border-white/[0.06] bg-muted/60 dark:bg-white/[0.03]",
                   m.role === "system" && "border border-amber-500/20 bg-amber-500/[0.04] text-amber-200/90 text-[11px]",
                 )}>
                   {m.role !== "user" && (
@@ -1898,7 +1898,7 @@ export function BuildSessionView({
             )}
             <div ref={chatEndRef} />
           </div>
-          <div className="border-t border-white/[0.05] p-2.5">
+          <div className="border-t border-border dark:border-white/[0.05] p-2.5">
             {gateBlockedPrompt && !busy && session.status !== "archived" && (
               <div className="mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.06] px-2.5 py-2">
                 <p className="min-w-0 flex-1 text-[10px] leading-snug text-amber-200/90">
@@ -1929,7 +1929,7 @@ export function BuildSessionView({
                   <button
                     key={p}
                     onClick={() => setPrompt(p)}
-                    className="rounded-full border border-white/[0.08] bg-white/[0.02] px-2.5 py-1 text-[10px] text-muted-foreground transition-colors hover:border-sky-500/30 hover:bg-sky-500/[0.06] hover:text-foreground"
+                    className="rounded-full border border-border dark:border-white/[0.08] bg-muted/40 dark:bg-white/[0.02] px-2.5 py-1 text-[10px] text-muted-foreground transition-colors hover:border-sky-500/30 hover:bg-sky-500/[0.06] hover:text-foreground"
                   >
                     {p}
                   </button>
@@ -1960,35 +1960,35 @@ export function BuildSessionView({
         </div>
 
         {/* Workbench column */}
-        <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-white/[0.05] bg-white/[0.01]">
+        <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-border dark:border-white/[0.05] bg-muted/20 dark:bg-white/[0.01]">
           {/* Tabs + actions */}
-          <div className="flex flex-wrap items-center gap-1 border-b border-white/[0.05] p-2">
+          <div className="flex flex-wrap items-center gap-1 border-b border-border dark:border-white/[0.05] p-2">
             {stepTabs.map(([key, Icon, label], i) => (
               <button
                 key={key}
                 onClick={() => setTab(key)}
                 className={cn(
                   "flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors",
-                  tab === key ? "bg-sky-500/15 text-sky-300" : "text-muted-foreground hover:bg-white/[0.04]",
+                  tab === key ? "bg-sky-500/15 text-sky-300" : "text-muted-foreground hover:bg-muted dark:hover:bg-white/[0.04]",
                 )}
               >
                 <span className={cn(
                   "hidden h-3.5 w-3.5 items-center justify-center rounded-full text-[8px] font-bold xl:flex",
-                  tab === key ? "bg-sky-500/30 text-sky-200" : "bg-white/[0.06] text-muted-foreground",
+                  tab === key ? "bg-sky-500/30 text-sky-200" : "bg-muted dark:bg-white/[0.06] text-muted-foreground",
                 )}>
                   {i + 1}
                 </span>
                 <Icon className="h-3 w-3 xl:hidden" /> {label}
               </button>
             ))}
-            <div className="mx-1 h-4 w-px bg-white/[0.08]" />
+            <div className="mx-1 h-4 w-px bg-muted dark:bg-white/[0.08]" />
             {extraTabs.map(([key, Icon, label]) => (
               <button
                 key={key}
                 onClick={() => setTab(key)}
                 className={cn(
                   "flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors",
-                  tab === key ? "bg-sky-500/15 text-sky-300" : "text-muted-foreground hover:bg-white/[0.04]",
+                  tab === key ? "bg-sky-500/15 text-sky-300" : "text-muted-foreground hover:bg-muted dark:hover:bg-white/[0.04]",
                 )}
               >
                 <Icon className="h-3 w-3" /> {label}
@@ -2145,7 +2145,7 @@ export function BuildSessionView({
                         <ArrowRight className="ml-auto h-3 w-3 text-amber-400" />
                       </button>
                     )}
-                    <div className="flex items-center gap-1 rounded-lg border border-white/[0.06] bg-white/[0.02] p-0.5 w-fit">
+                    <div className="flex items-center gap-1 rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-0.5 w-fit">
                       {(["list", "diagram"] as const).map((v) => (
                         <button
                           key={v}
@@ -2187,7 +2187,7 @@ export function BuildSessionView({
                   fixPending={sendPrompt.isPending}
                   onAskFix={(p) => sendPrompt.mutate(p)}
                 />
-                <div className="border-t border-white/[0.05] pt-3">
+                <div className="border-t border-border dark:border-white/[0.05] pt-3">
                   {sim
                     ? <SimulationView sim={sim} />
                     : <div className="py-4 text-center">
@@ -2221,7 +2221,7 @@ export function BuildSessionView({
                       "rounded-lg border p-3 space-y-1.5",
                       v.id === session.current_version_id
                         ? "border-sky-500/30 bg-sky-500/[0.04]"
-                        : "border-white/[0.05] bg-white/[0.02]",
+                        : "border-border dark:border-white/[0.05] bg-muted/40 dark:bg-white/[0.02]",
                     )}
                   >
                     <div className="flex flex-wrap items-center gap-2">
@@ -2251,7 +2251,7 @@ export function BuildSessionView({
                         v.generated_config as Record<string, any>,
                       );
                       return d.lines.length > 0 ? (
-                        <div className="rounded-md border border-white/[0.05] bg-white/[0.02] px-2 py-1.5">
+                        <div className="rounded-md border border-border dark:border-white/[0.05] bg-muted/40 dark:bg-white/[0.02] px-2 py-1.5">
                           <ChangeSummary diff={d} versionNumber={v.version_number} compact />
                         </div>
                       ) : null;
@@ -2317,7 +2317,7 @@ export function BuildSessionView({
                       Rolling back restores the workflow (and agent configuration) exactly as it was.
                     </p>
                     {snapshots.map((s: any) => (
-                      <div key={s.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.05] bg-white/[0.02] px-3 py-2">
+                      <div key={s.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-border dark:border-white/[0.05] bg-muted/40 dark:bg-white/[0.02] px-3 py-2">
                         <History className="h-3 w-3 shrink-0 text-muted-foreground" />
                         <p className="text-[11px]">
                           <span className="font-medium">{s.target_workflow_name ?? "Workflow"}</span>
@@ -2345,7 +2345,7 @@ export function BuildSessionView({
             {tab === "deploy" && session.target_agent_id && (
               <div className="space-y-3">
                 <RequiredInputsPanel setup={setup} onGoToTab={(t) => setTab(t as Tab)} />
-                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-3">
                   <Rocket className="h-4 w-4 text-emerald-400" />
                   <p className="text-xs font-medium">Apply &amp; deploy</p>
                   <div className="ml-auto flex flex-wrap items-center gap-1.5">
@@ -2414,7 +2414,7 @@ export function BuildSessionView({
                         ["Time", fmtMs(usage.totalElapsedMs ?? 0)],
                         ["Charge", `$${Number(usage.totalChargeUsd ?? 0).toFixed(4)}`],
                       ].map(([label, value]) => (
-                        <div key={label} className="rounded-lg border border-white/[0.05] bg-white/[0.02] p-3">
+                        <div key={label} className="rounded-lg border border-border dark:border-white/[0.05] bg-muted/40 dark:bg-white/[0.02] p-3">
                           <p className="text-[10px] text-muted-foreground">{label}</p>
                           <p className="mt-0.5 text-sm font-semibold">{value}</p>
                         </div>
@@ -2472,7 +2472,7 @@ export function BuildSessionView({
             return (
               <div className="space-y-3">
                 {/* Target */}
-                <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3 text-[11px]">
+                <div className="rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-3 text-[11px]">
                   {impact.targetIsNew ? (
                     <p className="flex items-center gap-1.5 text-emerald-300">
                       <FilePlus2 className="h-3 w-3" /> This creates a brand-new workflow — nothing existing is touched.
@@ -2497,7 +2497,7 @@ export function BuildSessionView({
                     </>
                   )}
                   {deps.length > 0 && (
-                    <div className="mt-2 border-t border-white/[0.05] pt-2 text-muted-foreground">
+                    <div className="mt-2 border-t border-border dark:border-white/[0.05] pt-2 text-muted-foreground">
                       <p className="font-medium text-foreground/70">Could also affect:</p>
                       {deps.map((d, i) => <p key={i}>• {d}</p>)}
                     </div>
@@ -2528,7 +2528,7 @@ export function BuildSessionView({
 
                 {/* Diff */}
                 {diff.length > 0 && (
-                  <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+                  <div className="rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-3">
                     <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-foreground/80">
                       <GitCompareArrows className="h-3 w-3" /> What changes ({diff.length})
                     </p>
@@ -2570,7 +2570,7 @@ export function BuildSessionView({
                           onClick={() => setApplyMode(value)}
                           className={cn(
                             "flex w-full items-start gap-2 rounded-lg border px-3 py-2 text-left transition-colors",
-                            applyMode === value ? "border-sky-500/40 bg-sky-500/[0.08]" : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05]",
+                            applyMode === value ? "border-sky-500/40 bg-sky-500/[0.08]" : "border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] hover:bg-muted dark:hover:bg-white/[0.05]",
                             disabled && "cursor-not-allowed opacity-40",
                           )}
                         >

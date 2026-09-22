@@ -373,7 +373,7 @@ export function WorkspaceSetupPage() {
         <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-600 mb-3">Platform Workspaces & Modules</p>
 
         {/* Clients / Testing subtabs */}
-        <div className="flex items-center gap-1 mb-3 rounded-lg border border-white/[0.06] bg-gray-900/40 p-1 w-fit">
+        <div className="flex items-center gap-1 mb-3 rounded-lg border border-border dark:border-white/[0.06] bg-gray-900/40 p-1 w-fit">
           <button
             onClick={() => { setWsTab("clients"); setExpanded(null); }}
             className={cn(
@@ -422,10 +422,10 @@ export function WorkspaceSetupPage() {
             const profile = billingClient?.billing_profile;
 
             return (
-              <div key={ws.id} className="rounded-xl border border-white/[0.06] bg-gray-900/40 overflow-hidden">
+              <div key={ws.id} className="rounded-xl border border-border dark:border-white/[0.06] bg-gray-900/40 overflow-hidden">
                 <button
                   onClick={() => setExpanded(isOpen ? null : ws.id)}
-                  className="w-full flex items-center gap-4 p-4 text-left hover:bg-white/[0.02] transition-colors"
+                  className="w-full flex items-center gap-4 p-4 text-left hover:bg-muted/40 dark:hover:bg-white/[0.02] transition-colors"
                 >
                   <div className="h-9 w-9 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center shrink-0">
                     <Building2 className="h-4 w-4 text-sky-400" />
@@ -488,7 +488,7 @@ export function WorkspaceSetupPage() {
                 </button>
 
                 {isOpen && (
-                  <div className="border-t border-white/[0.06] p-4 space-y-4">
+                  <div className="border-t border-border dark:border-white/[0.06] p-4 space-y-4">
                     <div>
                       <label className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-2 block">Plan Tier</label>
                       <div className="flex flex-wrap gap-2">
@@ -500,7 +500,7 @@ export function WorkspaceSetupPage() {
                               "px-3 py-1.5 rounded-lg text-xs font-medium border transition-all",
                               currentTier === tier.id
                                 ? "border-current"
-                                : "border-white/[0.08] text-muted-foreground hover:border-white/20"
+                                : "border-border dark:border-white/[0.08] text-muted-foreground hover:border-foreground/20 dark:hover:border-white/20"
                             )}
                             style={currentTier === tier.id ? { borderColor: tier.color, color: tier.color, background: `${tier.color}15` } : {}}
                           >
@@ -526,7 +526,7 @@ export function WorkspaceSetupPage() {
                               }}
                               className={cn(
                                 "flex items-start gap-2.5 rounded-lg border p-3 text-left transition-all",
-                                active ? "bg-card border-primary/30" : "bg-transparent border-white/[0.06] hover:border-white/15"
+                                active ? "bg-card border-primary/30" : "bg-transparent border-border dark:border-white/[0.06] hover:border-foreground/20 dark:hover:border-white/15"
                               )}
                             >
                               <div
@@ -545,7 +545,7 @@ export function WorkspaceSetupPage() {
                       </div>
                     </div>
 
-                    <div className="flex justify-end gap-2 pt-2 border-t border-white/[0.06]">
+                    <div className="flex justify-end gap-2 pt-2 border-t border-border dark:border-white/[0.06]">
                       <Button
                         variant="outline" size="sm"
                         onClick={() => {

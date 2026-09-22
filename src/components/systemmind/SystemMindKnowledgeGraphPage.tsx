@@ -77,7 +77,7 @@ function DependencyPanel({ nodeId, onClose }: { nodeId: string; onClose: () => v
 
       {q.data?.root && (
         <>
-          <div className="flex items-center gap-2 mb-3 pb-3 border-b border-white/[0.06]">
+          <div className="flex items-center gap-2 mb-3 pb-3 border-b border-border dark:border-white/[0.06]">
             <NodeIcon type={q.data.root.node_type} className="h-4 w-4" />
             <span className="text-sm font-semibold">{q.data.root.label}</span>
             <span className="text-[10px] text-muted-foreground">{typeLabel(q.data.root.node_type)}</span>
@@ -91,7 +91,7 @@ function DependencyPanel({ nodeId, onClose }: { nodeId: string; onClose: () => v
               const to = byId.get(e.to_node_id);
               if (!from || !to) return null;
               return (
-                <div key={e.id} className="flex items-center gap-1.5 text-[10px] rounded-md bg-white/[0.02] px-2 py-1.5">
+                <div key={e.id} className="flex items-center gap-1.5 text-[10px] rounded-md bg-muted/40 dark:bg-white/[0.02] px-2 py-1.5">
                   <NodeIcon type={from.node_type} className="h-3 w-3 shrink-0" />
                   <span className="text-foreground/80 truncate max-w-[30%]">{from.label}</span>
                   <span className="text-muted-foreground/50 inline-flex items-center gap-0.5 shrink-0">
@@ -177,7 +177,7 @@ export function SystemMindKnowledgeGraphPage() {
 
       {/* Empty / first-run state */}
       {summary.isSuccess && !lastBuild && (
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-8 text-center">
+        <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-8 text-center">
           <Network className="h-8 w-8 text-indigo-400/50 mx-auto mb-2" />
           <p className="text-sm font-medium">No graph built yet</p>
           <p className="text-xs text-muted-foreground mt-1 mb-3">
@@ -212,7 +212,7 @@ export function SystemMindKnowledgeGraphPage() {
                 onClick={() => setNodeType(nodeType === t ? "all" : t)}
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[10px] transition-colors",
-                  nodeType === t ? "border-indigo-500/40 bg-indigo-500/[0.1]" : "border-white/[0.08] hover:bg-white/[0.04]",
+                  nodeType === t ? "border-indigo-500/40 bg-indigo-500/[0.1]" : "border-border dark:border-white/[0.08] hover:bg-muted dark:hover:bg-white/[0.04]",
                 )}
               >
                 <NodeIcon type={t} className="h-3 w-3" />
@@ -263,7 +263,7 @@ export function SystemMindKnowledgeGraphPage() {
                     onClick={() => setSelectedNode(n.id)}
                     className={cn(
                       "w-full text-left rounded-lg border p-2.5 transition-colors",
-                      selectedNode === n.id ? "border-indigo-500/40 bg-indigo-500/[0.08]" : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04]",
+                      selectedNode === n.id ? "border-indigo-500/40 bg-indigo-500/[0.08]" : "border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] hover:bg-muted dark:hover:bg-white/[0.04]",
                     )}
                   >
                     <div className="flex items-center gap-2">
@@ -274,7 +274,7 @@ export function SystemMindKnowledgeGraphPage() {
                     <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                       <span className="text-[9px] text-muted-foreground/50">{typeLabel(n.node_type)}</span>
                       {(n.tags ?? []).slice(0, 3).map((t) => (
-                        <span key={t} className="text-[9px] border border-white/[0.08] rounded px-1 py-0.5 text-muted-foreground/60">{t}</span>
+                        <span key={t} className="text-[9px] border border-border dark:border-white/[0.08] rounded px-1 py-0.5 text-muted-foreground/60">{t}</span>
                       ))}
                     </div>
                   </button>
@@ -292,7 +292,7 @@ export function SystemMindKnowledgeGraphPage() {
               {selectedNode ? (
                 <DependencyPanel nodeId={selectedNode} onClose={() => setSelectedNode(null)} />
               ) : (
-                <div className="rounded-xl border border-dashed border-white/[0.08] p-8 text-center h-full flex flex-col items-center justify-center">
+                <div className="rounded-xl border border-dashed border-border dark:border-white/[0.08] p-8 text-center h-full flex flex-col items-center justify-center">
                   <Network className="h-7 w-7 text-muted-foreground/30 mb-2" />
                   <p className="text-xs text-muted-foreground">Select a node to trace its dependencies.</p>
                 </div>
@@ -314,7 +314,7 @@ export function SystemMindKnowledgeGraphPage() {
 
 function Stat({ label, value, small }: { label: string; value: ReactNode; small?: boolean }) {
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-2.5">
+    <div className="rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-2.5">
       <p className="text-[10px] text-muted-foreground/60">{label}</p>
       <p className={cn("font-semibold", small ? "text-[11px] mt-0.5" : "text-lg")}>{value}</p>
     </div>

@@ -84,8 +84,8 @@ function Panel({ title, icon: Icon, children, accent = "sky" }: {
     : accent === "violet" ? "text-violet-400 bg-violet-500/10 border-violet-500/20"
     : "text-sky-400 bg-sky-500/10 border-sky-500/20";
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-gray-900/40 overflow-hidden">
-      <div className={cn("flex items-center gap-2 px-4 py-3 border-b border-white/[0.06]", ``)}>
+    <div className="rounded-xl border border-border dark:border-white/[0.06] bg-gray-900/40 overflow-hidden">
+      <div className={cn("flex items-center gap-2 px-4 py-3 border-b border-border dark:border-white/[0.06]", ``)}>
         <div className={cn("flex h-6 w-6 items-center justify-center rounded border", cls)}>
           <Icon className="h-3.5 w-3.5" />
         </div>
@@ -304,7 +304,7 @@ function SavedMappingsTab({ connectionId }: { connectionId: string }) {
         <p className="text-sm text-gray-500 py-4 text-center">No mappings saved yet. Use the Request Builder to probe endpoints and save mappings.</p>
       )}
       {(mappings as any[]).map((m: any) => (
-        <div key={m.id} className="rounded-lg border border-white/[0.06] bg-gray-950/60 p-3">
+        <div key={m.id} className="rounded-lg border border-border dark:border-white/[0.06] bg-gray-950/60 p-3">
           {editingId === m.id ? (
             <div className="space-y-2">
               <div className="grid grid-cols-2 gap-2">
@@ -556,7 +556,7 @@ export function ApiProbePage() {
       </div>
 
       {/* Page-level tabs */}
-      <div className="flex gap-1 border-b border-white/[0.06] pb-px -mt-2">
+      <div className="flex gap-1 border-b border-border dark:border-white/[0.06] pb-px -mt-2">
         {([
           { key: "connections", label: "Connections & Mappings", icon: Database },
           { key: "engine",      label: "Engine Status",          icon: Zap },
@@ -603,7 +603,7 @@ export function ApiProbePage() {
                 "w-full text-left rounded-lg border p-3 transition-all",
                 selectedId === conn.id && !creatingNew
                   ? "border-sky-500/30 bg-sky-500/10"
-                  : "border-white/[0.06] bg-gray-900/40 hover:border-white/10"
+                  : "border-border dark:border-white/[0.06] bg-gray-900/40 hover:border-foreground/20 dark:hover:border-white/10"
               )}
             >
               <div className="flex items-center justify-between gap-2">
@@ -741,7 +741,7 @@ export function ApiProbePage() {
           {/* Tabs: Request Builder / Saved Mappings */}
           {selectedId && (
             <>
-              <div className="flex gap-1 border-b border-white/[0.06] pb-px">
+              <div className="flex gap-1 border-b border-border dark:border-white/[0.06] pb-px">
                 {(["probe", "mappings"] as const).map((t) => (
                   <button
                     key={t}
@@ -913,7 +913,7 @@ export function ApiProbePage() {
           )}
 
           {!selectedId && !creatingNew && (
-            <div className="rounded-xl border border-dashed border-white/10 p-12 text-center">
+            <div className="rounded-xl border border-dashed border-border dark:border-white/10 p-12 text-center">
               <Activity className="mx-auto h-8 w-8 text-gray-700 mb-3" />
               <p className="text-sm text-gray-500">Select a connection from the list or create a new one to begin probing.</p>
               <Button size="sm" onClick={startNew} className="mt-4 bg-sky-600 hover:bg-sky-700 text-white text-xs gap-1">

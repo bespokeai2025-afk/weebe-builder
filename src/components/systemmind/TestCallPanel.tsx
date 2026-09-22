@@ -27,7 +27,7 @@ function CheckRow({ c }: { c: { key: string; label: string; status: string; deta
   const Icon = c.status === "passed" ? CheckCircle2 : c.status === "failed" ? XCircle : AlertTriangle;
   const color = c.status === "passed" ? "text-emerald-400" : c.status === "failed" ? "text-red-400" : "text-amber-400";
   return (
-    <div className="flex items-start gap-2 rounded-md border border-white/[0.05] bg-white/[0.02] px-2.5 py-2">
+    <div className="flex items-start gap-2 rounded-md border border-border dark:border-white/[0.05] bg-muted/40 dark:bg-white/[0.02] px-2.5 py-2">
       <Icon className={cn("mt-0.5 h-3.5 w-3.5 shrink-0", color)} />
       <div className="min-w-0">
         <p className="text-[11px] font-medium">{c.label}</p>
@@ -150,7 +150,7 @@ export function TestCallPanel({
       </div>
 
       {overrideOpen && (
-        <div className="space-y-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+        <div className="space-y-2 rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-3">
           <p className="text-[11px] font-medium">Request a manual pass (HiveMind approval required)</p>
           <Textarea
             value={overrideReason}
@@ -168,7 +168,7 @@ export function TestCallPanel({
       )}
 
       {/* Run a test */}
-      <div className="space-y-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+      <div className="space-y-2 rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-3">
         <div className="flex items-center gap-2">
           <PhoneCall className="h-3.5 w-3.5 text-sky-300" />
           <p className="text-[11px] font-semibold">Run a real test call</p>
@@ -181,7 +181,7 @@ export function TestCallPanel({
           <select
             value={scenario}
             onChange={(e) => setScenario(e.target.value)}
-            className="h-7 rounded-md border border-white/[0.08] bg-background px-2 text-[11px]"
+            className="h-7 rounded-md border border-border dark:border-white/[0.08] bg-background px-2 text-[11px]"
           >
             {(state.scenarios ?? []).map((s: any) => (
               <option key={s.id} value={s.id}>{s.label}</option>
@@ -211,7 +211,7 @@ export function TestCallPanel({
                 onClick={() => setSelectedCall(c.id)}
                 className={cn(
                   "flex w-full items-center gap-2 rounded-md border px-2.5 py-1.5 text-left",
-                  selectedCall === c.id ? "border-sky-500/40 bg-sky-500/[0.08]" : "border-white/[0.05] bg-white/[0.02] hover:bg-white/[0.04]",
+                  selectedCall === c.id ? "border-sky-500/40 bg-sky-500/[0.08]" : "border-border dark:border-white/[0.05] bg-muted/40 dark:bg-white/[0.02] hover:bg-muted dark:hover:bg-white/[0.04]",
                 )}
               >
                 <PhoneCall className="h-3 w-3 shrink-0 text-muted-foreground" />
@@ -236,7 +236,7 @@ export function TestCallPanel({
 
       {/* Latest result */}
       {latestFull && !latestFull.is_manual_override && (
-        <div className="space-y-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+        <div className="space-y-2 rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-3">
           <div className="flex items-center gap-2">
             <p className="text-[11px] font-semibold">Latest test result</p>
             <Badge variant="outline" className={cn("text-[9px]",
@@ -277,7 +277,7 @@ export function TestCallPanel({
             Test history ({state.history.length}) {showHistory ? "▾" : "▸"}
           </button>
           {showHistory && (state.history as any[]).map((h) => (
-            <div key={h.id} className="flex items-center gap-2 rounded-md border border-white/[0.04] bg-white/[0.01] px-2.5 py-1.5">
+            <div key={h.id} className="flex items-center gap-2 rounded-md border border-border/60 dark:border-white/[0.04] bg-muted/20 dark:bg-white/[0.01] px-2.5 py-1.5">
               {h.passed ? <CheckCircle2 className="h-3 w-3 text-emerald-400" /> : <XCircle className="h-3 w-3 text-red-400" />}
               <span className="text-[10px]">{h.test_scenario}{h.is_manual_override ? " (override)" : ""}</span>
               {(h.failed_checks ?? []).length > 0 && (

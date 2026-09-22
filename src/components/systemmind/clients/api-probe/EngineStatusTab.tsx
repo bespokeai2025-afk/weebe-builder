@@ -47,7 +47,7 @@ function ModuleLogRow({ log }: { log: any }) {
   const isOk = !log.hasError && log.lastStatus >= 200 && log.lastStatus < 300;
   const isWarn = log.lastStatus === 0 || (log.lastStatus >= 400 && log.lastStatus < 500);
   return (
-    <div className="grid grid-cols-[1fr_80px_60px_70px_70px_80px] gap-2 items-center py-2 border-b border-white/[0.04] last:border-0 text-xs">
+    <div className="grid grid-cols-[1fr_80px_60px_70px_70px_80px] gap-2 items-center py-2 border-b border-border/60 dark:border-white/[0.04] last:border-0 text-xs">
       <div className="flex items-center gap-1.5 min-w-0">
         <StatusDot ok={isOk} warning={isWarn} />
         <span className="font-mono text-gray-300 truncate">{log.dataSourceKey}</span>
@@ -77,7 +77,7 @@ function ModuleLogRow({ log }: { log: any }) {
 
 function ProfileCard({ profile }: { profile: any }) {
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-gray-900/50 p-3 space-y-2">
+    <div className="rounded-lg border border-border dark:border-white/[0.06] bg-gray-900/50 p-3 space-y-2">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Database className="w-3.5 h-3.5 text-violet-400 flex-shrink-0" />
@@ -177,7 +177,7 @@ export function EngineStatusTab() {
           <Database className="w-3.5 h-3.5" /> Active API Profiles
         </p>
         {(status?.profiles ?? []).length === 0 ? (
-          <div className="rounded-lg border border-dashed border-white/10 p-6 text-center">
+          <div className="rounded-lg border border-dashed border-border dark:border-white/10 p-6 text-center">
             <Database className="mx-auto h-6 w-6 text-gray-700 mb-2" />
             <p className="text-xs text-gray-500">No workspace API profiles configured yet.</p>
             <p className="text-[10px] text-gray-600 mt-1">Seed the Webuyanyhouse profile below to enable the engine.</p>
@@ -197,13 +197,13 @@ export function EngineStatusTab() {
           <Activity className="w-3.5 h-3.5" /> Last 48h Module Activity
         </p>
         {(status?.moduleLogs ?? []).length === 0 ? (
-          <div className="rounded-lg border border-dashed border-white/10 p-5 text-center">
+          <div className="rounded-lg border border-dashed border-border dark:border-white/10 p-5 text-center">
             <Clock className="mx-auto h-5 w-5 text-gray-700 mb-1.5" />
             <p className="text-xs text-gray-500">No engine calls recorded in the last 48 hours.</p>
           </div>
         ) : (
-          <div className="rounded-lg border border-white/[0.06] bg-gray-900/40 overflow-hidden">
-            <div className="grid grid-cols-[1fr_80px_60px_70px_70px_80px] gap-2 px-3 py-2 border-b border-white/[0.06] text-[10px] text-gray-500 uppercase tracking-wider">
+          <div className="rounded-lg border border-border dark:border-white/[0.06] bg-gray-900/40 overflow-hidden">
+            <div className="grid grid-cols-[1fr_80px_60px_70px_70px_80px] gap-2 px-3 py-2 border-b border-border dark:border-white/[0.06] text-[10px] text-gray-500 uppercase tracking-wider">
               <span>Source / Module</span>
               <span>Last Run</span>
               <span>Status</span>

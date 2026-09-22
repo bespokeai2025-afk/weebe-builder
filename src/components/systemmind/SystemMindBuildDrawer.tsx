@@ -46,7 +46,7 @@ export function SystemMindBuildDrawer({
         )}
       >
         {/* Header */}
-        <div className="flex flex-wrap items-center gap-2 border-b border-white/[0.06] px-4 py-3 pr-12">
+        <div className="flex flex-wrap items-center gap-2 border-b border-border dark:border-white/[0.06] px-4 py-3 pr-12">
           <Bot className="h-4 w-4 shrink-0 text-sky-400" />
           <div className="min-w-0">
             <SheetTitle className="truncate text-sm font-semibold">
@@ -72,7 +72,7 @@ export function SystemMindBuildDrawer({
                 variant="outline"
                 className={cn(
                   "gap-1 text-[9px]",
-                  agentContext.isLive ? "border-emerald-500/50 text-emerald-300" : "border-white/20 text-muted-foreground",
+                  agentContext.isLive ? "border-emerald-500/50 text-emerald-300" : "border-border dark:border-white/20 text-muted-foreground",
                 )}
               >
                 <Radio className="h-2.5 w-2.5" /> {agentContext.isLive ? "live" : "draft"}
