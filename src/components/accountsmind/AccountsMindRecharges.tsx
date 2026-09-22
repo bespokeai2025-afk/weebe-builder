@@ -94,10 +94,10 @@ export function AccountsMindRecharges() {
     <div className="p-6 space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-white flex items-center gap-2">
+          <h1 className="text-xl font-bold text-foreground dark:text-white flex items-center gap-2">
             <Zap className="w-5 h-5 text-yellow-400" /> Provider Recharges
           </h1>
-          <p className="text-sm text-gray-400 mt-0.5">Track credit top-ups and billing events across providers</p>
+          <p className="text-sm text-muted-foreground dark:text-gray-400 mt-0.5">Track credit top-ups and billing events across providers</p>
         </div>
         <Button
           size="sm"
@@ -109,32 +109,32 @@ export function AccountsMindRecharges() {
       </div>
 
       {isLoading && (
-        <div className="flex items-center gap-2 text-gray-400 text-sm">
+        <div className="flex items-center gap-2 text-muted-foreground dark:text-gray-400 text-sm">
           <RefreshCw className="w-4 h-4 animate-spin" /> Loading…
         </div>
       )}
 
-      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+      <div className="bg-card border border-border dark:bg-gray-900 dark:border-gray-800 rounded-xl overflow-hidden">
         {(rows as any[]).length === 0 && !isLoading && (
-          <div className="p-6 text-center text-sm text-gray-500">
+          <div className="p-6 text-center text-sm text-muted-foreground dark:text-gray-500">
             No recharge events recorded yet. Click "Record Recharge" to add one.
           </div>
         )}
         {(rows as any[]).map((r: any) => (
           <div
             key={r.id}
-            className="flex items-center gap-4 px-4 py-3 border-b border-gray-800/70 last:border-0"
+            className="flex items-center gap-4 px-4 py-3 border-b border-border/70 dark:border-gray-800/70 last:border-0"
           >
             <div className="w-8 h-8 rounded-lg bg-yellow-500/10 flex items-center justify-center">
               <Zap className="w-4 h-4 text-yellow-400" />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium text-white">{r.provider_name}</div>
-              <div className="text-xs text-gray-500">
+              <div className="text-sm font-medium text-foreground dark:text-white">{r.provider_name}</div>
+              <div className="text-xs text-muted-foreground dark:text-gray-500">
                 {r.provider_category} · {r.event_type} · {new Date(r.detected_at).toLocaleDateString()}
               </div>
               {r.description && (
-                <div className="text-xs text-gray-400 mt-0.5 truncate">{r.description}</div>
+                <div className="text-xs text-muted-foreground dark:text-gray-400 mt-0.5 truncate">{r.description}</div>
               )}
             </div>
             <div className="text-right">
@@ -142,7 +142,7 @@ export function AccountsMindRecharges() {
                 {r.currency === "GBP" ? "£" : r.currency === "EUR" ? "€" : "$"}
                 {(r.amount_cents / 100).toFixed(2)}
               </div>
-              <div className="text-[10px] text-gray-500 uppercase">{r.source}</div>
+              <div className="text-[10px] text-muted-foreground dark:text-gray-500 uppercase">{r.source}</div>
             </div>
           </div>
         ))}
@@ -150,7 +150,7 @@ export function AccountsMindRecharges() {
 
       {/* Record dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-md">
+        <DialogContent className="bg-card border-border text-foreground dark:bg-gray-900 dark:border-gray-700 dark:text-white max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Zap className="w-4 h-4 text-yellow-400" /> Record Provider Recharge
@@ -158,12 +158,12 @@ export function AccountsMindRecharges() {
           </DialogHeader>
           <div className="space-y-4 mt-2">
             <div>
-              <Label className="text-xs text-gray-400">Provider</Label>
+              <Label className="text-xs text-muted-foreground dark:text-gray-400">Provider</Label>
               <Select value={form.providerName} onValueChange={selectProvider}>
-                <SelectTrigger className="mt-1 bg-gray-800 border-gray-700 text-white">
+                <SelectTrigger className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-gray-800 border-gray-700">
+                <SelectContent className="bg-popover border-border dark:bg-gray-800 dark:border-gray-700">
                   {PROVIDERS.map((p) => (
                     <SelectItem key={`${p.cat}-${p.name}`} value={p.name}>{p.name}</SelectItem>
                   ))}
@@ -173,25 +173,25 @@ export function AccountsMindRecharges() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs text-gray-400">Amount (pence)</Label>
+                <Label className="text-xs text-muted-foreground dark:text-gray-400">Amount (pence)</Label>
                 <Input
                   type="number"
                   value={form.amountCents}
                   onChange={(e) => field("amountCents", Number(e.target.value))}
-                  className="mt-1 bg-gray-800 border-gray-700 text-white"
+                  className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                   placeholder="e.g. 10000 = £100"
                 />
-                <p className="text-[10px] text-gray-500 mt-1">
+                <p className="text-[10px] text-muted-foreground dark:text-gray-500 mt-1">
                   = {form.currency === "GBP" ? "£" : "$"}{(form.amountCents / 100).toFixed(2)}
                 </p>
               </div>
               <div>
-                <Label className="text-xs text-gray-400">Currency</Label>
+                <Label className="text-xs text-muted-foreground dark:text-gray-400">Currency</Label>
                 <Select value={form.currency} onValueChange={(v) => field("currency", v)}>
-                  <SelectTrigger className="mt-1 bg-gray-800 border-gray-700 text-white">
+                  <SelectTrigger className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-gray-800 border-gray-700">
+                  <SelectContent className="bg-popover border-border dark:bg-gray-800 dark:border-gray-700">
                     <SelectItem value="GBP">GBP (£)</SelectItem>
                     <SelectItem value="USD">USD ($)</SelectItem>
                     <SelectItem value="EUR">EUR (€)</SelectItem>
@@ -202,12 +202,12 @@ export function AccountsMindRecharges() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs text-gray-400">Event Type</Label>
+                <Label className="text-xs text-muted-foreground dark:text-gray-400">Event Type</Label>
                 <Select value={form.eventType} onValueChange={(v) => field("eventType", v)}>
-                  <SelectTrigger className="mt-1 bg-gray-800 border-gray-700 text-white">
+                  <SelectTrigger className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-gray-800 border-gray-700">
+                  <SelectContent className="bg-popover border-border dark:bg-gray-800 dark:border-gray-700">
                     <SelectItem value="manual">Manual Entry</SelectItem>
                     <SelectItem value="auto_recharge">Auto Recharge</SelectItem>
                     <SelectItem value="top_up">Top-Up</SelectItem>
@@ -217,29 +217,29 @@ export function AccountsMindRecharges() {
                 </Select>
               </div>
               <div>
-                <Label className="text-xs text-gray-400">Date</Label>
+                <Label className="text-xs text-muted-foreground dark:text-gray-400">Date</Label>
                 <Input
                   type="date"
                   value={form.detectedAt}
                   onChange={(e) => field("detectedAt", e.target.value)}
-                  className="mt-1 bg-gray-800 border-gray-700 text-white"
+                  className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                 />
               </div>
             </div>
 
             <div>
-              <Label className="text-xs text-gray-400">Notes</Label>
+              <Label className="text-xs text-muted-foreground dark:text-gray-400">Notes</Label>
               <Textarea
                 value={form.description}
                 onChange={(e) => field("description", e.target.value)}
-                className="mt-1 bg-gray-800 border-gray-700 text-white text-sm"
+                className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white text-sm"
                 rows={2}
                 placeholder="Optional notes about this recharge"
               />
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => setOpen(false)} className="border-gray-700 text-gray-300">
+              <Button variant="outline" onClick={() => setOpen(false)} className="border-border text-foreground/80 dark:border-gray-700 dark:text-gray-300">
                 Cancel
               </Button>
               <Button onClick={save} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
