@@ -30,15 +30,15 @@ export function AccountsMindInvoices() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-xl font-semibold text-white flex items-center gap-2">
+        <h1 className="text-xl font-semibold text-foreground dark:text-white flex items-center gap-2">
           <Receipt className="w-5 h-5 text-emerald-400" /> Invoices
         </h1>
-        <p className="text-sm text-slate-400 mt-1">
+        <p className="text-sm text-muted-foreground dark:text-slate-400 mt-1">
           Create, issue and track invoices — with reusable services, bank details, drafts, payments and a full audit trail.
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-1 border-b border-slate-800">
+      <div className="flex flex-wrap gap-1 border-b border-border dark:border-slate-800">
         {TABS.map((t) => {
           const Icon = t.icon;
           const active = tab === t.key;
@@ -48,8 +48,8 @@ export function AccountsMindInvoices() {
               onClick={() => setTab(t.key)}
               className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-t-lg border-b-2 -mb-px transition-colors ${
                 active
-                  ? "border-emerald-500 text-white bg-slate-900/60"
-                  : "border-transparent text-slate-400 hover:text-slate-200"
+                  ? "border-emerald-500 text-foreground bg-muted dark:text-white dark:bg-slate-900/60"
+                  : "border-transparent text-muted-foreground hover:text-foreground dark:text-slate-400 dark:hover:text-slate-200"
               }`}
             >
               <Icon className="w-4 h-4" /> {t.label}
