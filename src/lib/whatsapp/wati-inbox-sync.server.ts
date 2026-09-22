@@ -7,6 +7,7 @@ import { watiApiV1Base } from "@/lib/whatsapp/wati-api-base.shared";
 import {
   getWatiConnectionForWorkspace,
   normalizeWhatsAppPhone,
+  phoneMatchKey,
 } from "@/lib/whatsapp/wati-campaign.server";
 import {
   extractWatiConversationMessageText,
@@ -431,13 +432,23 @@ export async function syncWatiInboxForPhones(
     // Ticket rows travel with the messages, so chat status costs no extra request.
     const chatState = deriveWatiChatState(watiMessages);
 
-    const { data: existingRows } = await admin
+    // Matched on the last 9 digits, not the exact string. The same person is stored under several
+    // formats — the webhook writes the reply as "971527574999" while a sync for "527574999" found
+    // nothing to compare against and inserted a second copy of the same message, which then showed
+    // as two threads in the inbox. The duplicate check below still requires a matching id, or the
+    // same body and direction within a few seconds, so widening the candidate set cannot merge two
+    // genuinely different messages.
+    const tail = phoneMatchKey(phone);
+    let existingQuery = admin
       .from("whatsapp_messages")
       .select(
         "id, external_id, whatsapp_message_id, sent_at, body, direction, sender_channel, campaign_id",
       )
-      .eq("workspace_id", workspaceId)
-      .eq("contact_phone", phone)
+      .eq("workspace_id", workspaceId);
+    existingQuery = tail
+      ? existingQuery.like("contact_phone", `%${tail}`)
+      : existingQuery.eq("contact_phone", phone);
+    const { data: existingRows } = await existingQuery
       .order("sent_at", { ascending: false })
       .limit(200);
 

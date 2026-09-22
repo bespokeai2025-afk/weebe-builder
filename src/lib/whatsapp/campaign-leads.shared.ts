@@ -625,7 +625,11 @@ export const INBOX_QUEUE_FILTERS: Array<{ id: InboxQueueFilter; label: string; h
     label: "Inbox",
     hint: "Open replies that still need a remark — expired and closed stay out",
   },
-  { id: "all", label: "All", hint: "Every conversation, including unreplied sends" },
+  {
+    id: "all",
+    label: "All",
+    hint: "Everyone who has ever replied — including remarked, expired and closed",
+  },
   { id: "needs_reply", label: "Needs reply", hint: "Client wrote last — reply now" },
   { id: "waiting", label: "Waiting", hint: "You wrote last, window still open" },
   { id: "active", label: "Active", hint: "Open 24h session" },
@@ -661,7 +665,10 @@ export function threadMatchesInboxQueue(
   },
   filter: InboxQueueFilter,
 ): boolean {
-  if (filter === "all") return true;
+  // "All" means every person who has ever replied, not every conversation. A blast puts hundreds
+  // of outbound-only threads in the list and buries the handful of real replies; the point of this
+  // chip is the whole reply history, including threads that are remarked, expired or closed.
+  if (filter === "all") return threadHasInboundReply(thread);
   const solved = thread.status === "solved";
   const needsReply = thread.needsReply === true || thread.lastDirection === "inbound";
   if (filter === "working") {

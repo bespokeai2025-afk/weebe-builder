@@ -189,7 +189,9 @@ describe("inbox queue + 24h session", () => {
     expect(threadMatchesInboxQueue(remarked, "working")).toBe(false);
     expect(threadMatchesInboxQueue(expired, "working")).toBe(false);
     expect(threadMatchesInboxQueue(closed, "working")).toBe(false);
-    expect(threadMatchesInboxQueue(unrepliedSend, "all")).toBe(true);
+    // "All" is the whole reply history, not the whole mailbox: a blast of hundreds of
+    // outbound-only threads would otherwise bury the handful of people who actually answered.
+    expect(threadMatchesInboxQueue(unrepliedSend, "all")).toBe(false);
     expect(threadMatchesInboxQueue(remarked, "all")).toBe(true);
     expect(threadMatchesInboxQueue(expired, "all")).toBe(true);
     expect(threadMatchesInboxQueue(closed, "all")).toBe(true);

@@ -2453,7 +2453,11 @@ export async function launchWatiCampaignFromWebee(
     await markWhatsappContactsMessaged(sb, workspaceId, sentPhones);
   }
 
-  const status = failed > 0 && sent === 0 ? "failed" : "completed";
+  // The campaign ran: "failed" belongs to a campaign that could not execute, not to one whose
+  // recipients were rejected downstream. Marking a run failed because every number happened to be
+  // a US number Meta blocks made a delivery problem look like a broken campaign. The per-recipient
+  // outcome is already in stats.failed and stats.errors, which the UI shows alongside sent.
+  const status = "completed";
   await sb
     .from("whatsapp_campaigns")
     .update({
