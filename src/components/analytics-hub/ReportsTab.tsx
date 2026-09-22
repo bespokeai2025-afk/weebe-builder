@@ -164,13 +164,13 @@ export function ReportsTab({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search reports…"
-              className="rounded-lg border border-white/[0.1] bg-card/60 py-1.5 pl-8 pr-3 text-sm"
+              className="rounded-lg border border-border dark:border-white/[0.1] bg-card/60 py-1.5 pl-8 pr-3 text-sm"
             />
           </div>
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
-            className="rounded-lg border border-white/[0.1] bg-card/60 px-2.5 py-1.5 text-sm text-foreground"
+            className="rounded-lg border border-border dark:border-white/[0.1] bg-card/60 px-2.5 py-1.5 text-sm text-foreground"
           >
             <option value="">All types</option>
             {reportTypes.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
@@ -200,7 +200,7 @@ export function ReportsTab({
               </TableHead>
               <tbody>
                 {reports.map((r) => (
-                  <tr key={r.id} className="h-11 border-b border-white/[0.04] hover:bg-white/[0.02]">
+                  <tr key={r.id} className="h-11 border-b border-border/60 dark:border-white/[0.04] hover:bg-muted/40 dark:hover:bg-white/[0.02]">
                     <td className="px-3 py-2.5 font-medium">{r.report_name}</td>
                     <td className="px-3 py-2.5 text-xs text-muted-foreground">{TYPE_LABEL[r.report_type] ?? r.report_type}</td>
                     <td className="px-3 py-2.5"><Badge className="capitalize">{r.report_status}</Badge></td>
@@ -248,7 +248,7 @@ export function ReportsTab({
               </TableHead>
               <tbody>
                 {schedules.map((s) => (
-                  <tr key={s.id} className="h-11 border-b border-white/[0.04] hover:bg-white/[0.02]">
+                  <tr key={s.id} className="h-11 border-b border-border/60 dark:border-white/[0.04] hover:bg-muted/40 dark:hover:bg-white/[0.02]">
                     <td className="px-3 py-2.5 font-medium">{s.name}</td>
                     <td className="px-3 py-2.5 text-xs text-muted-foreground">{TYPE_LABEL[s.report_type] ?? s.report_type}</td>
                     <td className="px-3 py-2.5 text-xs capitalize">{s.frequency}</td>
@@ -367,7 +367,7 @@ function PrefToggle({ on, disabled, onClick }: { on: boolean; disabled: boolean;
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className={`relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:opacity-50 ${on ? "bg-primary" : "bg-white/[0.12]"}`}
+      className={`relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:opacity-50 ${on ? "bg-primary" : "bg-muted dark:bg-white/[0.12]"}`}
       aria-pressed={on}
     >
       <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all ${on ? "left-[18px]" : "left-0.5"}`} />
@@ -399,7 +399,7 @@ function RecipientsEditor({
         onChange={(e) => setText(e.target.value)}
         placeholder={placeholder}
         disabled={disabled}
-        className="w-full rounded-lg border border-white/[0.1] bg-card/60 px-2.5 py-1.5 text-xs disabled:opacity-50"
+        className="w-full rounded-lg border border-border dark:border-white/[0.1] bg-card/60 px-2.5 py-1.5 text-xs disabled:opacity-50"
       />
       {dirty && !disabled && (
         <Button size="sm" variant="outline" className="h-6 px-2 text-[11px]" disabled={pending} onClick={() => onSave(parsed)}>
@@ -442,7 +442,7 @@ function EventPrefTile({
     }
   };
   return (
-    <div className="rounded-xl border border-white/[0.08] bg-card/40 p-3.5">
+    <div className="rounded-xl border border-border dark:border-white/[0.08] bg-card/40 p-3.5">
       <div className="mb-1.5 flex items-center justify-between gap-2">
         <span className="text-sm font-medium">{label}</span>
         <PrefToggle on={enabled} disabled={!canSchedule || pending} onClick={() => ensureRow({ enabled: !enabled })} />
@@ -487,7 +487,7 @@ function SummaryPrefTile({
     }
   };
   return (
-    <div className="rounded-xl border border-white/[0.08] bg-card/40 p-3.5">
+    <div className="rounded-xl border border-border dark:border-white/[0.08] bg-card/40 p-3.5">
       <div className="mb-1.5 flex items-center justify-between gap-2">
         <span className="text-sm font-medium">Recurring summary</span>
         <PrefToggle on={enabled} disabled={!canSchedule || pending} onClick={() => ensureRow({ enabled: !enabled })} />
@@ -499,7 +499,7 @@ function SummaryPrefTile({
           value={frequency}
           disabled={!canSchedule || pending}
           onChange={(e) => ensureRow({ frequency: e.target.value })}
-          className="rounded-lg border border-white/[0.1] bg-card/60 px-2 py-1 text-xs capitalize disabled:opacity-50"
+          className="rounded-lg border border-border dark:border-white/[0.1] bg-card/60 px-2 py-1 text-xs capitalize disabled:opacity-50"
         >
           <option value="daily">Daily</option>
           <option value="weekly">Weekly</option>
@@ -519,7 +519,7 @@ function SummaryPrefTile({
 function ModalShell({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="flex max-h-[85dvh] w-full max-w-lg flex-col rounded-2xl border border-white/[0.1] bg-popover p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div className="flex max-h-[85dvh] w-full max-w-lg flex-col rounded-2xl border border-border dark:border-white/[0.1] bg-popover p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex shrink-0 items-center justify-between">
           <h3 className="text-base font-semibold">{title}</h3>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
@@ -628,7 +628,7 @@ function MetricsGrid({ metrics }: { metrics: any }) {
   return (
     <div>
       <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Key figures</h4>
-      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-lg border border-white/[0.06] bg-card/40 p-3 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-lg border border-border dark:border-white/[0.06] bg-card/40 p-3 sm:grid-cols-3">
         {entries.map(([k, v]) => (
           <div key={k} className="min-w-0">
             <div className="truncate text-[11px] text-muted-foreground">
@@ -650,13 +650,13 @@ function GenerateModal({ onClose, onSubmit, pending, reportTypes }: { onClose: (
       <div className="space-y-3">
         <label className="block text-sm">
           <span className="mb-1 block text-xs font-medium text-muted-foreground">Report type</span>
-          <select value={reportType} onChange={(e) => setReportType(e.target.value)} className="w-full rounded-lg border border-white/[0.1] bg-card/60 px-3 py-2 text-sm">
+          <select value={reportType} onChange={(e) => setReportType(e.target.value)} className="w-full rounded-lg border border-border dark:border-white/[0.1] bg-card/60 px-3 py-2 text-sm">
             {reportTypes.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
           </select>
         </label>
         <label className="block text-sm">
           <span className="mb-1 block text-xs font-medium text-muted-foreground">Name (optional)</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Auto-generated if empty" className="w-full rounded-lg border border-white/[0.1] bg-card/60 px-3 py-2 text-sm" />
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Auto-generated if empty" className="w-full rounded-lg border border-border dark:border-white/[0.1] bg-card/60 px-3 py-2 text-sm" />
         </label>
         <div className="flex justify-end gap-2 pt-1">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
@@ -678,23 +678,23 @@ function ScheduleModal({ onClose, onSubmit, pending, reportTypes }: { onClose: (
       <div className="space-y-3">
         <label className="block text-sm">
           <span className="mb-1 block text-xs font-medium text-muted-foreground">Name</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Weekly workspace summary" className="w-full rounded-lg border border-white/[0.1] bg-card/60 px-3 py-2 text-sm" />
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Weekly workspace summary" className="w-full rounded-lg border border-border dark:border-white/[0.1] bg-card/60 px-3 py-2 text-sm" />
         </label>
         <label className="block text-sm">
           <span className="mb-1 block text-xs font-medium text-muted-foreground">Report type</span>
-          <select value={reportType} onChange={(e) => setReportType(e.target.value)} className="w-full rounded-lg border border-white/[0.1] bg-card/60 px-3 py-2 text-sm">
+          <select value={reportType} onChange={(e) => setReportType(e.target.value)} className="w-full rounded-lg border border-border dark:border-white/[0.1] bg-card/60 px-3 py-2 text-sm">
             {reportTypes.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
           </select>
         </label>
         <label className="block text-sm">
           <span className="mb-1 block text-xs font-medium text-muted-foreground">Frequency</span>
-          <select value={frequency} onChange={(e) => setFrequency(e.target.value as any)} className="w-full rounded-lg border border-white/[0.1] bg-card/60 px-3 py-2 text-sm capitalize">
+          <select value={frequency} onChange={(e) => setFrequency(e.target.value as any)} className="w-full rounded-lg border border-border dark:border-white/[0.1] bg-card/60 px-3 py-2 text-sm capitalize">
             {FREQUENCIES.map((f) => <option key={f} value={f}>{f}</option>)}
           </select>
         </label>
         <label className="block text-sm">
           <span className="mb-1 block text-xs font-medium text-muted-foreground">Recipients (comma-separated emails)</span>
-          <input value={recipients} onChange={(e) => setRecipients(e.target.value)} placeholder="ops@example.com, cfo@example.com" className="w-full rounded-lg border border-white/[0.1] bg-card/60 px-3 py-2 text-sm" />
+          <input value={recipients} onChange={(e) => setRecipients(e.target.value)} placeholder="ops@example.com, cfo@example.com" className="w-full rounded-lg border border-border dark:border-white/[0.1] bg-card/60 px-3 py-2 text-sm" />
         </label>
         <div className="flex justify-end gap-2 pt-1">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>

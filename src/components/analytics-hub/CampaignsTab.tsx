@@ -52,7 +52,7 @@ export function CampaignsTab({ filter }: { filter: AnalyticsFilterState }) {
               </TableHead>
               <tbody>
                 {schedule.map((s) => (
-                  <tr key={s.id} className="h-11 border-b border-white/[0.04] hover:bg-white/[0.02]">
+                  <tr key={s.id} className="h-11 border-b border-border/60 dark:border-white/[0.04] hover:bg-muted/40 dark:hover:bg-white/[0.02]">
                     <td className="px-3 py-2.5 font-medium">{s.name}</td>
                     <td className="px-3 py-2.5 tabular-nums">{s.callTime} <span className="text-xs text-muted-foreground">({s.timezone})</span></td>
                     <td className="px-3 py-2.5 capitalize">{s.frequency}</td>
@@ -88,7 +88,7 @@ export function CampaignsTab({ filter }: { filter: AnalyticsFilterState }) {
               </TableHead>
               <tbody>
                 {campaigns.map((c) => (
-                  <tr key={c.id} className="h-11 border-b border-white/[0.04] hover:bg-white/[0.02]">
+                  <tr key={c.id} className="h-11 border-b border-border/60 dark:border-white/[0.04] hover:bg-muted/40 dark:hover:bg-white/[0.02]">
                     <td className="px-3 py-2.5 font-medium">{c.name}</td>
                     <td className="px-3 py-2.5 text-xs capitalize text-muted-foreground">{c.status}</td>
                     <td className="px-3 py-2.5 tabular-nums">{fmtInt(c.callsTotal)}</td>
@@ -201,7 +201,7 @@ function WbahDiallerView({ w, filter }: { w: any; filter: AnalyticsFilterState }
               </TableHead>
               <tbody>
                 {campaigns.map((c: any) => (
-                  <tr key={c.id} className="h-10 border-b border-white/[0.04] hover:bg-white/[0.02]">
+                  <tr key={c.id} className="h-10 border-b border-border/60 dark:border-white/[0.04] hover:bg-muted/40 dark:hover:bg-white/[0.02]">
                     <td className="px-3 py-2 font-medium">{c.name}</td>
                     <td className="px-3 py-2 tabular-nums text-muted-foreground">{c.scheduledTime ? `${c.scheduledTime} UK` : "—"}</td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">{c.leadStatus ?? "—"}</td>
@@ -264,7 +264,7 @@ function WbahDiallerView({ w, filter }: { w: any; filter: AnalyticsFilterState }
             {reasons.map((r) => (
               <div key={r.reason} className="flex items-center gap-3">
                 <span className="w-44 shrink-0 truncate text-xs text-muted-foreground" title={r.reason}>{r.reason.replace(/_/g, " ")}</span>
-                <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/[0.05]">
+                <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted dark:bg-white/[0.05]">
                   <div className="h-full rounded-full" style={{ width: `${Math.max(2, r.pct)}%`, background: CHART.primary }} />
                 </div>
                 <span className="w-20 shrink-0 text-right text-xs tabular-nums">{fmtInt(r.count)} ({pct(r.pct)})</span>
@@ -285,7 +285,7 @@ function WbahDiallerView({ w, filter }: { w: any; filter: AnalyticsFilterState }
               </TableHead>
               <tbody>
                 {converted.map((c) => (
-                  <tr key={c.id} className="h-10 border-b border-white/[0.04] hover:bg-white/[0.02]">
+                  <tr key={c.id} className="h-10 border-b border-border/60 dark:border-white/[0.04] hover:bg-muted/40 dark:hover:bg-white/[0.02]">
                     <td className="px-3 py-2 font-medium">{c.name}</td>
                     <td className="px-3 py-2 tabular-nums text-muted-foreground">{c.phone ?? "—"}</td>
                     <td className="px-3 py-2">
@@ -314,7 +314,7 @@ function WbahDiallerView({ w, filter }: { w: any; filter: AnalyticsFilterState }
               </TableHead>
               <tbody>
                 {negatives.map((c) => (
-                  <tr key={c.id} className="h-10 border-b border-white/[0.04] hover:bg-white/[0.02]">
+                  <tr key={c.id} className="h-10 border-b border-border/60 dark:border-white/[0.04] hover:bg-muted/40 dark:hover:bg-white/[0.02]">
                     <td className="px-3 py-2 font-medium">{c.name}</td>
                     <td className="px-3 py-2 tabular-nums text-muted-foreground">{c.phone ?? "—"}</td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">{String(c.reason ?? "unknown").replace(/_/g, " ")}</td>

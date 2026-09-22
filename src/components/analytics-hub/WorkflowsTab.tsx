@@ -40,7 +40,7 @@ export function WorkflowsTab({ filter }: { filter: AnalyticsFilterState }) {
               </TableHead>
               <tbody>
                 {workflows.map((w) => (
-                  <tr key={w.id} className="h-11 border-b border-white/[0.04] hover:bg-white/[0.02]">
+                  <tr key={w.id} className="h-11 border-b border-border/60 dark:border-white/[0.04] hover:bg-muted/40 dark:hover:bg-white/[0.02]">
                     <td className="px-3 py-2.5 font-medium">{w.name}</td>
                     <td className="px-3 py-2.5 text-xs capitalize text-muted-foreground">{w.status}</td>
                     <td className="px-3 py-2.5 tabular-nums">{fmtInt(w.triggers)}</td>

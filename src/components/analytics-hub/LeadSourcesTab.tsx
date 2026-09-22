@@ -46,7 +46,7 @@ export function LeadSourcesTab({ filter }: { filter: AnalyticsFilterState }) {
               </TableHead>
               <tbody>
                 {sources.map((s) => (
-                  <tr key={s.source} className="h-11 border-b border-white/[0.04] hover:bg-white/[0.02]">
+                  <tr key={s.source} className="h-11 border-b border-border/60 dark:border-white/[0.04] hover:bg-muted/40 dark:hover:bg-white/[0.02]">
                     <td className="px-3 py-2.5 font-medium">{s.source}</td>
                     <td className="px-3 py-2.5 tabular-nums">{fmtInt(s.leads)}</td>
                     <td className="px-3 py-2.5 tabular-nums">{fmtInt(s.qualified)}</td>

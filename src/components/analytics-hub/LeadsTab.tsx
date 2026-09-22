@@ -54,7 +54,7 @@ export function LeadsTab({ filter }: { filter: AnalyticsFilterState }) {
                 <TableHead><Th>Source</Th><Th>Leads</Th></TableHead>
                 <tbody>
                   {bySource.map((s, i) => (
-                    <tr key={i} className="h-10 border-b border-white/[0.04] hover:bg-white/[0.02]">
+                    <tr key={i} className="h-10 border-b border-border/60 dark:border-white/[0.04] hover:bg-muted/40 dark:hover:bg-white/[0.02]">
                       <td className="px-3 py-2 font-medium">{humanize(String(s.source))}</td>
                       <td className="px-3 py-2 tabular-nums">{fmtInt(s.count)}</td>
                     </tr>

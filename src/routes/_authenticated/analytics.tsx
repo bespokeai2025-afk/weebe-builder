@@ -372,7 +372,7 @@ type MktgTabKey = typeof MKTG_TABS[number]["key"];
 function ChartTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-white/10 bg-popover/95 px-3 py-2 text-xs shadow-xl backdrop-blur">
+    <div className="rounded-lg border border-border dark:border-white/10 bg-popover/95 px-3 py-2 text-xs shadow-xl backdrop-blur">
       {label && <div className="mb-1 font-medium text-foreground">{label}</div>}
       {payload.map((p: any, i: number) => (
         <div key={i} className="flex items-center gap-2">
@@ -810,7 +810,7 @@ function AnalyticsPage() {
       )}
 
       {/* ── Top-level section bar: Analytics | Sales | Marketing ── */}
-      <div className="flex gap-1 px-6 mt-4 overflow-x-auto border-b border-white/[0.06]">
+      <div className="flex gap-1 px-6 mt-4 overflow-x-auto border-b border-border dark:border-white/[0.06]">
         {TAB_GROUPS.map(({ key, label, icon: Icon }) => {
           const firstTab = visibleTabs.find((t) => GROUP_OF[t.key] === key);
           if (!firstTab) return null;
@@ -843,7 +843,7 @@ function AnalyticsPage() {
                   "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors",
                   mainTab === key
                     ? "border-primary/60 bg-primary/15 text-foreground"
-                    : "border-white/[0.08] bg-card/40 text-muted-foreground hover:text-foreground hover:bg-card/70",
+                    : "border-border dark:border-white/[0.08] bg-card/40 text-muted-foreground hover:text-foreground hover:bg-card/70",
                 )}
               >
                 <Icon className="h-3.5 w-3.5" />
@@ -909,7 +909,7 @@ function AnalyticsPage() {
             <div className="relative">
                 <button
                   onClick={() => setSelectorOpen((o) => !o)}
-                  className="flex items-center gap-2 rounded-lg border border-white/[0.1] bg-card/60 px-3 py-1.5 text-sm font-medium hover:bg-card/80"
+                  className="flex items-center gap-2 rounded-lg border border-border dark:border-white/[0.1] bg-card/60 px-3 py-1.5 text-sm font-medium hover:bg-card/80"
                 >
                   <span className="max-w-[180px] truncate">{selectedAgentName}</span>
                   {voiceAgentsQ.isPending ? (
@@ -942,7 +942,7 @@ function AnalyticsPage() {
             <button
               onClick={() => setVmOverride(!includeVm)}
               title="Include or exclude voicemail calls in the totals below"
-              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${includeVm ? "border-primary/30 bg-primary/15 text-primary" : "border-white/[0.1] bg-card/60 text-muted-foreground hover:bg-card/80"}`}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${includeVm ? "border-primary/30 bg-primary/15 text-primary" : "border-border dark:border-white/[0.1] bg-card/60 text-muted-foreground hover:bg-card/80"}`}
             >
               <PauseCircle className="h-3.5 w-3.5" />
               {includeVm ? "Voicemails: shown" : "Voicemails: hidden"}
@@ -953,7 +953,7 @@ function AnalyticsPage() {
                 Updating…
               </span>
             )}
-            <div className="flex gap-1 rounded-lg border border-white/[0.06] bg-card/40 p-1">
+            <div className="flex gap-1 rounded-lg border border-border dark:border-white/[0.06] bg-card/40 p-1">
               {RANGES.map((r) => (
                 <Button
                   key={r.key}
@@ -976,7 +976,7 @@ function AnalyticsPage() {
           </div>
 
           {rangeKey === "custom" && (
-            <div className="mx-6 mt-3 flex flex-wrap items-end gap-3 rounded-xl border border-white/[0.06] bg-card/40 px-4 py-3">
+            <div className="mx-6 mt-3 flex flex-wrap items-end gap-3 rounded-xl border border-border dark:border-white/[0.06] bg-card/40 px-4 py-3">
               <div className="space-y-1.5">
                 <Label htmlFor="analytics-start" className="text-xs text-muted-foreground">From</Label>
                 <Input
@@ -1239,7 +1239,7 @@ function AnalyticsPage() {
                           </TableHead>
                           <tbody>
                             {Object.entries(analytics.byAgent).sort(([, a], [, b]) => b.count - a.count).map(([id, v]) => (
-                              <tr key={id} className="h-11 border-b border-white/[0.04] transition-colors hover:bg-white/[0.02]">
+                              <tr key={id} className="h-11 border-b border-border/60 dark:border-white/[0.04] transition-colors hover:bg-muted/40 dark:hover:bg-white/[0.02]">
                                 <td className="px-3 py-2.5 text-sm font-medium">{agentNames[id] ?? agentList.find((a) => a.id === id)?.name ?? <span className="font-mono text-xs text-muted-foreground">{id}</span>}</td>
                                 <td className="px-3 py-2.5 tabular-nums">{v.count}</td>
                                 <td className="px-3 py-2.5 tabular-nums">{fmtDuration(v.durationSec)}</td>
@@ -1267,7 +1267,7 @@ function AnalyticsPage() {
       {mainTab === "marketing" && (
         <div className="px-6 pt-5 space-y-5">
           {/* Inner marketing sub-tab bar */}
-          <div className="flex gap-1 border-b border-white/[0.06]">
+          <div className="flex gap-1 border-b border-border dark:border-white/[0.06]">
             {MKTG_TABS.map(({ key, label, icon: Icon }) => (
               <button
                 key={key}
@@ -1303,7 +1303,7 @@ function AnalyticsPage() {
 // ── Call analytics shared chart components ─────────────────────────────────────
 function ChartCard({ title, icon: Icon, color, children }: { title: string; icon: React.ElementType; color: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-white/[0.06] bg-card/50 p-4 backdrop-blur-sm">
+    <div className="rounded-2xl border border-border dark:border-white/[0.06] bg-card/50 p-4 backdrop-blur-sm">
       <div className="mb-3 flex items-center gap-2">
         <Icon className="h-3.5 w-3.5" style={{ color }} />
         <h3 className="text-xs font-semibold uppercase tracking-[0.10em] text-muted-foreground">{title}</h3>
@@ -1371,7 +1371,7 @@ function HBarChart({ data, color = CHART.primary }: { data: { name: string; valu
 
 function LatencyTile({ label, value, color }: { label: string; value: string; color: string }) {
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-card/40 px-3 py-3">
+    <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/40 px-3 py-3">
       <p className="text-[10px] font-medium uppercase tracking-[0.12em]" style={{ color }}>{label}</p>
       <p className="mt-1.5 text-xl font-bold tabular-nums text-foreground">{value}</p>
     </div>
@@ -1393,7 +1393,7 @@ function fmtCreditDate(iso: string | null | undefined): string {
 
 function CreditCardTile({ label, value, sub, color, icon: Icon }: { label: string; value: string; sub: string; color: string; icon: React.ElementType }) {
   return (
-    <div className="rounded-2xl border border-white/[0.06] bg-card/50 p-4 backdrop-blur-sm">
+    <div className="rounded-2xl border border-border dark:border-white/[0.06] bg-card/50 p-4 backdrop-blur-sm">
       <div className="mb-2 flex items-center gap-2">
         <Icon className="h-3.5 w-3.5" style={{ color }} />
         <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
@@ -1438,13 +1438,13 @@ function CreditsTab({ q }: { q: any }) {
         <CreditCardTile label="Total Allocated"   value={`${fmtMins(allocated)} mins`} sub={allocSub}          color={CHART.primaryGlow} icon={Wallet} />
         <CreditCardTile label="Minutes Used"      value={`${fmtMins(used)} mins`}      sub="This cycle"        color={CHART.warning}     icon={Activity} />
         <CreditCardTile label="Remaining Balance" value={`${fmtMins(remaining)} mins`} sub="Available to use"  color={CHART.success}     icon={CheckCircle2} />
-        <div className="rounded-2xl border border-white/[0.06] bg-card/50 p-4 backdrop-blur-sm">
+        <div className="rounded-2xl border border-border dark:border-white/[0.06] bg-card/50 p-4 backdrop-blur-sm">
           <div className="mb-2 flex items-center gap-2">
             <TrendingUp className="h-3.5 w-3.5" style={{ color: usageColor }} />
             <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Usage</p>
           </div>
           <p className="text-2xl font-bold tabular-nums" style={{ color: usageColor }}>{pct}%</p>
-          <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-white/[0.06]">
+          <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted dark:bg-white/[0.06]">
             <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, Math.max(0, pct))}%`, backgroundColor: usageColor }} />
           </div>
         </div>
@@ -1478,7 +1478,7 @@ function CreditsTab({ q }: { q: any }) {
               </TableHead>
               <tbody>
                 {history.map((h: any, i: number) => (
-                  <tr key={h.id ?? i} className="h-11 border-b border-white/[0.04] transition-colors hover:bg-white/[0.02]">
+                  <tr key={h.id ?? i} className="h-11 border-b border-border/60 dark:border-white/[0.04] transition-colors hover:bg-muted/40 dark:hover:bg-white/[0.02]">
                     <td className="px-3 py-2.5">{fmtCreditDate(h.createdAt ?? h.allocated_at)}</td>
                     <td className="px-3 py-2.5"><Badge className="border-emerald-500/20 bg-emerald-500/15 text-emerald-300">+{fmtMins(h.allocated_minutes)} min</Badge></td>
                     <td className="px-3 py-2.5 text-muted-foreground">{h.notes ?? "—"}</td>
@@ -1554,13 +1554,13 @@ function AdsTab({ data }: { data: AdsData }) {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-white/[0.06]">
+                <tr className="border-b border-border dark:border-white/[0.06]">
                   <MTh>Campaign</MTh><MTh>Platform</MTh><MTh>Status</MTh><MTh align="right">Spend</MTh><MTh align="right">Impressions</MTh><MTh align="right">Clicks</MTh><MTh align="right">ROAS</MTh>
                 </tr>
               </thead>
               <tbody>
                 {data.topCampaigns.map((c, i) => (
-                  <tr key={i} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
+                  <tr key={i} className="border-b border-border/60 dark:border-white/[0.04] hover:bg-muted/40 dark:hover:bg-white/[0.02]">
                     <td className="py-2 pr-4 max-w-[200px] truncate font-medium">{c.name}</td>
                     <td className="py-2 pr-4"><Badge variant="outline" className="text-[10px]" style={{ borderColor: PLATFORM_COLORS[c.platform] ?? "#7c3aed", color: PLATFORM_COLORS[c.platform] ?? "inherit" }}>{PLATFORM_LABELS[c.platform] ?? c.platform}</Badge></td>
                     <td className="py-2 pr-4"><span className="text-xs capitalize text-muted-foreground">{c.status ?? "—"}</span></td>
@@ -1601,7 +1601,7 @@ function SeoTab({ data }: { data: { sites: SeoSite[] } }) {
           {site.hasGscData && site.avgPosition != null && (
             <div className="mt-2">
               <div className="flex items-center justify-between text-xs text-muted-foreground mb-1"><span>Average position</span><span>#{site.avgPosition}</span></div>
-              <div className="h-2 rounded-full bg-white/10 overflow-hidden"><div className="h-full rounded-full bg-primary/70" style={{ width: `${Math.max(5, Math.min(100, 100 - (site.avgPosition / 100) * 100))}%` }} /></div>
+              <div className="h-2 rounded-full bg-muted dark:bg-white/10 overflow-hidden"><div className="h-full rounded-full bg-primary/70" style={{ width: `${Math.max(5, Math.min(100, 100 - (site.avgPosition / 100) * 100))}%` }} /></div>
             </div>
           )}
         </MktPanel>
@@ -1638,7 +1638,7 @@ function EmailTab({ data }: { data: EmailData }) {
             {data.recentCampaigns.map((c) => {
               const Icon = EMAIL_STATUS_ICONS[c.status] ?? Mail;
               return (
-                <div key={c.id} className="flex items-center justify-between py-1.5 border-b border-white/[0.04] last:border-0">
+                <div key={c.id} className="flex items-center justify-between py-1.5 border-b border-border/60 dark:border-white/[0.04] last:border-0">
                   <div className="flex items-center gap-2 min-w-0"><Icon className="h-3.5 w-3.5 shrink-0" style={{ color: STATUS_COLORS[c.status] ?? "#94a3b8" }} /><span className="text-sm truncate">{c.name}</span></div>
                   <div className="flex items-center gap-3 shrink-0">
                     <span className="text-xs text-muted-foreground">{fmtDateShort(c.createdAt)}</span>
@@ -1682,7 +1682,7 @@ function WhatsAppTab({ data }: { data: WhatsAppData }) {
         <MktPanel title="Recent campaigns">
           <div className="space-y-2">
             {data.recentCampaigns.map((c) => (
-              <div key={c.id} className="border-b border-white/[0.04] last:border-0 pb-2 last:pb-0">
+              <div key={c.id} className="border-b border-border/60 dark:border-white/[0.04] last:border-0 pb-2 last:pb-0">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-sm font-medium truncate max-w-[160px]">{c.name}</span>
                   <div className="flex items-center gap-2 shrink-0">
@@ -1704,7 +1704,7 @@ function WhatsAppTab({ data }: { data: WhatsAppData }) {
           {[{ label: "Delivery rate", pct: deliveryRate, color: "#22c55e" }, { label: "Read rate", pct: readRate, color: "#3b82f6" }, { label: "Reply rate", pct: replyRate, color: "#f59e0b" }].map(({ label, pct, color }) => (
             <div key={label}>
               <div className="flex justify-between text-xs text-muted-foreground mb-1"><span>{label}</span><span style={{ color }}>{pct}%</span></div>
-              <div className="h-1.5 rounded-full bg-white/10 overflow-hidden"><div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }} /></div>
+              <div className="h-1.5 rounded-full bg-muted dark:bg-white/10 overflow-hidden"><div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }} /></div>
             </div>
           ))}
         </div>

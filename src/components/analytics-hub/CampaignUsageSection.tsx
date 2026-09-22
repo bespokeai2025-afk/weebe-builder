@@ -257,11 +257,11 @@ export function CampaignUsageSection({ filter }: { filter: AnalyticsFilterState 
               </TableHead>
               <tbody>
                 {rows.map((c: any) => (
-                  <tr key={c.campaignId ?? "unassigned"} className="h-10 border-b border-white/[0.04] hover:bg-white/[0.02]">
+                  <tr key={c.campaignId ?? "unassigned"} className="h-10 border-b border-border/60 dark:border-white/[0.04] hover:bg-muted/40 dark:hover:bg-white/[0.02]">
                     <td className="px-3 py-2 font-medium">
                       {c.campaignName}
                       {c.campaignId == null && (
-                        <span className="ml-2 rounded bg-white/[0.06] px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">unassigned</span>
+                        <span className="ml-2 rounded bg-muted dark:bg-white/[0.06] px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">unassigned</span>
                       )}
                     </td>
                     <td className="px-3 py-2 tabular-nums">{fmtMin(c.minutesUsed)}</td>

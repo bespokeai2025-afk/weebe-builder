@@ -60,7 +60,7 @@ export function SentimentTab({ filter }: { filter: AnalyticsFilterState }) {
                 </TableHead>
                 <tbody>
                   {byAgent.map((a, i) => (
-                    <tr key={i} className="h-10 border-b border-white/[0.04] hover:bg-white/[0.02]">
+                    <tr key={i} className="h-10 border-b border-border/60 dark:border-white/[0.04] hover:bg-muted/40 dark:hover:bg-white/[0.02]">
                       <td className="px-3 py-2 font-medium">{a.name}</td>
                       <td className="px-3 py-2 tabular-nums">{fmtInt(a.total)}</td>
                       <td className="px-3 py-2 tabular-nums text-emerald-300">{pct(a.positiveRate)}</td>
