@@ -970,7 +970,11 @@ export function watiMediaMimeFromPath(path: string | null): string | null {
  * Nothing could then be opened or downloaded. Hence the explicit typeof checks below: a string
  * `data` is the path, and only a real object is read for fields.
  */
-function parseWatiMediaFields(payload: Record<string, unknown>): {
+/**
+ * Media fields for a WATI message. Exported because the inbox sync needs the same parsing as the
+ * webhook — without it, an image that arrived via sync was stored with no attachment, or dropped.
+ */
+export function parseWatiMediaFields(payload: Record<string, unknown>): {
   media_url: string | null;
   media_mime_type: string | null;
   media_filename: string | null;
