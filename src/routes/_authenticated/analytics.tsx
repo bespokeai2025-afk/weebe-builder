@@ -1062,19 +1062,18 @@ function AnalyticsPage() {
                 </div>
               ) : (
               <>
-              <div className="grid grid-cols-2 gap-3 px-6 pt-5 md:grid-cols-4">
+              {/* One consistent grid for all 9 tiles (3x3 on tablet+) instead
+                  of 3 separately-spaced grids that left the last row with a
+                  single orphaned tile. */}
+              <div className="grid grid-cols-2 gap-3 px-6 pt-5 md:grid-cols-3">
                 <StatCard label="Total calls"  tone="primary" value={analytics.total} />
                 <StatCard label="Minutes used" tone="info"    value={`${analytics.totalMinutes}m`} />
                 <StatCard label="Avg duration" tone="info"    value={fmtDuration(analytics.avgDuration)} />
                 <StatCard label="E2E latency"  tone="primary" value={fmtMs(analytics.avgE2eLatency)} />
-              </div>
-              <div className="grid grid-cols-2 gap-3 px-6 pt-3 md:grid-cols-4">
                 <StatCard label="Inbound"            tone="primary" value={analytics.inbound}                      icon={ArrowDownLeft} />
                 <StatCard label="Outbound"           tone="info"    value={analytics.outbound}                     icon={ArrowUpRight} />
                 <StatCard label="Success rate"       tone="success" value={`${successRate}%`}                      icon={CheckCircle2} />
                 <StatCard label="Transfer rate"      tone="warning" value={`${transferRate}%`}                     icon={TrendingUp} />
-              </div>
-              <div className="grid grid-cols-2 gap-3 px-6 pt-3 md:grid-cols-4">
                 <StatCard label={includeVm ? "Voicemails counted" : "Voicemails screened"} tone="info"  value={analytics.voicemailTotal}        icon={PauseCircle} />
               </div>
 

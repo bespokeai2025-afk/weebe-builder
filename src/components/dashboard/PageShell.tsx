@@ -37,16 +37,16 @@ export function PageHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-border dark:border-white/[0.06] sm:px-4">
-      <div className="flex items-center gap-2.5">
+    <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 border-b border-border dark:border-white/[0.06] sm:px-6">
+      <div className="flex items-center gap-3">
         {Icon && (
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/15 text-primary">
-            <Icon className="h-3.5 w-3.5" />
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
+            <Icon className="h-4 w-4" />
           </div>
         )}
         <div>
-          <h1 className="text-sm font-semibold tracking-tight text-foreground">{title}</h1>
-          {subtitle && <p className="mt-0.5 text-[10px] text-muted-foreground">{subtitle}</p>}
+          <h1 className="text-lg font-semibold tracking-tight text-foreground">{title}</h1>
+          {subtitle && <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>}
         </div>
       </div>
       <div className="flex items-center gap-1.5">

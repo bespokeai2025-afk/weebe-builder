@@ -34,19 +34,24 @@ export function OverviewTab({ filter }: { filter: AnalyticsFilterState }) {
   const cost = d.cost ?? {};
 
   return (
-    <div className="space-y-5 px-6 pt-5">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Leads (new)" tone="primary" value={fmtInt(leads.new)} hint={`${fmtInt(leads.total)} total`} />
-        <StatCard label="Calls" tone="info" value={fmtInt(calls.total)} hint={`${fmtInt(calls.connected)} connected`} />
-        <StatCard label="Bookings" tone="success" value={fmtInt(d.bookings)} hint={`${pct(rates.booking)} of calls`} />
-        <StatCard label="Qualified" tone="warning" value={fmtInt(leads.qualified)} hint={`${pct(rates.qualification)} rate`} />
-      </div>
+    <div className="space-y-6 px-6 pt-5">
+      {/* Both KPI rows read as one strip (totals, then the rates behind
+          them) — tighter gap between them than the space before the chart
+          row that follows, which is a genuinely separate section. */}
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <StatCard label="Leads (new)" tone="primary" value={fmtInt(leads.new)} hint={`${fmtInt(leads.total)} total`} />
+          <StatCard label="Calls" tone="info" value={fmtInt(calls.total)} hint={`${fmtInt(calls.connected)} connected`} />
+          <StatCard label="Bookings" tone="success" value={fmtInt(d.bookings)} hint={`${pct(rates.booking)} of calls`} />
+          <StatCard label="Qualified" tone="warning" value={fmtInt(leads.qualified)} hint={`${pct(rates.qualification)} rate`} />
+        </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <MetricTile label="Connection rate" value={pct(rates.connection)} color={CHART.success} icon={TrendingUp} />
-        <MetricTile label="Conversion rate" value={pct(rates.conversion)} color={CHART.primary} icon={Users} />
-        <MetricTile label="Callbacks" value={fmtInt(d.callbacks)} color={CHART.accent} icon={PhoneCall} />
-        <MetricTile label="Follow-ups created" value={fmtInt(d.followUpsCreated)} color={CHART.pink} icon={CalendarCheck} />
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <MetricTile label="Connection rate" value={pct(rates.connection)} color={CHART.success} icon={TrendingUp} />
+          <MetricTile label="Conversion rate" value={pct(rates.conversion)} color={CHART.primary} icon={Users} />
+          <MetricTile label="Callbacks" value={fmtInt(d.callbacks)} color={CHART.accent} icon={PhoneCall} />
+          <MetricTile label="Follow-ups created" value={fmtInt(d.followUpsCreated)} color={CHART.pink} icon={CalendarCheck} />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
