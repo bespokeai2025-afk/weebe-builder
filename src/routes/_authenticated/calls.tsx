@@ -161,7 +161,7 @@ function TestCallRow({
         />
       )}
       <tr
-        className="group h-8 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors cursor-pointer"
+        className="group h-8 border-b border-border/60 dark:border-white/[0.04] last:border-0 align-middle hover:bg-muted/40 dark:hover:bg-white/[0.02] transition-colors cursor-pointer"
         onClick={() => setDetailOpen(true)}
       >
         <td className="px-2 py-0.5" onClick={(e) => e.stopPropagation()}>
@@ -619,7 +619,7 @@ function CallsPage() {
               </button>
             </div>
             {wbahTranscript.summary ? (
-              <div className="mb-3 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+              <div className="mb-3 rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-3">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
                   Call summary
                 </p>
@@ -631,7 +631,7 @@ function CallsPage() {
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
               Transcript
             </p>
-            <div className="max-h-96 overflow-y-auto rounded-lg bg-black/30 border border-white/[0.06] p-3 font-mono text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap">
+            <div className="max-h-96 overflow-y-auto rounded-lg bg-black/30 border border-border dark:border-white/[0.06] p-3 font-mono text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap">
               {wbahTranscript.text || "No transcript available."}
             </div>
           </div>
@@ -674,7 +674,7 @@ function CallsPage() {
         </div>
         <div className="flex items-center gap-1.5">
           {/* Tab switcher */}
-          <div className="flex items-center rounded-lg border border-white/[0.06] bg-card/40 p-0.5">
+          <div className="flex items-center rounded-lg border border-border dark:border-white/[0.06] bg-card/40 p-0.5">
             <button
               onClick={() => setTab("live")}
               className={cn(
@@ -743,7 +743,7 @@ function CallsPage() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+              className="h-6 rounded-md border border-border dark:border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
             >
               <option value="">All Statuses</option>
               <option value="completed">Completed</option>
@@ -756,7 +756,7 @@ function CallsPage() {
               <select
                 value={callTypeFilter}
                 onChange={(e) => setCallTypeFilter(e.target.value)}
-                className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                className="h-6 rounded-md border border-border dark:border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
               >
                 <option value="">All Types</option>
                 <option value="inbound">Inbound</option>
@@ -766,7 +766,7 @@ function CallsPage() {
             <select
               value={sentimentFilter}
               onChange={(e) => setSentimentFilter(e.target.value)}
-              className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+              className="h-6 rounded-md border border-border dark:border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
             >
               <option value="">All Sentiments</option>
               <option value="positive">Positive</option>
@@ -777,7 +777,7 @@ function CallsPage() {
               <select
                 value={wbahAgentFilter}
                 onChange={(e) => setWbahAgentFilter(e.target.value)}
-                className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                className="h-6 rounded-md border border-border dark:border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
               >
                 <option value="all">All agents</option>
                 {wbahAgentOptions.map((a) => (
@@ -789,7 +789,7 @@ function CallsPage() {
               <select
                 value={agentFilter}
                 onChange={(e) => setAgentFilter(e.target.value)}
-                className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                className="h-6 rounded-md border border-border dark:border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
                 title="Filter by agent"
               >
                 <option value="all">All agents</option>
@@ -801,7 +801,7 @@ function CallsPage() {
             <select
               value={durationFilter}
               onChange={(e) => setDurationFilter(e.target.value)}
-              className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+              className="h-6 rounded-md border border-border dark:border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
               title="Call duration"
             >
               <option value="">Any duration</option>
@@ -814,7 +814,7 @@ function CallsPage() {
             <select
               value={outcomeFilter}
               onChange={(e) => setOutcomeFilter(e.target.value)}
-              className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+              className="h-6 rounded-md border border-border dark:border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
               title="Call outcome"
             >
               <option value="">All Outcomes</option>
@@ -824,7 +824,7 @@ function CallsPage() {
             <select
               value={daysFilter}
               onChange={(e) => setDaysFilter(e.target.value)}
-              className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+              className="h-6 rounded-md border border-border dark:border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
             >
               <option value="today">Today</option>
               <option value="yesterday">Yesterday</option>
@@ -843,7 +843,7 @@ function CallsPage() {
                   value={customFrom}
                   max={customTo || undefined}
                   onChange={(e) => setCustomFrom(e.target.value)}
-                  className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                  className="h-6 rounded-md border border-border dark:border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
                   title="From date"
                 />
                 <span className="text-[11px] text-muted-foreground">to</span>
@@ -852,14 +852,14 @@ function CallsPage() {
                   value={customTo}
                   min={customFrom || undefined}
                   onChange={(e) => setCustomTo(e.target.value)}
-                  className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                  className="h-6 rounded-md border border-border dark:border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
                   title="To date"
                 />
               </div>
             )}
 
             {/* Three-state voicemail filter pill — native filters server-side, WBAH client-side */}
-            <div className="flex items-center rounded-md border border-white/[0.08] bg-card/60 p-0.5 gap-0.5">
+            <div className="flex items-center rounded-md border border-border dark:border-white/[0.08] bg-card/60 p-0.5 gap-0.5">
                 {(
                   [
                     { value: "exclude", label: "No Voicemails" },
@@ -902,7 +902,7 @@ function CallsPage() {
           </div>
 
           {/* Calls table */}
-          <div className="min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
+          <div className="min-w-0 overflow-hidden rounded-xl border border-border dark:border-white/[0.06] bg-card/60">
             {wbahQ.isFetching && isWbah && rows.length === 0 ? (
               <LoadingProgress label="Loading calls" estimatedMs={9000} />
             ) : rows.length === 0 ? (
@@ -916,7 +916,7 @@ function CallsPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-[11px]">
                   <thead>
-                    <tr className="border-b border-white/[0.06] bg-card/30">
+                    <tr className="border-b border-border dark:border-white/[0.06] bg-card/30">
                       {["SR No","Dial","Name","Contact","Type","Last Called At","Call Status","Call Duration","Recording","Sentiment Analysis","Summary","Transcript","View","Appointment Date","Appointment Time","Booking Status","Calendly Booking Url","End Reason","Disconnection Reason"].map((h, i) => (
                         <th
                           key={h}
@@ -939,7 +939,7 @@ function CallsPage() {
                       const phone = c.wbah_contact ?? c.to_number ?? c.from_number ?? null;
                       const callType = c.call_type === "inbound" ? "Inbound" : "Outbound";
                       return (
-                        <tr key={c.id} className="group h-8 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors">
+                        <tr key={c.id} className="group h-8 border-b border-border/60 dark:border-white/[0.04] last:border-0 align-middle hover:bg-muted/40 dark:hover:bg-white/[0.02] transition-colors">
                           <td className={cn("px-2 py-0.5 text-[10px] text-muted-foreground tabular-nums", stickyCell, "left-0 w-9")}>{idx + 1}</td>
                           <td className={cn("px-2 py-0.5", stickyCell, "left-9 w-10")} onClick={(e) => e.stopPropagation()}>
                             {phone
@@ -988,7 +988,7 @@ function CallsPage() {
                               : <span className="text-[11px] text-muted-foreground">—</span>}
                           </td>
                           <td className="px-2 py-0.5" onClick={(e) => e.stopPropagation()}>
-                            <button onClick={() => openPanel(c)} className="inline-flex items-center gap-1 text-[11px] rounded border border-white/20 px-2 py-0.5 text-muted-foreground hover:text-foreground hover:border-white/40 whitespace-nowrap transition-colors">View</button>
+                            <button onClick={() => openPanel(c)} className="inline-flex items-center gap-1 text-[11px] rounded border border-border dark:border-white/20 px-2 py-0.5 text-muted-foreground hover:text-foreground hover:border-foreground/30 dark:hover:border-white/40 whitespace-nowrap transition-colors">View</button>
                           </td>
                           <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{wbahAppointmentDateCell(c)}</td>
                           <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{wbahAppointmentTimeCell(c)}</td>
@@ -1010,7 +1010,7 @@ function CallsPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-[11px]">
                   <thead>
-                    <tr className="border-b border-white/[0.06] bg-card/30">
+                    <tr className="border-b border-border dark:border-white/[0.06] bg-card/30">
                       <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Contact</th>
                       <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Type</th>
                       <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Agent</th>
@@ -1038,7 +1038,7 @@ function CallsPage() {
                         : null;
                       return (
                         <Fragment key={c.id}>
-                          <tr onClick={() => openPanel(c)} className={cn("group border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors cursor-pointer", isVmMode ? "h-auto" : "h-8", isVmMode && "bg-amber-500/[0.015]")}>
+                          <tr onClick={() => openPanel(c)} className={cn("group border-b border-border/60 dark:border-white/[0.04] last:border-0 align-middle hover:bg-muted/40 dark:hover:bg-white/[0.02] transition-colors cursor-pointer", isVmMode ? "h-auto" : "h-8", isVmMode && "bg-amber-500/[0.015]")}>
                             <td className={cn("px-2 py-0.5 text-[11px] font-medium whitespace-nowrap", isVmMode && "border-l-2 border-l-amber-500/50")}>
                               <button
                                 type="button"
@@ -1123,7 +1123,7 @@ function CallsPage() {
                             </td>
                           </tr>
                           {transcriptSnippet && (
-                            <tr className={cn("border-b border-white/[0.04] bg-amber-500/[0.015]")}>
+                            <tr className={cn("border-b border-border/60 dark:border-white/[0.04] bg-amber-500/[0.015]")}>
                               <td colSpan={12} className="border-l-2 border-l-amber-500/50 px-2.5 pb-2 pt-0">
                                 <div className="flex items-start gap-1.5 text-[11px] text-amber-400/70">
                                   <MessageSquare className="mt-0.5 h-3 w-3 shrink-0" />
@@ -1233,7 +1233,7 @@ function CallsPage() {
           </AlertDialog>
 
           {/* Test calls table */}
-          <div className="min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
+          <div className="min-w-0 overflow-hidden rounded-xl border border-border dark:border-white/[0.06] bg-card/60">
             {testRows.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-16">
                 <FlaskConical className="h-8 w-8 text-muted-foreground" />
@@ -1244,7 +1244,7 @@ function CallsPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
-                    <tr className="border-b border-white/[0.06] bg-card/30">
+                    <tr className="border-b border-border dark:border-white/[0.06] bg-card/30">
                       <th className="w-8 px-2 py-1">
                         <Checkbox
                           checked={allTestSelected}
