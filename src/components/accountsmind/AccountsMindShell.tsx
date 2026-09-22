@@ -35,18 +35,18 @@ export function AccountsMindShell({ children }: Props) {
   const path = location.pathname;
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white flex">
+    <div className="min-h-screen bg-background text-foreground dark:bg-gray-950 dark:text-white flex">
       {/* Sidebar */}
-      <aside className="w-56 shrink-0 border-r border-gray-800 bg-gray-950 flex flex-col">
+      <aside className="w-56 shrink-0 border-r border-border bg-card dark:border-gray-800 dark:bg-gray-950 flex flex-col">
         {/* Brand */}
-        <div className="px-4 py-5 border-b border-gray-800">
+        <div className="px-4 py-5 border-b border-border dark:border-gray-800">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-md bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
               <BarChart3 className="w-4 h-4 text-white" />
             </div>
             <div>
-              <div className="text-sm font-semibold text-white leading-none">AccountsMind</div>
-              <div className="text-[10px] text-gray-500 mt-0.5">Finance Agent</div>
+              <div className="text-sm font-semibold text-foreground dark:text-white leading-none">AccountsMind</div>
+              <div className="text-[10px] text-muted-foreground dark:text-gray-500 mt-0.5">Finance Agent</div>
             </div>
           </div>
         </div>
@@ -65,8 +65,8 @@ export function AccountsMindShell({ children }: Props) {
                 className={cn(
                   "flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors",
                   active
-                    ? "bg-emerald-600/20 text-emerald-400 font-medium"
-                    : "text-gray-400 hover:text-white hover:bg-gray-800",
+                    ? "bg-primary/10 text-primary dark:bg-emerald-600/20 dark:text-emerald-400 font-medium"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-800",
                 )}
               >
                 <Icon className="w-4 h-4 shrink-0" />
@@ -77,10 +77,10 @@ export function AccountsMindShell({ children }: Props) {
         </nav>
 
         {/* Admin back link */}
-        <div className="px-4 py-3 border-t border-gray-800">
+        <div className="px-4 py-3 border-t border-border dark:border-gray-800">
           <Link
             to="/admin/users"
-            className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition-colors"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground dark:text-gray-500 dark:hover:text-gray-300 transition-colors"
           >
             <ChevronRight className="w-3 h-3 rotate-180" />
             Back to Admin
