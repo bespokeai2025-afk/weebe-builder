@@ -74,8 +74,7 @@ function handleConnection(ws: WebSocket, _ctx: VoiceGatewayContext): void {
     onEnd: (reason) => safeSend(ws, { type: "call.ended", reason }),
     onError: (message) => safeSend(ws, { type: "relay.error", message }),
     onNodeActive: (nodeId) => safeSend(ws, { type: "node.active", nodeId }),
-    onToolCall: (toolId, result, ok) =>
-      safeSend(ws, { type: "tool.result", toolId, result, ok }),
+    onToolCall: (toolId, result, ok) => safeSend(ws, { type: "tool.result", toolId, result, ok }),
   };
 
   function startSession(msg: Record<string, unknown>): void {
@@ -90,9 +89,7 @@ function handleConnection(ws: WebSocket, _ctx: VoiceGatewayContext): void {
       callId,
       apiKey: resolveVoiceLlmApiKey(undefined, llmProvider),
       voiceId: String(msg.voiceId ?? ""),
-      model: resolveWebeeSpeechModel(
-        settings ?? (msg.model ? { model: msg.model } : null),
-      ),
+      model: resolveWebeeSpeechModel(settings ?? (msg.model ? { model: msg.model } : null)),
       systemPrompt: String(msg.systemPrompt ?? ""),
       beginMessage: String(msg.beginMessage ?? "").trim(),
       sampleRate: CASCADE_SAMPLE_RATE,
@@ -105,9 +102,7 @@ function handleConnection(ws: WebSocket, _ctx: VoiceGatewayContext): void {
       flow: msg.flow,
       variables: (msg.variables ?? {}) as Record<string, VariableValue>,
       startSpeaker:
-        msg.startSpeaker === "agent" || msg.startSpeaker === "user"
-          ? msg.startSpeaker
-          : undefined,
+        msg.startSpeaker === "agent" || msg.startSpeaker === "user" ? msg.startSpeaker : undefined,
       // This relay is the browser test-call path; telephony and FreJun have
       // their own routes. Marking it keeps builder turns in the test register
       // and out of the production latency percentiles.
@@ -155,7 +150,7 @@ function handleConnection(ws: WebSocket, _ctx: VoiceGatewayContext): void {
             direction: "outbound",
             fromNumber: "web",
             toNumber: "web:test",
-            analysisSchema: readAnalysisSchema(runtime.settings),
+            analysisSchema: readAnalysisSchema(runtime.settings, runtime.analysisVariables),
             analysisModel: (runtime.settings.postCallAnalysisModel as string | undefined) ?? null,
             successCriteria: (runtime.settings.successCriteria as string | undefined) ?? null,
           },
@@ -243,7 +238,9 @@ export const cascadeRoute: VoiceGatewayRoute = {
   match: (pathname) => (pathname === RELAY_PATH ? {} : null),
   preflight: () => {
     const missing = [
-      !process.env.OPENAI_API_KEY && !process.env.CEREBRAS_API_KEY && "OPENAI_API_KEY or CEREBRAS_API_KEY",
+      !process.env.OPENAI_API_KEY &&
+        !process.env.CEREBRAS_API_KEY &&
+        "OPENAI_API_KEY or CEREBRAS_API_KEY",
       !process.env.FISH_API_KEY && "FISH_API_KEY",
     ].filter(Boolean);
     return missing.length ? `Missing: ${missing.join(", ")}` : null;

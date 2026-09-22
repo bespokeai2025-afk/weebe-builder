@@ -42,7 +42,12 @@ import {
 } from "./speech-prompt.shared";
 import { constrainGeneratedSpeech, personaFromGlobalPrompt } from "./speech-isolate.shared";
 import { responseModeFromInstruction } from "./speech-mode.shared";
-import { parseToolOutputVariables, lookupRuntimeValue } from "./variables.shared";
+import {
+  lookupRuntimeValue,
+  missingVariableNames,
+  missingVariablesRule,
+  parseToolOutputVariables,
+} from "./variables.shared";
 import type { CallTurnTrace } from "./latency-trace";
 import {
   selectDigitEdge,
@@ -173,7 +178,8 @@ function isHedgingUtterance(text: string): boolean {
 /** Caller gave concrete data (phone, name, address fragment) worth acknowledging. */
 function isSubstantiveAnswer(text: string): boolean {
   const t = text.trim();
-  if (!t || isFillerUtterance(t) || isHedgingUtterance(t) || looksLikeRepairRequest(t)) return false;
+  if (!t || isFillerUtterance(t) || isHedgingUtterance(t) || looksLikeRepairRequest(t))
+    return false;
   if (looksLikePhoneAnswer(t)) return true;
   if (/\d/.test(t)) return true;
   if (/\b(apartment|villa|flat|house|street|road|dubai|email|at gmail|at yahoo)\b/i.test(t)) {
@@ -358,8 +364,7 @@ export class ConversationVm {
     const conditions = usable.map((e) =>
       interpolate(e.transition_condition.prompt.trim(), this.variables),
     );
-    const lastAgent =
-      this.history.filter((m) => m.role === "assistant").at(-1)?.content ?? "";
+    const lastAgent = this.history.filter((m) => m.role === "assistant").at(-1)?.content ?? "";
     const index = tryHeuristicEdgeIndex(conditions, userText, lastAgent);
     if (index === null || index < 0 || index >= usable.length) return null;
     const destId = usable[index]!.destination_node_id!;
@@ -428,7 +433,11 @@ export class ConversationVm {
         target = this.speechWarmForNode(elseDest);
       }
     }
-    if (!target && (node.type === "conversation" || node.type === "end") && node.instruction?.type === "prompt") {
+    if (
+      !target &&
+      (node.type === "conversation" || node.type === "end") &&
+      node.instruction?.type === "prompt"
+    ) {
       target = this.speechWarmForNode(node.id);
     }
     if (!target) return;
@@ -654,9 +663,12 @@ export class ConversationVm {
     }
 
     if (looksLikeRepairRequest(latestUser)) {
-      const last = this.history.filter((m) => m.role === "assistant").at(-1)?.content?.trim() ?? "";
-      const replay =
-        last && !last.split("\n").some((line) => isBuilderDirection(line)) ? last : "";
+      const last =
+        this.history
+          .filter((m) => m.role === "assistant")
+          .at(-1)
+          ?.content?.trim() ?? "";
+      const replay = last && !last.split("\n").some((line) => isBuilderDirection(line)) ? last : "";
       if (replay) {
         this.history.push({ role: "assistant", content: replay });
         yield { type: "speak", nodeId: node.id, text: replay, interruptible: true };
@@ -684,9 +696,7 @@ export class ConversationVm {
 
     const predicted = this.predictedAdvanceNodeId(latestUser);
     const instant =
-      predicted && !looksLikeUserQuestion(latestUser)
-        ? this.instantSpeechForNode(predicted)
-        : null;
+      predicted && !looksLikeUserQuestion(latestUser) ? this.instantSpeechForNode(predicted) : null;
 
     this.turnTrace?.mark("graph_route_edge_start");
     const edgePromise = selectEdge(node.edges ?? [], ctx, this.llm);
@@ -711,7 +721,9 @@ export class ConversationVm {
       this.traceLog(
         "TRANSITION",
         `${node.id} → ${edge.destination_node_id}`,
-        `${edgeRoute.method}: ${String(edge.transition_condition?.prompt ?? "").replace(/\s+/g, " ").slice(0, 80)}`,
+        `${edgeRoute.method}: ${String(edge.transition_condition?.prompt ?? "")
+          .replace(/\s+/g, " ")
+          .slice(0, 80)}`,
       );
       const resolved = this.resolvePredictedDest(edge.destination_node_id);
       if (
@@ -863,7 +875,11 @@ export class ConversationVm {
   /** Skip "which floor" when the caller already said house/bungalow. */
   private floorNodeSkipTarget(node: FlowNode): string | null {
     const text = String(node.instruction?.text ?? "");
-    if (!/\b(which floor|what floor|floor is (?:it|the)|floor (?:number|of)|\{\{\s*floor\s*\}\})\b/i.test(text)) {
+    if (
+      !/\b(which floor|what floor|floor is (?:it|the)|floor (?:number|of)|\{\{\s*floor\s*\}\})\b/i.test(
+        text,
+      )
+    ) {
       return null;
     }
     if (!historyIndicatesStandaloneHouse(this.history)) return null;
@@ -975,10 +991,7 @@ export class ConversationVm {
   private async *execFunction(node: FunctionNode): AsyncGenerator<VmDirective, StepResult> {
     if (node.speak_during_execution) {
       const filler = spokenExecutionFiller(
-        interpolate(
-          String(node.execution_message_description ?? "").trim(),
-          this.variables,
-        ),
+        interpolate(String(node.execution_message_description ?? "").trim(), this.variables),
       );
       if (filler) yield { type: "speak", nodeId: node.id, text: filler, interruptible: true };
     }
@@ -997,8 +1010,14 @@ export class ConversationVm {
             ? interpolate(String(registered.api_url), this.variables)
             : undefined,
       timeoutMs: typeof node.timeout === "number" ? node.timeout : undefined,
-      method: typeof (node as { method?: string }).method === "string" ? (node as { method: string }).method : undefined,
-      headers: interpolateHeaders((node as { headers?: Record<string, string> }).headers, this.variables),
+      method:
+        typeof (node as { method?: string }).method === "string"
+          ? (node as { method: string }).method
+          : undefined,
+      headers: interpolateHeaders(
+        (node as { headers?: Record<string, string> }).headers,
+        this.variables,
+      ),
       body:
         typeof (node as { body?: string }).body === "string"
           ? interpolate(String((node as { body: string }).body), this.variables)
@@ -1314,7 +1333,11 @@ export class ConversationVm {
     const messages = this.buildSpeechMessages(node, raw);
     const fallback = spokenFallback(splitPromptScript(interpolated));
     const model = nodeModel(node, this.compiled, this.fallbackModel);
-    this.traceLog("NODE_TASK", node.id, (node.name ?? interpolated).replace(/\s+/g, " ").slice(0, 80));
+    this.traceLog(
+      "NODE_TASK",
+      node.id,
+      (node.name ?? interpolated).replace(/\s+/g, " ").slice(0, 80),
+    );
 
     const latestUser = this.history.filter((m) => m.role === "user").at(-1)?.content ?? "";
     const spec = this.speculativeSpeech.get(node.id);
@@ -1357,12 +1380,7 @@ export class ConversationVm {
     try {
       const text = await this.llm.generate(messages, { model });
       const clean = replacePrematureWrapUp(text.trim() || fallback, fallback);
-      const constrained = constrainGeneratedSpeech(
-        clean,
-        fallback,
-        interpolated,
-        node.name ?? "",
-      );
+      const constrained = constrainGeneratedSpeech(clean, fallback, interpolated, node.name ?? "");
       if (constrained.offTopic) {
         this.traceLog("SPEECH_OFF_TOPIC", node.id, constrained.text.slice(0, 120));
       }
@@ -1379,7 +1397,9 @@ export class ConversationVm {
   private buildSpeechMessages(node: FlowNode, raw: string): LlmMessage[] {
     const interpolated = interpolateForSpeech(raw, this.variables);
     const { script, directions, task } = splitPromptScript(interpolated);
-    const system: string[] = [buildTurnRules(interpolate(raw, this.variables), node.type === "end")];
+    const system: string[] = [
+      buildTurnRules(interpolate(raw, this.variables), node.type === "end"),
+    ];
     if (node.name) {
       system.push(`Current node: ${node.name}. Stay on this node only.`);
     }
@@ -1406,9 +1426,7 @@ export class ConversationVm {
       ? extra.knowledge_base_ids.map((t) => String(t).trim()).filter(Boolean)
       : [];
     if (subTools.length) {
-      system.push(
-        `Subagent tool scope (do not invent others): ${subTools.join(", ")}.`,
-      );
+      system.push(`Subagent tool scope (do not invent others): ${subTools.join(", ")}.`);
     }
     if (kbIds.length) {
       system.push(
@@ -1426,6 +1444,12 @@ export class ConversationVm {
     if (known.length) {
       system.push(`Collected this call (use these, do not re-ask): ${known.join("; ")}`);
     }
+    // Retell parity: a referenced variable with no value is something to ASK
+    // for, not something to state. Without this the speech path stripped
+    // {{email}} and the model saw "Your email is , is that right?" with no
+    // sign anything was missing.
+    const missingRule = missingVariablesRule(missingVariableNames(raw, this.variables));
+    if (missingRule) system.push(missingRule);
     const lead = leadFieldsForTurn(raw, this.variables);
     if (lead.length) {
       system.push(
@@ -1445,10 +1469,7 @@ export class ConversationVm {
       system.push(`Task: ${interpolated}`);
     }
     const lastUser = this.history.filter((m) => m.role === "user").at(-1);
-    return [
-      { role: "system", content: system.join("\n") },
-      ...(lastUser ? [lastUser] : []),
-    ];
+    return [{ role: "system", content: system.join("\n") }, ...(lastUser ? [lastUser] : [])];
   }
 
   /** Blocking speech resolution for transfer prompts and other one-shot paths. */
@@ -1494,7 +1515,10 @@ export class ConversationVm {
     try {
       const instruction = String(node.instruction?.text ?? "").trim();
       const messages = instruction
-        ? [...this.history, { role: "system" as const, content: interpolateForSpeech(instruction, this.variables) }]
+        ? [
+            ...this.history,
+            { role: "system" as const, content: interpolateForSpeech(instruction, this.variables) },
+          ]
         : this.history;
       const extracted = await this.llm.extract(messages, fields, {
         model: nodeModel(node, this.compiled, this.fallbackModel),
@@ -1678,10 +1702,14 @@ export class ConversationVm {
       return;
     }
 
-    const edgeRoute = await selectEdge(node.edges ?? [], {
-      ...this.routeContext(node),
-      silenceTimeout: true,
-    }, this.llm);
+    const edgeRoute = await selectEdge(
+      node.edges ?? [],
+      {
+        ...this.routeContext(node),
+        silenceTimeout: true,
+      },
+      this.llm,
+    );
     if (edgeRoute.edge?.destination_node_id) {
       this.resetSilenceAttempts();
       this.traceLog(

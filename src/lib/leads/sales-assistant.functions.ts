@@ -350,7 +350,7 @@ export const generateLeadSalesAssistant = createServerFn({ method: "POST" })
     const content = String(json.choices?.[0]?.message?.content ?? "").trim();
     if (!content) throw new Error("The AI returned an empty response — try Regenerate.");
 
-    return {
+    const result = {
       mode: data.mode,
       content,
       researchUrl: research?.url ?? null,
@@ -358,4 +358,91 @@ export const generateLeadSalesAssistant = createServerFn({ method: "POST" })
       historyUsed: subject.history.length,
       generatedAt: new Date().toISOString(),
     };
+
+    // Keep the latest generation per mode on the row, so reopening the panel shows what was
+    // generated before instead of an empty box. Re-read meta first: the research step above may
+    // have written to it, and this must not roll that back.
+    const { data: fresh } = await sb
+      .from(table)
+      .select("meta")
+      .eq("id", data.id)
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+    const latestMeta = (fresh?.meta as Record<string, unknown> | null) ?? meta;
+    const saved = (latestMeta.ai_assistant as Record<string, unknown> | undefined) ?? {};
+    await sb
+      .from(table)
+      .update({ meta: { ...latestMeta, ai_assistant: { ...saved, [data.mode]: result } } })
+      .eq("id", data.id)
+      .eq("workspace_id", workspaceId);
+
+    return result;
+  });
+
+export type SavedAssistantGeneration = {
+  mode: string;
+  content: string;
+  researchUrl: string | null;
+  researchFetchedAt: string | null;
+  historyUsed: number;
+  generatedAt: string;
+};
+
+/** One stored generation per mode. Absent keys simply mean that mode was never run. */
+export type SavedAssistantResults = {
+  pitch?: SavedAssistantGeneration;
+  meeting?: SavedAssistantGeneration;
+  demo?: SavedAssistantGeneration;
+};
+
+/**
+ * The most recent generation for each mode, so the panel can reopen where the rep left off.
+ *
+ * Access is checked the same way as generating: this returns WeBespoke's own pitch material.
+ */
+export const getSavedLeadSalesAssistant = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) =>
+    z
+      .object({
+        source: z.enum(["lead", "record"]).default("lead"),
+        id: z.string().uuid(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ context, data }): Promise<SavedAssistantResults> => {
+    const { supabase, workspaceId, userId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    const sb = supabase as any;
+
+    const { data: profile } = await sb
+      .from("profiles")
+      .select("user_type")
+      .eq("user_id", userId)
+      .maybeSingle();
+    assertSalesAssistantAccess({ workspaceId, userType: profile?.user_type ?? null });
+
+    const table = data.source === "lead" ? "leads" : "data_records";
+    const { data: row, error } = await sb
+      .from(table)
+      .select("meta, assigned_to")
+      .eq("id", data.id)
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!row) return {};
+
+    if (data.source === "lead") {
+      const { resolvePermissions } = await import("@/lib/permissions/permissions.server");
+      const perms = await resolvePermissions(workspaceId, userId);
+      if (perms.assignedRecordsOnly && row.assigned_to !== userId) {
+        throw new Error("This lead is not assigned to you");
+      }
+    }
+
+    const meta = (row.meta as Record<string, unknown> | null) ?? {};
+    const saved = meta.ai_assistant;
+    return saved && typeof saved === "object" && !Array.isArray(saved)
+      ? (saved as SavedAssistantResults)
+      : {};
   });

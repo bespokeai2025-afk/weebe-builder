@@ -345,7 +345,7 @@ async function resolveAgent(incomingAgentId: string, forcedWorkspaceId?: string)
       .select("id, workspace_id, name, agent_type, retell_agent_id, settings")
       .eq("workspace_id", forcedWorkspaceId)
       .maybeSingle();
-    const s = ((agent?.settings ?? {}) as Record<string, unknown>);
+    const s = (agent?.settings ?? {}) as Record<string, unknown>;
     return {
       id: (agent?.id as string | undefined) ?? undefined,
       workspace_id: forcedWorkspaceId,
@@ -373,7 +373,7 @@ async function resolveAgent(incomingAgentId: string, forcedWorkspaceId?: string)
     );
   });
   if (matched) {
-    const s = ((matched.settings ?? {}) as Record<string, unknown>);
+    const s = (matched.settings ?? {}) as Record<string, unknown>;
     return {
       id: matched.id as string,
       workspace_id: matched.workspace_id as string,
@@ -419,6 +419,20 @@ function collectedVariablesForRow(call: Record<string, unknown>): Record<string,
     ...(collected && typeof collected === "object" ? (collected as Record<string, unknown>) : {}),
   };
   return Object.keys(merged).length > 0 ? merged : null;
+}
+
+/**
+ * Custom post-call fields ready to store, or null.
+ *
+ * Kept as-is (field name → extracted value, including nulls for fields the call did not
+ * establish), because the call detail shows every configured field — a field that came back
+ * empty is information too. An absent or empty object stores nothing, so a later webhook event
+ * without analysis cannot blank out values already saved.
+ */
+function customAnalysisForRow(data: unknown): Record<string, unknown> | null {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  const entries = Object.entries(data as Record<string, unknown>);
+  return entries.length > 0 ? Object.fromEntries(entries) : null;
 }
 
 async function upsertCall(row: Record<string, unknown>) {
@@ -507,9 +521,8 @@ export async function processRetellWebhook(
 
     if (!sigResult.valid) {
       try {
-        const { getWbahAdditionalRetellApiKeys } = await import(
-          "@/lib/wbah/post-call/wbah-retell-agents.shared"
-        );
+        const { getWbahAdditionalRetellApiKeys } =
+          await import("@/lib/wbah/post-call/wbah-retell-agents.shared");
         for (const extraKey of getWbahAdditionalRetellApiKeys()) {
           const extraResult = verifyRetellSignature(rawBody, sigHeader, extraKey);
           if (extraResult.valid) {
@@ -572,9 +585,8 @@ export async function processRetellWebhook(
         // (WBAH agents are not in the `agents` table so resolveAgent returns null).
         let agentRow = await resolveAgent(incomingAgentId, options.forcedWorkspaceId);
         if (!agentRow) {
-          const { resolveWbahRetellAgent } = await import(
-            "@/lib/wbah/post-call/wbah-retell-agents.shared"
-          );
+          const { resolveWbahRetellAgent } =
+            await import("@/lib/wbah/post-call/wbah-retell-agents.shared");
           const wbahAgent = resolveWbahRetellAgent(incomingAgentId);
           if (wbahAgent) {
             agentRow = {
@@ -647,8 +659,7 @@ export async function processRetellWebhook(
   // stored so the /receptionist dashboard shows Retell web-test activity.
   const isWebCall = call.call_type === "web_call" || call.call_type === "webcall";
   const persistWebCall =
-    incomingAgentId === DNR_RETELL_AGENT_ID ||
-    process.env.RETELL_STORE_WEB_CALLS === "true";
+    incomingAgentId === DNR_RETELL_AGENT_ID || process.env.RETELL_STORE_WEB_CALLS === "true";
 
   /**
    * Builder/web test calls are recorded, not discarded.
@@ -709,9 +720,8 @@ export async function processRetellWebhook(
   let dedupLedgerId: string | null = null;
   if (!options.skipDedup) {
     try {
-      const { claimWebhookDelivery } = await import(
-        "@/lib/retell/retell-webhook-management.server"
-      );
+      const { claimWebhookDelivery } =
+        await import("@/lib/retell/retell-webhook-management.server");
       const claim = await claimWebhookDelivery({
         workspaceId,
         eventType: event,
@@ -830,16 +840,30 @@ export async function processRetellWebhook(
         is_deleted: false,
       } as never);
       if (contactErr) {
-        console.warn("[RETELL WEBHOOK] Could not auto-create contact", contactErr.message, { contactPhone, workspaceId });
+        console.warn("[RETELL WEBHOOK] Could not auto-create contact", contactErr.message, {
+          contactPhone,
+          workspaceId,
+        });
       } else {
-        console.log("[RETELL WEBHOOK] Auto-created contact for unknown inbound caller", { contactPhone, workspaceId });
+        console.log("[RETELL WEBHOOK] Auto-created contact for unknown inbound caller", {
+          contactPhone,
+          workspaceId,
+        });
       }
     }
   }
 
   // Detect voicemail using the same rules as the DB migration backfill:
   // provider flag, call_status, disconnection_reason, call_outcome, call_summary, transcript.
-  const VOICEMAIL_KEYWORDS = ["voicemail", "answering machine", "leave a message", "mailbox", "beep", "not available", "automated message"];
+  const VOICEMAIL_KEYWORDS = [
+    "voicemail",
+    "answering machine",
+    "leave a message",
+    "mailbox",
+    "beep",
+    "not available",
+    "automated message",
+  ];
   function containsVoicemailKeyword(text?: string | null): boolean {
     if (!text) return false;
     const lower = text.toLowerCase();
@@ -863,7 +887,8 @@ export async function processRetellWebhook(
     const md = (call as any)?.metadata ?? {};
     const cid = typeof md.campaign_id === "string" ? md.campaign_id : null;
     const mws = typeof md.workspace_id === "string" ? md.workspace_id : null;
-    if (!cid || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cid)) return null;
+    if (!cid || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cid))
+      return null;
     if (mws && mws !== workspaceId) return null;
     try {
       const { data: camp } = await supabaseAdmin
@@ -900,6 +925,12 @@ export async function processRetellWebhook(
     sentiment: mapSentiment(call.call_analysis?.user_sentiment),
     call_successful: call.call_analysis?.call_successful ?? null,
     in_voicemail: call.call_analysis?.in_voicemail ?? null,
+    // The agent's own post-call fields, kept on the call the way Retell keeps
+    // them. Previously only workflow-specific handlers read these — bookings,
+    // lead intelligence, qualification — so a test call showed the three
+    // built-ins and none of the fields the user defined. Null on events that
+    // carry no analysis, so the cleaner below never overwrites a saved value.
+    custom_analysis_data: customAnalysisForRow(call.call_analysis?.custom_analysis_data),
     is_voicemail: isVoicemail,
     is_test_call: isBuilderTestCall,
     collected_variables: collectedVariablesForRow(call),
@@ -923,11 +954,11 @@ export async function processRetellWebhook(
     console.error("[RETELL WEBHOOK] Call upsert failed", callError.message, { event, callId });
     await updateWebhookEvent(eventLogId, "error", callError.message);
     try {
-      const { markWebhookFailed } = await import(
-        "@/lib/retell/retell-webhook-management.server"
-      );
+      const { markWebhookFailed } = await import("@/lib/retell/retell-webhook-management.server");
       await markWebhookFailed(dedupLedgerId, workspaceId, callError.message);
-    } catch { /* non-fatal */ }
+    } catch {
+      /* non-fatal */
+    }
     return {
       ok: false,
       status: 500,
@@ -1017,7 +1048,11 @@ export async function processRetellWebhook(
       .from("leads")
       .update({ status: "no_answer", updated_at: new Date().toISOString() })
       .eq("id", leadId);
-    console.log("[RETELL WEBHOOK] Lead marked no_answer", { leadId, callStatus: call.call_status, disconnection: call.disconnection_reason });
+    console.log("[RETELL WEBHOOK] Lead marked no_answer", {
+      leadId,
+      callStatus: call.call_status,
+      disconnection: call.disconnection_reason,
+    });
   }
 
   // Auto-create a calendar entry for every inbound call so the Calendar tab
@@ -1123,7 +1158,8 @@ export async function processRetellWebhook(
           try {
             const { isWbahWorkspaceId } = await import("@/lib/wbah-exclusion.shared");
             if (!isWbahWorkspaceId(workspaceId)) {
-              const { emitCampaignNotification } = await import("@/lib/notifications/notification-engine.shared");
+              const { emitCampaignNotification } =
+                await import("@/lib/notifications/notification-engine.shared");
               // Resolve the lead this booking belongs to (for lead filters).
               let bookedLeadId: string | null = null;
               if (contactPhone) {
@@ -1146,7 +1182,10 @@ export async function processRetellWebhook(
               });
             }
           } catch (nErr: any) {
-            console.warn("[RETELL WEBHOOK] appointment notification failed (non-fatal):", nErr?.message ?? nErr);
+            console.warn(
+              "[RETELL WEBHOOK] appointment notification failed (non-fatal):",
+              nErr?.message ?? nErr,
+            );
           }
         }
       }
@@ -1157,9 +1196,7 @@ export async function processRetellWebhook(
   if (event === "call_analyzed") {
     const custom = call.call_analysis?.custom_analysis_data ?? {};
     const summaryText =
-      (custom.booking_summary as string | undefined) ??
-      call.call_analysis?.call_summary ??
-      null;
+      (custom.booking_summary as string | undefined) ?? call.call_analysis?.call_summary ?? null;
     const agentId = agentRow.id ?? null;
     let userId: string | null = null;
     if (agentId) {
@@ -1185,7 +1222,10 @@ export async function processRetellWebhook(
       .eq("retell_call_id", callId)
       .maybeSingle();
     if (!userId) {
-      console.warn("[RETELL WEBHOOK] No user_id for booking_summaries upsert, skipping", { callId, workspaceId });
+      console.warn("[RETELL WEBHOOK] No user_id for booking_summaries upsert, skipping", {
+        callId,
+        workspaceId,
+      });
     } else {
       await supabaseAdmin.from("booking_summaries").upsert(
         {
@@ -1242,7 +1282,10 @@ export async function processRetellWebhook(
     const autoUpdate = lgSettings.autoUpdateLead !== false;
     if (autoUpdate) {
       try {
-        console.log("[LEAD-GEN] Starting post-call intelligence extraction", { callId, workspaceId });
+        console.log("[LEAD-GEN] Starting post-call intelligence extraction", {
+          callId,
+          workspaceId,
+        });
         const intelligence = await analyzeCallTranscript(
           call.transcript ?? "",
           call.call_analysis?.user_sentiment,
@@ -1258,13 +1301,20 @@ export async function processRetellWebhook(
             .trim() ||
           null;
         // Pass custom post-call analysis data + builder mappings
-        const customData = (call.call_analysis?.custom_analysis_data ?? {}) as Record<string, unknown>;
+        const customData = (call.call_analysis?.custom_analysis_data ?? {}) as Record<
+          string,
+          unknown
+        >;
         await updateLeadIntelligence(workspaceId, contactPhone, intelligence, {
           contactName,
           agentName: agentRow.name ?? null,
           customData,
-          postCallMappings: (lgSettings.postCallMappings as Record<string, string> | undefined) ?? {},
-          customScoringRules: (lgSettings.customScoringRules as Array<{ variable: string; points: number }> | undefined) ?? [],
+          postCallMappings:
+            (lgSettings.postCallMappings as Record<string, string> | undefined) ?? {},
+          customScoringRules:
+            (lgSettings.customScoringRules as
+              | Array<{ variable: string; points: number }>
+              | undefined) ?? [],
         });
         console.log("[LEAD-GEN] Intelligence update complete", {
           callId,
@@ -1328,7 +1378,10 @@ export async function processRetellWebhook(
             .join(" ")
             .trim() ||
           null;
-        const customData = (call.call_analysis?.custom_analysis_data ?? {}) as Record<string, unknown>;
+        const customData = (call.call_analysis?.custom_analysis_data ?? {}) as Record<
+          string,
+          unknown
+        >;
         const qualifySettings = (agentRow as any).qualifySettings ?? {};
         await applyQualificationToLead(workspaceId, contactPhone, result, {
           contactName,
@@ -1360,9 +1413,8 @@ export async function processRetellWebhook(
     "systemmind_call_runtime";
   if (["call_started", "call_ended", "call_analyzed", "call_failed"].includes(event)) {
     try {
-      const { processRuntimePostCall } = await import(
-        "@/lib/systemmind/call-runtime/pipeline.server"
-      );
+      const { processRuntimePostCall } =
+        await import("@/lib/systemmind/call-runtime/pipeline.server");
       await processRuntimePostCall({ workspaceId, retellCallId: callId, event, call });
     } catch (rtErr) {
       console.warn("[CALL-RUNTIME] post-call hook failed (non-fatal)", rtErr);
@@ -1381,7 +1433,7 @@ export async function processRetellWebhook(
       const custom = call.call_analysis?.custom_analysis_data ?? {};
       const dynVars = (payload as any)?.call?.retell_llm_dynamic_variables ?? {};
       const contactName: string | null =
-        (custom as Record<string, unknown>).customer_name as string | null ||
+        ((custom as Record<string, unknown>).customer_name as string | null) ||
         dynVars.full_name?.trim() ||
         [dynVars.First_name ?? dynVars.first_name, dynVars.Last_name ?? dynVars.last_name]
           .filter(Boolean)
@@ -1418,11 +1470,11 @@ export async function processRetellWebhook(
 
   await updateWebhookEvent(eventLogId, "processed");
   try {
-    const { markWebhookProcessed } = await import(
-      "@/lib/retell/retell-webhook-management.server"
-    );
+    const { markWebhookProcessed } = await import("@/lib/retell/retell-webhook-management.server");
     await markWebhookProcessed(dedupLedgerId, workspaceId);
-  } catch { /* non-fatal */ }
+  } catch {
+    /* non-fatal */
+  }
   console.log("[RETELL WEBHOOK] Processing complete", { event, callId, workspaceId });
   return {
     ok: true,

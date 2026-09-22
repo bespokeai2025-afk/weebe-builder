@@ -235,7 +235,10 @@ interface Props {
 export function CampaignBuilderPage({ campaignId, onBack, onSaved }: Props) {
   const qc = useQueryClient();
 
-  const [name, setName]                 = useState("Multi-Channel Campaign");
+  // Deliberately blank: a prefilled default meant every campaign got saved as
+  // "Multi-Channel Campaign" and the list became unreadable. Save stays
+  // disabled until this is filled in.
+  const [name, setName]                 = useState("");
   const [dayRange, setDayRange]         = useState<DayRange>(30);
   const [activeChannel, setActiveChannel] = useState<Channel>("email");
   const [selectedDay, setSelectedDay]   = useState<number>(1);

@@ -230,6 +230,40 @@ export const updateHexmailCampaignStatus = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/**
+ * Renames a campaign, leaving its steps alone.
+ *
+ * Separate from saveHexmailCampaign because that one deletes and reinserts every step from its
+ * payload — calling it just to change a name would wipe the campaign's schedule.
+ */
+export const renameHexmailCampaign = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) =>
+    z
+      .object({
+        id: z.string(),
+        name: z.string().trim().min(1, "Give the campaign a name").max(120),
+        description: z.string().trim().max(500).optional().nullable(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    const sb = supabase as any;
+    const patch: Record<string, unknown> = { name: data.name, updated_at: new Date().toISOString() };
+    // Only touch the description when the caller actually sent one, so renaming
+    // from the list does not blank a description written in the builder.
+    if (data.description !== undefined) patch.description = data.description || null;
+    const { error } = await sb
+      .from("hexmail_campaigns")
+      .update(patch)
+      .eq("id", data.id)
+      .eq("workspace_id", workspaceId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
 export const deleteHexmailCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input) => z.object({ id: z.string() }).parse(input))

@@ -4,14 +4,15 @@
  * Deliberately a single dialog reused from both the Leads list and Data → Records, rather than a
  * new page or module: the Leads page itself is untouched apart from one button per row.
  */
-import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   AlertTriangle,
   Check,
+  Clock,
   Copy,
   Globe,
   ListChecks,
@@ -19,6 +20,7 @@ import {
   RefreshCw,
   Sparkles,
 } from "lucide-react";
+import { RelativeTime } from "@/components/ui/relative-time";
 import {
   Dialog,
   DialogContent,
@@ -30,7 +32,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
-import { generateLeadSalesAssistant } from "@/lib/leads/sales-assistant.functions";
+import {
+  generateLeadSalesAssistant,
+  getSavedLeadSalesAssistant,
+} from "@/lib/leads/sales-assistant.functions";
 import { ASSISTANT_MODES, type AssistantMode } from "@/lib/leads/sales-assistant.shared";
 
 /**
@@ -175,6 +180,36 @@ export function LeadAiAssistantPanel({
   const [copied, setCopied] = useState(false);
   const [ticked, setTicked] = useState<Set<string>>(new Set());
 
+  // What was generated for this lead previously. Kept on the row, so closing the panel — or
+  // opening it from a different part of the app — no longer throws the work away.
+  const canLoadSaved = !!target && isAssistantTargetId(target.id);
+  const savedQuery = useQuery({
+    queryKey: ["sales-assistant-saved", target?.source, target?.id],
+    enabled: canLoadSaved,
+    staleTime: 0,
+    queryFn: () =>
+      getSavedLeadSalesAssistant({
+        data: { source: target!.source, id: target!.id },
+      }) as Promise<Partial<Record<AssistantMode, Result>>>,
+  });
+
+  // Seed the panel from storage without clobbering anything generated in this session: a fresh
+  // result is always newer than what was loaded.
+  useEffect(() => {
+    const saved = savedQuery.data;
+    if (!saved) return;
+    setByMode((prev) => {
+      const merged = { ...prev };
+      for (const [k, v] of Object.entries(saved)) {
+        const key = k as AssistantMode;
+        if (!merged[key] && v && typeof v === "object" && "content" in v) {
+          merged[key] = v as Result;
+        }
+      }
+      return merged;
+    });
+  }, [savedQuery.data]);
+
   const generate = useMutation({
     mutationFn: (opts: { mode: AssistantMode; refreshResearch?: boolean }) => {
       if (!isAssistantTargetId(target?.id)) {
@@ -196,9 +231,11 @@ export function LeadAiAssistantPanel({
     onSuccess: (res: Result) => {
       setByMode((prev) => ({ ...prev, [res.mode as AssistantMode]: res }));
       setTicked(new Set());
-      // Research is cached on the row, so the list's copy is now stale.
+      // Research and the generation itself are both stored on the row, so the
+      // list's copy and the saved-generations query are now stale.
       qc.invalidateQueries({ queryKey: ["leads"] });
       qc.invalidateQueries({ queryKey: ["data-records"] });
+      qc.invalidateQueries({ queryKey: ["sales-assistant-saved"] });
     },
     onError: (e: Error) => toast.error("Generation failed", { description: e.message }),
   });
@@ -264,6 +301,17 @@ export function LeadAiAssistantPanel({
               disabled={isLoading}
             >
               {m.label}
+              {/* A dot means something was already generated for this mode, so the
+                  demo checklist and the other outputs can be found without
+                  re-running them. */}
+              {byMode[m.id] && (
+                <span
+                  className={cn(
+                    "ml-1.5 h-1.5 w-1.5 rounded-full",
+                    mode === m.id ? "bg-primary-foreground/70" : "bg-primary",
+                  )}
+                />
+              )}
             </Button>
           ))}
         </div>
@@ -351,6 +399,10 @@ export function LeadAiAssistantPanel({
               )}
               <RenderedMarkdown text={hooked.rest || checklist.rest || result.content} />
             </div>
+          ) : canLoadSaved && savedQuery.isLoading ? (
+            <div className="flex h-full min-h-[200px] items-center justify-center">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
           ) : (
             <div className="flex h-full min-h-[200px] flex-col items-center justify-center gap-2 text-center">
               <p className="text-[11px] text-muted-foreground">
@@ -388,6 +440,12 @@ export function LeadAiAssistantPanel({
                 ? `${result.historyUsed} past interaction${result.historyUsed === 1 ? "" : "s"} used`
                 : "No previous activity"}
             </Badge>
+            {result.generatedAt && (
+              <Badge variant="outline" className="gap-1 text-[10px] text-muted-foreground">
+                <Clock className="h-2.5 w-2.5" />
+                Generated <RelativeTime date={result.generatedAt} />
+              </Badge>
+            )}
 
             <div className="ml-auto flex gap-1.5">
               <Button size="sm" variant="outline" className="h-7 text-[11px]" onClick={copy}>

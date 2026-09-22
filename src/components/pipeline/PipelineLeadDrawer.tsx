@@ -53,8 +53,15 @@ import {
   FolderOpen,
   AlertTriangle,
   UserPlus,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  LeadAiAssistantPanel,
+  isAssistantTargetId,
+  type AssistantTarget,
+} from "@/components/leads/LeadAiAssistantPanel";
+import { useSalesAssistantAccess } from "@/hooks/useSalesAssistantAccess";
 import { listContactDocsByPhone } from "@/lib/dashboard/documents.functions";
 import { AssignLeadsDialog, useAssignableMembers } from "@/components/leads/AssignLeadsDialog";
 import { getMyPermissions } from "@/lib/permissions/team-access.functions";
@@ -153,6 +160,8 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
   });
   const canAssign = (myPermsQ.data as any)?.actionAccess?.lead_assignment === true;
   const [assignOpen, setAssignOpen] = useState(false);
+  const canUseAssistant = useSalesAssistantAccess();
+  const [assistantTarget, setAssistantTarget] = useState<AssistantTarget | null>(null);
   const membersQ = useAssignableMembers(open && canAssign);
   const assigneeName = lead?.assigned_to
     ? ((membersQ.data as any[]) ?? []).find((m) => m.userId === lead.assigned_to)?.name ?? null
@@ -438,6 +447,25 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
                   </span>
                 )}
               </div>
+
+              {canUseAssistant && isAssistantTargetId(lead.id) && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-2 h-7 gap-1.5 text-[11px]"
+                  onClick={() =>
+                    setAssistantTarget({
+                      id: lead.id,
+                      source: "lead",
+                      name: lead.full_name ?? null,
+                      company: lead.company_name ?? null,
+                    })
+                  }
+                >
+                  <Sparkles className="h-3 w-3 text-primary" />
+                  AI Sales Assistant
+                </Button>
+              )}
             </div>
 
             {/* Sentiment + interest level */}
@@ -1004,6 +1032,10 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
         onClose={() => setCampaignPickerOpen(false)}
       />
     )}
+    <LeadAiAssistantPanel
+      target={assistantTarget}
+      onOpenChange={(o) => !o && setAssistantTarget(null)}
+    />
     </>
   );
 }

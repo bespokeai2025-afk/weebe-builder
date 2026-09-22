@@ -20,9 +20,24 @@ export type UnifiedBooking = {
   external_id: string | null;
   notes: string | null;
   agent_name: string | null;
+  /** The lead this booking is for, when the local row is linked to one. */
+  lead_id?: string | null;
   appointment_date?: string | null;
   appointment_time?: string | null;
 };
+
+/**
+ * Matches a Cal.com booking uid to its local calendar_bookings row.
+ *
+ * Rows written by the Cal.com webhook store external_id as "calcom:<uid>", while rows created
+ * against Cal.com directly may hold the bare uid. Comparing only the bare form meant a booking's
+ * own notes and lead link never attached to it in the calendar.
+ */
+function matchesCalcomUid(externalId: unknown, uid: string | null): boolean {
+  if (!uid) return false;
+  const raw = String(externalId ?? "");
+  return raw === uid || raw === `calcom:${uid}`;
+}
 
 export type BookingDetail = {
   booking: UnifiedBooking;
@@ -187,6 +202,7 @@ export const listCalendarBookings = createServerFn({ method: "GET" })
       db_id: b.id as string,
       external_id: b.external_id ?? null,
       notes: b.notes ?? null,
+      lead_id: b.lead_id ?? null,
       agent_name: null,
     }));
 
@@ -244,8 +260,8 @@ export const listCalendarBookings = createServerFn({ method: "GET" })
           const calcomUid = b.uid ?? b.id ?? null;
           const uidStr = calcomUid ? String(calcomUid) : null;
           // Check if there's a local calendar_bookings row for this calcom booking
-          const localMatch = ((localRows ?? []) as any[]).find(
-            (r) => r.external_id === uidStr,
+          const localMatch = ((localRows ?? []) as any[]).find((r) =>
+            matchesCalcomUid(r.external_id, uidStr),
           );
           return {
             id: `calcom:${calcomUid}`,
@@ -263,6 +279,7 @@ export const listCalendarBookings = createServerFn({ method: "GET" })
             db_id: localMatch?.id ?? null,
             external_id: uidStr,
             notes: localMatch?.notes ?? null,
+            lead_id: localMatch?.lead_id ?? null,
             agent_name: uidStr ? (uidToAgentName[uidStr] ?? null) : null,
           };
         });
@@ -295,6 +312,7 @@ export const listCalendarBookings = createServerFn({ method: "GET" })
         db_id: b.id as string,
         external_id: b.external_id ?? null,
         notes: b.notes ?? null,
+        lead_id: b.lead_id ?? null,
         agent_name: null,
       }));
 

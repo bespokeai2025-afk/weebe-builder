@@ -48,6 +48,7 @@ import {
   listHexmailCampaigns,
   updateHexmailCampaignStatus,
   deleteHexmailCampaign,
+  renameHexmailCampaign,
   type HexmailCampaign,
 } from "@/lib/hexmail/campaigns.functions";
 import { CreateCampaignForm } from "./CreateCampaignForm";
@@ -93,6 +94,8 @@ export function FollowUpCentre({ onOpenVisualBuilder, onOpenFormBuilder }: Follo
   const [pickerCampaign, setPickerCampaign] = useState<HexmailCampaign | null>(null);
   const [search,         setSearch]         = useState("");
   const [innerView,      setInnerView]      = useState<InnerView>("list");
+  const [renameTarget,   setRenameTarget]   = useState<HexmailCampaign | null>(null);
+  const [renameValue,    setRenameValue]    = useState("");
 
   const { data: campaigns = [], isLoading } = useQuery<HexmailCampaign[]>({
     queryKey: ["hexmail-campaigns"],
@@ -104,6 +107,29 @@ export function FollowUpCentre({ onOpenVisualBuilder, onOpenFormBuilder }: Follo
       updateHexmailCampaignStatus({ data: { id, status } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["hexmail-campaigns"] }),
   });
+
+  const rename = useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) =>
+      renameHexmailCampaign({ data: { id, name } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["hexmail-campaigns"] });
+      setRenameTarget(null);
+    },
+  });
+
+  const openRename = (campaign: HexmailCampaign) => {
+    setRenameValue(campaign.name);
+    setRenameTarget(campaign);
+  };
+
+  const submitRename = () => {
+    const next = renameValue.trim();
+    if (!renameTarget || !next || next === renameTarget.name) {
+      setRenameTarget(null);
+      return;
+    }
+    rename.mutate({ id: renameTarget.id, name: next });
+  };
 
   const remove = useMutation({
     mutationFn: (id: string) => deleteHexmailCampaign({ data: { id } }),
@@ -272,12 +298,51 @@ export function FollowUpCentre({ onOpenVisualBuilder, onOpenFormBuilder }: Follo
                 onEditForm={() => onOpenFormBuilder(c.id)}
                 onStatusChange={(status) => updateStatus.mutate({ id: c.id, status })}
                 onDelete={() => setDeleteTarget(c)}
+                onRename={() => openRename(c)}
                 isUpdating={updateStatus.isPending}
               />
             ))
           )}
         </div>
       )}
+
+      <Dialog open={!!renameTarget} onOpenChange={(v) => !v && setRenameTarget(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Rename campaign</DialogTitle>
+            <DialogDescription>
+              Give this campaign a name you'll recognise in the list.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            autoFocus
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submitRename();
+            }}
+            placeholder="e.g. Roofing prospects — September"
+            maxLength={120}
+          />
+          {rename.isError && (
+            <p className="text-xs text-destructive">
+              {(rename.error as Error)?.message ?? "Could not rename the campaign."}
+            </p>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setRenameTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={submitRename}
+              disabled={!renameValue.trim() || rename.isPending}
+            >
+              {rename.isPending ? "Saving…" : "Save"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
         <AlertDialogContent>
@@ -311,6 +376,7 @@ function CampaignRow({
   onEditForm,
   onStatusChange,
   onDelete,
+  onRename,
   isUpdating,
 }: {
   campaign: HexmailCampaign;
@@ -319,6 +385,7 @@ function CampaignRow({
   onEditForm: () => void;
   onStatusChange: (status: HexmailCampaign["status"]) => void;
   onDelete: () => void;
+  onRename: () => void;
   isUpdating: boolean;
 }) {
   const isActive = campaign.status === "active";
@@ -364,6 +431,10 @@ function CampaignRow({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuItem onClick={onRename}>
+              <Pencil className="mr-2 h-3.5 w-3.5" /> Rename
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={onEditVisual}>
               <Sparkles className="mr-2 h-3.5 w-3.5" />
               <div>

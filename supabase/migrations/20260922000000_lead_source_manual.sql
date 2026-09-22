@@ -1,0 +1,11 @@
+-- Adds 'manual' to lead_source.
+--
+-- The Add Lead button on the Leads page wrote the human-readable string "Manual entry" into
+-- leads.source, which is the lead_source enum, so every hand-typed lead failed with
+--   22P02: invalid input value for enum lead_source: "Manual entry"
+-- There was no enum member meaning "typed in by hand": 'import' means a CSV or bulk load and
+-- 'inbound' means the lead came to us, so reusing either would have misrecorded provenance.
+--
+-- Additive and backwards-compatible: existing rows and any code filtering on the old members are
+-- unaffected.
+alter type lead_source add value if not exists 'manual';

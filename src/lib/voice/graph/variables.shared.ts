@@ -227,22 +227,22 @@ export function fillBracketPlaceholders(
   runtime: Record<string, VariableValue>,
 ): string {
   if (!text || !text.includes("[")) return text;
-  return text.replace(/\[([^\]]+)\]/g, (match, inner: string) => {
-    const label = inner.trim();
-    if (!label) return "";
-    const filled = bracketAliasValue(label, runtime);
-    if (filled) return filled;
-    if (/^(chosen|selected|the |your |insert |email|date|time|name|phone|address)/i.test(label)) {
-      return "";
-    }
-    return match;
-  }).replace(/[ \t]{2,}/g, " ").replace(/\s+([,!.?])/g, "$1");
+  return text
+    .replace(/\[([^\]]+)\]/g, (match, inner: string) => {
+      const label = inner.trim();
+      if (!label) return "";
+      const filled = bracketAliasValue(label, runtime);
+      if (filled) return filled;
+      if (/^(chosen|selected|the |your |insert |email|date|time|name|phone|address)/i.test(label)) {
+        return "";
+      }
+      return match;
+    })
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\s+([,!.?])/g, "$1");
 }
 
-function firstValue(
-  runtime: Record<string, VariableValue>,
-  names: string[],
-): string | undefined {
+function firstValue(runtime: Record<string, VariableValue>, names: string[]): string | undefined {
   for (const name of names) {
     const value = lookupRuntimeValue(runtime, name);
     if (value) return value;
@@ -254,7 +254,10 @@ function bracketAliasValue(
   label: string,
   runtime: Record<string, VariableValue>,
 ): string | undefined {
-  const compact = label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+  const compact = label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_|_$/g, "");
   const direct = lookupRuntimeValue(runtime, compact) ?? lookupRuntimeValue(runtime, label);
   if (direct) return direct;
   if (/date/.test(compact) && /time/.test(compact)) {
@@ -271,11 +274,7 @@ function bracketAliasValue(
       "requested_time",
     ]);
     if (date && time) return `${date} at ${time}`;
-    return (
-      date ??
-      time ??
-      firstValue(runtime, ["matched_slot", "calendar.matched_slot", "start"])
-    );
+    return date ?? time ?? firstValue(runtime, ["matched_slot", "calendar.matched_slot", "start"]);
   }
   if (/email/.test(compact)) {
     return firstValue(runtime, ["email", "customer_email", "email_address"]);
@@ -289,7 +288,13 @@ function bracketAliasValue(
     return first ?? last;
   }
   if (/phone|mobile/.test(compact)) {
-    return firstValue(runtime, ["mobile", "phone", "customer_phone", "user_number", "caller_number"]);
+    return firstValue(runtime, [
+      "mobile",
+      "phone",
+      "customer_phone",
+      "user_number",
+      "caller_number",
+    ]);
   }
   if (/date/.test(compact)) {
     return firstValue(runtime, ["appointment_date", "available_date", "current_date"]);
@@ -324,4 +329,55 @@ function systemVariable(name: string): string | undefined {
     return now.toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit" });
   }
   return undefined;
+}
+
+/**
+ * Variables this text references that have no usable value yet.
+ *
+ * Needed for Retell parity: in Retell a prompt reading "Confirm your email is {{email}}" speaks the
+ * email when it is known and asks for it when it is not. Here the speech path stripped the
+ * unresolved reference, so the model received the fragment "Confirm your email is , is that
+ * right?" with no sign that anything was missing — and either read the fragment or invented a
+ * value. Knowing which references are empty is what lets the prompt say so.
+ */
+export function missingVariableNames(
+  text: string,
+  runtime: Record<string, VariableValue>,
+): string[] {
+  if (!text || !text.includes("{{")) return [];
+  return referencedVariableNames(text).filter((name) => {
+    const value = lookupRuntimeValue(runtime, name, "prompt");
+    return value === undefined || !String(value).trim();
+  });
+}
+
+/** "mobile_number" → "mobile number", for asking a caller in plain words. */
+export function humaniseVariableName(name: string): string {
+  return name
+    .replace(/\./g, " ")
+    .replace(/_/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * The system rule that makes an unknown variable behave the way it does in Retell: ask for it,
+ * never guess it, never say the placeholder.
+ *
+ * Returns null when nothing is missing, so a fully-populated call gets no extra instruction.
+ */
+export function missingVariablesRule(missing: string[]): string | null {
+  const names = [...new Set(missing.filter(Boolean))];
+  if (names.length === 0) return null;
+  const listed = names.map((n) => `${humaniseVariableName(n)} ({{${n}}})`).join(", ");
+  return [
+    `Not provided yet: ${listed}.`,
+    "Wherever the task relies on one of these, ASK the caller for it in one short, natural question " +
+      "instead of stating it. Do not guess it, do not invent it, and do not put one kind of " +
+      "information in place of another (an email is never a phone number).",
+    "Never say a placeholder, a variable name, or curly braces out loud. If a sentence in the " +
+      "task has a gap where one of these belongs, that gap means ask — do not read the sentence as written.",
+  ].join(" ");
 }

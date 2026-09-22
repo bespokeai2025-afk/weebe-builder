@@ -513,3 +513,48 @@ export function resolveWatiTemplateMessageBody(
 ): string {
   return renderWatiTemplateBodyPreview(templateBody, templateName, parameters);
 }
+
+/**
+ * Placeholder-looking text in a template body that WhatsApp will NOT fill in.
+ *
+ * WhatsApp only substitutes declared variables ({{1}}, {{name}}). Anything else that looks like a
+ * placeholder — "[Name]", "<first name>", "(Name)" — is ordinary text and goes out verbatim. A
+ * follow-up template written as "Hi [Name] 👋" with no variables reached a customer exactly like
+ * that, and nothing in the product had flagged it, because from the send path's point of view the
+ * template simply had no parameters to fill.
+ *
+ * Returns the offending fragments, so the UI can name them.
+ */
+export function literalPlaceholdersInTemplateBody(body: string | null | undefined): string[] {
+  const text = String(body ?? "");
+  if (!text) return [];
+  const found = new Set<string>();
+  // Square/angle brackets, and parenthesised single words that read as a field name.
+  for (const re of [/\[[^\]\n]{1,40}\]/g, /<[^>\n]{1,40}>/g]) {
+    for (const m of text.match(re) ?? []) {
+      const inner = m.slice(1, -1).trim();
+      // Require it to look like a field name rather than prose or a URL.
+      if (!inner || inner.length > 30 || /https?:|\/|@/.test(inner)) continue;
+      if (/^[A-Za-z][A-Za-z0-9 _-]*$/.test(inner)) found.add(m);
+    }
+  }
+  return [...found];
+}
+
+/**
+ * Whether a chosen template will send placeholder text as-is.
+ *
+ * True only when the body contains placeholder-looking text AND the template declares no
+ * variables — with variables present, the author is using both deliberately and the send path
+ * fills what it can.
+ */
+export function templateSendsLiteralPlaceholders(
+  template: Record<string, unknown> | null | undefined,
+): string[] {
+  if (!template) return [];
+  if (extractWatiTemplateParamSlots(template).length > 0) return [];
+  const body =
+    watiTemplateBodyOriginalText(template) ||
+    String((template as { body_preview?: unknown }).body_preview ?? "");
+  return literalPlaceholdersInTemplateBody(body);
+}

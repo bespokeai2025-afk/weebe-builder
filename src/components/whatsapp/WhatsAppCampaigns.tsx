@@ -92,6 +92,7 @@ import {
   defaultWatiTemplateParamMapping,
   extractWatiTemplateParamSlots,
   getTemplateSlotHint,
+  templateSendsLiteralPlaceholders,
   validateWatiTemplateParamMapping,
   WATI_TEMPLATE_PARAM_FIELD_OPTIONS,
   encodeLiteralTemplateField,
@@ -419,6 +420,7 @@ export function WhatsAppCampaigns() {
   );
   const paramSlots = watiTemplateParamSlots(selectedWatiTemplate);
   const paramMappingError = validateWatiTemplateParamMapping(paramSlots, form.template_params);
+  const templateLiteralPlaceholders = templateSendsLiteralPlaceholders(selectedWatiTemplate);
 
   // The property fields this workspace's leads actually have. The hardcoded list
   // is one dataset's column spellings; a workspace whose column imported as
@@ -1339,6 +1341,17 @@ export function WhatsAppCampaigns() {
                   <div className="rounded-md border border-border/50 bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground whitespace-pre-wrap">
                     {watiTemplateBodyPreview(selectedWatiTemplate)}
                   </div>
+                )}
+
+                {/* Placeholder-looking text with no variables behind it goes out
+                    verbatim — WhatsApp only fills declared variables. */}
+                {templateLiteralPlaceholders.length > 0 && (
+                  <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-[11px] text-amber-600 dark:text-amber-400">
+                    This template has no variables, so{" "}
+                    <strong>{templateLiteralPlaceholders.join(", ")}</strong> will be sent to every
+                    recipient exactly as written. Add a WhatsApp variable to the template to
+                    personalise it.
+                  </p>
                 )}
 
                 {paramSlots.length > 0 && (
