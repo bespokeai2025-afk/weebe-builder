@@ -73,7 +73,10 @@
   --webee-header-background: color-mix(in srgb, var(--background) 88%, transparent);
 
   /* Black & White — webespoke light */
-  --background: #ffffff;
+  /* --background was identical to --card (#ffffff) — cards had no surface
+     separation from the page underneath them. Distinct, subtle off-white
+     canvas; --card/--popover stay pure white. */
+  --background: #f7f8fa;
   --foreground: #0a0f1c;
   --card: #ffffff;
   --card-foreground: #0a0f1c;
@@ -91,8 +94,10 @@
 
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  --success: #16a34a;
-  --warning: #d97706;
+  /* Darkened from #16a34a/#d97706 — those failed WCAG AA (3.30:1 / 3.19:1)
+     as standalone text on white; 4.5:1+ needed for normal text. */
+  --success: #15803d;
+  --warning: #b45309;
   --highlight: #0a0f1c;
 
   --border: rgba(10, 15, 28, 0.06);
