@@ -221,7 +221,7 @@ export function IntelligencePacketPanel({ packet, readinessState, compact = fals
               Developer details
             </button>
             {devOpen && (
-              <pre className="mt-1.5 text-[10px] text-muted-foreground bg-white/[0.02] rounded-lg p-2 overflow-x-auto border border-white/[0.05] max-h-64">
+              <pre className="mt-1.5 text-[10px] text-muted-foreground bg-muted/40 dark:bg-white/[0.02] rounded-lg p-2 overflow-x-auto border border-border dark:border-white/[0.05] max-h-64">
                 {JSON.stringify(packet, null, 2)}
               </pre>
             )}
@@ -244,10 +244,10 @@ export function ApprovalDialog({ meta, packet, readinessState, onConfirm, onCanc
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onCancel}>
       <div
-        className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-xl border border-white/[0.1] bg-[hsl(var(--card))] shadow-2xl"
+        className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-xl border border-border dark:border-white/[0.1] bg-[hsl(var(--card))] shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 py-4 border-b border-white/[0.07] flex items-center gap-2.5">
+        <div className="px-5 py-4 border-b border-border dark:border-white/[0.07] flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/15 ring-1 ring-emerald-500/25 shrink-0">
             <ShieldCheck className="h-4 w-4 text-emerald-400" />
           </div>
@@ -281,7 +281,7 @@ export function ApprovalDialog({ meta, packet, readinessState, onConfirm, onCanc
             )}
           </Row>
           <Row label="What happens next">{meta.whatHappensNext}</Row>
-          <div className="rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2">
+          <div className="rounded-lg border border-border dark:border-white/[0.07] bg-muted/40 dark:bg-white/[0.02] px-3 py-2">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5 flex items-center gap-1">
               <Ban className="h-3 w-3" /> Not authorised by this approval
             </p>
@@ -292,11 +292,11 @@ export function ApprovalDialog({ meta, packet, readinessState, onConfirm, onCanc
           {packet && <IntelligencePacketPanel packet={packet} readinessState={readinessState} />}
         </div>
 
-        <div className="px-5 py-3.5 border-t border-white/[0.07] flex items-center justify-end gap-2">
+        <div className="px-5 py-3.5 border-t border-border dark:border-white/[0.07] flex items-center justify-end gap-2">
           <button
             onClick={onCancel}
             disabled={busy}
-            className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-3.5 py-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-all disabled:opacity-40"
+            className="rounded-lg border border-border dark:border-white/[0.08] bg-muted/60 dark:bg-white/[0.03] px-3.5 py-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-all disabled:opacity-40"
           >
             Cancel
           </button>

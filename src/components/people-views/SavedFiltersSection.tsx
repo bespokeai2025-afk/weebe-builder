@@ -98,8 +98,8 @@ export function SavedFiltersSection({ pageKey }: { pageKey: string }) {
     const rows = ((rowsData as any)?.rows ?? []) as Array<Record<string, unknown>>;
     const cols = rows.length > 0 ? Object.keys(rows[0]).filter((k) => k !== "id").slice(0, 6) : [];
     return (
-      <div className="rounded-xl border border-white/[0.06] bg-card/60">
-        <div className="flex items-center justify-between border-b border-white/[0.06] px-3 py-2">
+      <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60">
+        <div className="flex items-center justify-between border-b border-border dark:border-white/[0.06] px-3 py-2">
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => setOpenFilterId(null)}>
               <ChevronLeft className="h-3.5 w-3.5" /> Back
@@ -123,7 +123,7 @@ export function SavedFiltersSection({ pageKey }: { pageKey: string }) {
               </thead>
               <tbody>
                 {rows.map((r, i) => (
-                  <tr key={String(r.id ?? i)} className="border-t border-white/[0.04]">
+                  <tr key={String(r.id ?? i)} className="border-t border-border/60 dark:border-white/[0.04]">
                     {cols.map((c) => (
                       <td key={c} className="px-2 py-1.5 max-w-[220px] truncate">{String(r[c] ?? "—")}</td>
                     ))}
@@ -138,7 +138,7 @@ export function SavedFiltersSection({ pageKey }: { pageKey: string }) {
   }
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-card/60">
+    <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60">
       <button
         type="button"
         className="flex w-full items-center justify-between px-3 py-2"
@@ -155,7 +155,7 @@ export function SavedFiltersSection({ pageKey }: { pageKey: string }) {
       </button>
 
       {expanded && (
-        <div className="divide-y divide-white/[0.04] border-t border-white/[0.06]">
+        <div className="divide-y divide-white/[0.04] border-t border-border dark:border-white/[0.06]">
           {filters.map((f) => (
             <div key={f.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
               <div className="min-w-0">
