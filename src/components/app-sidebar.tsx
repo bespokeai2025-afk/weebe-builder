@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   LayoutGrid,
@@ -25,7 +25,6 @@ import {
   Settings2,
   PhoneIncoming,
   Kanban,
-  GripVertical,
   Zap,
   FileText,
   Brain,
@@ -47,25 +46,9 @@ import {
   Clock,
   GitBranch,
   Lock,
+  Plug,
+  Sparkles,
 } from "lucide-react";
-import {
-  DndContext,
-  PointerSensor,
-  TouchSensor,
-  useSensor,
-  useSensors,
-  DragOverlay,
-  type DragStartEvent,
-  type DragOverEvent,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-  useSortable,
-  arrayMove,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { restartTour } from "@/components/onboarding/useOnboarding";
 import { restartWelcome } from "@/components/onboarding/OnboardingWelcome";
 import {
@@ -168,199 +151,108 @@ type NavItem = {
   moduleId?: string;
 };
 
-const DEFAULT_NAV_ITEMS: NavItem[] = [
-  { title: "Dashboard",   url: "/dashboard",   icon: LayoutDashboard },
-  { title: "HiveMind",    url: "/hivemind",    icon: Brain,      moduleId: "hivemind" },
-  { title: "GrowthMind",  url: "/growthmind",  icon: TrendingUp, moduleId: "growthmind" },
-  { title: "SystemMind",  url: "/systemmind",  icon: Server,     moduleId: "systemmind" },
-  { title: "Knowledge Centre", url: "/knowledge-centre", icon: BookOpen },
-  { title: "Analytics",   url: "/analytics",   icon: BarChart3 },
-  { title: "Agents",    url: "/my-agents", icon: LayoutGrid,    tourId: "nav-agents" },
-  { title: "Builder",   url: "/builder",   icon: Workflow,       moduleId: "builder" },
-  { title: "Templates", url: "/templates", icon: LayoutTemplate, tourId: "nav-templates" },
-  { title: "Data",      url: "/data",      icon: Database,       moduleId: "lead_generation" },
-  { title: "Contacts",  url: "/contacts",  icon: BookUser },
+// ── Fixed nav sections (approved IA — see nav restructure request) ─────────
+// Items not placed in one of these four groups (Templates, Data, Qualified,
+// Receptionist, Template Studio, HexMail + its sub-pages, Follow-Up,
+// Reseller Portal) keep their routes; they're just no longer in the primary
+// sidebar. "Conversations" was requested for MAIN but has no page yet, so
+// it's intentionally left out rather than pointed at the wrong route.
+const MAIN_NAV_ITEMS: NavItem[] = [
+  { title: "Overview",  url: "/dashboard", icon: LayoutDashboard },
+  { title: "Agents",    url: "/my-agents", icon: LayoutGrid, tourId: "nav-agents" },
   { title: "Leads",     url: "/leads",     icon: UserCheck },
-  { title: "Webforms",  url: "/leads/webforms", icon: FormInput },
-  { title: "Pipeline",  url: "/pipeline",  icon: Kanban },
-  { title: "Qualified", url: "/qualified", icon: Check,          moduleId: "qualification" },
-  { title: "Calls",     url: "/calls",     icon: PhoneCall },
-  { title: "Receptionist", url: "/receptionist", icon: PhoneIncoming },
-  { title: "Calendar",  url: "/calendar",  icon: CalendarDays },
-  { title: "Template Studio", url: "/template-studio", icon: FileText },
-  { title: "HexMail",        url: "/hexmail",               icon: Mail },
-  { title: "Deliverability", url: "/hexmail/deliverability", icon: ShieldCheck },
-  { title: "Domain Warming", url: "/hexmail/domain-warming", icon: Flame },
-  { title: "Workflows",      url: "/workflow-engine",         icon: GitBranch },
-  { title: "Follow-Up",     url: "/follow-up",              icon: Zap },
-  { title: "Buzzchat",  url: "/whatsapp",  icon: MessageSquare,  moduleId: "whatsapp" },
-  { title: "Billing",   url: "/billing",   icon: CreditCard },
-  { title: "Reseller Portal", url: "/reseller", icon: Building2 },
+  { title: "Builder",   url: "/builder",   icon: Workflow,   moduleId: "builder" },
+  { title: "Campaigns", url: "/campaigns", icon: Megaphone },
+  { title: "Analytics", url: "/analytics", icon: BarChart3 },
 ];
 
-const STORAGE_KEY = "sidebar-nav-order-v5";
+// AccountsMind is appended to this list only for admins (it stays gated to
+// /admin/accounts exactly as before — grouping it here is visual only, not
+// a permission change).
+const AI_EXECUTIVE_ITEMS: NavItem[] = [
+  { title: "HiveMind",   url: "/hivemind",   icon: Brain,      moduleId: "hivemind" },
+  { title: "GrowthMind", url: "/growthmind", icon: TrendingUp, moduleId: "growthmind" },
+  { title: "SystemMind", url: "/systemmind", icon: Server,     moduleId: "systemmind" },
+];
+const ACCOUNTSMIND_ITEM: NavItem = { title: "AccountsMind", url: "/admin/accounts", icon: Building2 };
 
-function loadOrder(): NavItem[] {
-  if (typeof window === "undefined") return DEFAULT_NAV_ITEMS;
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (!saved) return DEFAULT_NAV_ITEMS;
-    const urls: string[] = JSON.parse(saved);
-    const map = new Map(DEFAULT_NAV_ITEMS.map((i) => [i.url, i]));
-    const ordered = urls.map((u) => map.get(u)).filter(Boolean) as NavItem[];
-    const missing = DEFAULT_NAV_ITEMS.filter((i) => !urls.includes(i.url));
-    return [...ordered, ...missing];
-  } catch {
-    return DEFAULT_NAV_ITEMS;
-  }
-}
+const WORKSPACE_NAV_ITEMS: NavItem[] = [
+  { title: "Contacts",  url: "/contacts",         icon: BookUser },
+  { title: "Pipeline",  url: "/pipeline",         icon: Kanban },
+  { title: "Calls",     url: "/calls",            icon: PhoneCall },
+  { title: "Calendar",  url: "/calendar",         icon: CalendarDays },
+  { title: "Knowledge", url: "/knowledge-centre", icon: BookOpen },
+  { title: "Webforms",  url: "/leads/webforms",   icon: FormInput },
+  { title: "Workflows", url: "/workflow-engine",  icon: GitBranch },
+];
 
-function saveOrder(items: NavItem[]) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items.map((i) => i.url)));
-  } catch {}
-}
+// Workspace-level administration (team/integrations/billing/settings) —
+// distinct from the platform-superadmin "Administration" section further
+// down, which stays isAdmin-gated and untouched.
+const ADMINISTRATION_NAV_ITEMS: NavItem[] = [
+  { title: "Team",         url: "/settings/account",      icon: Users },
+  { title: "Integrations", url: "/settings/integrations", icon: Plug },
+  { title: "Billing",      url: "/billing",               icon: CreditCard },
+  { title: "Settings",     url: "/settings/integrations", icon: Settings },
+];
 
-// ── Sortable nav item ──────────────────────────────────────────────────────────
-function SortableNavItem({
+// ── Nav item (fixed order — no drag-to-reorder) ─────────────────────────────
+function NavItemButton({
   item,
-  collapsed,
   active,
   buttonClass,
   isLocked,
   onLockedClick,
 }: {
   item: NavItem;
-  collapsed: boolean;
   active: boolean;
   buttonClass: string;
   isLocked: boolean;
   onLockedClick: (item: NavItem) => void;
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: item.url });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.4 : 1,
-  };
-
   if (isLocked) {
     return (
-      <SidebarMenuItem
-        ref={setNodeRef}
-        style={style}
-        className="group/item group-data-[collapsible=icon]:w-auto"
-      >
-        <div className="relative flex items-center">
-          <button
-            {...attributes}
-            {...listeners}
-            tabIndex={-1}
-            className="absolute -left-4 flex items-center justify-center opacity-0 group-hover/item:opacity-40 hover:!opacity-80 transition-opacity cursor-grab active:cursor-grabbing"
-            aria-label="Drag to reorder"
-          >
-            <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
-          </button>
-          <SidebarMenuButton
-            tooltip={item.title}
-            className={buttonClass}
-            onClick={() => onLockedClick(item)}
-          >
-            <span className="flex items-center gap-3">
-              <item.icon
-                className={cn(
-                  "h-[18px] w-[18px] shrink-0 transition-colors",
-                  active ? "text-primary" : "text-muted-foreground group-hover/nav:text-foreground",
-                )}
-              />
-              <span className="truncate group-data-[collapsible=icon]:hidden flex items-center gap-2">
-                {item.title}
-                <span className="text-[9px] font-semibold uppercase tracking-wide text-amber-500/80 bg-amber-500/10 px-1 py-0.5 rounded">
-                  Pro
-                </span>
-              </span>
-            </span>
-          </SidebarMenuButton>
-        </div>
-      </SidebarMenuItem>
-    );
-  }
-
-  return (
-    <SidebarMenuItem
-      ref={setNodeRef}
-      style={style}
-      className="group/item group-data-[collapsible=icon]:w-auto"
-      data-tour={item.tourId}
-    >
-      {collapsed ? (
-        /* Collapsed: icon is the drag handle — hold & drag it */
+      <SidebarMenuItem className="group/item group-data-[collapsible=icon]:w-auto">
         <SidebarMenuButton
-          asChild
           tooltip={item.title}
-          className={cn(buttonClass, "cursor-grab active:cursor-grabbing")}
+          className={buttonClass}
+          onClick={() => onLockedClick(item)}
         >
-          <Link
-            to={item.url}
-            className="flex items-center gap-3"
-            {...attributes}
-            {...listeners}
-          >
+          <span className="flex items-center gap-3">
             <item.icon
               className={cn(
                 "h-[18px] w-[18px] shrink-0 transition-colors",
                 active ? "text-primary" : "text-muted-foreground group-hover/nav:text-foreground",
               )}
             />
-          </Link>
-        </SidebarMenuButton>
-      ) : (
-        /* Expanded: small grip handle appears on hover to the left */
-        <div className="relative flex items-center">
-          <button
-            {...attributes}
-            {...listeners}
-            tabIndex={-1}
-            className="absolute -left-4 flex items-center justify-center opacity-0 group-hover/item:opacity-40 hover:!opacity-80 transition-opacity cursor-grab active:cursor-grabbing"
-            aria-label="Drag to reorder"
-          >
-            <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
-          </button>
-
-          <SidebarMenuButton asChild tooltip={item.title} className={buttonClass}>
-            <Link to={item.url} className="flex items-center gap-3">
-              <item.icon
-                className={cn(
-                  "h-[18px] w-[18px] shrink-0 transition-colors",
-                  active ? "text-primary" : "text-muted-foreground group-hover/nav:text-foreground",
-                )}
-              />
-              <span className="truncate group-data-[collapsible=icon]:hidden">
-                {item.title}
+            <span className="truncate group-data-[collapsible=icon]:hidden flex items-center gap-2">
+              {item.title}
+              <span className="text-[9px] font-semibold uppercase tracking-wide text-amber-500/80 bg-amber-500/10 px-1 py-0.5 rounded">
+                Pro
               </span>
-            </Link>
-          </SidebarMenuButton>
-        </div>
-      )}
-    </SidebarMenuItem>
-  );
-}
+            </span>
+          </span>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    );
+  }
 
-// Ghost shown in DragOverlay while dragging
-function NavItemGhost({ item, buttonClass }: { item: NavItem; buttonClass: string }) {
   return (
-    <div className={cn(buttonClass, "flex items-center gap-3 px-2.5 rounded-lg shadow-lg rotate-1 cursor-grabbing")}>
-      <item.icon className="h-[18px] w-[18px] shrink-0 text-primary" />
-      <span className="truncate text-sm font-medium text-foreground">{item.title}</span>
-    </div>
+    <SidebarMenuItem className="group/item group-data-[collapsible=icon]:w-auto" data-tour={item.tourId}>
+      <SidebarMenuButton asChild tooltip={item.title} className={buttonClass}>
+        <Link to={item.url} className="flex items-center gap-3">
+          <item.icon
+            className={cn(
+              "h-[18px] w-[18px] shrink-0 transition-colors",
+              active ? "text-primary" : "text-muted-foreground group-hover/nav:text-foreground",
+            )}
+          />
+          <span className="truncate group-data-[collapsible=icon]:hidden">
+            {item.title}
+          </span>
+        </Link>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
   );
 }
 
@@ -375,8 +267,6 @@ export function AppSidebar() {
   });
   const [email, setEmail] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
-  const [navItems, setNavItems] = useState<NavItem[]>(DEFAULT_NAV_ITEMS);
-  const [activeId, setActiveId] = useState<string | null>(null);
   const [activeModules, setActiveModules] = useState<string[]>([]);
   const [upgradeItem, setUpgradeItem] = useState<NavItem | null>(null);
   const [pkgFeatures, setPkgFeatures] = useState<Record<string, boolean> | null>(null);
@@ -384,11 +274,6 @@ export function AppSidebar() {
   const [pageAccess, setPageAccess] = useState<Record<string, string> | null>(null);
   const [requesting, setRequesting] = useState(false);
   const requestModuleFn = useServerFn(requestModuleUpgrade);
-
-  // Load saved order after hydration to avoid SSR mismatch
-  useEffect(() => {
-    setNavItems(loadOrder());
-  }, []);
 
   useEffect(() => {
     let active = true;
@@ -520,33 +405,38 @@ export function AppSidebar() {
       ],
     );
 
-  // ── dnd-kit sensors ────────────────────────────────────────────────────────
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
-  );
-
-  const handleDragStart = useCallback((e: DragStartEvent) => {
-    setActiveId(String(e.active.id));
-  }, []);
-
-  const handleDragOver = useCallback((e: DragOverEvent) => {
-    const { active, over } = e;
-    if (!over || active.id === over.id) return;
-    setNavItems((prev) => {
-      const fi = prev.findIndex((i) => i.url === active.id);
-      const ti = prev.findIndex((i) => i.url === over.id);
-      if (fi === -1 || ti === -1) return prev;
-      return arrayMove(prev, fi, ti);
-    });
-  }, []);
-
-  const handleDragEnd = useCallback((_e: DragEndEvent) => {
-    setActiveId(null);
-    setNavItems((prev) => { saveOrder(prev); return prev; });
-  }, []);
-
-  const activeItem = activeId ? navItems.find((i) => i.url === activeId) ?? null : null;
+  const renderNavGroup = (label: string, items: NavItem[]) => {
+    const visible = items.filter((item) => !isRoleHidden(item));
+    if (visible.length === 0) return null;
+    return (
+      <SidebarGroup>
+        {!collapsed && (
+          <SidebarGroupLabel className="px-2 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/70">
+            {label}
+          </SidebarGroupLabel>
+        )}
+        <SidebarGroupContent>
+          <SidebarMenu className="gap-1 group-data-[collapsible=icon]:items-center">
+            {visible.map((item) => {
+              const isLocked =
+                (!isAdmin && !!(item.moduleId && !activeModules.includes(item.moduleId))) ||
+                isPackageLocked(item);
+              return (
+                <NavItemButton
+                  key={item.url}
+                  item={item}
+                  active={isActive(item.url)}
+                  buttonClass={navButtonClasses(isActive(item.url))}
+                  isLocked={isLocked}
+                  onLockedClick={handleLockedClick}
+                />
+              );
+            })}
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+    );
+  };
 
   return (
     <Sidebar
@@ -612,54 +502,19 @@ export function AppSidebar() {
       <div className="mx-2 my-1 h-px bg-white/[0.05] group-data-[collapsible=icon]:mx-1.5" />
 
       <SidebarContent className="px-1.5 pt-2 group-data-[collapsible=icon]:px-1.5">
-        <SidebarGroup>
-          {!collapsed && (
-            <SidebarGroupLabel className="px-2 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/70">
-              Workspace
-            </SidebarGroupLabel>
-          )}
-          <SidebarGroupContent>
-            <DndContext
-              sensors={sensors}
-              onDragStart={handleDragStart}
-              onDragOver={handleDragOver}
-              onDragEnd={handleDragEnd}
-            >
-              <SortableContext
-                items={navItems.map((i) => i.url)}
-                strategy={verticalListSortingStrategy}
-              >
-                <SidebarMenu className="gap-1 pl-4 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:pl-0">
-                  {navItems.filter((item) => !isRoleHidden(item)).map((item) => {
-                    const isLocked =
-                      (!isAdmin && !!(item.moduleId && !activeModules.includes(item.moduleId))) ||
-                      isPackageLocked(item);
-                    return (
-                      <SortableNavItem
-                        key={item.url}
-                        item={item}
-                        collapsed={collapsed}
-                        active={isActive(item.url)}
-                        buttonClass={navButtonClasses(isActive(item.url))}
-                        isLocked={isLocked}
-                        onLockedClick={handleLockedClick}
-                      />
-                    );
-                  })}
-                </SidebarMenu>
-              </SortableContext>
+        {renderNavGroup("Main", MAIN_NAV_ITEMS)}
 
-              <DragOverlay dropAnimation={null}>
-                {activeItem ? (
-                  <NavItemGhost
-                    item={activeItem}
-                    buttonClass={navButtonClasses(isActive(activeItem.url))}
-                  />
-                ) : null}
-              </DragOverlay>
-            </DndContext>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        <div className="mx-2 my-3 h-px bg-white/[0.05] group-data-[collapsible=icon]:mx-1.5" />
+        {renderNavGroup(
+          "AI Executives",
+          isAdmin ? [...AI_EXECUTIVE_ITEMS, ACCOUNTSMIND_ITEM] : AI_EXECUTIVE_ITEMS,
+        )}
+
+        <div className="mx-2 my-3 h-px bg-white/[0.05] group-data-[collapsible=icon]:mx-1.5" />
+        {renderNavGroup("Workspace", WORKSPACE_NAV_ITEMS)}
+
+        <div className="mx-2 my-3 h-px bg-white/[0.05] group-data-[collapsible=icon]:mx-1.5" />
+        {renderNavGroup("Administration", ADMINISTRATION_NAV_ITEMS)}
 
         {isAdmin && (
           <>
@@ -675,7 +530,6 @@ export function AppSidebar() {
                   {[
                     { title: "Phone Numbers",    url: "/phone-numbers",      icon: Phone },
                     { title: "Telephony Calls",  url: "/telephony-calls",    icon: PhoneIncoming },
-                    { title: "Campaigns",        url: "/campaigns",          icon: Megaphone },
                     { title: "Telephony Config", url: "/telephony-settings", icon: Settings2 },
                   ].map((item) => {
                     const active = isActive(item.url);
@@ -1008,6 +862,20 @@ export function AppSidebar() {
           </Dialog>
         );
       })()}
+
+        <Link
+          to="/billing"
+          search={{ checkout: undefined }}
+          className={cn(
+            "mb-1 flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors",
+            "text-muted-foreground hover:text-foreground hover:bg-primary/[0.06]",
+            "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
+          )}
+        >
+          <Sparkles className="h-3.5 w-3.5 shrink-0 text-primary" />
+          <span className="group-data-[collapsible=icon]:hidden">Upgrade plan</span>
+        </Link>
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
