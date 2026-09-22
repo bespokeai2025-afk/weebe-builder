@@ -43,10 +43,10 @@ export function AccountsMindAlerts() {
     <div className="p-6 space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-white flex items-center gap-2">
+          <h1 className="text-xl font-bold text-foreground dark:text-white flex items-center gap-2">
             <Bell className="w-5 h-5 text-yellow-400" /> Alerts
           </h1>
-          <p className="text-sm text-gray-400 mt-0.5">AccountsMind finance & margin alerts</p>
+          <p className="text-sm text-muted-foreground dark:text-gray-400 mt-0.5">AccountsMind finance & margin alerts</p>
         </div>
         {criticalCount > 0 && (
           <Badge className="bg-red-500/20 text-red-400">
@@ -56,7 +56,7 @@ export function AccountsMindAlerts() {
       </div>
 
       {/* Filter tabs */}
-      <div className="flex gap-1 bg-gray-900 border border-gray-800 rounded-lg p-1 w-fit">
+      <div className="flex gap-1 bg-card border border-border dark:bg-gray-900 dark:border-gray-800 rounded-lg p-1 w-fit">
         {(["open", "resolved", "all"] as const).map((f) => (
           <button
             key={f}
@@ -64,8 +64,8 @@ export function AccountsMindAlerts() {
             className={cn(
               "px-3 py-1.5 rounded-md text-xs font-medium transition-colors capitalize",
               filter === f
-                ? "bg-gray-700 text-white"
-                : "text-gray-400 hover:text-white",
+                ? "bg-muted text-foreground shadow-sm dark:bg-gray-700 dark:text-white"
+                : "text-muted-foreground hover:text-foreground dark:text-gray-400 dark:hover:text-white",
             )}
           >
             {f}
@@ -74,15 +74,15 @@ export function AccountsMindAlerts() {
       </div>
 
       {isLoading && (
-        <div className="flex items-center gap-2 text-gray-400 text-sm">
+        <div className="flex items-center gap-2 text-muted-foreground dark:text-gray-400 text-sm">
           <RefreshCw className="w-4 h-4 animate-spin" /> Loading alerts…
         </div>
       )}
 
       {rows.length === 0 && !isLoading && (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 text-center">
+        <div className="bg-card border border-border dark:bg-gray-900 dark:border-gray-800 rounded-xl p-8 text-center">
           <CheckCircle className="w-8 h-8 text-emerald-400 mx-auto mb-3" />
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-muted-foreground dark:text-gray-400">
             {filter === "open" ? "No open alerts. All clear!" : "No alerts found."}
           </p>
         </div>
@@ -96,28 +96,28 @@ export function AccountsMindAlerts() {
           return (
             <div
               key={alert.id}
-              className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 flex items-start gap-3"
+              className="bg-card border border-border dark:bg-gray-900 dark:border-gray-800 rounded-xl px-4 py-3 flex items-start gap-3"
             >
               <div className={cn("p-1.5 rounded-md mt-0.5", config.color)}>
                 <Icon className="w-3.5 h-3.5" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-sm font-medium text-white">{alert.title}</span>
+                  <span className="text-sm font-medium text-foreground dark:text-white">{alert.title}</span>
                   <Badge className={cn("text-[10px]", config.color)}>{alert.severity}</Badge>
                 </div>
-                <p className="text-xs text-gray-400">{alert.message}</p>
+                <p className="text-xs text-muted-foreground dark:text-gray-400">{alert.message}</p>
                 <div className="flex items-center gap-3 mt-1.5">
                   {alert.workspaces?.name && (
-                    <span className="text-[10px] text-gray-500">
+                    <span className="text-[10px] text-muted-foreground dark:text-gray-500">
                       {alert.workspaces.name}
                     </span>
                   )}
-                  <span className="text-[10px] text-gray-600">
+                  <span className="text-[10px] text-muted-foreground/70 dark:text-gray-600">
                     {new Date(alert.created_at).toLocaleDateString()}
                   </span>
                   {alert.alert_type && (
-                    <span className="text-[10px] text-gray-600 uppercase">{alert.alert_type.replace(/_/g, " ")}</span>
+                    <span className="text-[10px] text-muted-foreground/70 dark:text-gray-600 uppercase">{alert.alert_type.replace(/_/g, " ")}</span>
                   )}
                 </div>
               </div>
@@ -127,7 +127,7 @@ export function AccountsMindAlerts() {
                   variant="ghost"
                   onClick={() => resolve.mutate(alert.id)}
                   disabled={resolve.isPending}
-                  className="text-gray-400 hover:text-emerald-400 hover:bg-emerald-500/10 text-xs shrink-0"
+                  className="text-muted-foreground hover:text-emerald-400 hover:bg-emerald-500/10 dark:text-gray-400 text-xs shrink-0"
                 >
                   <CheckCircle className="w-3.5 h-3.5 mr-1" />
                   Resolve
