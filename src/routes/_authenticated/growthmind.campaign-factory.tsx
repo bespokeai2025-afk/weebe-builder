@@ -82,7 +82,7 @@ function DraftCard({ draft, onDelete, onSend }: {
   const typeIcon  = CAMPAIGN_TYPES.find(t => t.id === draft.campaignType)?.icon ?? "📋";
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
+    <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 overflow-hidden">
       {/* Header */}
       <div className="px-5 py-4 flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
@@ -95,7 +95,7 @@ function DraftCard({ draft, onDelete, onSend }: {
             <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full", badge.className)}>
               {badge.label}
             </span>
-            <span className="text-[10px] bg-white/[0.04] text-muted-foreground px-1.5 py-0.5 rounded">
+            <span className="text-[10px] bg-muted dark:bg-white/[0.04] text-muted-foreground px-1.5 py-0.5 rounded">
               {typeLabel}
             </span>
             {draft.budget && (
@@ -180,7 +180,7 @@ function DraftCard({ draft, onDelete, onSend }: {
 
       {/* Expanded details */}
       {expanded && (
-        <div className="border-t border-white/[0.04] px-5 py-4 space-y-4">
+        <div className="border-t border-border/60 dark:border-white/[0.04] px-5 py-4 space-y-4">
 
           {/* Core offer + audience */}
           <div className="grid grid-cols-2 gap-3">
@@ -200,7 +200,7 @@ function DraftCard({ draft, onDelete, onSend }: {
               <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-2">Copy</p>
               <div className="space-y-2">
                 {draft.copyBlocks.map((block, i) => (
-                  <div key={i} className="rounded-lg bg-white/[0.03] px-3 py-2">
+                  <div key={i} className="rounded-lg bg-muted/60 dark:bg-white/[0.03] px-3 py-2">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">{block.label}</span>
                       <CopyButton text={block.content} />
@@ -238,7 +238,7 @@ function DraftCard({ draft, onDelete, onSend }: {
               <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-2">KPIs</p>
               <div className="flex flex-wrap gap-2">
                 {draft.kpis.map((kpi, i) => (
-                  <span key={i} className="text-[11px] bg-white/[0.04] text-muted-foreground px-2 py-1 rounded">
+                  <span key={i} className="text-[11px] bg-muted dark:bg-white/[0.04] text-muted-foreground px-2 py-1 rounded">
                     {kpi}
                   </span>
                 ))}
@@ -387,7 +387,7 @@ function CampaignFactoryPage() {
         )}
 
         {/* Generator panel */}
-        <div className="rounded-xl border border-white/[0.06] bg-card/60 p-5 space-y-4">
+        <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-5 space-y-4">
           <p className="text-sm font-medium">Create New Campaign Draft</p>
 
           {/* Campaign type grid */}
@@ -400,7 +400,7 @@ function CampaignFactoryPage() {
                   "flex flex-col items-center gap-1.5 rounded-lg border px-2 py-3 text-xs font-medium transition-all",
                   selected === t.id
                     ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
-                    : "border-white/[0.06] bg-white/[0.02] text-muted-foreground hover:border-white/[0.1] hover:text-foreground",
+                    : "border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] text-muted-foreground hover:border-foreground/20 dark:hover:border-white/[0.1] hover:text-foreground",
                 )}
               >
                 <span className="text-lg">{t.icon}</span>
@@ -465,7 +465,7 @@ function CampaignFactoryPage() {
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
           ) : drafts.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-white/[0.12] bg-card/40 flex flex-col items-center justify-center py-12 gap-3">
+            <div className="rounded-xl border border-dashed border-border dark:border-white/[0.12] bg-card/40 flex flex-col items-center justify-center py-12 gap-3">
               <Rocket className="h-8 w-8 text-muted-foreground/30" />
               <p className="text-sm text-muted-foreground">No campaign drafts yet — generate your first above</p>
             </div>

@@ -58,9 +58,9 @@ export function GrowthMindEmailReadiness() {
       </div>
 
       {/* Score card */}
-      <div className="rounded-xl border border-white/[0.08] bg-gradient-to-br from-white/[0.03] to-transparent p-6 flex flex-col sm:flex-row items-center gap-6">
+      <div className="rounded-xl border border-border dark:border-white/[0.08] bg-gradient-to-br from-white/[0.03] to-transparent p-6 flex flex-col sm:flex-row items-center gap-6">
         {isLoading ? (
-          <div className="w-28 h-28 animate-pulse rounded-full bg-white/[0.06]" />
+          <div className="w-28 h-28 animate-pulse rounded-full bg-muted dark:bg-white/[0.06]" />
         ) : (
           <GradeRing score={score} grade={grade} />
         )}
@@ -124,7 +124,7 @@ export function GrowthMindEmailReadiness() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {altChannels.map((ch) => (
               <Link key={ch.to} to={ch.to}
-                className="group flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 hover:border-white/[0.12] transition-all">
+                className="group flex items-center justify-between rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-4 hover:border-foreground/20 dark:hover:border-white/[0.12] transition-all">
                 <div className="flex items-center gap-3">
                   <ch.icon className="h-4 w-4 text-muted-foreground/50 group-hover:text-foreground transition-colors" />
                   <div>
@@ -149,7 +149,7 @@ export function GrowthMindEmailReadiness() {
             { icon: Mail,   label: "Deliverability", sub: "Full dashboard",          to: "/hexmail/deliverability" },
           ].map((link) => (
             <Link key={link.to} to={link.to}
-              className="group flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3.5 hover:border-white/[0.12] hover:bg-white/[0.04] transition-all">
+              className="group flex items-center gap-3 rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-3.5 hover:border-foreground/20 dark:hover:border-white/[0.12] hover:bg-muted dark:hover:bg-white/[0.04] transition-all">
               <link.icon className="h-4 w-4 text-muted-foreground/50 group-hover:text-foreground transition-colors" />
               <div>
                 <div className="text-xs font-medium">{link.label}</div>

@@ -86,7 +86,7 @@ function SeoPanel({ post }: { post: BlogPost }) {
           <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mb-1.5">Secondary Keywords</p>
           <div className="flex flex-wrap gap-1">
             {seoData.secondaryKeywords.map((k, i) => (
-              <span key={i} className="rounded bg-white/[0.04] border border-white/[0.06] px-2 py-0.5 text-[10px] text-muted-foreground">{k}</span>
+              <span key={i} className="rounded bg-muted dark:bg-white/[0.04] border border-border dark:border-white/[0.06] px-2 py-0.5 text-[10px] text-muted-foreground">{k}</span>
             ))}
           </div>
         </div>
@@ -150,7 +150,7 @@ function renderMarkdown(md: string): string {
     .replace(/^### (.+)$/gm, '<h3 class="text-sm font-semibold mt-4 mb-1.5 text-foreground/80">$1</h3>')
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/\*(.+?)\*/g, "<em>$1</em>")
-    .replace(/`(.+?)`/g, '<code class="rounded bg-white/[0.08] px-1 py-0.5 text-[11px] text-sky-300">$1</code>')
+    .replace(/`(.+?)`/g, '<code class="rounded bg-muted dark:bg-white/[0.08] px-1 py-0.5 text-[11px] text-sky-300">$1</code>')
     .replace(/^- (.+)$/gm, '<li class="ml-4 list-disc">$1</li>')
     .replace(/^(\d+)\. (.+)$/gm, '<li class="ml-4 list-decimal">$2</li>')
     .replace(/(<li[^>]*>.*<\/li>)/gs, '<ul class="my-2 space-y-0.5 text-sm text-muted-foreground">$1</ul>')
@@ -196,7 +196,7 @@ function PublishSettingsModal({ onClose, onSaved }: { onClose: () => void; onSav
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-background/70 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-2xl border border-white/[0.08] bg-[hsl(var(--sidebar-background))] shadow-2xl p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+      <div className="w-full max-w-lg rounded-2xl border border-border dark:border-white/[0.08] bg-[hsl(var(--sidebar-background))] shadow-2xl p-6 space-y-5 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/15 border border-violet-500/20">
             <Settings2 className="h-4 w-4 text-violet-400" />
@@ -217,7 +217,7 @@ function PublishSettingsModal({ onClose, onSaved }: { onClose: () => void; onSav
         ) : (
           <>
             {/* WordPress */}
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
+            <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-4 space-y-3">
               <div className="flex items-center gap-2 mb-1">
                 <Globe className="h-3.5 w-3.5 text-sky-400" />
                 <p className="text-xs font-semibold">WordPress REST API</p>
@@ -245,7 +245,7 @@ function PublishSettingsModal({ onClose, onSaved }: { onClose: () => void; onSav
             </div>
 
             {/* Webflow */}
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
+            <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-4 space-y-3">
               <div className="flex items-center gap-2 mb-1">
                 <Zap className="h-3.5 w-3.5 text-amber-400" />
                 <p className="text-xs font-semibold">Webflow CMS API</p>
@@ -349,10 +349,10 @@ function PublishPanel({
   }
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
+    <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 overflow-hidden">
       <button
         onClick={() => setExpanded(v => !v)}
-        className="w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-white/[0.02] transition-colors"
+        className="w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-muted/40 dark:hover:bg-white/[0.02] transition-colors"
       >
         <Send className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
         <span className="text-xs font-semibold flex-1">Publish Post</span>
@@ -360,7 +360,7 @@ function PublishPanel({
       </button>
 
       {expanded && (
-        <div className="px-4 pb-4 space-y-3 border-t border-white/[0.04]">
+        <div className="px-4 pb-4 space-y-3 border-t border-border/60 dark:border-white/[0.04]">
           {/* Schedule date */}
           <div className="space-y-1 pt-3">
             <Label className="text-[10px] uppercase tracking-wider text-muted-foreground/70">Schedule Date (optional)</Label>
@@ -455,7 +455,7 @@ function BlogPostCard({
   onDelete: (id: string) => void;
 }) {
   return (
-    <div className="group rounded-xl border border-white/[0.06] bg-card/60 p-4 flex flex-col gap-3 hover:border-white/[0.12] transition-all">
+    <div className="group rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-4 flex flex-col gap-3 hover:border-foreground/20 dark:hover:border-white/[0.12] transition-all">
       <div className="flex items-start gap-3">
         <div className="shrink-0 flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10 border border-emerald-500/20">
           <Newspaper className="h-3.5 w-3.5 text-emerald-400" />
@@ -625,7 +625,7 @@ export function GrowthMindBlogWriter() {
       <GrowthMindShell>
         <div className="flex flex-col h-full min-h-0">
           {/* Header */}
-          <div className="border-b border-white/[0.06] px-6 py-4 flex items-center gap-3 shrink-0">
+          <div className="border-b border-border dark:border-white/[0.06] px-6 py-4 flex items-center gap-3 shrink-0">
             <button
               onClick={() => setView("list")}
               className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
@@ -686,21 +686,21 @@ export function GrowthMindBlogWriter() {
               </div>
 
               {/* Preview toggle */}
-              <details className="rounded-xl border border-white/[0.06] overflow-hidden">
-                <summary className="px-4 py-2.5 text-xs font-semibold cursor-pointer select-none hover:bg-white/[0.02] flex items-center gap-2">
+              <details className="rounded-xl border border-border dark:border-white/[0.06] overflow-hidden">
+                <summary className="px-4 py-2.5 text-xs font-semibold cursor-pointer select-none hover:bg-muted/40 dark:hover:bg-white/[0.02] flex items-center gap-2">
                   <Eye className="h-3.5 w-3.5 text-muted-foreground" /> Preview Rendered Output
                 </summary>
                 <div
-                  className="px-5 py-4 prose prose-invert prose-sm max-w-none border-t border-white/[0.04]"
+                  className="px-5 py-4 prose prose-invert prose-sm max-w-none border-t border-border/60 dark:border-white/[0.04]"
                   dangerouslySetInnerHTML={{ __html: renderMarkdown(activePost.body) }}
                 />
               </details>
             </div>
 
             {/* Right: SEO + Publish */}
-            <div className="w-72 shrink-0 border-l border-white/[0.06] overflow-y-auto p-4 space-y-4">
+            <div className="w-72 shrink-0 border-l border-border dark:border-white/[0.06] overflow-y-auto p-4 space-y-4">
               {/* Status + schedule */}
-              <div className="rounded-xl border border-white/[0.06] bg-card/60 p-4 space-y-3">
+              <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-4 space-y-3">
                 <p className="text-xs font-semibold flex items-center gap-2">
                   <FileText className="h-3.5 w-3.5 text-muted-foreground" /> Post Settings
                 </p>
@@ -761,7 +761,7 @@ export function GrowthMindBlogWriter() {
     return (
       <GrowthMindShell>
         <div className="flex flex-col h-full min-h-0">
-          <div className="border-b border-white/[0.06] px-6 py-4 flex items-center gap-3 shrink-0">
+          <div className="border-b border-border dark:border-white/[0.06] px-6 py-4 flex items-center gap-3 shrink-0">
             <button
               onClick={() => setView("list")}
               className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
@@ -914,7 +914,7 @@ export function GrowthMindBlogWriter() {
     <GrowthMindShell>
       <div className="flex flex-col h-full min-h-0 overflow-y-auto">
         {/* Header */}
-        <div className="border-b border-white/[0.06] px-6 py-5 flex items-center gap-3 shrink-0">
+        <div className="border-b border-border dark:border-white/[0.06] px-6 py-5 flex items-center gap-3 shrink-0">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/15 border border-emerald-500/20 shrink-0">
             <Newspaper className="h-4 w-4 text-emerald-400" />
           </div>
@@ -941,7 +941,7 @@ export function GrowthMindBlogWriter() {
               { label: "Scheduled",     value: scheduled.length, icon: Clock,        color: "text-amber-400" },
               { label: "Published",     value: published.length, icon: CheckCircle2, color: "text-emerald-400" },
             ].map(({ label, value, icon: Icon, color }) => (
-              <div key={label} className="rounded-xl border border-white/[0.06] bg-card/60 p-4">
+              <div key={label} className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-4">
                 <div className="flex items-center gap-2 mb-1">
                   <Icon className={cn("h-4 w-4", color)} />
                   <span className="text-xs text-muted-foreground">{label}</span>
@@ -1020,7 +1020,7 @@ export function GrowthMindBlogWriter() {
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : posts.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-white/[0.08] p-12 text-center space-y-3">
+            <div className="rounded-xl border border-dashed border-border dark:border-white/[0.08] p-12 text-center space-y-3">
               <Newspaper className="h-10 w-10 text-muted-foreground/30 mx-auto" />
               <p className="text-sm font-semibold">No blog posts yet</p>
               <p className="text-xs text-muted-foreground">Generate your first SEO blog post with GrowthMind AI — it uses your Business DNA to write content that attracts your ideal customers.</p>

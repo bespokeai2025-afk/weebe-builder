@@ -51,7 +51,7 @@ function StatCard({ label, value, sub, color = "emerald", wowPct, momPct }: {
   momPct?: number | null;
 }) {
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-card/60 p-4">
+    <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-4">
       <p className="text-[11px] text-muted-foreground mb-1.5 uppercase tracking-[0.08em] font-medium">{label}</p>
       <p className={cn("text-2xl font-bold tabular-nums", `text-${color}-400`)}>{value}</p>
       {sub && <p className="text-[11px] text-muted-foreground mt-1">{sub}</p>}
@@ -291,7 +291,7 @@ export function GrowthMindOverview() {
           <div className="space-y-6">
 
             {/* Growth Score */}
-            <div className="rounded-xl border border-white/[0.06] bg-card/60 p-5">
+            <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-5">
               <div className="flex items-center gap-6 flex-wrap">
                 <div className="text-center min-w-[80px]">
                   <div className={cn("text-5xl font-bold tabular-nums", scoreColor)}>{score.total}</div>
@@ -304,7 +304,7 @@ export function GrowthMindOverview() {
                     <span className="text-xs font-medium">{score.label}</span>
                     <span className="text-[11px] text-muted-foreground">{score.total}/100</span>
                   </div>
-                  <div className="h-2 rounded-full bg-white/[0.06] overflow-hidden">
+                  <div className="h-2 rounded-full bg-muted dark:bg-white/[0.06] overflow-hidden">
                     <div className={cn("h-full rounded-full transition-all", barColor)} style={{ width: `${score.total}%` }} />
                   </div>
 
@@ -316,7 +316,7 @@ export function GrowthMindOverview() {
                             <span className="text-[10px] text-muted-foreground truncate">{d.label}</span>
                             <span className="text-[10px] font-medium ml-1 shrink-0">{d.score}/{d.max}</span>
                           </div>
-                          <div className="h-1 rounded-full bg-white/[0.06]">
+                          <div className="h-1 rounded-full bg-muted dark:bg-white/[0.06]">
                             <div
                               className={cn(
                                 "h-full rounded-full",
@@ -351,7 +351,7 @@ export function GrowthMindOverview() {
                 </Link>
               </div>
             ) : (
-              <div className="rounded-xl border border-white/[0.06] bg-card/60 px-4 py-3 flex items-center gap-3">
+              <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 px-4 py-3 flex items-center gap-3">
                 <BookOpen className="h-4 w-4 text-muted-foreground/50 shrink-0" />
                 <p className="text-xs text-muted-foreground flex-1">No playbook active.</p>
                 <Link to="/growthmind/playbooks" className="text-[11px] text-emerald-400 hover:text-emerald-300 flex items-center gap-0.5 shrink-0">
@@ -364,7 +364,7 @@ export function GrowthMindOverview() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
 
               {/* DNA completion card */}
-              <Link to="/growthmind/business-dna" className="rounded-xl border border-white/[0.06] bg-card/60 p-4 hover:border-emerald-500/20 hover:bg-emerald-500/[0.03] transition-all group">
+              <Link to="/growthmind/business-dna" className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-4 hover:border-emerald-500/20 hover:bg-emerald-500/[0.03] transition-all group">
                 <div className="flex items-center gap-2 mb-2">
                   <Dna className="h-4 w-4 text-emerald-400 shrink-0" />
                   <p className="text-xs font-semibold">Business DNA</p>
@@ -378,7 +378,7 @@ export function GrowthMindOverview() {
                       </span>
                       <span className="text-[10px] text-muted-foreground mb-0.5">complete</span>
                     </div>
-                    <div className="h-1.5 rounded-full bg-white/[0.06] mb-2">
+                    <div className="h-1.5 rounded-full bg-muted dark:bg-white/[0.06] mb-2">
                       <div
                         className={cn("h-full rounded-full transition-all", dnaScore.pct >= 70 ? "bg-emerald-500" : dnaScore.pct >= 40 ? "bg-amber-500" : "bg-red-500")}
                         style={{ width: `${dnaScore.pct}%` }}
@@ -392,7 +392,7 @@ export function GrowthMindOverview() {
               </Link>
 
               {/* Current Value Point card */}
-              <Link to="/growthmind/business-dna" className="rounded-xl border border-white/[0.06] bg-card/60 p-4 hover:border-emerald-500/20 hover:bg-emerald-500/[0.03] transition-all group">
+              <Link to="/growthmind/business-dna" className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-4 hover:border-emerald-500/20 hover:bg-emerald-500/[0.03] transition-all group">
                 <div className="flex items-center gap-2 mb-2">
                   <Zap className="h-4 w-4 text-amber-400 shrink-0" />
                   <p className="text-xs font-semibold">Top Value Point</p>
@@ -406,7 +406,7 @@ export function GrowthMindOverview() {
                     )}
                     {valuePoint.confidence_score != null && (
                       <div className="mt-2 flex items-center gap-1.5">
-                        <div className="flex-1 h-1 rounded-full bg-white/[0.06]">
+                        <div className="flex-1 h-1 rounded-full bg-muted dark:bg-white/[0.06]">
                           <div className="h-full rounded-full bg-amber-500" style={{ width: `${valuePoint.confidence_score}%` }} />
                         </div>
                         <span className="text-[9px] text-muted-foreground">{valuePoint.confidence_score}%</span>
@@ -419,7 +419,7 @@ export function GrowthMindOverview() {
               </Link>
 
               {/* Opportunity Engine card */}
-              <div className="rounded-xl border border-white/[0.06] bg-card/60 p-4 flex flex-col gap-2">
+              <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-4 flex flex-col gap-2">
                 <div className="flex items-center gap-2 mb-1">
                   <Rocket className="h-4 w-4 text-emerald-400 shrink-0" />
                   <p className="text-xs font-semibold">Opportunity Engine</p>
@@ -520,8 +520,8 @@ export function GrowthMindOverview() {
             {/* Alerts + quick links */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
-              <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
-                <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between">
+              <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 overflow-hidden">
+                <div className="px-4 py-3 border-b border-border dark:border-white/[0.06] flex items-center justify-between">
                   <p className="text-sm font-semibold flex items-center gap-1.5">
                     <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
                     Growth Opportunities
@@ -553,8 +553,8 @@ export function GrowthMindOverview() {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
-                <div className="px-4 py-3 border-b border-white/[0.06]">
+              <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 overflow-hidden">
+                <div className="px-4 py-3 border-b border-border dark:border-white/[0.06]">
                   <p className="text-sm font-semibold flex items-center gap-1.5">
                     <Lightbulb className="h-3.5 w-3.5 text-emerald-400" />
                     CMO Actions
@@ -572,7 +572,7 @@ export function GrowthMindOverview() {
                     <Link
                       key={item.href}
                       to={item.href}
-                      className="rounded-lg border border-white/[0.06] bg-white/[0.02] hover:bg-emerald-500/[0.05] hover:border-emerald-500/20 p-3 transition-all group"
+                      className="rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] hover:bg-emerald-500/[0.05] hover:border-emerald-500/20 p-3 transition-all group"
                     >
                       <item.icon className="h-4 w-4 text-emerald-400 mb-2" />
                       <p className="text-xs font-medium leading-snug">{item.label}</p>
@@ -626,7 +626,7 @@ export function GrowthMindOverview() {
                       <p className="text-sm font-bold text-emerald-200 leading-snug">{topService.serviceName}</p>
                       <p className="text-[10px] text-muted-foreground leading-snug">{topService.recommendation}</p>
                       <div className="flex items-center gap-1">
-                        <div className="flex-1 h-1 rounded-full bg-white/[0.06]">
+                        <div className="flex-1 h-1 rounded-full bg-muted dark:bg-white/[0.06]">
                           <div className="h-full rounded-full bg-emerald-500" style={{ width: `${topService.totalScore}%` }} />
                         </div>
                         <span className="text-[10px] text-emerald-400 font-semibold">{topService.totalScore}/100</span>
@@ -930,7 +930,7 @@ export function GrowthMindOverview() {
             )}
 
             {/* Score breakdown */}
-            <div className="rounded-xl border border-white/[0.06] bg-card/60 p-4">
+            <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-4">
               <p className="text-sm font-semibold mb-3">Score Breakdown</p>
               <div className="space-y-2.5">
                 {score.dimensions.map(d => (
@@ -938,7 +938,7 @@ export function GrowthMindOverview() {
                     <div className="w-36 shrink-0">
                       <p className="text-xs text-muted-foreground">{d.label}</p>
                     </div>
-                    <div className="flex-1 h-1.5 rounded-full bg-white/[0.06]">
+                    <div className="flex-1 h-1.5 rounded-full bg-muted dark:bg-white/[0.06]">
                       <div
                         className={cn(
                           "h-full rounded-full transition-all",
@@ -990,8 +990,8 @@ export function GrowthMindOverview() {
               if (notConnected.length === 0) return null;
 
               return (
-                <div className="rounded-xl border border-white/[0.06] bg-card/40 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-white/[0.06] flex items-center gap-2">
+                <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/40 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-border dark:border-white/[0.06] flex items-center gap-2">
                     <Lightbulb className="h-4 w-4 text-emerald-400" />
                     <p className="text-sm font-semibold">Unlock More GrowthMind Capabilities</p>
                   </div>
@@ -999,8 +999,8 @@ export function GrowthMindOverview() {
                     {notConnected.map(cat => {
                       const Icon = cat.icon;
                       return (
-                        <div key={cat.key} className="flex items-center gap-3 rounded-lg border border-white/[0.04] bg-white/[0.02] px-3 py-2.5">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.04] shrink-0">
+                        <div key={cat.key} className="flex items-center gap-3 rounded-lg border border-border/60 dark:border-white/[0.04] bg-muted/40 dark:bg-white/[0.02] px-3 py-2.5">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted dark:bg-white/[0.04] shrink-0">
                             <Icon className={cn("h-4 w-4", cat.color)} />
                           </div>
                           <div className="flex-1 min-w-0">

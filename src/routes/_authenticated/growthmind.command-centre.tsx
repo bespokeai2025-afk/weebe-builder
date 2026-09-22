@@ -28,7 +28,7 @@ function StatCard({ label, value, icon: Icon, tone }: {
   label: string; value: number; icon: React.ElementType; tone?: "good" | "warn" | "bad";
 }) {
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+    <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-4">
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <Icon className={cn("h-3.5 w-3.5",
           tone === "good" ? "text-emerald-400" : tone === "warn" ? "text-amber-400" : tone === "bad" ? "text-red-400" : "text-muted-foreground")} />
@@ -119,14 +119,14 @@ function CommandCentrePage() {
       )}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+        <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-4">
           <h2 className="flex items-center gap-2 text-sm font-medium"><Clock className="h-4 w-4 text-amber-400" /> Pending approvals</h2>
           {d.pendingApprovals.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">Nothing waiting on you.</p>
           ) : (
             <ul className="mt-2 space-y-2">
               {d.pendingApprovals.map((a: any) => (
-                <li key={a.id} className="flex items-center justify-between gap-2 rounded-lg bg-white/[0.03] px-3 py-2">
+                <li key={a.id} className="flex items-center justify-between gap-2 rounded-lg bg-muted/60 dark:bg-white/[0.03] px-3 py-2">
                   <span className="truncate text-sm">{a.title}</span>
                   <div className="flex items-center gap-2">
                     {a.sensitive && <Badge variant="outline" className="border-amber-500/40 text-amber-300">rules</Badge>}
@@ -138,7 +138,7 @@ function CommandCentrePage() {
           )}
         </div>
 
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+        <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-4">
           <h2 className="flex items-center gap-2 text-sm font-medium"><Brain className="h-4 w-4 text-emerald-400" /> New learnings to review</h2>
           {d.proposedLearnings.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">
@@ -147,7 +147,7 @@ function CommandCentrePage() {
           ) : (
             <ul className="mt-2 space-y-2">
               {d.proposedLearnings.slice(0, 5).map((p: any) => (
-                <li key={p.id} className="rounded-lg bg-white/[0.03] px-3 py-2">
+                <li key={p.id} className="rounded-lg bg-muted/60 dark:bg-white/[0.03] px-3 py-2">
                   <p className="text-sm">{p.insight}</p>
                   <div className="mt-2 flex gap-2">
                     <Button size="sm" variant="outline" className="h-7 border-emerald-500/40 text-emerald-300"
@@ -168,7 +168,7 @@ function CommandCentrePage() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+      <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-4">
         <h2 className="flex items-center gap-2 text-sm font-medium"><Send className="h-4 w-4 text-emerald-400" /> Recent publishing</h2>
         {d.recentJobs.length === 0 ? (
           <p className="mt-2 text-sm text-muted-foreground">Nothing published in the last 30 days.</p>
@@ -180,7 +180,7 @@ function CommandCentrePage() {
                   <Badge variant="outline" className={cn(
                     j.status === "published" ? "border-emerald-500/40 text-emerald-300"
                     : j.status === "failed" ? "border-red-500/40 text-red-300"
-                    : "border-white/10 text-muted-foreground")}>{j.status}</Badge>
+                    : "border-border dark:border-white/10 text-muted-foreground")}>{j.status}</Badge>
                   <span className="truncate text-muted-foreground">{j.platform}{j.published_at ? ` · ${new Date(j.published_at).toLocaleString()}` : j.scheduled_at ? ` · scheduled ${new Date(j.scheduled_at).toLocaleString()}` : ""}</span>
                   {j.status === "failed" && j.error_message && (
                     <span className="truncate text-xs text-red-300/80">{String(j.error_message).slice(0, 120)}</span>

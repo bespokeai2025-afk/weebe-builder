@@ -88,8 +88,8 @@ function AiDraftModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="w-full max-w-lg rounded-2xl border border-white/[0.08] bg-[#0f1117] shadow-2xl overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+      <div className="w-full max-w-lg rounded-2xl border border-border dark:border-white/[0.08] bg-[#0f1117] shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border dark:border-white/[0.06]">
           <div className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-emerald-400" />
             <p className="text-sm font-semibold">AI Email Draft</p>
@@ -137,7 +137,7 @@ function AiDraftModal({
                     "rounded-lg border px-3 py-1.5 text-xs capitalize transition-colors",
                     tone === t
                       ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
-                      : "border-white/[0.08] text-muted-foreground hover:border-white/20",
+                      : "border-border dark:border-white/[0.08] text-muted-foreground hover:border-foreground/20 dark:hover:border-white/20",
                   )}
                 >
                   {t}
@@ -152,7 +152,7 @@ function AiDraftModal({
             </div>
           )}
         </div>
-        <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-white/[0.06]">
+        <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-border dark:border-white/[0.06]">
           <Button variant="ghost" size="sm" onClick={onClose} className="text-xs h-8">Cancel</Button>
           <Button
             size="sm"
@@ -262,10 +262,10 @@ function CampaignEditor({
         className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm"
         onClick={e => { if (e.target === e.currentTarget) onClose(); }}
       >
-        <div className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl border border-white/[0.08] bg-[#0f1117] shadow-2xl overflow-hidden">
+        <div className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl border border-border dark:border-white/[0.08] bg-[#0f1117] shadow-2xl overflow-hidden">
 
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06] shrink-0">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border dark:border-white/[0.06] shrink-0">
             <div className="flex items-center gap-2">
               <Mail className="h-4 w-4 text-emerald-400" />
               <p className="text-sm font-semibold">{campaign?.id ? "Edit Campaign" : "New Campaign"}</p>
@@ -287,7 +287,7 @@ function CampaignEditor({
           </div>
 
           {/* Tabs */}
-          <div className="flex border-b border-white/[0.06] shrink-0">
+          <div className="flex border-b border-border dark:border-white/[0.06] shrink-0">
             {([
               { id: "content",  label: "Content" },
               { id: "audience", label: "Audience" },
@@ -335,7 +335,7 @@ function CampaignEditor({
                     value={bodyHtml}
                     onChange={e => setBodyHtml(e.target.value)}
                     placeholder="<p>Your email content here…</p>"
-                    className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs font-mono resize-none focus:outline-none focus:border-emerald-500/40 placeholder:text-muted-foreground/40"
+                    className="w-full rounded-lg border border-border dark:border-white/[0.08] bg-muted/60 dark:bg-white/[0.03] px-3 py-2 text-xs font-mono resize-none focus:outline-none focus:border-emerald-500/40 placeholder:text-muted-foreground/40"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -366,7 +366,7 @@ function CampaignEditor({
                           "flex items-center justify-between rounded-lg border px-3 py-2.5 text-xs text-left transition-colors",
                           audience.type === "all"
                             ? "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-300"
-                            : "border-white/[0.08] text-muted-foreground hover:border-white/20",
+                            : "border-border dark:border-white/[0.08] text-muted-foreground hover:border-foreground/20 dark:hover:border-white/20",
                         )}
                       >
                         <span>{opt.label}</span>
@@ -388,7 +388,7 @@ function CampaignEditor({
                             "flex items-center justify-between rounded-lg border px-2.5 py-2 text-xs transition-colors",
                             audience.type === "status" && (audience as any).status === s.status
                               ? "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-300"
-                              : "border-white/[0.06] text-muted-foreground hover:border-white/20",
+                              : "border-border dark:border-white/[0.06] text-muted-foreground hover:border-foreground/20 dark:hover:border-white/20",
                           )}
                         >
                           <span className="capitalize">{s.status.replace(/_/g, " ")}</span>
@@ -411,7 +411,7 @@ function CampaignEditor({
                             "rounded-full border px-2 py-0.5 text-[10px] transition-colors",
                             audience.type === "tag" && (audience as any).tag === t.tag
                               ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
-                              : "border-white/[0.08] text-muted-foreground hover:border-white/20",
+                              : "border-border dark:border-white/[0.08] text-muted-foreground hover:border-foreground/20 dark:hover:border-white/20",
                           )}
                         >
                           {t.tag} ({t.count})
@@ -436,7 +436,7 @@ function CampaignEditor({
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
+                <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-4 space-y-3">
                   <p className="text-xs font-medium">Send Test Email</p>
                   <div className="flex gap-2">
                     <Input
@@ -475,7 +475,7 @@ function CampaignEditor({
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-white/[0.06] shrink-0">
+          <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-border dark:border-white/[0.06] shrink-0">
             <Button variant="ghost" size="sm" onClick={onClose} className="text-xs h-8">Cancel</Button>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={() => save(false)} disabled={saving || !name} className="h-8 text-xs">
@@ -583,7 +583,7 @@ function CampaignsTab() {
           {campaigns.map(c => (
             <div
               key={c.id}
-              className="group flex items-center gap-3 rounded-xl border border-white/[0.06] bg-card/40 p-4 hover:border-white/[0.1] transition-all"
+              className="group flex items-center gap-3 rounded-xl border border-border dark:border-white/[0.06] bg-card/40 p-4 hover:border-foreground/20 dark:hover:border-white/[0.1] transition-all"
             >
               <div className="h-8 w-8 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
                 <Mail className="h-4 w-4 text-emerald-400" />
@@ -609,7 +609,7 @@ function CampaignsTab() {
               <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
                   onClick={() => setEditing(c)}
-                  className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+                  className="rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-1.5 text-muted-foreground hover:text-foreground transition-colors"
                   title="Edit"
                 >
                   <Edit2 className="h-3.5 w-3.5" />
@@ -617,7 +617,7 @@ function CampaignsTab() {
                 <button
                   onClick={() => handleDelete(c.id)}
                   disabled={deleting === c.id}
-                  className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-1.5 text-muted-foreground hover:text-red-400 transition-colors"
+                  className="rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-1.5 text-muted-foreground hover:text-red-400 transition-colors"
                   title="Delete"
                 >
                   {deleting === c.id
@@ -682,8 +682,8 @@ function AddWarmupModal({ onClose, onAdded }: { onClose: () => void; onAdded: (w
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-[#0f1117] shadow-2xl overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+      <div className="w-full max-w-md rounded-2xl border border-border dark:border-white/[0.08] bg-[#0f1117] shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border dark:border-white/[0.06]">
           <div className="flex items-center gap-2">
             <Flame className="h-4 w-4 text-orange-400" />
             <p className="text-sm font-semibold">Start Domain Warm-up</p>
@@ -712,7 +712,7 @@ function AddWarmupModal({ onClose, onAdded }: { onClose: () => void; onAdded: (w
                     "flex-1 rounded-lg border py-1.5 text-xs font-medium transition-colors",
                     totalDays === d
                       ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
-                      : "border-white/[0.08] text-muted-foreground hover:border-white/20",
+                      : "border-border dark:border-white/[0.08] text-muted-foreground hover:border-foreground/20 dark:hover:border-white/20",
                   )}
                 >
                   {d}d
@@ -720,7 +720,7 @@ function AddWarmupModal({ onClose, onAdded }: { onClose: () => void; onAdded: (w
               ))}
             </div>
           </div>
-          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 text-xs text-muted-foreground/70 space-y-1">
+          <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-3 text-xs text-muted-foreground/70 space-y-1">
             <p className="font-medium text-foreground/70">4-Phase schedule generated automatically:</p>
             <p>Phase 1 (Days 1–7): 10–70 emails — highest-engagement contacts</p>
             <p>Phase 2 (Days 8–14): 80–360 emails — expand to engaged subscribers</p>
@@ -734,7 +734,7 @@ function AddWarmupModal({ onClose, onAdded }: { onClose: () => void; onAdded: (w
             </div>
           )}
         </div>
-        <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-white/[0.06]">
+        <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-border dark:border-white/[0.06]">
           <Button variant="ghost" size="sm" onClick={onClose} className="text-xs h-8">Cancel</Button>
           <Button
             size="sm"
@@ -793,7 +793,7 @@ function WarmupCard({ warmup, onRefresh }: { warmup: DomainWarmup; onRefresh: ()
   }
 
   return (
-    <div className="rounded-xl border border-white/[0.08] bg-card/40 overflow-hidden">
+    <div className="rounded-xl border border-border dark:border-white/[0.08] bg-card/40 overflow-hidden">
       {/* Header */}
       <div className="p-4">
         <div className="flex items-start gap-3">
@@ -835,7 +835,7 @@ function WarmupCard({ warmup, onRefresh }: { warmup: DomainWarmup; onRefresh: ()
                 <span className="text-muted-foreground/60">Day {warmup.currentDay} of {warmup.totalDays}</span>
                 <span className={cn("font-semibold", pct === 100 ? "text-emerald-400" : "text-foreground")}>{pct}%</span>
               </div>
-              <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+              <div className="h-1.5 rounded-full bg-muted dark:bg-white/[0.06] overflow-hidden">
                 <div
                   className={cn("h-full rounded-full transition-all", pct === 100 ? "bg-emerald-500" : "bg-orange-500")}
                   style={{ width: `${pct}%` }}
@@ -924,7 +924,7 @@ function WarmupCard({ warmup, onRefresh }: { warmup: DomainWarmup; onRefresh: ()
       {/* Schedule toggle */}
       <button
         onClick={() => setExpanded(v => !v)}
-        className="w-full flex items-center justify-between px-4 py-2 border-t border-white/[0.04] text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+        className="w-full flex items-center justify-between px-4 py-2 border-t border-border/60 dark:border-white/[0.04] text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors"
       >
         <span>Full schedule ({warmup.totalDays} days)</span>
         <ChevronRight className={cn("h-3.5 w-3.5 transition-transform", expanded && "rotate-90")} />
@@ -944,7 +944,7 @@ function WarmupCard({ warmup, onRefresh }: { warmup: DomainWarmup; onRefresh: ()
                     "relative flex flex-col items-center rounded-lg border p-1.5 transition-colors",
                     done    ? "border-emerald-500/30 bg-emerald-500/10" :
                     isToday ? "border-orange-500/40 bg-orange-500/10" :
-                    "border-white/[0.04] bg-white/[0.02]",
+                    "border-border/60 dark:border-white/[0.04] bg-muted/40 dark:bg-white/[0.02]",
                   )}
                 >
                   <span className="text-[9px] text-muted-foreground/50">{d.day}</span>
@@ -1075,7 +1075,7 @@ function AudienceTab() {
         </div>
       ) : (
         <>
-          <div className="rounded-xl border border-white/[0.08] bg-card/40 p-5 flex items-center gap-5">
+          <div className="rounded-xl border border-border dark:border-white/[0.08] bg-card/40 p-5 flex items-center gap-5">
             <div className="h-12 w-12 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0">
               <Users className="h-6 w-6 text-emerald-400" />
             </div>
@@ -1092,12 +1092,12 @@ function AudienceTab() {
                 {(data?.statuses ?? []).map(s => {
                   const pct = data?.totalWithEmail ? Math.round((s.count / data.totalWithEmail) * 100) : 0;
                   return (
-                    <div key={s.status} className="rounded-xl border border-white/[0.06] bg-card/30 p-3 space-y-1.5">
+                    <div key={s.status} className="rounded-xl border border-border dark:border-white/[0.06] bg-card/30 p-3 space-y-1.5">
                       <div className="flex items-center justify-between">
                         <p className="text-xs font-medium capitalize">{s.status.replace(/_/g, " ")}</p>
                         <p className="text-sm font-bold tabular-nums">{s.count}</p>
                       </div>
-                      <div className="h-1 rounded-full bg-white/[0.06] overflow-hidden">
+                      <div className="h-1 rounded-full bg-muted dark:bg-white/[0.06] overflow-hidden">
                         <div className="h-full rounded-full bg-emerald-500/60" style={{ width: `${pct}%` }} />
                       </div>
                       <p className="text-[10px] text-muted-foreground/40">{pct}% of addressable</p>
@@ -1115,7 +1115,7 @@ function AudienceTab() {
                 {(data?.tags ?? []).map(t => (
                   <div
                     key={t.tag}
-                    className="flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-xs"
+                    className="flex items-center gap-1.5 rounded-full border border-border dark:border-white/[0.08] bg-muted/60 dark:bg-white/[0.03] px-2.5 py-1 text-xs"
                   >
                     <span className="font-medium">{t.tag}</span>
                     <span className="text-muted-foreground/50">({t.count})</span>
@@ -1165,7 +1165,7 @@ export function GrowthMindEmailCampaigns() {
         </div>
 
         {/* Tab bar */}
-        <div className="flex gap-1 mb-5 border-b border-white/[0.06]">
+        <div className="flex gap-1 mb-5 border-b border-border dark:border-white/[0.06]">
           {tabs.map(t => (
             <button
               key={t.id}

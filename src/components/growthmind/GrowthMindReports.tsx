@@ -90,7 +90,7 @@ function SparkCard({ title, data, color, unit = "", wowPct, momPct }: {
   const flat   = latest === prev;
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-card/60 p-4 flex flex-col gap-2">
+    <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-4 flex flex-col gap-2">
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="text-[11px] text-muted-foreground uppercase tracking-[0.08em] font-medium">{title}</p>
@@ -337,14 +337,14 @@ export function GrowthMindReports() {
           <div className="space-y-5">
 
             {/* Score summary */}
-            <div className="rounded-xl border border-white/[0.06] bg-card/60 p-5 flex items-center gap-6 flex-wrap">
+            <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-5 flex items-center gap-6 flex-wrap">
               <div className="text-center">
                 <div className={cn("text-5xl font-bold tabular-nums", scoreColor)}>{score.total}</div>
                 <div className={cn("text-lg font-bold", scoreColor)}>{score.grade}</div>
                 <p className="text-[10px] text-muted-foreground mt-0.5 font-semibold uppercase tracking-[0.1em]">Growth Score</p>
               </div>
               <div className="flex-1 min-w-[200px] space-y-2">
-                <div className="h-2 rounded-full bg-white/[0.06] overflow-hidden">
+                <div className="h-2 rounded-full bg-muted dark:bg-white/[0.06] overflow-hidden">
                   <div className={cn("h-full rounded-full transition-all", barColor)} style={{ width: `${score.total}%` }} />
                 </div>
                 <div className="flex justify-between text-[10px] text-muted-foreground">
@@ -365,8 +365,8 @@ export function GrowthMindReports() {
             </div>
 
             {/* ── TRENDS SECTION ─────────────────────────────────────────────── */}
-            <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
-              <div className="px-4 py-3 border-b border-white/[0.06] flex items-center gap-2 flex-wrap">
+            <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 overflow-hidden">
+              <div className="px-4 py-3 border-b border-border dark:border-white/[0.06] flex items-center gap-2 flex-wrap">
                 <BarChart2 className="h-4 w-4 text-emerald-400" />
                 <p className="text-sm font-semibold">Revenue Trends</p>
                 <span className="text-[11px] text-muted-foreground">Weekly sparklines</span>
@@ -379,7 +379,7 @@ export function GrowthMindReports() {
                         "px-2.5 py-1 rounded text-[11px] font-medium transition-colors",
                         trendPeriod === d
                           ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                          : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]",
+                          : "text-muted-foreground hover:text-foreground hover:bg-muted dark:hover:bg-white/[0.04]",
                       )}
                     >
                       {d}d
@@ -429,8 +429,8 @@ export function GrowthMindReports() {
             </div>
 
             {/* Report sections */}
-            <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
-              <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between">
+            <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 overflow-hidden">
+              <div className="px-4 py-3 border-b border-border dark:border-white/[0.06] flex items-center justify-between">
                 <p className="text-sm font-semibold">Report Contents</p>
                 <p className="text-[11px] text-muted-foreground">Click any section to preview</p>
               </div>
@@ -441,7 +441,7 @@ export function GrowthMindReports() {
                   return (
                     <div key={section.id}>
                       <button
-                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/[0.02] transition-colors text-left"
+                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/40 dark:hover:bg-white/[0.02] transition-colors text-left"
                         onClick={() => toggleSection(section.id)}
                       >
                         <Icon className="h-4 w-4 text-emerald-400 shrink-0" />
@@ -450,7 +450,7 @@ export function GrowthMindReports() {
                         {open ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                       </button>
                       {open && (
-                        <div className="border-t border-white/[0.04] bg-black/20 px-4 py-3">
+                        <div className="border-t border-border/60 dark:border-white/[0.04] bg-black/20 px-4 py-3">
                           <pre className="text-[11px] text-muted-foreground leading-relaxed font-mono whitespace-pre-wrap">
                             {section.content.join("\n")}
                           </pre>

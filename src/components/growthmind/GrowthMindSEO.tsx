@@ -257,10 +257,10 @@ function CsvImportModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl border border-white/[0.08] bg-[#0f1117] shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl border border-border dark:border-white/[0.08] bg-[#0f1117] shadow-2xl overflow-hidden">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06] shrink-0">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border dark:border-white/[0.06] shrink-0">
           <div className="flex items-center gap-2">
             <Upload className="h-4 w-4 text-emerald-400" />
             <p className="text-sm font-semibold">Import Keywords from CSV</p>
@@ -280,7 +280,7 @@ function CsvImportModal({
             onDrop={handleDrop}
             className={cn(
               "relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed py-6 transition-colors cursor-pointer text-center",
-              dragging ? "border-emerald-400/60 bg-emerald-400/[0.04]" : "border-white/[0.1] hover:border-white/[0.18]",
+              dragging ? "border-emerald-400/60 bg-emerald-400/[0.04]" : "border-border dark:border-white/[0.1] hover:border-foreground/25 dark:hover:border-white/[0.18]",
             )}
             onClick={() => fileRef.current?.click()}
           >
@@ -305,7 +305,7 @@ function CsvImportModal({
             <Label className="text-[10px] text-muted-foreground">Or paste CSV / TSV data</Label>
             <textarea
               rows={5}
-              className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs font-mono resize-none focus:outline-none focus:border-emerald-500/40 placeholder:text-muted-foreground/40"
+              className="w-full rounded-lg border border-border dark:border-white/[0.08] bg-muted/60 dark:bg-white/[0.03] px-3 py-2 text-xs font-mono resize-none focus:outline-none focus:border-emerald-500/40 placeholder:text-muted-foreground/40"
               placeholder={"keyword,volume,difficulty,rank\nbuy solar panels,2400,35,14\nbest solar inverter,1200,42,\n…"}
               value={raw}
               onChange={e => process(e.target.value)}
@@ -314,7 +314,7 @@ function CsvImportModal({
 
           {/* Column mapping — editable dropdowns */}
           {headers.length > 0 && (
-            <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 space-y-2">
+            <div className="rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] px-3 py-2.5 space-y-2">
               <div className="flex items-center justify-between">
                 <p className="text-[11px] font-semibold text-muted-foreground">Column mapping</p>
                 <p className="text-[10px] text-muted-foreground/50">Override any auto-detected column below</p>
@@ -332,7 +332,7 @@ function CsvImportModal({
                       <select
                         value={colMap[field]}
                         onChange={e => updateColMap(field, Number(e.target.value))}
-                        className="w-full rounded-md border border-white/[0.08] bg-[#0f1117] px-2 py-1 text-[11px] text-foreground focus:outline-none focus:border-emerald-500/40 appearance-none cursor-pointer"
+                        className="w-full rounded-md border border-border dark:border-white/[0.08] bg-[#0f1117] px-2 py-1 text-[11px] text-foreground focus:outline-none focus:border-emerald-500/40 appearance-none cursor-pointer"
                       >
                         {!isRequired && (
                           <option value={-1} className="bg-[#0f1117] text-muted-foreground">— not mapped —</option>
@@ -380,10 +380,10 @@ function CsvImportModal({
                   Skip already-tracked keywords
                 </label>
               </div>
-              <div className="overflow-x-auto rounded-lg border border-white/[0.06] max-h-52">
+              <div className="overflow-x-auto rounded-lg border border-border dark:border-white/[0.06] max-h-52">
                 <table className="w-full text-xs">
                   <thead className="sticky top-0 bg-[#0f1117] z-10">
-                    <tr className="border-b border-white/[0.06]">
+                    <tr className="border-b border-border dark:border-white/[0.06]">
                       {["Keyword", "Volume", "Difficulty", "Rank"].map(h => (
                         <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.07em] text-muted-foreground/60">
                           {h}
@@ -399,7 +399,7 @@ function CsvImportModal({
                           key={i}
                           className={cn(
                             "transition-colors",
-                            isDupe && skipDupes ? "opacity-40 line-through" : "hover:bg-white/[0.02]",
+                            isDupe && skipDupes ? "opacity-40 line-through" : "hover:bg-muted/40 dark:hover:bg-white/[0.02]",
                           )}
                         >
                           <td className="px-3 py-1.5 font-medium max-w-[200px] truncate">{row.term}</td>
@@ -430,7 +430,7 @@ function CsvImportModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-white/[0.06] shrink-0 bg-[#0f1117]">
+        <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-border dark:border-white/[0.06] shrink-0 bg-[#0f1117]">
           <Button variant="ghost" size="sm" onClick={onClose} className="text-xs h-8">
             Cancel
           </Button>
@@ -499,10 +499,10 @@ function GscSuggestModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl border border-white/[0.08] bg-[#0f1117] shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl border border-border dark:border-white/[0.08] bg-[#0f1117] shadow-2xl overflow-hidden">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06] shrink-0">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border dark:border-white/[0.06] shrink-0">
           <div className="flex items-center gap-2">
             <BarChart2 className="h-4 w-4 text-blue-400" />
             <p className="text-sm font-semibold">Auto-suggest from Search Console</p>
@@ -560,10 +560,10 @@ function GscSuggestModal({
                 </label>
               </div>
 
-              <div className="overflow-x-auto rounded-lg border border-white/[0.06]">
+              <div className="overflow-x-auto rounded-lg border border-border dark:border-white/[0.06]">
                 <table className="w-full text-xs">
                   <thead className="sticky top-0 bg-[#0f1117] z-10">
-                    <tr className="border-b border-white/[0.06]">
+                    <tr className="border-b border-border dark:border-white/[0.06]">
                       <th className="px-3 py-2 w-8">
                         <input
                           type="checkbox"
@@ -589,7 +589,7 @@ function GscSuggestModal({
                           onClick={() => toggle(q.term)}
                           className={cn(
                             "cursor-pointer transition-colors",
-                            checked ? "bg-blue-500/[0.06]" : "hover:bg-white/[0.02]",
+                            checked ? "bg-blue-500/[0.06]" : "hover:bg-muted/40 dark:hover:bg-white/[0.02]",
                             isDupe && skipDupes ? "opacity-40" : "",
                           )}
                         >
@@ -622,7 +622,7 @@ function GscSuggestModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-white/[0.06] shrink-0 bg-[#0f1117]">
+        <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-border dark:border-white/[0.06] shrink-0 bg-[#0f1117]">
           <Button variant="ghost" size="sm" onClick={onClose} className="text-xs h-8">
             Cancel
           </Button>
@@ -693,7 +693,7 @@ function KeywordRow({
 
   if (editing) {
     return (
-      <tr className="bg-white/[0.02]">
+      <tr className="bg-muted/40 dark:bg-white/[0.02]">
         <td className="px-3 py-2">
           <Input
             autoFocus
@@ -755,7 +755,7 @@ function KeywordRow({
   }
 
   return (
-    <tr className="hover:bg-white/[0.02] transition-colors group">
+    <tr className="hover:bg-muted/40 dark:hover:bg-white/[0.02] transition-colors group">
       <td className="px-4 py-2.5 font-medium">
         <span className="inline-flex items-center">
           {kw.term}
@@ -828,7 +828,7 @@ function ContentIdeaRow({
 
   if (editing) {
     return (
-      <div className="flex items-center gap-2 px-4 py-2 bg-white/[0.03] border-b border-white/[0.06]">
+      <div className="flex items-center gap-2 px-4 py-2 bg-muted/60 dark:bg-white/[0.03] border-b border-border dark:border-white/[0.06]">
         <div className="flex-1 flex flex-wrap gap-2 items-center">
           <Input
             autoFocus
@@ -857,7 +857,7 @@ function ContentIdeaRow({
   }
 
   return (
-    <div className="flex items-center gap-3 px-4 py-3 group hover:bg-white/[0.02] transition-colors border-b border-white/[0.04] last:border-0">
+    <div className="flex items-center gap-3 px-4 py-3 group hover:bg-muted/40 dark:hover:bg-white/[0.02] transition-colors border-b border-border/60 dark:border-white/[0.04] last:border-0">
       <div className="flex-1 min-w-0">
         <p className="text-xs font-medium truncate">{idea.title}</p>
         {idea.targetKeyword && (
@@ -900,7 +900,7 @@ function WebsiteArchitectureCard({ siteUrl }: { siteUrl: string }) {
 
   if (isLoading || !arch) {
     return (
-      <div className="rounded-xl border border-white/[0.06] bg-card/60 p-5 text-xs text-muted-foreground flex items-center gap-2">
+      <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-5 text-xs text-muted-foreground flex items-center gap-2">
         <Loader2 className="h-3.5 w-3.5 animate-spin" /> Auditing website architecture…
       </div>
     );
@@ -914,7 +914,7 @@ function WebsiteArchitectureCard({ siteUrl }: { siteUrl: string }) {
   ];
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-card/60 p-5">
+    <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-5">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <p className="text-sm font-semibold flex items-center gap-2">
@@ -1102,8 +1102,8 @@ function GscConnectionPanel({
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
           onClick={e => { if (e.target === e.currentTarget) setShowPropertyPicker(false); }}
         >
-          <div className="w-full max-w-sm rounded-2xl border border-white/[0.08] bg-[#0f1117] shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+          <div className="w-full max-w-sm rounded-2xl border border-border dark:border-white/[0.08] bg-[#0f1117] shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border dark:border-white/[0.06]">
               <p className="text-sm font-semibold">Select Search Console property</p>
               <button onClick={() => setShowPropertyPicker(false)} className="text-muted-foreground hover:text-foreground">
                 <X className="h-4 w-4" />
@@ -1144,7 +1144,7 @@ function GscConnectionPanel({
                 </label>
               ))}
             </div>
-            <div className="flex items-center justify-between px-5 py-4 border-t border-white/[0.06]">
+            <div className="flex items-center justify-between px-5 py-4 border-t border-border dark:border-white/[0.06]">
               <Button variant="ghost" size="sm" onClick={() => setShowPropertyPicker(false)} className="text-xs h-7">
                 Cancel
               </Button>
@@ -1261,7 +1261,7 @@ function SeoBriefsSection() {
   return (
     <div className="space-y-5">
       {/* Generate form */}
-      <div className="rounded-xl border border-white/[0.08] bg-card/60 p-5 space-y-4">
+      <div className="rounded-xl border border-border dark:border-white/[0.08] bg-card/60 p-5 space-y-4">
         <p className="text-sm font-semibold flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-emerald-400" />
           Generate SEO Brief
@@ -1315,7 +1315,7 @@ function SeoBriefsSection() {
       ) : (
         <div className="space-y-3">
           {briefs.map(b => (
-            <div key={b.id} className="rounded-xl border border-white/[0.06] bg-card/40 overflow-hidden">
+            <div key={b.id} className="rounded-xl border border-border dark:border-white/[0.06] bg-card/40 overflow-hidden">
               <div className="flex items-start gap-3 p-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -1331,7 +1331,7 @@ function SeoBriefsSection() {
                   {b.targetKws.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1.5">
                       {b.targetKws.map(k => (
-                        <span key={k} className="rounded-full border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 text-[10px] text-muted-foreground/60">{k}</span>
+                        <span key={k} className="rounded-full border border-border dark:border-white/[0.08] bg-muted/60 dark:bg-white/[0.03] px-2 py-0.5 text-[10px] text-muted-foreground/60">{k}</span>
                       ))}
                     </div>
                   )}
@@ -1339,7 +1339,7 @@ function SeoBriefsSection() {
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button
                     onClick={() => setExpanded(expanded === b.id ? null : b.id)}
-                    className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+                    className="rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-1.5 text-muted-foreground hover:text-foreground transition-colors"
                     title="View brief"
                   >
                     <FileText className="h-3.5 w-3.5" />
@@ -1347,14 +1347,14 @@ function SeoBriefsSection() {
                   <button
                     onClick={() => handleDelete(b.id)}
                     disabled={deleting === b.id}
-                    className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-1.5 text-muted-foreground hover:text-red-400 transition-colors"
+                    className="rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-1.5 text-muted-foreground hover:text-red-400 transition-colors"
                   >
                     {deleting === b.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                   </button>
                 </div>
               </div>
               {expanded === b.id && (
-                <div className="px-4 pb-4 border-t border-white/[0.04] pt-3 space-y-3">
+                <div className="px-4 pb-4 border-t border-border/60 dark:border-white/[0.04] pt-3 space-y-3">
                   {b.metaTitle && (
                     <div>
                       <p className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest mb-1">Meta Title</p>
@@ -1417,7 +1417,7 @@ function ContentGapSection() {
 
   return (
     <div className="space-y-5">
-      <div className="rounded-xl border border-white/[0.08] bg-card/60 p-5 flex items-center justify-between gap-3">
+      <div className="rounded-xl border border-border dark:border-white/[0.08] bg-card/60 p-5 flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold">AI Content Gap Analysis</p>
           <p className="text-xs text-muted-foreground/60 mt-0.5">Discover topics and keywords you should be targeting but aren't</p>
@@ -1473,12 +1473,12 @@ function ContentGapSection() {
             <h3 className="text-xs font-semibold text-muted-foreground/50 uppercase tracking-[0.08em] mb-3">Content Gaps ({result.gaps.length})</h3>
             <div className="space-y-2.5">
               {result.gaps.map((gap, i) => (
-                <div key={i} className="rounded-xl border border-white/[0.06] bg-card/40 p-4 space-y-2.5">
+                <div key={i} className="rounded-xl border border-border dark:border-white/[0.06] bg-card/40 p-4 space-y-2.5">
                   <div className="flex items-start gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-sm font-medium">{gap.topic}</p>
-                        <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize", INTENT_COLORS[gap.intent] ?? "border-white/10 text-muted-foreground")}>
+                        <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize", INTENT_COLORS[gap.intent] ?? "border-border dark:border-white/10 text-muted-foreground")}>
                           {gap.intent}
                         </span>
                       </div>
@@ -1491,7 +1491,7 @@ function ContentGapSection() {
                   {gap.keywords.length > 0 && (
                     <div className="flex flex-wrap gap-1">
                       {gap.keywords.map(k => (
-                        <span key={k} className="rounded-full border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 text-[10px] text-muted-foreground/60">{k}</span>
+                        <span key={k} className="rounded-full border border-border dark:border-white/[0.08] bg-muted/60 dark:bg-white/[0.03] px-2 py-0.5 text-[10px] text-muted-foreground/60">{k}</span>
                       ))}
                     </div>
                   )}
@@ -1502,7 +1502,7 @@ function ContentGapSection() {
 
           {/* Opportunities */}
           {result.opportunities.length > 0 && (
-            <div className="rounded-xl border border-white/[0.06] bg-card/40 p-4 space-y-2">
+            <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/40 p-4 space-y-2">
               <p className="text-xs font-semibold text-foreground/60 uppercase tracking-widest">Strategic Opportunities</p>
               <ul className="space-y-1">
                 {result.opportunities.map((o, i) => (
@@ -1557,7 +1557,7 @@ function MetaTagsSection() {
     return (
       <button
         onClick={() => copy(value, id)}
-        className="rounded border border-white/[0.06] p-1 text-muted-foreground/60 hover:text-foreground transition-colors"
+        className="rounded border border-border dark:border-white/[0.06] p-1 text-muted-foreground/60 hover:text-foreground transition-colors"
         title="Copy"
       >
         {copied === id ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
@@ -1583,14 +1583,14 @@ function MetaTagsSection() {
             <CopyButton value={value} id={id} />
           </div>
         </div>
-        <p className={cn("text-xs rounded-lg bg-white/[0.02] border border-white/[0.06] px-3 py-2", mono && "font-mono text-[11px]")}>{value}</p>
+        <p className={cn("text-xs rounded-lg bg-muted/40 dark:bg-white/[0.02] border border-border dark:border-white/[0.06] px-3 py-2", mono && "font-mono text-[11px]")}>{value}</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-5">
-      <div className="rounded-xl border border-white/[0.08] bg-card/60 p-5 space-y-4">
+      <div className="rounded-xl border border-border dark:border-white/[0.08] bg-card/60 p-5 space-y-4">
         <p className="text-sm font-semibold flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-emerald-400" />
           Generate Meta Tags
@@ -1613,7 +1613,7 @@ function MetaTagsSection() {
             <select
               value={pageType}
               onChange={e => setPageType(e.target.value as typeof pageType)}
-              className="w-full h-8 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 text-xs focus:outline-none focus:border-emerald-500/40"
+              className="w-full h-8 rounded-lg border border-border dark:border-white/[0.08] bg-muted/60 dark:bg-white/[0.03] px-3 text-xs focus:outline-none focus:border-emerald-500/40"
             >
               {(["homepage","service","product","blog","about","contact","landing"] as const).map(t => (
                 <option key={t} value={t} className="bg-[#0f1117] capitalize">{t}</option>
@@ -1647,7 +1647,7 @@ function MetaTagsSection() {
       )}
 
       {result && (
-        <div className="rounded-xl border border-white/[0.06] bg-card/40 p-5 space-y-4">
+        <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/40 p-5 space-y-4">
           <ResultField label="Meta Title"        value={result.metaTitle}  id="metaTitle" />
           <ResultField label="Meta Description"  value={result.metaDesc}   id="metaDesc" />
           <ResultField label="OG Title"          value={result.ogTitle}    id="ogTitle" />
@@ -1660,12 +1660,12 @@ function MetaTagsSection() {
                 <p className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">JSON-LD Schema</p>
                 <button
                   onClick={() => copy(result.schema, "schema")}
-                  className="rounded border border-white/[0.06] p-1 text-muted-foreground/60 hover:text-foreground transition-colors"
+                  className="rounded border border-border dark:border-white/[0.06] p-1 text-muted-foreground/60 hover:text-foreground transition-colors"
                 >
                   {copied === "schema" ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
                 </button>
               </div>
-              <pre className="text-[10px] font-mono rounded-lg bg-white/[0.02] border border-white/[0.06] px-3 py-2 overflow-x-auto text-muted-foreground/60 whitespace-pre-wrap">{result.schema}</pre>
+              <pre className="text-[10px] font-mono rounded-lg bg-muted/40 dark:bg-white/[0.02] border border-border dark:border-white/[0.06] px-3 py-2 overflow-x-auto text-muted-foreground/60 whitespace-pre-wrap">{result.schema}</pre>
             </div>
           )}
         </div>
@@ -2141,7 +2141,7 @@ export function GrowthMindSEO() {
         </div>
 
         {/* SEO Tab bar */}
-        <div className="flex gap-1 mb-5 border-b border-white/[0.06]">
+        <div className="flex gap-1 mb-5 border-b border-border dark:border-white/[0.06]">
           {([
             { id: "keywords" as SeoTab, label: "Keywords & Tracking", icon: Search },
             { id: "briefs"   as SeoTab, label: "SEO Briefs",          icon: FileText },
@@ -2176,7 +2176,7 @@ export function GrowthMindSEO() {
           <div className="space-y-5">
 
             {!autoSettings?.excluded && (
-              <div className="rounded-xl border border-white/[0.06] bg-card/60 p-5">
+              <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-5">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="flex gap-3">
                     <div className="rounded-lg bg-emerald-500/10 p-2 h-fit">
@@ -2232,7 +2232,7 @@ export function GrowthMindSEO() {
             )}
 
             {/* Site connection */}
-            <div className="rounded-xl border border-white/[0.06] bg-card/60 p-5">
+            <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-5">
               <p className="text-sm font-semibold flex items-center gap-2 mb-4">
                 <Globe className="h-4 w-4 text-emerald-400" />
                 Site Connection
@@ -2285,7 +2285,7 @@ export function GrowthMindSEO() {
             </div>
 
             {/* Google Search Console integration */}
-            <div className="rounded-xl border border-white/[0.06] bg-card/60 p-5">
+            <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-5">
               <div className="flex items-start justify-between gap-4 flex-wrap">
                 <div>
                   <p className="text-sm font-semibold flex items-center gap-2">
@@ -2317,8 +2317,8 @@ export function GrowthMindSEO() {
             {connected && (
               <>
                 {/* Keyword opportunities */}
-                <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
+                <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-border dark:border-white/[0.06]">
                     <div>
                       <p className="text-sm font-semibold">Keyword Opportunities</p>
                       <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -2369,7 +2369,7 @@ export function GrowthMindSEO() {
                   </div>
 
                   {showKwForm && (
-                    <div className="px-4 py-3 border-b border-white/[0.06] bg-white/[0.02]">
+                    <div className="px-4 py-3 border-b border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02]">
                       <div className="flex flex-wrap gap-2 items-end">
                         <div className="space-y-1 flex-1 min-w-[150px]">
                           <Label className="text-[10px]">Keyword</Label>
@@ -2449,7 +2449,7 @@ export function GrowthMindSEO() {
                     <div className="overflow-x-auto">
                       <table className="w-full text-xs">
                         <thead>
-                          <tr className="border-b border-white/[0.06]">
+                          <tr className="border-b border-border dark:border-white/[0.06]">
                             {["Keyword", "Volume / mo", "Difficulty", "Current Rank"].map(h => (
                               <th key={h} className="px-4 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60">
                                 {h}
@@ -2524,8 +2524,8 @@ export function GrowthMindSEO() {
                 )}
 
                 {/* Content opportunities */}
-                <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
+                <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-border dark:border-white/[0.06]">
                     <div>
                       <p className="text-sm font-semibold">Content Opportunities</p>
                       <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -2544,7 +2544,7 @@ export function GrowthMindSEO() {
 
                   {/* AI-suggested idea cards */}
                   {aiSuggestedIdeas.filter(i => !dismissedAiIdeaIds.has(i.id)).length > 0 && (
-                    <div className="px-4 py-3 border-b border-white/[0.06] bg-emerald-500/[0.03] space-y-2">
+                    <div className="px-4 py-3 border-b border-border dark:border-white/[0.06] bg-emerald-500/[0.03] space-y-2">
                       <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-emerald-400/70 flex items-center gap-1.5">
                         <Sparkles className="h-3 w-3" />
                         AI Suggestions — click Add to track an idea
@@ -2590,7 +2590,7 @@ export function GrowthMindSEO() {
                   )}
 
                   {showIdeaForm && (
-                    <div className="px-4 py-3 border-b border-white/[0.06] bg-white/[0.02]">
+                    <div className="px-4 py-3 border-b border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02]">
                       <div className="flex flex-wrap gap-2 items-end">
                         <div className="space-y-1 flex-1 min-w-[200px]">
                           <Label className="text-[10px]">Content Title</Label>

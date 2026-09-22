@@ -192,14 +192,14 @@ function StepIndicator({ step, currentStep, qualityMode }: {
               "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold transition-all",
               active ? "bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/30"
               : done  ? "bg-emerald-500/10 text-emerald-400/70"
-              : "bg-white/[0.04] text-muted-foreground/50",
+              : "bg-muted dark:bg-white/[0.04] text-muted-foreground/50",
             )}>
               {active ? <Loader2 className="h-2.5 w-2.5 animate-spin" />
                : done  ? <CheckCircle2 className="h-2.5 w-2.5" />
                : <Circle className="h-2.5 w-2.5" />}
               {s.label}
             </div>
-            {i < visible.length - 1 && <div className="h-px w-3 bg-white/[0.08]" />}
+            {i < visible.length - 1 && <div className="h-px w-3 bg-muted dark:bg-white/[0.08]" />}
           </div>
         );
       })}
@@ -211,7 +211,7 @@ function StepIndicator({ step, currentStep, qualityMode }: {
 
 function SceneCard({ scene }: { scene: StoryboardScene }) {
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-card/60 p-4 space-y-3">
+    <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-4 space-y-3">
       <div className="flex items-center justify-between">
         <span className="rounded-full bg-violet-500/15 border border-violet-500/20 px-2.5 py-0.5 text-[10px] font-bold text-violet-400">
           Scene {scene.scene}
@@ -335,7 +335,7 @@ function CompositeProgressPanel({ asset }: { asset: VideoAsset }) {
                 clip.status === "completed" ? "bg-emerald-500/15 border-emerald-500/25 text-emerald-400"
                 : clip.status === "failed"  ? "bg-red-500/15 border-red-500/20 text-red-400"
                 : clip.status === "processing" ? "bg-amber-500/15 border-amber-500/25 text-amber-400 animate-pulse"
-                : "bg-white/[0.03] border-white/[0.06] text-muted-foreground/40",
+                : "bg-muted/60 dark:bg-white/[0.03] border-border dark:border-white/[0.06] text-muted-foreground/40",
               )}
             >
               {clip.status === "completed" ? "✓"
@@ -444,7 +444,7 @@ function VideoAssetCard({ asset, onDelete, onSchedule, onRetry }: {
   const isGcsUri     = videoReady && asset.videoUrl?.startsWith("gs://");
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-card/60 p-4 space-y-3 hover:border-white/[0.12] transition-all">
+    <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-4 space-y-3 hover:border-foreground/20 dark:hover:border-white/[0.12] transition-all">
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="shrink-0 flex h-7 w-7 items-center justify-center rounded-lg bg-violet-500/15 border border-violet-500/20">
@@ -595,7 +595,7 @@ function VideoAssetCard({ asset, onDelete, onSchedule, onRetry }: {
 
       {videoReady && !isGcsUri && !isDataUriMarker && (
         <div className="space-y-1.5">
-          <div className="rounded-lg overflow-hidden border border-white/[0.06]">
+          <div className="rounded-lg overflow-hidden border border-border dark:border-white/[0.06]">
             <video
               controls
               src={asset.videoUrl!}
@@ -625,7 +625,7 @@ function VideoAssetCard({ asset, onDelete, onSchedule, onRetry }: {
       {isDataUriMarker && (
         <div className="space-y-2">
           {playUrl ? (
-            <div className="rounded-lg overflow-hidden border border-white/[0.06]">
+            <div className="rounded-lg overflow-hidden border border-border dark:border-white/[0.06]">
               <video controls src={playUrl} className="w-full max-h-48 bg-black" preload="metadata" />
             </div>
           ) : (
@@ -730,7 +730,7 @@ function VideoAssetCard({ asset, onDelete, onSchedule, onRetry }: {
         ];
 
         return (
-          <div className="rounded-lg border border-white/[0.04] bg-white/[0.02] p-2.5 space-y-1 font-mono">
+          <div className="rounded-lg border border-border/60 dark:border-white/[0.04] bg-muted/40 dark:bg-white/[0.02] p-2.5 space-y-1 font-mono">
             {rows.map(([k, v]) => (
               <div key={k} className="flex gap-2 text-[9px] leading-relaxed">
                 <span className="text-muted-foreground/50 shrink-0 w-20">{k}</span>
@@ -763,7 +763,7 @@ function VideoCostPanel() {
   if (!data) return null;
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-card/60 p-4 space-y-3">
+    <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-4 space-y-3">
       <p className="text-xs font-semibold flex items-center gap-2">
         <DollarSign className="h-3.5 w-3.5 text-emerald-400" />
         Cost Overview (30d)
@@ -771,11 +771,11 @@ function VideoCostPanel() {
 
       {/* Summary row */}
       <div className="grid grid-cols-2 gap-2">
-        <div className="rounded-lg bg-white/[0.02] border border-white/[0.04] p-2.5">
+        <div className="rounded-lg bg-muted/40 dark:bg-white/[0.02] border border-border/60 dark:border-white/[0.04] p-2.5">
           <p className="text-[10px] text-muted-foreground/60 mb-0.5">Total Assets</p>
           <p className="text-sm font-bold">{data.totalAssets}</p>
         </div>
-        <div className="rounded-lg bg-white/[0.02] border border-white/[0.04] p-2.5">
+        <div className="rounded-lg bg-muted/40 dark:bg-white/[0.02] border border-border/60 dark:border-white/[0.04] p-2.5">
           <p className="text-[10px] text-muted-foreground/60 mb-0.5">Total Cost</p>
           <p className="text-sm font-bold text-emerald-400">{formatCost(data.totalCost)}</p>
         </div>
@@ -884,7 +884,7 @@ function ScheduleModal({ asset, onClose, onScheduled }: {
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-background/70 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-[hsl(var(--sidebar-background))] shadow-2xl p-6 space-y-5">
+      <div className="w-full max-w-md rounded-2xl border border-border dark:border-white/[0.08] bg-[hsl(var(--sidebar-background))] shadow-2xl p-6 space-y-5">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/15 border border-emerald-500/20">
             <CalendarDays className="h-4.5 w-4.5 text-emerald-400" />
@@ -1018,7 +1018,7 @@ function KnowledgeContextSelector({
   const activeRing = accent === "violet" ? "border-violet-500/40 bg-violet-500/10 text-violet-300" : "border-emerald-500/40 bg-emerald-500/10 text-emerald-300";
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 space-y-2.5">
+    <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-3 space-y-2.5">
       <div className="flex items-center gap-2">
         <BookOpen className="h-3.5 w-3.5 text-muted-foreground/50" />
         <span className="text-xs font-semibold text-muted-foreground/70">Knowledge Context</span>
@@ -1033,7 +1033,7 @@ function KnowledgeContextSelector({
             title={m.desc}
             className={cn(
               "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-left text-[11px] font-medium transition-all",
-              value === m.id ? activeRing : "border-white/[0.06] text-muted-foreground/60 hover:text-foreground hover:border-white/10",
+              value === m.id ? activeRing : "border-border dark:border-white/[0.06] text-muted-foreground/60 hover:text-foreground hover:border-foreground/20 dark:hover:border-white/10",
             )}
           >
             <span className="text-base leading-none">{m.icon}</span>
@@ -1570,10 +1570,10 @@ export function GrowthMindVideoStudio() {
           )}
 
           {/* Generator card */}
-          <div className="rounded-2xl border border-white/[0.06] bg-card/60 p-5 space-y-5">
+          <div className="rounded-2xl border border-border dark:border-white/[0.06] bg-card/60 p-5 space-y-5">
 
             {/* Mode tabs */}
-            <div className="flex rounded-xl border border-white/[0.06] overflow-hidden p-0.5 bg-white/[0.02]">
+            <div className="flex rounded-xl border border-border dark:border-white/[0.06] overflow-hidden p-0.5 bg-muted/40 dark:bg-white/[0.02]">
               <button
                 onClick={() => setInputMode("guided")}
                 className={cn(
@@ -1635,7 +1635,7 @@ export function GrowthMindVideoStudio() {
                           "flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition-all",
                           active
                             ? "border-violet-500/30 bg-violet-500/10"
-                            : "border-white/[0.06] bg-white/[0.02] hover:border-white/[0.10] hover:bg-white/[0.04]",
+                            : "border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] hover:border-foreground/20 dark:hover:border-white/[0.10] hover:bg-muted dark:hover:bg-white/[0.04]",
                         )}
                       >
                         <div className="flex items-center gap-1.5">
@@ -1677,7 +1677,7 @@ export function GrowthMindVideoStudio() {
                             "text-left px-2.5 py-1.5 rounded-lg border text-xs transition-all",
                             voiceId === v.id
                               ? "border-sky-500/40 bg-sky-500/15 text-sky-300"
-                              : "border-white/[0.06] bg-white/[0.02] text-muted-foreground hover:text-foreground hover:border-white/[0.12]",
+                              : "border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] text-muted-foreground hover:text-foreground hover:border-foreground/20 dark:hover:border-white/[0.12]",
                           )}
                         >
                           <p className="font-medium truncate">{v.name}</p>
@@ -1706,7 +1706,7 @@ export function GrowthMindVideoStudio() {
                               "rounded-lg border px-2.5 py-1 text-xs font-medium transition-all",
                               active
                                 ? "border-violet-500/30 bg-violet-500/15 text-violet-300"
-                                : "border-white/[0.06] text-muted-foreground/70 hover:border-white/[0.12] hover:text-foreground",
+                                : "border-border dark:border-white/[0.06] text-muted-foreground/70 hover:border-foreground/20 dark:hover:border-white/[0.12] hover:text-foreground",
                             )}
                           >
                             {VIDEO_TYPE_LABELS[t]}
@@ -1774,7 +1774,7 @@ export function GrowthMindVideoStudio() {
                         "flex-1 rounded-lg border py-1.5 text-xs font-semibold transition-all",
                         variantCount === n
                           ? "border-violet-500/30 bg-violet-500/15 text-violet-300"
-                          : "border-white/[0.06] text-muted-foreground/60 hover:text-foreground",
+                          : "border-border dark:border-white/[0.06] text-muted-foreground/60 hover:text-foreground",
                       )}
                     >
                       {n === 1 ? "1 video" : `${n} variants`}
@@ -1823,10 +1823,10 @@ export function GrowthMindVideoStudio() {
                     <div className={cn(
                       "flex items-center justify-between rounded-xl border px-3 py-2.5",
                       audioSupported
-                        ? "border-white/[0.06] bg-white/[0.02]"
+                        ? "border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02]"
                         : isVeo2
                           ? "border-red-500/20 bg-red-500/[0.03]"
-                          : "border-white/[0.03] bg-white/[0.01] opacity-60",
+                          : "border-border/50 dark:border-white/[0.03] bg-muted/20 dark:bg-white/[0.01] opacity-60",
                     )}>
                       <div className="flex items-center gap-2">
                         <Volume2 className={cn(
@@ -1850,7 +1850,7 @@ export function GrowthMindVideoStudio() {
                         className={cn(
                           "relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200",
                           !audioSupported ? "cursor-not-allowed" : "cursor-pointer",
-                          veoAudio && audioSupported ? "bg-amber-500" : "bg-white/10",
+                          veoAudio && audioSupported ? "bg-amber-500" : "bg-muted dark:bg-white/10",
                         )}
                       >
                         <span className={cn(
@@ -1865,7 +1865,7 @@ export function GrowthMindVideoStudio() {
                         <p className="text-[10px] text-red-400/90">
                           Veo 2 cannot produce audio. Go to{" "}
                           <strong>Settings → Providers → Video → Google Veo 3</strong> and
-                          clear the "Veo Model" field (or set it to <code className="bg-white/[0.06] rounded px-1">veo-3.0-generate-preview</code>).
+                          clear the "Veo Model" field (or set it to <code className="bg-muted dark:bg-white/[0.06] rounded px-1">veo-3.0-generate-preview</code>).
                         </p>
                       </div>
                     )}
@@ -2009,7 +2009,7 @@ export function GrowthMindVideoStudio() {
                       "flex items-center gap-2 h-8 px-3 rounded-md border text-xs font-medium transition-all w-full",
                       ffVoiceover
                         ? "border-sky-500/40 bg-sky-500/15 text-sky-300"
-                        : "border-white/[0.06] text-muted-foreground/60 hover:text-foreground",
+                        : "border-border dark:border-white/[0.06] text-muted-foreground/60 hover:text-foreground",
                     )}
                   >
                     <div className={cn(
@@ -2035,10 +2035,10 @@ export function GrowthMindVideoStudio() {
                           disabled={disabled}
                           className={cn(
                             "flex flex-col items-start px-2.5 py-1.5 rounded-lg border text-left transition-all",
-                            disabled ? "opacity-35 cursor-not-allowed border-white/[0.04]"
+                            disabled ? "opacity-35 cursor-not-allowed border-border/60 dark:border-white/[0.04]"
                             : active
                               ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
-                              : "border-white/[0.06] text-muted-foreground/60 hover:text-foreground hover:border-white/[0.12]",
+                              : "border-border dark:border-white/[0.06] text-muted-foreground/60 hover:text-foreground hover:border-foreground/20 dark:hover:border-white/[0.12]",
                           )}
                         >
                           <span className="text-[10px] font-semibold leading-tight">{p.label}</span>
@@ -2067,7 +2067,7 @@ export function GrowthMindVideoStudio() {
                           "text-left px-2.5 py-1.5 rounded-lg border text-xs transition-all",
                           voiceId === v.id
                             ? "border-sky-500/40 bg-sky-500/15 text-sky-300"
-                            : "border-white/[0.06] bg-white/[0.02] text-muted-foreground hover:text-foreground hover:border-white/[0.12]",
+                            : "border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] text-muted-foreground hover:text-foreground hover:border-foreground/20 dark:hover:border-white/[0.12]",
                         )}
                       >
                         <p className="font-medium truncate">{v.name}</p>
@@ -2093,7 +2093,7 @@ export function GrowthMindVideoStudio() {
                         "flex-1 rounded-lg border py-1.5 text-xs font-semibold transition-all",
                         variantCount === n
                           ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-300"
-                          : "border-white/[0.06] text-muted-foreground/60 hover:text-foreground",
+                          : "border-border dark:border-white/[0.06] text-muted-foreground/60 hover:text-foreground",
                       )}
                     >
                       {n === 1 ? "1 video" : `${n} variants`}
@@ -2137,10 +2137,10 @@ export function GrowthMindVideoStudio() {
                     <div className={cn(
                       "flex items-center justify-between rounded-xl border px-3 py-2.5",
                       audioSupported
-                        ? "border-white/[0.06] bg-white/[0.02]"
+                        ? "border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02]"
                         : isVeo2
                           ? "border-red-500/20 bg-red-500/[0.03]"
-                          : "border-white/[0.03] bg-white/[0.01] opacity-60",
+                          : "border-border/50 dark:border-white/[0.03] bg-muted/20 dark:bg-white/[0.01] opacity-60",
                     )}>
                       <div className="flex items-center gap-2">
                         <Volume2 className={cn(
@@ -2164,7 +2164,7 @@ export function GrowthMindVideoStudio() {
                         className={cn(
                           "relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200",
                           !audioSupported ? "cursor-not-allowed" : "cursor-pointer",
-                          veoAudio && audioSupported ? "bg-amber-500" : "bg-white/10",
+                          veoAudio && audioSupported ? "bg-amber-500" : "bg-muted dark:bg-white/10",
                         )}
                       >
                         <span className={cn(
@@ -2179,7 +2179,7 @@ export function GrowthMindVideoStudio() {
                         <p className="text-[10px] text-red-400/90">
                           Veo 2 cannot produce audio. Go to{" "}
                           <strong>Settings → Providers → Video → Google Veo 3</strong> and
-                          clear the "Veo Model" field (or set it to <code className="bg-white/[0.06] rounded px-1">veo-3.0-generate-preview</code>).
+                          clear the "Veo Model" field (or set it to <code className="bg-muted dark:bg-white/[0.06] rounded px-1">veo-3.0-generate-preview</code>).
                         </p>
                       </div>
                     )}
@@ -2260,7 +2260,7 @@ export function GrowthMindVideoStudio() {
 
               {/* Quality checks (free-form mode) */}
               {lastResult.qualityChecks && lastResult.qualityChecks.length > 0 && (
-                <div className="rounded-xl border border-white/[0.06] bg-card/40 p-4 space-y-2">
+                <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/40 p-4 space-y-2">
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground/60 font-semibold flex items-center gap-1.5">
                     <ShieldCheck className="h-3 w-3 text-violet-400" />
                     Ad Quality Checks
@@ -2339,7 +2339,7 @@ export function GrowthMindVideoStudio() {
                       { label: "Brand",    value: creativeScore.brand },
                       { label: "Platform", value: creativeScore.platform },
                     ] as const).map(d => (
-                      <div key={d.label} className="rounded-lg bg-white/[0.03] border border-white/[0.05] p-2 text-center">
+                      <div key={d.label} className="rounded-lg bg-muted/60 dark:bg-white/[0.03] border border-border dark:border-white/[0.05] p-2 text-center">
                         <p className={cn(
                           "text-sm font-bold tabular-nums",
                           (d.value as number) >= 8 ? "text-emerald-400" : (d.value as number) >= 6 ? "text-amber-400" : "text-red-400",
@@ -2487,7 +2487,7 @@ export function GrowthMindVideoStudio() {
                   className={cn("rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-all",
                     filterType === "all"
                       ? "border-violet-500/30 bg-violet-500/15 text-violet-300"
-                      : "border-white/[0.06] text-muted-foreground/60 hover:text-foreground",
+                      : "border-border dark:border-white/[0.06] text-muted-foreground/60 hover:text-foreground",
                   )}
                 >
                   All
@@ -2499,7 +2499,7 @@ export function GrowthMindVideoStudio() {
                     className={cn("rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-all",
                       filterType === t
                         ? "border-violet-500/30 bg-violet-500/15 text-violet-300"
-                        : "border-white/[0.06] text-muted-foreground/60 hover:text-foreground",
+                        : "border-border dark:border-white/[0.06] text-muted-foreground/60 hover:text-foreground",
                     )}
                   >
                     {VIDEO_TYPE_LABELS[t]}
@@ -2533,7 +2533,7 @@ export function GrowthMindVideoStudio() {
         </div>
 
         {/* Right sidebar — cost panel */}
-        <aside className="hidden xl:flex w-64 shrink-0 flex-col border-l border-white/[0.06] p-4 gap-4 overflow-y-auto">
+        <aside className="hidden xl:flex w-64 shrink-0 flex-col border-l border-border dark:border-white/[0.06] p-4 gap-4 overflow-y-auto">
           <VideoCostPanel />
 
           {/* ── Poller health chip ── */}
@@ -2543,7 +2543,7 @@ export function GrowthMindVideoStudio() {
             const failedCount     = assets.filter(a => isJobError(a.videoUrl)).length;
             const anyActive       = pendingCount > 0 || compositeCount > 0;
             return (
-              <div className="rounded-xl border border-white/[0.06] bg-card/60 p-3 space-y-2">
+              <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-3 space-y-2">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 flex items-center gap-1.5">
                   <Radio className="h-3 w-3" />
                   Poller Status
@@ -2581,7 +2581,7 @@ export function GrowthMindVideoStudio() {
             );
           })()}
 
-          <div className="rounded-xl border border-white/[0.06] bg-card/60 p-4 space-y-2.5">
+          <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-4 space-y-2.5">
             <p className="text-xs font-semibold flex items-center gap-2">
               <Radio className="h-3.5 w-3.5 text-violet-400" />
               Provider Routing
@@ -2591,7 +2591,7 @@ export function GrowthMindVideoStudio() {
                 <p><span className="text-violet-300 font-medium">Veo 3</span> — Meta, LinkedIn, TikTok, Explainer, Product Demo, YouTube</p>
                 <p><span className="text-sky-300 font-medium">Runway Gen-4</span> — UGC & Testimonial</p>
               </div>
-              <div className="border-t border-white/[0.06] pt-2 text-[10px] text-muted-foreground/50 space-y-0.5">
+              <div className="border-t border-border dark:border-white/[0.06] pt-2 text-[10px] text-muted-foreground/50 space-y-0.5">
                 <p>Kling / Pika — coming soon</p>
                 <p>Premium mode required for video generation</p>
               </div>
@@ -2612,13 +2612,13 @@ export function GrowthMindVideoStudio() {
                 </div>
               )}
               <div className="grid grid-cols-2 gap-1.5">
-                <div className="rounded-lg bg-white/[0.02] border border-white/[0.04] p-2">
+                <div className="rounded-lg bg-muted/40 dark:bg-white/[0.02] border border-border/60 dark:border-white/[0.04] p-2">
                   <p className="text-[10px] text-muted-foreground/60">Linked</p>
                   <p className="text-sm font-bold tabular-nums text-emerald-400">
                     {assets.filter(a => a.campaignId).length}
                   </p>
                 </div>
-                <div className="rounded-lg bg-white/[0.02] border border-white/[0.04] p-2">
+                <div className="rounded-lg bg-muted/40 dark:bg-white/[0.02] border border-border/60 dark:border-white/[0.04] p-2">
                   <p className="text-[10px] text-muted-foreground/60">Variants</p>
                   <p className="text-sm font-bold tabular-nums text-violet-400">
                     {assets.filter(a => a.variantGroupId).length}

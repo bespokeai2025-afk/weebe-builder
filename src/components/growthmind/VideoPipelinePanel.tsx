@@ -91,7 +91,7 @@ export function VideoPipelinePanel({ campaignId }: { campaignId?: string | null 
 
   const selectBtn = (active: boolean) => cn(
     "rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition-all",
-    active ? "border-violet-500/40 bg-violet-500/15 text-violet-200" : "border-white/[0.06] text-muted-foreground/60 hover:text-foreground",
+    active ? "border-violet-500/40 bg-violet-500/15 text-violet-200" : "border-border dark:border-white/[0.06] text-muted-foreground/60 hover:text-foreground",
   );
 
   return (
@@ -111,7 +111,7 @@ export function VideoPipelinePanel({ campaignId }: { campaignId?: string | null 
       </div>
 
       {/* ── Render options ── */}
-      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
+      <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-4 space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold w-20">Quality</span>
           {(["premium", "draft"] as const).map(t => (
@@ -189,7 +189,7 @@ export function VideoPipelinePanel({ campaignId }: { campaignId?: string | null 
       {/* ── Jobs ── */}
       <div className="space-y-3">
         {(jobs as VideoPipelineJob[]).map(job => (
-          <div key={job.id} className="rounded-xl border border-white/[0.06] bg-card/60 p-4 space-y-3">
+          <div key={job.id} className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-4 space-y-3">
             <div className="flex items-center gap-2">
               {job.status === "ready" && <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />}
               {job.status === "failed" && <XCircle className="h-4 w-4 text-red-400 shrink-0" />}
@@ -210,7 +210,7 @@ export function VideoPipelinePanel({ campaignId }: { campaignId?: string | null 
             {/* Awaiting approval — the cost gate */}
             {job.status === "awaiting_approval" && (
               <div className="space-y-3">
-                <div className="rounded-lg bg-white/[0.03] border border-white/[0.05] p-3 space-y-2">
+                <div className="rounded-lg bg-muted/60 dark:bg-white/[0.03] border border-border dark:border-white/[0.05] p-3 space-y-2">
                   {job.plan?.hook && <p className="text-[11px]"><span className="text-muted-foreground/60 font-semibold">Hook: </span>{job.plan.hook}</p>}
                   {(job.plan?.scenes ?? []).map(s => (
                     <p key={s.scene} className="text-[11px] text-muted-foreground/80">

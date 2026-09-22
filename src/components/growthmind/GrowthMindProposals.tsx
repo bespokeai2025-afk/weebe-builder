@@ -84,7 +84,7 @@ function CampaignCard({ proposal, onStatusChange, busy, highlighted }: {
           ? "border-amber-500/20 bg-amber-500/[0.02]"
           : proposal.status === "rejected"
             ? "border-red-500/10 bg-red-500/[0.01] opacity-75"
-            : "border-white/[0.06] bg-card/60",
+            : "border-border dark:border-white/[0.06] bg-card/60",
     )}>
       <div className="px-4 py-3.5 flex items-start gap-3">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 ring-1 ring-amber-500/20 mt-0.5">
@@ -101,7 +101,7 @@ function CampaignCard({ proposal, onStatusChange, busy, highlighted }: {
               <span key={ch} className="text-[9px] rounded border border-amber-500/20 bg-amber-500/[0.06] text-amber-300 px-1 py-0.5">{ch}</span>
             ))}
             {proposal.audience && (
-              <span className="text-[9px] rounded border border-white/[0.08] bg-white/[0.03] text-muted-foreground px-1 py-0.5 flex items-center gap-0.5">
+              <span className="text-[9px] rounded border border-border dark:border-white/[0.08] bg-muted/60 dark:bg-white/[0.03] text-muted-foreground px-1 py-0.5 flex items-center gap-0.5">
                 <Users className="h-2 w-2" />{proposal.audience.slice(0, 30)}{proposal.audience.length > 30 ? "…" : ""}
               </span>
             )}
@@ -117,7 +117,7 @@ function CampaignCard({ proposal, onStatusChange, busy, highlighted }: {
       </div>
 
       {expanded && (
-        <div className="border-t border-white/[0.04] px-4 py-3 space-y-3">
+        <div className="border-t border-border/60 dark:border-white/[0.04] px-4 py-3 space-y-3">
           {proposal.evidence && (
             <div>
               <p className="text-[10px] uppercase tracking-[0.08em] font-semibold text-muted-foreground mb-1">Why This Will Work</p>
@@ -145,7 +145,7 @@ function CampaignCard({ proposal, onStatusChange, busy, highlighted }: {
         </div>
       )}
 
-      <div className="border-t border-white/[0.04] px-4 py-2.5 flex items-center justify-between gap-2 flex-wrap">
+      <div className="border-t border-border/60 dark:border-white/[0.04] px-4 py-2.5 flex items-center justify-between gap-2 flex-wrap">
         <p className="text-[10px] text-muted-foreground/50">
           {new Date(proposal.generatedAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
         </p>
@@ -245,7 +245,7 @@ function VideoCard({ proposal, onStatusChange, busy, highlighted }: {
         ? "border-pink-500/20 bg-pink-500/[0.02]"
         : proposal.status === "rejected"
           ? "border-red-500/10 bg-red-500/[0.01] opacity-75"
-          : "border-white/[0.06] bg-card/60",
+          : "border-border dark:border-white/[0.06] bg-card/60",
     )}>
       <div className="px-4 py-3.5 flex items-start gap-3">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-pink-500/15 ring-1 ring-pink-500/20 mt-0.5">
@@ -260,10 +260,10 @@ function VideoCard({ proposal, onStatusChange, busy, highlighted }: {
           <div className="flex flex-wrap gap-1 mt-1.5">
             <span className="text-[9px] rounded border border-pink-500/20 bg-pink-500/[0.06] text-pink-300 px-1 py-0.5">{proposal.platform}</span>
             {proposal.duration && (
-              <span className="text-[9px] rounded border border-white/[0.08] bg-white/[0.03] text-muted-foreground px-1 py-0.5">{proposal.duration}</span>
+              <span className="text-[9px] rounded border border-border dark:border-white/[0.08] bg-muted/60 dark:bg-white/[0.03] text-muted-foreground px-1 py-0.5">{proposal.duration}</span>
             )}
             {proposal.targetAudience && (
-              <span className="text-[9px] rounded border border-white/[0.08] bg-white/[0.03] text-muted-foreground px-1 py-0.5 flex items-center gap-0.5">
+              <span className="text-[9px] rounded border border-border dark:border-white/[0.08] bg-muted/60 dark:bg-white/[0.03] text-muted-foreground px-1 py-0.5 flex items-center gap-0.5">
                 <Target className="h-2 w-2" />{proposal.targetAudience.slice(0, 28)}{proposal.targetAudience.length > 28 ? "…" : ""}
               </span>
             )}
@@ -279,7 +279,7 @@ function VideoCard({ proposal, onStatusChange, busy, highlighted }: {
       </div>
 
       {expanded && (
-        <div className="border-t border-white/[0.04] px-4 py-3 space-y-3">
+        <div className="border-t border-border/60 dark:border-white/[0.04] px-4 py-3 space-y-3">
           {proposal.storyboard && (
             <div>
               <p className="text-[10px] uppercase tracking-[0.08em] font-semibold text-muted-foreground mb-1">Storyboard</p>
@@ -291,7 +291,7 @@ function VideoCard({ proposal, onStatusChange, busy, highlighted }: {
               <p className="text-[10px] uppercase tracking-[0.08em] font-semibold text-muted-foreground mb-1.5">Creative Angles</p>
               <div className="flex flex-wrap gap-1">
                 {proposal.creativeAngles.map((angle, i) => (
-                  <span key={i} className="text-[11px] bg-white/[0.04] text-muted-foreground px-2 py-0.5 rounded">{angle}</span>
+                  <span key={i} className="text-[11px] bg-muted dark:bg-white/[0.04] text-muted-foreground px-2 py-0.5 rounded">{angle}</span>
                 ))}
               </div>
             </div>
@@ -311,7 +311,7 @@ function VideoCard({ proposal, onStatusChange, busy, highlighted }: {
         </div>
       )}
 
-      <div className="border-t border-white/[0.04] px-4 py-2.5 flex items-center justify-between gap-2 flex-wrap">
+      <div className="border-t border-border/60 dark:border-white/[0.04] px-4 py-2.5 flex items-center justify-between gap-2 flex-wrap">
         <p className="text-[10px] text-muted-foreground/50">
           {new Date(proposal.generatedAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
         </p>
@@ -475,7 +475,7 @@ export function GrowthMindProposals() {
                   ? key === "in_progress"
                     ? "border-amber-500/30 bg-amber-500/15 text-amber-300"
                     : "border-violet-500/30 bg-violet-500/15 text-violet-300"
-                  : "border-white/[0.08] bg-white/[0.02] text-muted-foreground hover:text-foreground hover:border-white/[0.14]",
+                  : "border-border dark:border-white/[0.08] bg-muted/40 dark:bg-white/[0.02] text-muted-foreground hover:text-foreground hover:border-foreground/20 dark:hover:border-white/[0.14]",
               )}
             >
               {label}
@@ -485,7 +485,7 @@ export function GrowthMindProposals() {
                   ? key === "in_progress"
                     ? "bg-amber-500/25 text-amber-300"
                     : "bg-violet-500/25 text-violet-300"
-                  : "bg-white/[0.07] text-muted-foreground",
+                  : "bg-muted dark:bg-white/[0.07] text-muted-foreground",
               )}>
                 {counts[key]}
               </span>
@@ -499,7 +499,7 @@ export function GrowthMindProposals() {
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-white/[0.12] bg-card/40 flex flex-col items-center justify-center py-16 gap-3 text-center px-6">
+          <div className="rounded-xl border border-dashed border-border dark:border-white/[0.12] bg-card/40 flex flex-col items-center justify-center py-16 gap-3 text-center px-6">
             <Filter className="h-8 w-8 text-muted-foreground/30" />
             <div>
               <p className="text-sm font-medium text-muted-foreground">

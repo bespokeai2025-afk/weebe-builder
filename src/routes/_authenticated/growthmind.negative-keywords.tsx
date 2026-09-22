@@ -60,15 +60,15 @@ function NegativeKeywordLogPage() {
             <Loader2 className="h-4 w-4 animate-spin" /> Loading decision log…
           </div>
         ) : entries.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-white/10 p-10 text-center text-sm text-muted-foreground">
+          <div className="rounded-lg border border-dashed border-border dark:border-white/10 p-10 text-center text-sm text-muted-foreground">
             No decisions logged yet. Entries appear when a Google Ads deep analysis classifies search terms or a
             negative-keyword recommendation is approved.
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-white/[0.07]">
+          <div className="overflow-x-auto rounded-lg border border-border dark:border-white/[0.07]">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="border-b border-white/[0.07] text-[10px] uppercase tracking-wide text-muted-foreground">
+                <tr className="border-b border-border dark:border-white/[0.07] text-[10px] uppercase tracking-wide text-muted-foreground">
                   <th className="px-3 py-2">Search term</th>
                   <th className="px-3 py-2">Classification</th>
                   <th className="px-3 py-2">Decision</th>
@@ -79,10 +79,10 @@ function NegativeKeywordLogPage() {
               </thead>
               <tbody>
                 {entries.map((e) => {
-                  const c = CLASS_META[e.classification] ?? { label: e.classification, cls: "bg-white/[0.06] text-muted-foreground" };
-                  const d = DECISION_META[e.decision] ?? { label: e.decision, cls: "bg-white/[0.06] text-muted-foreground" };
+                  const c = CLASS_META[e.classification] ?? { label: e.classification, cls: "bg-muted dark:bg-white/[0.06] text-muted-foreground" };
+                  const d = DECISION_META[e.decision] ?? { label: e.decision, cls: "bg-muted dark:bg-white/[0.06] text-muted-foreground" };
                   return (
-                    <tr key={e.id} className="border-b border-white/[0.04] align-top">
+                    <tr key={e.id} className="border-b border-border/60 dark:border-white/[0.04] align-top">
                       <td className="px-3 py-2 font-medium">"{e.search_term}"{e.match_type ? <span className="ml-1 text-[10px] text-muted-foreground">[{e.match_type}]</span> : null}</td>
                       <td className="px-3 py-2"><span className={cn("inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium", c.cls)}>{c.label}</span></td>
                       <td className="px-3 py-2"><span className={cn("inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium", d.cls)}>{d.label}</span></td>

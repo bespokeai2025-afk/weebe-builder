@@ -31,11 +31,11 @@ function Section({ title, description, children, id, open, onToggle }: {
   id: string; open: boolean; onToggle: () => void;
 }) {
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
+    <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 overflow-hidden">
       <button
         type="button"
         onClick={onToggle}
-        className="w-full flex items-center justify-between px-5 py-4 hover:bg-white/[0.02] transition-colors text-left"
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-muted/40 dark:hover:bg-white/[0.02] transition-colors text-left"
       >
         <div>
           <p className="text-sm font-semibold">{title}</p>
@@ -43,7 +43,7 @@ function Section({ title, description, children, id, open, onToggle }: {
         </div>
         {open ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
       </button>
-      {open && <div className="px-5 pb-5 grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-white/[0.04] pt-4">{children}</div>}
+      {open && <div className="px-5 pb-5 grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-border/60 dark:border-white/[0.04] pt-4">{children}</div>}
     </div>
   );
 }
@@ -292,7 +292,7 @@ function BusinessDnaPage() {
         </div>
 
         {/* Completion score */}
-        <div className="rounded-xl border border-white/[0.06] bg-card/60 p-4">
+        <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-4">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               {pct >= 80
@@ -307,7 +307,7 @@ function BusinessDnaPage() {
               </span>
             </div>
           </div>
-          <div className="h-1.5 w-full bg-white/[0.06] rounded-full overflow-hidden">
+          <div className="h-1.5 w-full bg-muted dark:bg-white/[0.06] rounded-full overflow-hidden">
             <div className={cn("h-full rounded-full transition-all duration-500", barColor)} style={{ width: `${pct}%` }} />
           </div>
           {completion.missing.length > 0 && (
@@ -325,7 +325,7 @@ function BusinessDnaPage() {
               <p className="text-sm font-semibold">GrowthMind suggests {proposals.length} DNA update{proposals.length === 1 ? "" : "s"}</p>
             </div>
             {proposals.map((p: any) => (
-              <div key={p.id} className="rounded-lg border border-white/[0.06] bg-card/60 p-3 space-y-2">
+              <div key={p.id} className="rounded-lg border border-border dark:border-white/[0.06] bg-card/60 p-3 space-y-2">
                 {p.rationale && <p className="text-xs text-muted-foreground">{p.rationale}</p>}
                 <div className="space-y-1">
                   {Object.entries((p.field_changes ?? {}) as Record<string, any>).slice(0, 6).map(([field, ch]) => (
@@ -554,9 +554,9 @@ function BusinessDnaPage() {
         </Section>
 
         {/* Version history */}
-        <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
+        <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 overflow-hidden">
           <button type="button" onClick={() => setShowHistory(v => !v)}
-            className="w-full flex items-center justify-between px-5 py-4 hover:bg-white/[0.02] transition-colors text-left">
+            className="w-full flex items-center justify-between px-5 py-4 hover:bg-muted/40 dark:hover:bg-white/[0.02] transition-colors text-left">
             <div className="flex items-center gap-2">
               <History className="h-4 w-4 text-muted-foreground" />
               <div>
@@ -567,7 +567,7 @@ function BusinessDnaPage() {
             {showHistory ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
           </button>
           {showHistory && (
-            <div className="px-5 pb-4 border-t border-white/[0.04] pt-3 space-y-1.5">
+            <div className="px-5 pb-4 border-t border-border/60 dark:border-white/[0.04] pt-3 space-y-1.5">
               {versions.length === 0 && <p className="text-xs text-muted-foreground">No versions recorded yet — save the DNA to create the first snapshot.</p>}
               {versions.map((v: any) => (
                 <div key={v.id} className="flex items-center justify-between text-xs py-1">

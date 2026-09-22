@@ -110,7 +110,7 @@ function VoiceSettingsPanel({ settings, onChange, onClose, voices }: {
   voices:   { id: string; name: string; category: string }[];
 }) {
   return (
-    <div className="border-b border-white/[0.07] bg-[hsl(var(--card))] px-5 py-4 space-y-4">
+    <div className="border-b border-border dark:border-white/[0.07] bg-[hsl(var(--card))] px-5 py-4 space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.1em]">Voice Settings</p>
         <button onClick={onClose} className="p-1 rounded text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
@@ -130,7 +130,7 @@ function VoiceSettingsPanel({ settings, onChange, onClose, voices }: {
                     "text-left px-2.5 py-1.5 rounded-lg border text-xs transition-all",
                     settings.voiceId === v.id
                       ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
-                      : "border-white/[0.08] bg-white/[0.02] text-muted-foreground hover:text-foreground",
+                      : "border-border dark:border-white/[0.08] bg-muted/40 dark:bg-white/[0.02] text-muted-foreground hover:text-foreground",
                   )}
                 >
                   <p className="font-medium truncate">{v.name}</p>
@@ -150,7 +150,7 @@ function VoiceSettingsPanel({ settings, onChange, onClose, voices }: {
           {SPEED_OPTIONS.map(s => (
             <button key={s} onClick={() => onChange({ ...settings, speed: s })} className={cn(
               "flex-1 py-1 rounded-md border text-xs transition-all",
-              settings.speed === s ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300" : "border-white/[0.08] text-muted-foreground hover:text-foreground",
+              settings.speed === s ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300" : "border-border dark:border-white/[0.08] text-muted-foreground hover:text-foreground",
             )}>{s}×</button>
           ))}
         </div>
@@ -162,20 +162,20 @@ function VoiceSettingsPanel({ settings, onChange, onClose, voices }: {
           {PERSONALITIES.map(p => (
             <button key={p} onClick={() => onChange({ ...settings, personality: p })} className={cn(
               "flex-1 py-1.5 rounded-lg border text-xs capitalize transition-all",
-              settings.personality === p ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300" : "border-white/[0.08] text-muted-foreground hover:text-foreground",
+              settings.personality === p ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300" : "border-border dark:border-white/[0.08] text-muted-foreground hover:text-foreground",
             )}>{p}</button>
           ))}
         </div>
       </div>
 
-      <div className="flex items-center justify-between pt-1 border-t border-white/[0.05]">
+      <div className="flex items-center justify-between pt-1 border-t border-border dark:border-white/[0.05]">
         <div>
           <p className="text-xs font-medium">Auto-play responses</p>
           <p className="text-[11px] text-muted-foreground">Speak each reply automatically</p>
         </div>
         <button
           onClick={() => onChange({ ...settings, autoPlay: !settings.autoPlay })}
-          className={cn("w-9 h-5 rounded-full relative transition-all", settings.autoPlay ? "bg-emerald-500" : "bg-white/[0.1]")}
+          className={cn("w-9 h-5 rounded-full relative transition-all", settings.autoPlay ? "bg-emerald-500" : "bg-muted dark:bg-white/[0.1]")}
         >
           <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all", settings.autoPlay ? "left-[18px]" : "left-0.5")} />
         </button>
@@ -197,7 +197,7 @@ function MessageBubble({ msg, onPlay, onStop, isPlaying, ttsLoading }: {
     <div className={cn("flex gap-2.5 max-w-[85%]", isGM ? "self-start" : "self-end flex-row-reverse")}>
       <div className={cn(
         "h-7 w-7 shrink-0 rounded-full flex items-center justify-center mt-0.5",
-        isGM ? "bg-emerald-500/20 ring-1 ring-emerald-500/30" : "bg-white/[0.08]",
+        isGM ? "bg-emerald-500/20 ring-1 ring-emerald-500/30" : "bg-muted dark:bg-white/[0.08]",
       )}>
         {isGM ? <TrendingUp className="h-3.5 w-3.5 text-emerald-400" /> : <User className="h-3.5 w-3.5 text-muted-foreground" />}
       </div>
@@ -205,7 +205,7 @@ function MessageBubble({ msg, onPlay, onStop, isPlaying, ttsLoading }: {
       <div className={cn("flex flex-col gap-0.5", isGM ? "items-start" : "items-end")}>
         <div className={cn(
           "rounded-xl px-3.5 py-2.5",
-          isGM ? "bg-emerald-500/[0.08] border border-emerald-500/15" : "bg-white/[0.07] border border-white/[0.08]",
+          isGM ? "bg-emerald-500/[0.08] border border-emerald-500/15" : "bg-muted dark:bg-white/[0.07] border border-border dark:border-white/[0.08]",
         )}>
           {isEmpty
             ? <div className="flex gap-1 items-center py-1">
@@ -442,7 +442,7 @@ export function GrowthMindChat() {
     <GrowthMindShell>
       <div className="flex flex-col h-full">
 
-        <div className="border-b border-white/[0.06] px-5 py-3 flex items-center gap-3 shrink-0">
+        <div className="border-b border-border dark:border-white/[0.06] px-5 py-3 flex items-center gap-3 shrink-0">
           <div className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-500/20 ring-1 ring-emerald-500/30">
             <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
           </div>
@@ -454,7 +454,7 @@ export function GrowthMindChat() {
             onClick={() => setSettingsOpen(o => !o)}
             className={cn(
               "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all",
-              settingsOpen ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-white/[0.08] text-muted-foreground hover:text-foreground",
+              settingsOpen ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-border dark:border-white/[0.08] text-muted-foreground hover:text-foreground",
             )}
           >
             <Settings2 className="h-3.5 w-3.5" />
@@ -491,7 +491,7 @@ export function GrowthMindChat() {
                   <button
                     key={q}
                     onClick={() => send(q)}
-                    className="text-left text-xs px-3 py-1.5 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:bg-emerald-500/[0.08] hover:border-emerald-500/20 hover:text-foreground text-muted-foreground transition-all"
+                    className="text-left text-xs px-3 py-1.5 rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] hover:bg-emerald-500/[0.08] hover:border-emerald-500/20 hover:text-foreground text-muted-foreground transition-all"
                   >
                     {q}
                   </button>
@@ -503,7 +503,7 @@ export function GrowthMindChat() {
           <div ref={bottomRef} />
         </div>
 
-        <div className="border-t border-white/[0.06] px-4 py-3 shrink-0">
+        <div className="border-t border-border dark:border-white/[0.06] px-4 py-3 shrink-0">
           <div className="flex items-end gap-2">
             <textarea
               value={input}
@@ -511,7 +511,7 @@ export function GrowthMindChat() {
               onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
               placeholder="Ask about your pipeline, campaigns, conversion rate…"
               rows={1}
-              className="flex-1 resize-none rounded-xl border border-white/[0.08] bg-white/[0.03] px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-emerald-500/30 transition-colors min-h-[42px] max-h-32"
+              className="flex-1 resize-none rounded-xl border border-border dark:border-white/[0.08] bg-muted/60 dark:bg-white/[0.03] px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-emerald-500/30 transition-colors min-h-[42px] max-h-32"
               style={{ height: "auto" }}
               onInput={e => {
                 const t = e.target as HTMLTextAreaElement;
@@ -526,7 +526,7 @@ export function GrowthMindChat() {
                 "h-[42px] w-[42px] shrink-0 rounded-xl border flex items-center justify-center transition-all",
                 isRecording
                   ? "border-red-500/40 bg-red-500/15 text-red-400 animate-pulse"
-                  : "border-white/[0.08] text-muted-foreground hover:text-foreground hover:border-white/20",
+                  : "border-border dark:border-white/[0.08] text-muted-foreground hover:text-foreground hover:border-foreground/20 dark:hover:border-white/20",
               )}
             >
               {isRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
@@ -538,7 +538,7 @@ export function GrowthMindChat() {
                 "h-[42px] w-[42px] shrink-0 rounded-xl border flex items-center justify-center transition-all",
                 input.trim() && !isThinking
                   ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25"
-                  : "border-white/[0.06] text-muted-foreground/30 cursor-not-allowed",
+                  : "border-border dark:border-white/[0.06] text-muted-foreground/30 cursor-not-allowed",
               )}
             >
               {isThinking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}

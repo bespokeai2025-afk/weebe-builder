@@ -99,9 +99,9 @@ function SnapshotRow({ snap, onDelete }: { snap: any; onDelete: (id: string) => 
     .sort((a, b) => (b.dropPct ?? 0) - (a.dropPct ?? 0))[0];
 
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+    <div className="rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] overflow-hidden">
       <div
-        className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-white/[0.02]"
+        className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-muted/40 dark:hover:bg-white/[0.02]"
         onClick={() => setOpen(v => !v)}
       >
         <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform", open && "rotate-180")} />
@@ -123,9 +123,9 @@ function SnapshotRow({ snap, onDelete }: { snap: any; onDelete: (id: string) => 
         </Button>
       </div>
       {open && (
-        <div className="px-4 pb-3 pt-1 border-t border-white/[0.04] flex flex-wrap gap-2">
+        <div className="px-4 pb-3 pt-1 border-t border-border/60 dark:border-white/[0.04] flex flex-wrap gap-2">
           {(snap.stages as FunnelStage[]).map(s => (
-            <div key={s.key} className="flex items-center gap-1.5 rounded-md bg-white/[0.03] px-2.5 py-1.5">
+            <div key={s.key} className="flex items-center gap-1.5 rounded-md bg-muted/60 dark:bg-white/[0.03] px-2.5 py-1.5">
               <span className="text-[11px] text-muted-foreground">{s.label}</span>
               <span className="text-xs font-semibold tabular-nums">{s.count.toLocaleString()}</span>
               {s.dropPct !== null && dropBadge(s.dropColor, s.dropPct)}
@@ -263,7 +263,7 @@ export function GrowthMindFunnels() {
           <div className="space-y-6">
 
             {/* Live funnel */}
-            <div className="rounded-xl border border-white/[0.06] bg-card/60 p-6">
+            <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-6">
               <p className="text-sm font-semibold mb-5">Live Funnel</p>
               {stages.length === 0 || maxCount === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-8">No lead data yet.</p>
@@ -340,8 +340,8 @@ export function GrowthMindFunnels() {
             )}
 
             {/* Saved snapshots */}
-            <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
-              <div className="px-4 py-3 border-b border-white/[0.06]">
+            <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 overflow-hidden">
+              <div className="px-4 py-3 border-b border-border dark:border-white/[0.06]">
                 <p className="text-sm font-semibold">Saved Snapshots</p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">Compare funnel performance over time</p>
               </div>

@@ -197,8 +197,8 @@ function ImageStudioPage() {
       <div className="flex h-full min-h-screen">
 
         {/* ── Left Panel: Controls ─────────────────────────────────────────── */}
-        <div className="w-80 shrink-0 border-r border-white/[0.06] bg-background/60 flex flex-col">
-          <div className="flex items-center gap-3 px-5 py-4 border-b border-white/[0.06]">
+        <div className="w-80 shrink-0 border-r border-border dark:border-white/[0.06] bg-background/60 flex flex-col">
+          <div className="flex items-center gap-3 px-5 py-4 border-b border-border dark:border-white/[0.06]">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-500/15 ring-1 ring-orange-500/25">
               <ImageIcon className="h-4 w-4 text-orange-400" />
             </div>
@@ -237,7 +237,7 @@ function ImageStudioPage() {
                 onChange={e => setPrompt(e.target.value)}
                 placeholder="Describe the image you want to create…"
                 rows={4}
-                className="w-full resize-none rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-orange-500/40 focus:outline-none focus:ring-0 transition-colors"
+                className="w-full resize-none rounded-lg border border-border dark:border-white/[0.08] bg-muted/60 dark:bg-white/[0.03] px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-orange-500/40 focus:outline-none focus:ring-0 transition-colors"
               />
             </div>
 
@@ -256,7 +256,7 @@ function ImageStudioPage() {
                       "flex flex-col items-start rounded-lg border px-3 py-2 text-left transition-all",
                       assetType === t.value
                         ? "border-orange-500/40 bg-orange-500/10 text-orange-300"
-                        : "border-white/[0.06] bg-white/[0.02] text-foreground hover:border-white/[0.12]"
+                        : "border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] text-foreground hover:border-foreground/20 dark:hover:border-white/[0.12]"
                     )}>
                     <span className="text-xs font-medium">{t.label}</span>
                     <span className="text-[10px] text-muted-foreground">{t.hint}</span>
@@ -271,7 +271,7 @@ function ImageStudioPage() {
                 Platform
               </Label>
               <select value={platform} onChange={e => setPlatform(e.target.value as PlatformHint)}
-                className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-foreground focus:outline-none">
+                className="w-full rounded-lg border border-border dark:border-white/[0.08] bg-muted/60 dark:bg-white/[0.03] px-3 py-2 text-sm text-foreground focus:outline-none">
                 {PLATFORMS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
               </select>
             </div>
@@ -288,7 +288,7 @@ function ImageStudioPage() {
                       "w-full rounded-lg border px-3 py-1.5 text-left text-xs transition-all",
                       sizeIdx === i
                         ? "border-orange-500/40 bg-orange-500/10 text-orange-300"
-                        : "border-white/[0.06] bg-white/[0.02] text-muted-foreground hover:border-white/[0.12]"
+                        : "border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] text-muted-foreground hover:border-foreground/20 dark:hover:border-white/[0.12]"
                     )}>
                     {s.label}
                   </button>
@@ -308,7 +308,7 @@ function ImageStudioPage() {
                       "flex-1 rounded-lg border px-2 py-1.5 text-xs transition-all",
                       style === s.value
                         ? "border-orange-500/40 bg-orange-500/10 text-orange-300"
-                        : "border-white/[0.06] bg-white/[0.02] text-muted-foreground hover:border-white/[0.12]"
+                        : "border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] text-muted-foreground hover:border-foreground/20 dark:hover:border-white/[0.12]"
                     )}>
                     {s.label.split(" ")[0]}
                   </button>
@@ -336,7 +336,7 @@ function ImageStudioPage() {
                   {kbContextType === "custom_campaign" && (
                     <textarea rows={3} value={customContext} onChange={e => setCustomContext(e.target.value)}
                       placeholder="Paste your campaign brief or custom context…"
-                      className="w-full resize-none rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none" />
+                      className="w-full resize-none rounded-lg border border-border dark:border-white/[0.08] bg-muted/60 dark:bg-white/[0.03] px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none" />
                   )}
                 </div>
               )}
@@ -349,7 +349,7 @@ function ImageStudioPage() {
                   Attach to Campaign (optional)
                 </Label>
                 <select value={campaignId} onChange={e => setCampaignId(e.target.value)}
-                  className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-foreground focus:outline-none">
+                  className="w-full rounded-lg border border-border dark:border-white/[0.08] bg-muted/60 dark:bg-white/[0.03] px-3 py-2 text-xs text-foreground focus:outline-none">
                   <option value="">— None —</option>
                   {drafts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                 </select>
@@ -358,7 +358,7 @@ function ImageStudioPage() {
           </div>
 
           {/* Generate button */}
-          <div className="p-4 border-t border-white/[0.06]">
+          <div className="p-4 border-t border-border dark:border-white/[0.06]">
             <Button
               onClick={handleGenerate}
               disabled={generating || !prompt.trim() || !status?.connected}
@@ -449,9 +449,9 @@ function AssetCard({
   };
 
   return (
-    <div className="group rounded-xl border border-white/[0.06] bg-card/50 overflow-hidden hover:border-white/[0.12] transition-all">
+    <div className="group rounded-xl border border-border dark:border-white/[0.06] bg-card/50 overflow-hidden hover:border-foreground/20 dark:hover:border-white/[0.12] transition-all">
       {/* Image area */}
-      <div className="relative aspect-square bg-white/[0.03]">
+      <div className="relative aspect-square bg-muted/60 dark:bg-white/[0.03]">
         {asset.status === "generating" ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
             <Loader2 className="h-6 w-6 animate-spin text-orange-400" />
@@ -474,28 +474,28 @@ function AssetCard({
             {/* Top row: actions */}
             <div className="flex gap-2">
               <a href={asset.image_url} target="_blank" rel="noopener noreferrer" download
-                className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 hover:bg-white/25 transition-colors" title="Download">
+                className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted dark:bg-white/10 hover:bg-muted dark:hover:bg-white/25 transition-colors" title="Download">
                 <Download className="h-3.5 w-3.5" />
               </a>
               <a href={asset.image_url} target="_blank" rel="noopener noreferrer"
-                className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 hover:bg-white/25 transition-colors" title="Open full size">
+                className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted dark:bg-white/10 hover:bg-muted dark:hover:bg-white/25 transition-colors" title="Open full size">
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
               <button
                 onClick={() => { navigator.clipboard.writeText(asset.image_url); toast.success("URL copied!"); }}
-                className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 hover:bg-white/25 transition-colors" title="Copy URL">
+                className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted dark:bg-white/10 hover:bg-muted dark:hover:bg-white/25 transition-colors" title="Copy URL">
                 <Copy className="h-3.5 w-3.5" />
               </button>
             </div>
             {/* Bottom row: smart actions */}
             <div className="flex gap-1.5">
               <button onClick={onVariation} disabled={working}
-                className="flex items-center gap-1 rounded border border-white/20 bg-white/10 px-2 py-1 text-[9px] hover:bg-white/20 transition-colors disabled:opacity-50">
+                className="flex items-center gap-1 rounded border border-border dark:border-white/20 bg-muted dark:bg-white/10 px-2 py-1 text-[9px] hover:bg-muted dark:hover:bg-white/20 transition-colors disabled:opacity-50">
                 {working ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
                 Variation
               </button>
               <button onClick={onUsePrompt}
-                className="flex items-center gap-1 rounded border border-white/20 bg-white/10 px-2 py-1 text-[9px] hover:bg-white/20 transition-colors">
+                className="flex items-center gap-1 rounded border border-border dark:border-white/20 bg-muted dark:bg-white/10 px-2 py-1 text-[9px] hover:bg-muted dark:hover:bg-white/20 transition-colors">
                 <Wand2 className="h-3 w-3" />
                 Edit prompt
               </button>
@@ -517,7 +517,7 @@ function AssetCard({
           <span className="rounded-full border border-orange-500/20 bg-orange-500/10 px-1.5 py-0.5 text-[9px] text-orange-400 font-medium">
             {ASSET_BADGE[asset.asset_type] ?? asset.asset_type}
           </span>
-          <span className="rounded-full border border-white/[0.06] px-1.5 py-0.5 text-[9px] text-muted-foreground">
+          <span className="rounded-full border border-border dark:border-white/[0.06] px-1.5 py-0.5 text-[9px] text-muted-foreground">
             {PLATFORM_BADGE[asset.platform_hint] ?? asset.platform_hint}
           </span>
           {asset.parent_asset_id && (
