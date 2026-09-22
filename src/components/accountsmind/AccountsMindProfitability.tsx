@@ -39,30 +39,30 @@ export function AccountsMindProfitability() {
   return (
     <div className="p-6 space-y-5">
       <div>
-        <h1 className="text-xl font-bold text-white flex items-center gap-2">
+        <h1 className="text-xl font-bold text-foreground dark:text-white flex items-center gap-2">
           <TrendingUp className="w-5 h-5 text-emerald-400" /> Profitability
         </h1>
-        <p className="text-sm text-gray-400 mt-0.5">Client margin ranking — current month</p>
+        <p className="text-sm text-muted-foreground dark:text-gray-400 mt-0.5">Client margin ranking — current month</p>
       </div>
 
       {isLoading && (
-        <div className="flex items-center gap-2 text-gray-400 text-sm">
+        <div className="flex items-center gap-2 text-muted-foreground dark:text-gray-400 text-sm">
           <RefreshCw className="w-4 h-4 animate-spin" /> Loading…
         </div>
       )}
 
       {/* Summary */}
       <div className="grid grid-cols-3 gap-3">
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-          <div className="text-xs text-gray-500 mb-1">Total Revenue</div>
+        <div className="bg-card border border-border dark:bg-gray-900 dark:border-gray-800 rounded-xl p-4">
+          <div className="text-xs text-muted-foreground dark:text-gray-500 mb-1">Total Revenue</div>
           <div className="text-lg font-bold text-emerald-400">£{(total / 100).toFixed(0)}</div>
         </div>
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-          <div className="text-xs text-gray-500 mb-1">Total Cost</div>
+        <div className="bg-card border border-border dark:bg-gray-900 dark:border-gray-800 rounded-xl p-4">
+          <div className="text-xs text-muted-foreground dark:text-gray-500 mb-1">Total Cost</div>
           <div className="text-lg font-bold text-red-400">£{(totalCost / 100).toFixed(0)}</div>
         </div>
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-          <div className="text-xs text-gray-500 mb-1">Platform Profit</div>
+        <div className="bg-card border border-border dark:bg-gray-900 dark:border-gray-800 rounded-xl p-4">
+          <div className="text-xs text-muted-foreground dark:text-gray-500 mb-1">Platform Profit</div>
           <div className={cn("text-lg font-bold", (total - totalCost) >= 0 ? "text-emerald-400" : "text-red-400")}>
             £{((total - totalCost) / 100).toFixed(0)}
           </div>
@@ -70,31 +70,31 @@ export function AccountsMindProfitability() {
       </div>
 
       {rows.length === 0 && !isLoading && (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 text-center">
-          <p className="text-sm text-gray-500">No profitability data yet.</p>
-          <p className="text-xs text-gray-600 mt-1">Go to Dashboard and run a scan to compute this month's figures.</p>
+        <div className="bg-card border border-border dark:bg-gray-900 dark:border-gray-800 rounded-xl p-6 text-center">
+          <p className="text-sm text-muted-foreground dark:text-gray-500">No profitability data yet.</p>
+          <p className="text-xs text-muted-foreground/70 dark:text-gray-600 mt-1">Go to Dashboard and run a scan to compute this month's figures.</p>
         </div>
       )}
 
       {/* Ranked table */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+      <div className="bg-card border border-border dark:bg-gray-900 dark:border-gray-800 rounded-xl overflow-hidden">
         {rows.map((r: any, i: number) => {
           const currency = r.billing_profile?.currency === "USD" ? "$" : "£";
           return (
             <div
               key={r.id}
-              className="flex items-center gap-4 px-4 py-3 border-b border-gray-800/70 last:border-0 hover:bg-gray-800/30 transition-colors"
+              className="flex items-center gap-4 px-4 py-3 border-b border-border/70 last:border-0 hover:bg-muted/40 dark:border-gray-800/70 dark:hover:bg-gray-800/30 transition-colors"
             >
               {/* Rank */}
-              <div className="w-6 text-xs text-gray-500 font-mono">{i + 1}</div>
+              <div className="w-6 text-xs text-muted-foreground dark:text-gray-500 font-mono">{i + 1}</div>
 
               {/* Trend icon */}
               <MarginIcon pct={r.gross_margin_percent} />
 
               {/* Name */}
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-white">{r.workspace_name}</div>
-                <div className="text-xs text-gray-500">
+                <div className="text-sm font-medium text-foreground dark:text-white">{r.workspace_name}</div>
+                <div className="text-xs text-muted-foreground dark:text-gray-500">
                   {currency}{(r.monthly_charge_cents / 100).toFixed(0)}/mo charge
                   {" · "}cost {currency}{(r.total_cost_cents / 100).toFixed(0)}
                 </div>
@@ -107,7 +107,7 @@ export function AccountsMindProfitability() {
                 )}>
                   {currency}{(r.gross_profit_cents / 100).toFixed(0)}
                 </div>
-                <div className="text-xs text-gray-500">profit</div>
+                <div className="text-xs text-muted-foreground dark:text-gray-500">profit</div>
               </div>
 
               {/* Margin badge */}
@@ -116,7 +116,7 @@ export function AccountsMindProfitability() {
               <Link
                 to="/admin/accounts/workspace/$id"
                 params={{ id: r.workspace_id }}
-                className="text-gray-500 hover:text-white transition-colors"
+                className="text-muted-foreground hover:text-foreground dark:text-gray-500 dark:hover:text-white transition-colors"
               >
                 <ChevronRight className="w-4 h-4" />
               </Link>
