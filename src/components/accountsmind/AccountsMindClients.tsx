@@ -172,10 +172,10 @@ export function AccountsMindClients() {
     <div className="p-6 space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-white flex items-center gap-2">
+          <h1 className="text-xl font-bold text-foreground dark:text-white flex items-center gap-2">
             <Users className="w-5 h-5 text-emerald-400" /> Clients
           </h1>
-          <p className="text-sm text-gray-400 mt-0.5">Billing profiles and commercial management</p>
+          <p className="text-sm text-muted-foreground dark:text-gray-400 mt-0.5">Billing profiles and commercial management</p>
         </div>
         <Link
           to="/systemmind/clients/setup"
@@ -190,7 +190,7 @@ export function AccountsMindClients() {
         <ExternalLink className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
         <div>
           <p className="text-xs font-semibold text-sky-300">Workspace Setup moved to SystemMind → Clients</p>
-          <p className="text-xs text-gray-400 mt-0.5">
+          <p className="text-xs text-muted-foreground dark:text-gray-400 mt-0.5">
             Module activation, plan tier assignment, workspace creation, and the API Probe tool are now in{" "}
             <Link to="/systemmind/clients/setup" className="text-sky-400 hover:underline">SystemMind → Workspace Setup</Link>.
             This page retains billing profiles and commercial management only.
@@ -200,33 +200,33 @@ export function AccountsMindClients() {
 
       {/* ── Enterprise Clients section ── */}
       <div>
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-600 mb-2">Enterprise Clients</p>
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 dark:text-gray-600 mb-2">Enterprise Clients</p>
         <Link to="/admin/accounts/clients/webuyanyhouse" className="block group">
-          <div className="bg-gray-900 border border-gray-800 group-hover:border-emerald-500/30 rounded-xl px-4 py-3 flex items-center gap-4 transition-colors">
+          <div className="bg-card border border-border dark:bg-gray-900 dark:border-gray-800 group-hover:border-emerald-500/30 rounded-xl px-4 py-3 flex items-center gap-4 transition-colors">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10 border border-emerald-500/20 shrink-0">
               <Building2 className="h-4 w-4 text-emerald-400" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-sm font-medium text-white">Webuyanyhouse</span>
+                <span className="text-sm font-medium text-foreground dark:text-white">Webuyanyhouse</span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium">Enterprise</span>
                 <span className={cn(
                   "text-[10px] px-1.5 py-0.5 rounded font-medium",
-                  wbsConnected ? "bg-emerald-500/10 text-emerald-400" : "bg-gray-800 text-gray-500",
+                  wbsConnected ? "bg-emerald-500/10 text-emerald-400" : "bg-muted text-muted-foreground dark:bg-gray-800 dark:text-gray-500",
                 )}>
                   {wbsConnected ? "● Connected" : "○ Disconnected"}
                 </span>
               </div>
-              <p className="text-xs text-gray-500 mt-0.5">Real estate client · Microsoft Dynamics AI calling · WeeBee Enterprise</p>
+              <p className="text-xs text-muted-foreground dark:text-gray-500 mt-0.5">Real estate client · Microsoft Dynamics AI calling · WeeBee Enterprise</p>
             </div>
             {wbsConnected && wbs && (
-              <div className="hidden sm:flex items-center gap-3 text-xs text-gray-500 shrink-0">
+              <div className="hidden sm:flex items-center gap-3 text-xs text-muted-foreground dark:text-gray-500 shrink-0">
                 <span className="flex items-center gap-1" title="Properties"><Building2 className="w-3 h-3" />{wbs.carsCount}</span>
                 <span className="flex items-center gap-1" title="Buyers"><Users className="w-3 h-3" />{wbs.buyersCount}</span>
                 <span className="flex items-center gap-1" title="Agents"><UserCheck className="w-3 h-3" />{wbs.dealersCount}</span>
               </div>
             )}
-            <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-gray-400 transition-colors shrink-0" />
+            <ChevronRight className="w-4 h-4 text-muted-foreground/70 group-hover:text-muted-foreground dark:text-gray-600 dark:group-hover:text-gray-400 transition-colors shrink-0" />
           </div>
         </Link>
       </div>
@@ -234,12 +234,12 @@ export function AccountsMindClients() {
       {/* ── Billing Profiles ── */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-600">Billing Profiles</p>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 dark:text-gray-600">Billing Profiles</p>
           <Select value={industryFilter} onValueChange={setIndustryFilter}>
-            <SelectTrigger className="w-56 h-8 bg-gray-900 border-gray-700 text-gray-300 text-xs">
+            <SelectTrigger className="w-56 h-8 bg-card border-border text-foreground/80 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-300 text-xs">
               <SelectValue placeholder="Filter by industry" />
             </SelectTrigger>
-            <SelectContent className="bg-gray-800 border-gray-700">
+            <SelectContent className="bg-popover border-border dark:bg-gray-800 dark:border-gray-700">
               <SelectItem value="all">All industries</SelectItem>
               <SelectItem value="unset">No industry set</SelectItem>
               {industryOptions.map((o) => (
@@ -250,7 +250,7 @@ export function AccountsMindClients() {
         </div>
 
         {isLoading && (
-          <div className="flex items-center gap-2 text-gray-400 text-sm">
+          <div className="flex items-center gap-2 text-muted-foreground dark:text-gray-400 text-sm">
             <RefreshCw className="w-4 h-4 animate-spin" /> Loading clients…
           </div>
         )}
@@ -262,18 +262,18 @@ export function AccountsMindClients() {
             return (
               <div
                 key={c.id}
-                className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 flex items-center gap-4"
+                className="bg-card border border-border dark:bg-gray-900 dark:border-gray-800 rounded-xl px-4 py-3 flex items-center gap-4"
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-medium text-white">{c.name}</span>
+                    <span className="text-sm font-medium text-foreground dark:text-white">{c.name}</span>
                     {c.industry && industryLabel(c.industry) && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400 font-medium">
                         {industryLabel(c.industry)}
                       </span>
                     )}
                   </div>
-                  <div className="text-xs text-gray-500 mt-0.5">
+                  <div className="text-xs text-muted-foreground dark:text-gray-500 mt-0.5">
                     Created {new Date(c.created_at).toLocaleDateString()}
                   </div>
                 </div>
@@ -282,10 +282,10 @@ export function AccountsMindClients() {
                   value={c.industry ?? ""}
                   onValueChange={(v) => changeIndustry(c.id, v)}
                 >
-                  <SelectTrigger className="hidden md:flex w-48 h-8 bg-gray-800 border-gray-700 text-gray-300 text-xs shrink-0">
+                  <SelectTrigger className="hidden md:flex w-48 h-8 bg-muted border-border text-foreground/80 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300 text-xs shrink-0">
                     <SelectValue placeholder="Set industry…" />
                   </SelectTrigger>
-                  <SelectContent className="bg-gray-800 border-gray-700">
+                  <SelectContent className="bg-popover border-border dark:bg-gray-800 dark:border-gray-700">
                     {industryOptions.map((o) => (
                       <SelectItem key={o.key} value={o.key}>{o.label}</SelectItem>
                     ))}
@@ -304,7 +304,7 @@ export function AccountsMindClients() {
                           "text-[10px]",
                           profile.status === "active"
                             ? "bg-emerald-500/20 text-emerald-400"
-                            : "bg-gray-700 text-gray-400",
+                            : "bg-muted text-muted-foreground dark:bg-gray-700 dark:text-gray-400",
                         )}
                       >
                         {profile.status}
@@ -312,7 +312,7 @@ export function AccountsMindClients() {
                     </div>
                   </div>
                 ) : (
-                  <span className="text-xs text-gray-500">No billing profile</span>
+                  <span className="text-xs text-muted-foreground dark:text-gray-500">No billing profile</span>
                 )}
 
                 <div className="flex items-center gap-2">
@@ -320,7 +320,7 @@ export function AccountsMindClients() {
                     size="sm"
                     variant="outline"
                     onClick={() => openEdit(c.id)}
-                    className="border-gray-700 text-gray-300 hover:text-white hover:border-gray-500 text-xs gap-1"
+                    className="border-border text-foreground/80 hover:text-foreground hover:border-foreground/40 dark:border-gray-700 dark:text-gray-300 dark:hover:text-white dark:hover:border-gray-500 text-xs gap-1"
                   >
                     <Settings className="w-3 h-3" />
                     {hasProfile ? "Edit Billing" : "Set Billing"}
@@ -328,7 +328,7 @@ export function AccountsMindClients() {
                   <Link
                     to="/admin/accounts/workspace/$id"
                     params={{ id: c.id }}
-                    className="text-gray-400 hover:text-white transition-colors"
+                    className="text-muted-foreground hover:text-foreground dark:text-gray-400 dark:hover:text-white transition-colors"
                   >
                     <ChevronRight className="w-4 h-4" />
                   </Link>
@@ -338,7 +338,7 @@ export function AccountsMindClients() {
           })}
 
           {!isLoading && (clients as any[]).length === 0 && (
-            <div className="text-center py-8 text-sm text-gray-500">
+            <div className="text-center py-8 text-sm text-muted-foreground dark:text-gray-500">
               <Users className="mx-auto w-8 h-8 mb-2 opacity-20" />
               No clients yet. Workspace setup is managed in{" "}
               <Link to="/systemmind/clients/setup" className="text-sky-400 hover:underline">SystemMind → Workspace Setup</Link>.
@@ -349,7 +349,7 @@ export function AccountsMindClients() {
 
       {/* Edit dialog */}
       <Dialog open={!!editingId} onOpenChange={(o) => !o && setEditingId(null)}>
-        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-lg">
+        <DialogContent className="bg-card border-border text-foreground dark:bg-gray-900 dark:border-gray-700 dark:text-white max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <PoundSterling className="w-4 h-4 text-emerald-400" />
@@ -359,25 +359,25 @@ export function AccountsMindClients() {
           <div className="space-y-4 mt-2">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs text-gray-400">Monthly Charge (pence)</Label>
+                <Label className="text-xs text-muted-foreground dark:text-gray-400">Monthly Charge (pence)</Label>
                 <Input
                   type="number"
                   value={form.monthlyChargeCents}
                   onChange={(e) => field("monthlyChargeCents", Number(e.target.value))}
-                  className="mt-1 bg-gray-800 border-gray-700 text-white"
+                  className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                   placeholder="e.g. 50000 = £500"
                 />
-                <p className="text-[10px] text-gray-500 mt-1">
+                <p className="text-[10px] text-muted-foreground dark:text-gray-500 mt-1">
                   = {form.currency === "GBP" ? "£" : "$"}{(form.monthlyChargeCents / 100).toFixed(2)}
                 </p>
               </div>
               <div>
-                <Label className="text-xs text-gray-400">Currency</Label>
+                <Label className="text-xs text-muted-foreground dark:text-gray-400">Currency</Label>
                 <Select value={form.currency} onValueChange={(v) => field("currency", v)}>
-                  <SelectTrigger className="mt-1 bg-gray-800 border-gray-700 text-white">
+                  <SelectTrigger className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-gray-800 border-gray-700">
+                  <SelectContent className="bg-popover border-border dark:bg-gray-800 dark:border-gray-700">
                     <SelectItem value="GBP">GBP (£)</SelectItem>
                     <SelectItem value="USD">USD ($)</SelectItem>
                     <SelectItem value="EUR">EUR (€)</SelectItem>
@@ -388,41 +388,41 @@ export function AccountsMindClients() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs text-gray-400">Included Minutes</Label>
-                <Input type="number" value={form.includedMinutes} onChange={(e) => field("includedMinutes", Number(e.target.value))} className="mt-1 bg-gray-800 border-gray-700 text-white" />
+                <Label className="text-xs text-muted-foreground dark:text-gray-400">Included Minutes</Label>
+                <Input type="number" value={form.includedMinutes} onChange={(e) => field("includedMinutes", Number(e.target.value))} className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white" />
               </div>
               <div>
-                <Label className="text-xs text-gray-400">Included Messages</Label>
-                <Input type="number" value={form.includedMessages} onChange={(e) => field("includedMessages", Number(e.target.value))} className="mt-1 bg-gray-800 border-gray-700 text-white" />
+                <Label className="text-xs text-muted-foreground dark:text-gray-400">Included Messages</Label>
+                <Input type="number" value={form.includedMessages} onChange={(e) => field("includedMessages", Number(e.target.value))} className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white" />
               </div>
               <div>
-                <Label className="text-xs text-gray-400">Included Email Sends</Label>
-                <Input type="number" value={form.includedEmailSends} onChange={(e) => field("includedEmailSends", Number(e.target.value))} className="mt-1 bg-gray-800 border-gray-700 text-white" />
+                <Label className="text-xs text-muted-foreground dark:text-gray-400">Included Email Sends</Label>
+                <Input type="number" value={form.includedEmailSends} onChange={(e) => field("includedEmailSends", Number(e.target.value))} className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white" />
               </div>
               <div>
-                <Label className="text-xs text-gray-400">Included Video Seconds</Label>
-                <Input type="number" value={form.includedVideoSeconds} onChange={(e) => field("includedVideoSeconds", Number(e.target.value))} className="mt-1 bg-gray-800 border-gray-700 text-white" />
+                <Label className="text-xs text-muted-foreground dark:text-gray-400">Included Video Seconds</Label>
+                <Input type="number" value={form.includedVideoSeconds} onChange={(e) => field("includedVideoSeconds", Number(e.target.value))} className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white" />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs text-gray-400">Contract Start</Label>
-                <Input type="date" value={form.contractStartDate} onChange={(e) => field("contractStartDate", e.target.value)} className="mt-1 bg-gray-800 border-gray-700 text-white" />
+                <Label className="text-xs text-muted-foreground dark:text-gray-400">Contract Start</Label>
+                <Input type="date" value={form.contractStartDate} onChange={(e) => field("contractStartDate", e.target.value)} className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white" />
               </div>
               <div>
-                <Label className="text-xs text-gray-400">Contract End</Label>
-                <Input type="date" value={form.contractEndDate} onChange={(e) => field("contractEndDate", e.target.value)} className="mt-1 bg-gray-800 border-gray-700 text-white" />
+                <Label className="text-xs text-muted-foreground dark:text-gray-400">Contract End</Label>
+                <Input type="date" value={form.contractEndDate} onChange={(e) => field("contractEndDate", e.target.value)} className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white" />
               </div>
             </div>
 
             <div>
-              <Label className="text-xs text-gray-400">Status</Label>
+              <Label className="text-xs text-muted-foreground dark:text-gray-400">Status</Label>
               <Select value={form.status} onValueChange={(v) => field("status", v)}>
-                <SelectTrigger className="mt-1 bg-gray-800 border-gray-700 text-white">
+                <SelectTrigger className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-gray-800 border-gray-700">
+                <SelectContent className="bg-popover border-border dark:bg-gray-800 dark:border-gray-700">
                   <SelectItem value="active">Active</SelectItem>
                   <SelectItem value="paused">Paused</SelectItem>
                   <SelectItem value="churned">Churned</SelectItem>
@@ -432,17 +432,17 @@ export function AccountsMindClients() {
             </div>
 
             <div>
-              <Label className="text-xs text-gray-400">Billing address (appears on invoices as {"{to_address}"})</Label>
-              <Textarea value={form.billingAddress} onChange={(e) => field("billingAddress", e.target.value)} placeholder={"123 High Street\nLondon\nSW1A 1AA"} className="mt-1 bg-gray-800 border-gray-700 text-white text-sm" rows={3} />
+              <Label className="text-xs text-muted-foreground dark:text-gray-400">Billing address (appears on invoices as {"{to_address}"})</Label>
+              <Textarea value={form.billingAddress} onChange={(e) => field("billingAddress", e.target.value)} placeholder={"123 High Street\nLondon\nSW1A 1AA"} className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white text-sm" rows={3} />
             </div>
 
             <div>
-              <Label className="text-xs text-gray-400">Notes</Label>
-              <Textarea value={form.notes} onChange={(e) => field("notes", e.target.value)} className="mt-1 bg-gray-800 border-gray-700 text-white text-sm" rows={2} />
+              <Label className="text-xs text-muted-foreground dark:text-gray-400">Notes</Label>
+              <Textarea value={form.notes} onChange={(e) => field("notes", e.target.value)} className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white text-sm" rows={2} />
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => setEditingId(null)} className="border-gray-700 text-gray-300">
+              <Button variant="outline" onClick={() => setEditingId(null)} className="border-border text-foreground/80 dark:border-gray-700 dark:text-gray-300">
                 Cancel
               </Button>
               <Button onClick={save} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
