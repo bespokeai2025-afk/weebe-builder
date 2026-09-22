@@ -26,7 +26,7 @@ function Card({
   progress?: number;
 }) {
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-card/40 p-5 transition-colors hover:bg-card/60">
+    <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/40 p-5 transition-colors hover:bg-card/60">
       <div className="flex items-center justify-between text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
         <span>{label}</span>
         <span className="text-muted-foreground/70">{icon}</span>

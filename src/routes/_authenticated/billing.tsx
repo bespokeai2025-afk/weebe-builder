@@ -108,7 +108,6 @@ function BillingPage() {
           </p>
         </div>
         <Button
-          variant="outline"
           onClick={() => portalMutation.mutate()}
           disabled={portalMutation.isPending || !sub}
           className="gap-2"
@@ -123,7 +122,7 @@ function BillingPage() {
       </header>
 
       {/* Current plan summary */}
-      <section className="rounded-xl border border-white/[0.06] bg-gradient-to-br from-card/60 to-card/30 p-4 shadow-[0_30px_80px_-50px_rgba(79,140,255,0.4)]">
+      <section className="rounded-xl border border-border dark:border-white/[0.06] bg-gradient-to-br from-card/60 to-card/30 p-4 shadow-[0_30px_80px_-50px_rgba(79,140,255,0.4)]">
         {summaryQuery.isLoading ? (
           <div className="space-y-3">
             <Skeleton className="h-5 w-32" />
@@ -214,7 +213,7 @@ function BillingPage() {
       </section>
 
       {/* Billing history (Stripe portal handles full list) */}
-      <section className="rounded-2xl border border-white/[0.06] bg-card/40 p-6">
+      <section className="rounded-2xl border border-border dark:border-white/[0.06] bg-card/40 p-6">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="flex items-center gap-2 text-base font-medium text-foreground">
@@ -247,7 +246,7 @@ function BillingPage() {
       {/* (package section rendered above) */}
       <Dialog open={!!checkoutPlan} onOpenChange={(o) => !o && setCheckoutPlan(null)}>
         <DialogContent className="max-w-2xl p-0">
-          <DialogHeader className="border-b border-white/[0.06] px-6 py-4">
+          <DialogHeader className="border-b border-border dark:border-white/[0.06] px-6 py-4">
             <DialogTitle>Subscribe to {checkoutPlan?.name}</DialogTitle>
           </DialogHeader>
           <div className="p-2 sm:p-4">
@@ -316,7 +315,7 @@ function PackageSeatsSection() {
         Package & staff seats
       </h3>
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-white/[0.06] bg-card/40 p-5">
+        <div className="rounded-2xl border border-border dark:border-white/[0.06] bg-card/40 p-5">
           <div className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
             Current package
           </div>
@@ -335,7 +334,7 @@ function PackageSeatsSection() {
           </p>
         </div>
 
-        <div className="rounded-2xl border border-white/[0.06] bg-card/40 p-5">
+        <div className="rounded-2xl border border-border dark:border-white/[0.06] bg-card/40 p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
               <div className="text-xs uppercase tracking-[0.14em] text-muted-foreground">

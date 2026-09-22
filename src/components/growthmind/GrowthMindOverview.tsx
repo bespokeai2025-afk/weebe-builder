@@ -448,13 +448,12 @@ export function GrowthMindOverview() {
                   <p className="text-[10px] text-muted-foreground flex-1">No opportunities detected yet.</p>
                 )}
                 <Button
-                  variant="outline"
                   size="sm"
                   className="w-full text-xs mt-auto"
                   onClick={handleRunOppEngine}
                   disabled={runningOppEngine}
                 >
-                  {runningOppEngine ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Zap className="mr-1.5 h-3.5 w-3.5 text-emerald-400" />}
+                  {runningOppEngine ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Zap className="mr-1.5 h-3.5 w-3.5" />}
                   {runningOppEngine ? "Running…" : "Run Analysis"}
                 </Button>
               </div>
