@@ -3,8 +3,8 @@ import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { History, Undo2, Loader2, ChevronDown, ChevronUp, ShieldAlert } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { GrowthMindShell } from "@/components/growthmind/GrowthMindShell";
+import { StatusBadge as SharedStatusBadge } from "@/components/ui/status-badge";
 import { listMarketingActions, requestMarketingUndo } from "@/lib/marketing/marketing-actions.functions";
 import {
   MARKETING_STATUS_META,
@@ -17,21 +17,21 @@ export const Route = createFileRoute("/_authenticated/growthmind/marketing-actio
   component: MarketingActionsPage,
 });
 
-const TONE_CLASSES: Record<string, string> = {
-  muted:  "bg-slate-500/15 text-slate-300",
-  info:   "bg-blue-500/15 text-blue-300",
-  warn:   "bg-amber-500/15 text-amber-300",
-  active: "bg-violet-500/15 text-violet-300",
-  good:   "bg-emerald-500/15 text-emerald-300",
-  bad:    "bg-red-500/15 text-red-300",
+const TONE_MAP: Record<string, "slate" | "info" | "warning" | "violet" | "success" | "danger"> = {
+  muted: "slate",
+  info: "info",
+  warn: "warning",
+  active: "violet",
+  good: "success",
+  bad: "danger",
 };
 
 function StatusBadge({ status }: { status: MarketingActionRecord["status"] }) {
   const meta = MARKETING_STATUS_META[status] ?? { label: status, tone: "muted" as const };
   return (
-    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium", TONE_CLASSES[meta.tone])}>
+    <SharedStatusBadge tone={TONE_MAP[meta.tone] ?? "slate"} className="text-[11px] font-medium">
       {meta.label}
-    </span>
+    </SharedStatusBadge>
   );
 }
 
@@ -67,7 +67,7 @@ function ActionRow({ action, onUndo, undoing }: {
             <span className="text-xs text-muted-foreground">· {action.platform}</span>
             <StatusBadge status={action.status} />
             {action.risk_level === "high" && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-red-500/15 px-2 py-0.5 text-[11px] text-red-300">
+              <span className="inline-flex items-center gap-1 rounded-full bg-red-500/15 px-2 py-0.5 text-[11px] text-red-600 dark:text-red-300">
                 <ShieldAlert className="h-3 w-3" /> High risk
               </span>
             )}

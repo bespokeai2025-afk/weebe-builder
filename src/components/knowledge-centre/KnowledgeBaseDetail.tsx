@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { StatusBadge as SharedStatusBadge } from "@/components/ui/status-badge";
 import {
   getExecutiveUploadUrl, recordExecutiveDocument, listExecutiveDocuments,
   deleteExecutiveDocument, reindexExecutiveDocument,
@@ -17,19 +18,22 @@ import { DEFAULT_EXECUTIVE_KBS } from "@/lib/executives/executive-knowledge.conf
 const ACCEPTED = ".pdf,.docx,.xlsx,.txt,.md,.csv";
 
 function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { c: string; icon: React.ElementType; label: string }> = {
-    indexed: { c: "text-emerald-400 bg-emerald-500/10", icon: CheckCircle2, label: "Indexed" },
-    pending: { c: "text-amber-400 bg-amber-500/10", icon: Clock, label: "Pending" },
-    processing: { c: "text-sky-400 bg-sky-500/10", icon: Loader2, label: "Processing" },
-    failed: { c: "text-red-400 bg-red-500/10", icon: AlertTriangle, label: "Failed" },
+  const map: Record<string, { tone: "success" | "warning" | "sky" | "danger"; icon: React.ElementType; label: string }> = {
+    indexed: { tone: "success", icon: CheckCircle2, label: "Indexed" },
+    pending: { tone: "warning", icon: Clock, label: "Pending" },
+    processing: { tone: "sky", icon: Loader2, label: "Processing" },
+    failed: { tone: "danger", icon: AlertTriangle, label: "Failed" },
   };
   const s = map[status] ?? map.pending;
   const Icon = s.icon;
   return (
-    <span className={cn("inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium", s.c)}>
-      <Icon className={cn("h-3 w-3", status === "processing" && "animate-spin")} />
+    <SharedStatusBadge
+      tone={s.tone}
+      icon={<Icon className={cn("h-3 w-3", status === "processing" && "animate-spin")} />}
+      className="rounded px-1.5 py-0.5 text-[10px] font-medium"
+    >
       {s.label}
-    </span>
+    </SharedStatusBadge>
   );
 }
 
@@ -157,14 +161,14 @@ export function KnowledgeBaseDetail({ slug }: { slug: string }) {
                     <StatusBadge status={d.embedding_status} />
                     {d.chunk_count ? <span>{d.chunk_count} chunks</span> : null}
                     {d.embedding_status === "failed" && d.error_message ? (
-                      <span className="truncate text-red-400/80">{d.error_message}</span>
+                      <span className="truncate text-red-600/80 dark:text-red-400/80">{d.error_message}</span>
                     ) : null}
                   </div>
                 </div>
                 <button onClick={() => handleReindex(d.id)} title="Re-index" className="rounded-md p-1.5 text-muted-foreground hover:bg-white/[0.06] hover:text-foreground">
                   <RefreshCw className="h-3.5 w-3.5" />
                 </button>
-                <button onClick={() => handleDelete(d.id)} title="Delete" className="rounded-md p-1.5 text-muted-foreground hover:bg-red-500/10 hover:text-red-400">
+                <button onClick={() => handleDelete(d.id)} title="Delete" className="rounded-md p-1.5 text-muted-foreground hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400">
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </div>

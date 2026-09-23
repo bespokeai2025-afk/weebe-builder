@@ -12,6 +12,7 @@ import {
   GitBranch,
   Headphones,
 } from "lucide-react";
+import { StatusBadge as SharedStatusBadge } from "@/components/ui/status-badge";
 import { supabase } from "@/integrations/supabase/client";
 import type { LiveCall } from "@/lib/dashboard/analytics.functions";
 
@@ -34,33 +35,29 @@ function resolveStatus(call: LiveCall): CallStatus {
 function StatusBadge({ status }: { status: CallStatus }) {
   if (status === "ringing") {
     return (
-      <span className="flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-400">
-        <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+      <SharedStatusBadge tone="warning" icon={<span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />} className="text-[10px] font-medium">
         RINGING
-      </span>
+      </SharedStatusBadge>
     );
   }
   if (status === "in_progress") {
     return (
-      <span className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
-        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+      <SharedStatusBadge tone="success" icon={<span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />} className="text-[10px] font-medium">
         LIVE
-      </span>
+      </SharedStatusBadge>
     );
   }
   if (status === "failed") {
     return (
-      <span className="flex items-center gap-1 rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-medium text-rose-400">
-        <PhoneOff className="h-2.5 w-2.5" />
+      <SharedStatusBadge tone="danger" icon={<PhoneOff className="h-2.5 w-2.5" />} className="text-[10px] font-medium">
         NO ANSWER
-      </span>
+      </SharedStatusBadge>
     );
   }
   return (
-    <span className="flex items-center gap-1 rounded-full bg-slate-500/15 px-2 py-0.5 text-[10px] font-medium text-slate-400">
-      <CheckCircle className="h-2.5 w-2.5" />
+    <SharedStatusBadge tone="slate" icon={<CheckCircle className="h-2.5 w-2.5" />} className="text-[10px] font-medium">
       ENDED
-    </span>
+    </SharedStatusBadge>
   );
 }
 
@@ -166,7 +163,7 @@ function CallCard({ call }: { call: LiveCall }) {
             // The usual cause is the agent's Retell webhook URL pointing somewhere
             // other than WEBEE (e.g. an external automation), so Retell never
             // delivers the live transcript to this app.
-            <div className="flex items-start gap-2 py-3 text-[11px] text-amber-400/80">
+            <div className="flex items-start gap-2 py-3 text-[11px] text-amber-600/80 dark:text-amber-400/80">
               <Mic className="h-3.5 w-3.5 shrink-0 mt-0.5" />
               <span>
                 Live transcript unavailable — no live transcript feed received for
@@ -177,8 +174,8 @@ function CallCard({ call }: { call: LiveCall }) {
           ) : (
             <div className="flex items-center gap-2 py-3 text-[11px] text-muted-foreground">
               <span className="flex gap-0.5">
-                <span className="h-3 w-0.5 rounded-full bg-emerald-400/60 animate-[bounce_1s_ease-in-out_0s_infinite]" />
-                <span className="h-3 w-0.5 rounded-full bg-emerald-400/60 animate-[bounce_1s_ease-in-out_0.15s_infinite]" />
+                <span className="h-3 w-0.5 rounded-full bg-emerald-400/60 animate-[bounce_1s_ease-in-out_0s_infinite] dark:bg-emerald-400/60" />
+                <span className="h-3 w-0.5 rounded-full bg-emerald-400/60 animate-[bounce_1s_ease-in-out_0.15s_infinite] dark:bg-emerald-400/60" />
                 <span className="h-3 w-0.5 rounded-full bg-emerald-400/60 animate-[bounce_1s_ease-in-out_0.3s_infinite]" />
               </span>
               <span>Waiting for live transcript…</span>

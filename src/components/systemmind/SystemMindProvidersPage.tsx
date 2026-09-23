@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { PlugZap, RefreshCw, Loader2, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { StatusBadge as SharedStatusBadge } from "@/components/ui/status-badge";
 import { SystemMindShell } from "./SystemMindShell";
 import { getSystemMindProviders } from "@/lib/systemmind/systemmind-cto.functions";
 import type { SystemMindProvider } from "@/lib/systemmind/systemmind-cto.server";
@@ -18,22 +19,22 @@ const CATEGORY_LABEL: Record<string, string> = {
 
 function StatusDot({ status }: { status: "connected" | "disconnected" | "partial" }) {
   return status === "connected"
-    ? <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+    ? <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
     : status === "partial"
-    ? <AlertCircle className="h-4 w-4 text-amber-400 shrink-0" />
-    : <XCircle className="h-4 w-4 text-red-400 shrink-0" />;
+    ? <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+    : <XCircle className="h-4 w-4 text-red-600 dark:text-red-400 shrink-0" />;
 }
 
 function StatusBadge({ status }: { status: "connected" | "disconnected" | "partial" }) {
-  const styles = {
-    connected:    "bg-emerald-500/15 text-emerald-400",
-    partial:      "bg-amber-500/15 text-amber-400",
-    disconnected: "bg-red-500/15 text-red-400",
-  };
+  const tones = {
+    connected: "success",
+    partial: "warning",
+    disconnected: "danger",
+  } as const;
   return (
-    <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide", styles[status])}>
+    <SharedStatusBadge tone={tones[status]} className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
       {status}
-    </span>
+    </SharedStatusBadge>
   );
 }
 
@@ -62,7 +63,7 @@ function ProviderCard({ provider }: { provider: SystemMindProvider }) {
             <p className="text-[10px] text-muted-foreground">Requests</p>
           </div>
           <div>
-            <p className={cn("text-base font-bold", provider.errorRate > 10 ? "text-red-400" : provider.errorRate > 5 ? "text-amber-400" : "")}>
+            <p className={cn("text-base font-bold", provider.errorRate > 10 ? "text-red-600 dark:text-red-400" : provider.errorRate > 5 ? "text-amber-600 dark:text-amber-400" : "")}>
               {provider.errorRate}%
             </p>
             <p className="text-[10px] text-muted-foreground">Error rate</p>
@@ -77,12 +78,12 @@ function ProviderCard({ provider }: { provider: SystemMindProvider }) {
       )}
 
       <div className="flex items-center gap-2 mt-2 flex-wrap">
-        <span className={cn(
-          "rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide",
-          provider.keyPresent ? "bg-emerald-500/10 text-emerald-400/80" : "bg-red-500/10 text-red-400/80",
-        )}>
+        <SharedStatusBadge
+          tone={provider.keyPresent ? "success" : "danger"}
+          className="rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide"
+        >
           {provider.keyPresent ? "Key ✓" : "No key"}
-        </span>
+        </SharedStatusBadge>
         {provider.fallback && (
           <span className="rounded bg-muted dark:bg-white/[0.05] px-1.5 py-0.5 text-[9px] text-muted-foreground/60">
             Fallback → {provider.fallback}
@@ -141,9 +142,9 @@ export function SystemMindProvidersPage() {
         {/* Summary row */}
         <div className="grid grid-cols-3 gap-3 mb-5">
           {[
-            { label: "Connected", count: connected, color: "text-emerald-400" },
-            { label: "Partial",   count: partial,   color: "text-amber-400" },
-            { label: "Disconnected", count: disconnected, color: "text-red-400" },
+            { label: "Connected", count: connected, color: "text-emerald-600 dark:text-emerald-400" },
+            { label: "Partial",   count: partial,   color: "text-amber-600 dark:text-amber-400" },
+            { label: "Disconnected", count: disconnected, color: "text-red-600 dark:text-red-400" },
           ].map((s) => (
             <div key={s.label} className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-3 text-center">
               <p className={cn("text-2xl font-bold", s.color)}>{s.count}</p>

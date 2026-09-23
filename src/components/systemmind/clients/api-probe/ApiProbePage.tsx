@@ -21,6 +21,7 @@ import {
 } from "@/lib/systemmind/client-api-mappings.server";
 import { seedWebuyanyhouse } from "@/lib/systemmind/client-api-connections.server";
 import { Button } from "@/components/ui/button";
+import { StatusBadge as SharedStatusBadge } from "@/components/ui/status-badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -63,15 +64,15 @@ const AUTH_TYPE_LABELS: Record<AuthType, string> = {
 // ── Status badge ──────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    connected: "bg-emerald-500/20 text-emerald-400",
-    error:     "bg-red-500/20 text-red-400",
-    untested:  "bg-gray-700 text-gray-400",
+  const tone: Record<string, "success" | "danger" | "neutral"> = {
+    connected: "success",
+    error: "danger",
+    untested: "neutral",
   };
   return (
-    <span className={cn("text-[10px] px-1.5 py-0.5 rounded font-medium", colors[status] ?? colors.untested)}>
+    <SharedStatusBadge tone={tone[status] ?? "neutral"} className="text-[10px] px-1.5 py-0.5 rounded font-medium">
       {status}
-    </span>
+    </SharedStatusBadge>
   );
 }
 
@@ -80,16 +81,16 @@ function StatusBadge({ status }: { status: string }) {
 function Panel({ title, icon: Icon, children, accent = "sky" }: {
   title: string; icon: React.ElementType; children: React.ReactNode; accent?: string;
 }) {
-  const cls = accent === "emerald" ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
-    : accent === "violet" ? "text-violet-400 bg-violet-500/10 border-violet-500/20"
-    : "text-sky-400 bg-sky-500/10 border-sky-500/20";
+  const cls = accent === "emerald" ? "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
+    : accent === "violet" ? "text-violet-600 dark:text-violet-400 bg-violet-500/10 border-violet-500/20"
+    : "text-sky-600 dark:text-sky-400 bg-sky-500/10 border-sky-500/20";
   return (
-    <div className="rounded-xl border border-border dark:border-white/[0.06] bg-gray-900/40 overflow-hidden">
+    <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-gray-900/40 overflow-hidden">
       <div className={cn("flex items-center gap-2 px-4 py-3 border-b border-border dark:border-white/[0.06]", ``)}>
         <div className={cn("flex h-6 w-6 items-center justify-center rounded border", cls)}>
           <Icon className="h-3.5 w-3.5" />
         </div>
-        <span className="text-sm font-semibold text-white">{title}</span>
+        <span className="text-sm font-semibold text-foreground dark:text-white">{title}</span>
       </div>
       <div className="p-4">{children}</div>
     </div>
@@ -133,7 +134,7 @@ function KVEditor({
               delete next[k];
               onChange(next);
             }}
-            className="text-gray-600 hover:text-red-400 transition-colors"
+            className="text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
@@ -141,7 +142,7 @@ function KVEditor({
       ))}
       <button
         onClick={() => onChange({ ...value, "": "" })}
-        className="flex items-center gap-1 text-xs text-gray-500 hover:text-sky-400 transition-colors"
+        className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-500 hover:text-sky-600 dark:hover:text-sky-400 transition-colors"
       >
         <Plus className="w-3 h-3" /> Add row
       </button>
