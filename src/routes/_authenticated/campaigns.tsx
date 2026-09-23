@@ -22,6 +22,7 @@ import {
   FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { cn } from "@/lib/utils";
 import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import {
@@ -56,17 +57,17 @@ export const Route = createFileRoute("/_authenticated/campaigns")({
 });
 
 function statusBadge(s: string) {
-  const map: Record<string, string> = {
-    draft: "bg-muted text-muted-foreground",
-    active: "bg-emerald-500/15 text-emerald-400",
-    paused: "bg-amber-500/15 text-amber-400",
-    completed: "bg-primary/15 text-primary",
-    cancelled: "bg-destructive/15 text-destructive",
+  const tone: Record<string, "neutral" | "success" | "warning" | "info" | "danger"> = {
+    draft: "neutral",
+    active: "success",
+    paused: "warning",
+    completed: "info",
+    cancelled: "danger",
   };
   return (
-    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium capitalize ${map[s] ?? "bg-muted text-muted-foreground"}`}>
+    <StatusBadge tone={tone[s] ?? "neutral"} className="text-xs font-medium capitalize">
       {s}
-    </span>
+    </StatusBadge>
   );
 }
 
@@ -652,17 +653,17 @@ function ConfirmDialog({
 // ── WeeBespoke Campaigns tab (only shown for webuyanyhouse workspace) ──────────
 
 function wbahStatusBadge(s: string) {
-  const map: Record<string, string> = {
-    active:    "bg-emerald-500/15 text-emerald-400",
-    paused:    "bg-amber-500/15 text-amber-400",
-    completed: "bg-primary/15 text-primary",
-    draft:     "bg-muted text-muted-foreground",
-    cancelled: "bg-destructive/15 text-destructive",
+  const tone: Record<string, "success" | "warning" | "info" | "neutral" | "danger"> = {
+    active: "success",
+    paused: "warning",
+    completed: "info",
+    draft: "neutral",
+    cancelled: "danger",
   };
   return (
-    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium capitalize ${map[s] ?? "bg-muted text-muted-foreground"}`}>
+    <StatusBadge tone={tone[s] ?? "neutral"} className="text-xs font-medium capitalize">
       {s ?? "unknown"}
-    </span>
+    </StatusBadge>
   );
 }
 

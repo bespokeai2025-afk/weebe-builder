@@ -300,11 +300,11 @@ function statusBadgeClass(status?: string | null) {
   const map: Record<string, string> = {
     needs_to_call: "bg-muted text-muted-foreground",
     queued: "bg-primary/15 text-primary",
-    calling: "bg-amber-500/15 text-amber-400",
-    completed: "bg-emerald-500/15 text-emerald-400",
+    calling: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+    completed: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
     failed: "bg-destructive/15 text-destructive",
     do_not_call: "bg-muted/60 text-muted-foreground line-through",
-    disqualified: "bg-rose-500/15 text-rose-400 line-through",
+    disqualified: "bg-rose-500/15 text-rose-600 dark:text-rose-400 line-through",
   };
   return map[status ?? ""] ?? "bg-muted text-muted-foreground";
 }
@@ -334,13 +334,13 @@ function fmtMs(ms: number | null | undefined): string {
 function wbahCallStatusBadge(status: string | null | undefined): { label: string; cls: string } {
   const s = (status ?? "").toLowerCase();
   if (s === "need_to_call" || s === "need to call")
-    return { label: "Need To Call", cls: "bg-amber-500/15 text-amber-400" };
+    return { label: "Need To Call", cls: "bg-amber-500/15 text-amber-600 dark:text-amber-400" };
   if (s === "not_connected" || s === "no_answer" || s === "not connected")
-    return { label: "Not Connected", cls: "bg-orange-500/15 text-orange-400" };
+    return { label: "Not Connected", cls: "bg-orange-500/15 text-orange-600 dark:text-orange-400" };
   if (s === "call_analyzed" || s === "completed" || s === "ended")
-    return { label: "Completed", cls: "bg-emerald-500/15 text-emerald-400" };
+    return { label: "Completed", cls: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" };
   if (s === "disqualified" || s === "rejected" || s === "not_interested")
-    return { label: "Disqualified", cls: "bg-rose-500/15 text-rose-400" };
+    return { label: "Disqualified", cls: "bg-rose-500/15 text-rose-600 dark:text-rose-400" };
   if (!s) return { label: "N/A", cls: "bg-muted text-muted-foreground" };
   const label = s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   return { label, cls: "bg-muted text-muted-foreground" };
@@ -348,9 +348,9 @@ function wbahCallStatusBadge(status: string | null | undefined): { label: string
 
 function wbahSentimentBadge(sentiment: string | null | undefined): { label: string; cls: string } {
   const s = (sentiment ?? "").toLowerCase();
-  if (s.includes("positive")) return { label: "Positive", cls: "text-emerald-400" };
-  if (s.includes("neutral")) return { label: "Neutral", cls: "text-amber-400" };
-  if (s.includes("negative")) return { label: "Negative", cls: "text-rose-400" };
+  if (s.includes("positive")) return { label: "Positive", cls: "text-emerald-600 dark:text-emerald-400" };
+  if (s.includes("neutral")) return { label: "Neutral", cls: "text-amber-600 dark:text-amber-400" };
+  if (s.includes("negative")) return { label: "Negative", cls: "text-rose-600 dark:text-rose-400" };
   return { label: sentiment ? sentiment : "N/A", cls: "text-muted-foreground" };
 }
 

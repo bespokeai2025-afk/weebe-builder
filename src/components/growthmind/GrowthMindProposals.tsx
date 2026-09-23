@@ -9,26 +9,26 @@ import {
 import { GrowthMindShell } from "./GrowthMindShell";
 import { getAllProposals, updateProposalStatus } from "@/lib/executives/executive-bridge";
 import { Button } from "@/components/ui/button";
+import { StatusBadge as SharedStatusBadge } from "@/components/ui/status-badge";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 type StatusFilter = "all" | "approved" | "draft" | "rejected" | "in_progress";
 
-const STATUS_META: Record<string, { label: string; icon: React.ElementType; className: string }> = {
-  approved:    { label: "Approved",    icon: CheckCircle2, className: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" },
-  draft:       { label: "Draft",       icon: Clock,        className: "bg-slate-500/15 text-slate-400 border-slate-500/20" },
-  rejected:    { label: "Dismissed",   icon: XCircle,      className: "bg-red-500/15 text-red-400 border-red-500/20" },
-  in_progress: { label: "In Progress", icon: Hammer,       className: "bg-amber-500/15 text-amber-400 border-amber-500/20" },
+const STATUS_META: Record<string, { label: string; icon: React.ElementType; tone: "success" | "slate" | "danger" | "warning" }> = {
+  approved:    { label: "Approved",    icon: CheckCircle2, tone: "success" },
+  draft:       { label: "Draft",       icon: Clock,        tone: "slate" },
+  rejected:    { label: "Dismissed",   icon: XCircle,      tone: "danger" },
+  in_progress: { label: "In Progress", icon: Hammer,       tone: "warning" },
 };
 
 function StatusBadge({ status }: { status: string }) {
   const meta = STATUS_META[status] ?? STATUS_META.draft;
   const Icon = meta.icon;
   return (
-    <span className={cn("inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border", meta.className)}>
-      <Icon className="h-2.5 w-2.5" />
+    <SharedStatusBadge tone={meta.tone} size="sm" icon={<Icon className="h-2.5 w-2.5" />} className="font-semibold">
       {meta.label}
-    </span>
+    </SharedStatusBadge>
   );
 }
 

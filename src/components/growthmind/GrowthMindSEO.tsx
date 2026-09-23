@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GrowthMindShell } from "./GrowthMindShell";
+import { statusBadgeVariants } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -53,10 +54,10 @@ function nanoid(): string {
 
 // ── Status badge ────────────────────────────────────────────────────────────
 
-const STATUS_STYLES: Record<ContentIdea["status"], string> = {
-  idea:          "bg-slate-500/15 text-slate-400 border-slate-500/20",
-  "in-progress": "bg-amber-500/15 text-amber-400 border-amber-500/20",
-  published:     "bg-emerald-500/15 text-emerald-400 border-emerald-500/20",
+const STATUS_TONES: Record<ContentIdea["status"], "slate" | "warning" | "success"> = {
+  idea: "slate",
+  "in-progress": "warning",
+  published: "success",
 };
 
 function StatusBadge({ status, onChange }: { status: ContentIdea["status"]; onChange: (s: ContentIdea["status"]) => void }) {
@@ -66,7 +67,10 @@ function StatusBadge({ status, onChange }: { status: ContentIdea["status"]; onCh
     <button
       onClick={() => onChange(next)}
       title="Click to advance status"
-      className={cn("rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize transition-colors", STATUS_STYLES[status])}
+      className={cn(
+        "rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize transition-colors",
+        statusBadgeVariants({ tone: STATUS_TONES[status] }),
+      )}
     >
       {status}
     </button>
@@ -77,9 +81,9 @@ function StatusBadge({ status, onChange }: { status: ContentIdea["status"]; onCh
 
 function diffColor(d: number | null): string {
   if (d === null) return "text-muted-foreground";
-  if (d < 30) return "text-emerald-400";
-  if (d < 60) return "text-amber-400";
-  return "text-red-400";
+  if (d < 30) return "text-emerald-600 dark:text-emerald-400";
+  if (d < 60) return "text-amber-600 dark:text-amber-400";
+  return "text-red-600 dark:text-red-400";
 }
 
 // ── CSV import ───────────────────────────────────────────────────────────────

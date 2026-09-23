@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { StatusBadge as SharedStatusBadge } from "@/components/ui/status-badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
@@ -501,38 +502,38 @@ const CREDENTIAL_FIELDS: Record<string, CredField[]> = {
 function StatusBadge({ status }: { status: string }) {
   if (status === "connected") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
-        <CheckCircle2 className="h-2.5 w-2.5" /> Connected
-      </span>
+      <SharedStatusBadge tone="success" size="sm" icon={<CheckCircle2 className="h-2.5 w-2.5" />} className="font-semibold">
+        Connected
+      </SharedStatusBadge>
     );
   }
   if (status === "error") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-semibold text-red-400">
-        <AlertTriangle className="h-2.5 w-2.5" /> Error
-      </span>
+      <SharedStatusBadge tone="danger" size="sm" icon={<AlertTriangle className="h-2.5 w-2.5" />} className="font-semibold">
+        Error
+      </SharedStatusBadge>
     );
   }
   if (status === "coming_soon") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-        <Clock className="h-2.5 w-2.5" /> Coming soon
-      </span>
+      <SharedStatusBadge tone="neutral" size="sm" icon={<Clock className="h-2.5 w-2.5" />} className="font-medium">
+        Coming soon
+      </SharedStatusBadge>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-      <XCircle className="h-2.5 w-2.5" /> Disconnected
-    </span>
+    <SharedStatusBadge tone="neutral" size="sm" icon={<XCircle className="h-2.5 w-2.5" />} className="font-medium">
+      Disconnected
+    </SharedStatusBadge>
   );
 }
 
 function PriorityBadge({ isDefault, isFallback }: { isDefault?: boolean; isFallback?: boolean }) {
   if (isDefault) return (
-    <span className="rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] bg-violet-500/15 text-violet-400">Primary</span>
+    <span className="rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] bg-violet-500/15 text-violet-600 dark:text-violet-400">Primary</span>
   );
   if (isFallback) return (
-    <span className="rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] bg-blue-500/15 text-blue-400">Fallback</span>
+    <span className="rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] bg-blue-500/15 text-blue-600 dark:text-blue-400">Fallback</span>
   );
   return null;
 }
