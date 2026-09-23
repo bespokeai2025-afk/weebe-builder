@@ -40,8 +40,8 @@ const TRIGGER_TYPES = [
 ];
 
 const STATUS_COLORS: Record<string, string> = {
-  published: "border-emerald-500/30 text-emerald-400 bg-emerald-500/5",
-  draft:     "border-amber-500/30 text-amber-400 bg-amber-500/5",
+  published: "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5",
+  draft:     "border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-500/5",
   archived:  "border-muted-foreground/30 text-muted-foreground",
 };
 

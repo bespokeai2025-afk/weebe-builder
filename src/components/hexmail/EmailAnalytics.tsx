@@ -26,7 +26,7 @@ const STATS: StatCard[] = [
     value: "2,847",
     sub: "+12% this month",
     icon: Send,
-    color: "text-sky-400",
+    color: "text-sky-600 dark:text-sky-400",
     bg: "bg-sky-500/10 border-sky-500/20",
   },
   {
@@ -34,7 +34,7 @@ const STATS: StatCard[] = [
     value: "2,801",
     sub: "98.4% delivery rate",
     icon: Mail,
-    color: "text-emerald-400",
+    color: "text-emerald-600 dark:text-emerald-400",
     bg: "bg-emerald-500/10 border-emerald-500/20",
   },
   {
@@ -42,7 +42,7 @@ const STATS: StatCard[] = [
     value: "1,134",
     sub: "40.5% open rate",
     icon: MailOpen,
-    color: "text-violet-400",
+    color: "text-violet-600 dark:text-violet-400",
     bg: "bg-violet-500/10 border-violet-500/20",
   },
   {
@@ -50,7 +50,7 @@ const STATS: StatCard[] = [
     value: "387",
     sub: "13.8% click rate",
     icon: MousePointerClick,
-    color: "text-amber-400",
+    color: "text-amber-600 dark:text-amber-400",
     bg: "bg-amber-500/10 border-amber-500/20",
   },
   {
@@ -58,7 +58,7 @@ const STATS: StatCard[] = [
     value: "46",
     sub: "1.6% bounce rate",
     icon: AlertCircle,
-    color: "text-rose-400",
+    color: "text-rose-600 dark:text-rose-400",
     bg: "bg-rose-500/10 border-rose-500/20",
   },
   {
@@ -66,7 +66,7 @@ const STATS: StatCard[] = [
     value: "23",
     sub: "0.8% unsub rate",
     icon: Users,
-    color: "text-slate-400",
+    color: "text-slate-600 dark:text-slate-400",
     bg: "bg-slate-500/10 border-slate-500/20",
   },
 ];

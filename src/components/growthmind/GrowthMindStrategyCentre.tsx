@@ -132,11 +132,11 @@ const ENGINE_LABELS: Record<string, string> = {
 
 const STATUS_STYLES: Record<string, string> = {
   draft:                "bg-muted dark:bg-white/[0.06] text-muted-foreground",
-  proposed_to_hivemind: "bg-amber-500/15 text-amber-300",
-  approved:             "bg-emerald-500/15 text-emerald-300",
-  rejected:             "bg-red-500/15 text-red-300",
-  in_progress:          "bg-blue-500/15 text-blue-300",
-  executed:             "bg-purple-500/15 text-purple-300",
+  proposed_to_hivemind: "bg-amber-500/15 text-amber-600 dark:text-amber-300",
+  approved:             "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300",
+  rejected:             "bg-red-500/15 text-red-600 dark:text-red-300",
+  in_progress:          "bg-blue-500/15 text-blue-600 dark:text-blue-300",
+  executed:             "bg-purple-500/15 text-purple-600 dark:text-purple-300",
   archived:             "bg-muted dark:bg-white/[0.04] text-muted-foreground/50",
 };
 

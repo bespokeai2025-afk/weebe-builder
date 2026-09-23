@@ -67,17 +67,17 @@ interface ChangeRequest {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; Icon: any }> = {
-  open: { label: "Open", color: "bg-blue-500/10 text-blue-400 border-blue-500/20", Icon: AlertCircle },
-  in_progress: { label: "In Progress", color: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20", Icon: Clock },
-  resolved: { label: "Resolved", color: "bg-green-500/10 text-green-400 border-green-500/20", Icon: CheckCircle },
-  declined: { label: "Declined", color: "bg-red-500/10 text-red-400 border-red-500/20", Icon: XCircle },
+  open: { label: "Open", color: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20", Icon: AlertCircle },
+  in_progress: { label: "In Progress", color: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20", Icon: Clock },
+  resolved: { label: "Resolved", color: "bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20", Icon: CheckCircle },
+  declined: { label: "Declined", color: "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20", Icon: XCircle },
 };
 
 const BILLING_CONFIG: Record<string, { label: string; color: string }> = {
   pending_quote: { label: "Pending Quote", color: "bg-muted/60 text-muted-foreground" },
-  quoted: { label: "Quoted", color: "bg-purple-500/10 text-purple-400" },
-  approved: { label: "Approved", color: "bg-green-500/10 text-green-400" },
-  declined: { label: "Declined", color: "bg-red-500/10 text-red-400" },
+  quoted: { label: "Quoted", color: "bg-purple-500/10 text-purple-600 dark:text-purple-400" },
+  approved: { label: "Approved", color: "bg-green-500/10 text-green-600 dark:text-green-400" },
+  declined: { label: "Declined", color: "bg-red-500/10 text-red-600 dark:text-red-400" },
 };
 
 const REQUEST_TYPE_LABELS: Record<string, string> = {

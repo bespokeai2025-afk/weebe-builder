@@ -31,15 +31,15 @@ import { WizardWorkflowPath } from "./WizardWorkflowPath";
 // ── status decoration ────────────────────────────────────────────────────────
 
 const STATUS_META: Record<string, { label: string; cls: string; icon: React.ReactNode }> = {
-  not_started:          { label: "Not started",          cls: "bg-slate-500/15 text-slate-300 border-slate-500/30",     icon: <Circle className="h-3.5 w-3.5" /> },
-  information_required: { label: "Information required", cls: "bg-sky-500/15 text-sky-300 border-sky-500/30",           icon: <AlertTriangle className="h-3.5 w-3.5" /> },
-  in_progress:          { label: "In progress",          cls: "bg-indigo-500/15 text-indigo-300 border-indigo-500/30",  icon: <Loader2 className="h-3.5 w-3.5" /> },
-  connected:            { label: "Connected",            cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
-  configured:           { label: "Configured",           cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
-  test_passed:          { label: "Test passed",          cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30", icon: <FlaskConical className="h-3.5 w-3.5" /> },
-  warning:              { label: "Warning",              cls: "bg-amber-500/15 text-amber-300 border-amber-500/30",     icon: <AlertTriangle className="h-3.5 w-3.5" /> },
-  failed:               { label: "Failed",               cls: "bg-red-500/15 text-red-300 border-red-500/30",           icon: <XCircle className="h-3.5 w-3.5" /> },
-  active:               { label: "Active",               cls: "bg-emerald-500/20 text-emerald-200 border-emerald-400/40", icon: <Zap className="h-3.5 w-3.5" /> },
+  not_started:          { label: "Not started",          cls: "bg-slate-500/15 text-slate-600 dark:text-slate-300 border-slate-500/30",     icon: <Circle className="h-3.5 w-3.5" /> },
+  information_required: { label: "Information required", cls: "bg-sky-500/15 text-sky-600 dark:text-sky-300 border-sky-500/30",           icon: <AlertTriangle className="h-3.5 w-3.5" /> },
+  in_progress:          { label: "In progress",          cls: "bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 border-indigo-500/30",  icon: <Loader2 className="h-3.5 w-3.5" /> },
+  connected:            { label: "Connected",            cls: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border-emerald-500/30", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
+  configured:           { label: "Configured",           cls: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border-emerald-500/30", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
+  test_passed:          { label: "Test passed",          cls: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border-emerald-500/30", icon: <FlaskConical className="h-3.5 w-3.5" /> },
+  warning:              { label: "Warning",              cls: "bg-amber-500/15 text-amber-600 dark:text-amber-300 border-amber-500/30",     icon: <AlertTriangle className="h-3.5 w-3.5" /> },
+  failed:               { label: "Failed",               cls: "bg-red-500/15 text-red-600 dark:text-red-300 border-red-500/30",           icon: <XCircle className="h-3.5 w-3.5" /> },
+  active:               { label: "Active",               cls: "bg-emerald-500/20 text-emerald-700 dark:text-emerald-200 border-emerald-400/40", icon: <Zap className="h-3.5 w-3.5" /> },
 };
 
 function StepBadge({ status }: { status: string }) {
@@ -52,12 +52,12 @@ function StepBadge({ status }: { status: string }) {
 }
 
 const HEALTH_CLS: Record<string, string> = {
-  healthy: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
-  warning: "bg-amber-500/15 text-amber-300 border-amber-500/30",
-  degraded: "bg-orange-500/15 text-orange-300 border-orange-500/30",
-  failed: "bg-red-500/15 text-red-300 border-red-500/30",
-  paused: "bg-slate-500/15 text-slate-300 border-slate-500/30",
-  unknown: "bg-slate-500/15 text-slate-300 border-slate-500/30",
+  healthy: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border-emerald-500/30",
+  warning: "bg-amber-500/15 text-amber-600 dark:text-amber-300 border-amber-500/30",
+  degraded: "bg-orange-500/15 text-orange-600 dark:text-orange-300 border-orange-500/30",
+  failed: "bg-red-500/15 text-red-600 dark:text-red-300 border-red-500/30",
+  paused: "bg-slate-500/15 text-slate-600 dark:text-slate-300 border-slate-500/30",
+  unknown: "bg-slate-500/15 text-slate-600 dark:text-slate-300 border-slate-500/30",
 };
 
 const TRIGGER_TYPES = [

@@ -716,7 +716,7 @@ function PlatformCard({ platform, accounts, onConnect, onEdit, onDelete, extra }
 // ── Sync status badge ──────────────────────────────────────────────────────────
 function SyncBadge({ status, lastSynced }: { status: string; lastSynced?: string | null }) {
   if (status === "syncing") return (
-    <span className="inline-flex items-center gap-1 text-[10px] text-blue-400">
+    <span className="inline-flex items-center gap-1 text-[10px] text-blue-600 dark:text-blue-400">
       <Loader2 className="h-2.5 w-2.5 animate-spin" /> Syncing…
     </span>
   );
@@ -724,13 +724,13 @@ function SyncBadge({ status, lastSynced }: { status: string; lastSynced?: string
     const mins = Math.round((Date.now() - new Date(lastSynced).getTime()) / 60000);
     const label = mins < 2 ? "just now" : mins < 60 ? `${mins}m ago` : `${Math.round(mins / 60)}h ago`;
     return (
-      <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400">
+      <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400">
         <CheckCircle2 className="h-2.5 w-2.5" /> synced {label}
       </span>
     );
   }
   if (status === "error") return (
-    <span className="inline-flex items-center gap-1 text-[10px] text-red-400">
+    <span className="inline-flex items-center gap-1 text-[10px] text-red-600 dark:text-red-400">
       <AlertTriangle className="h-2.5 w-2.5" /> sync failed
     </span>
   );

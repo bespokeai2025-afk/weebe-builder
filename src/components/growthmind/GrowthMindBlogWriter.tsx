@@ -39,19 +39,19 @@ function useCopyText(): [boolean, (text: string) => void] {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  Draft:     "bg-slate-500/15 text-slate-400 border-slate-500/20",
-  Scheduled: "bg-amber-500/15 text-amber-400 border-amber-500/20",
-  Published: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20",
-  Archived:  "bg-zinc-500/15 text-zinc-400 border-zinc-500/20",
+  Draft:     "bg-slate-500/15 text-slate-600 dark:text-slate-400 border-slate-500/20",
+  Scheduled: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/20",
+  Published: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+  Archived:  "bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/20",
 };
 
 const TONE_OPTIONS   = ["Professional", "Friendly", "Persuasive", "Authoritative", "Casual", "Conversational", "Inspiring"];
 const WC_OPTIONS     = [600, 800, 1000, 1200, 1500, 2000, 2500, 3000];
 
 function SeoScoreBadge({ score }: { score: number }) {
-  const color = score >= 80 ? "text-emerald-400 bg-emerald-500/15 border-emerald-500/20"
-    : score >= 60 ? "text-amber-400 bg-amber-500/15 border-amber-500/20"
-    : "text-red-400 bg-red-500/15 border-red-500/20";
+  const color = score >= 80 ? "text-emerald-600 dark:text-emerald-400 bg-emerald-500/15 border-emerald-500/20"
+    : score >= 60 ? "text-amber-600 dark:text-amber-400 bg-amber-500/15 border-amber-500/20"
+    : "text-red-600 dark:text-red-400 bg-red-500/15 border-red-500/20";
   return (
     <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-bold", color)}>
       SEO {score}/100

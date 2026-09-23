@@ -50,10 +50,10 @@ const RULE_TYPES = [
 
 function statusBadge(status: string) {
   const map: Record<string, string> = {
-    detected: "bg-sky-500/15 text-sky-300 border-sky-500/30",
-    approved: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
-    edited:   "bg-amber-500/15 text-amber-300 border-amber-500/30",
-    rejected: "bg-red-500/15 text-red-300 border-red-500/30",
+    detected: "bg-sky-500/15 text-sky-600 dark:text-sky-300 border-sky-500/30",
+    approved: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border-emerald-500/30",
+    edited:   "bg-amber-500/15 text-amber-600 dark:text-amber-300 border-amber-500/30",
+    rejected: "bg-red-500/15 text-red-600 dark:text-red-300 border-red-500/30",
   };
   return <Badge variant="outline" className={cn("text-[10px]", map[status] ?? "")}>{status}</Badge>;
 }

@@ -11,7 +11,7 @@ export function PaymentTestModeBanner() {
   }
   if (clientToken.startsWith("pk_test_")) {
     return (
-      <div className="w-full rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-center text-xs text-amber-200">
+      <div className="w-full rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-center text-xs text-amber-700 dark:text-amber-200">
         Test mode — all payments in preview are simulated. Use card 4242 4242 4242 4242.
       </div>
     );

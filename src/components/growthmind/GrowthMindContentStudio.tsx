@@ -134,9 +134,9 @@ function typeDef(id: ContentType): ContentTypeDef {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  draft:     "bg-slate-500/15 text-slate-400 border-slate-500/20",
-  published: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20",
-  archived:  "bg-zinc-500/15 text-zinc-400 border-zinc-500/20",
+  draft:     "bg-slate-500/15 text-slate-600 dark:text-slate-400 border-slate-500/20",
+  published: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+  archived:  "bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/20",
 };
 
 function formatDate(iso: string): string {

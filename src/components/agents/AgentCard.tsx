@@ -57,10 +57,10 @@ const STATUS_LABEL: Record<AgentStatus, string> = {
 };
 
 const STATUS_STYLES: Record<AgentStatus, string> = {
-  live: "bg-emerald-400/10 text-emerald-300 ring-1 ring-emerald-400/30",
-  training: "bg-amber-400/10 text-amber-300 ring-1 ring-amber-400/30",
-  draft: "bg-white/[0.04] text-muted-foreground ring-1 ring-white/10",
-  failed: "bg-destructive/15 text-red-300 ring-1 ring-red-400/30",
+  live: "bg-emerald-400/10 text-emerald-600 dark:text-emerald-300 ring-1 ring-emerald-400/30",
+  training: "bg-amber-400/10 text-amber-600 dark:text-amber-300 ring-1 ring-amber-400/30",
+  draft: "bg-white/[0.04] bg-muted/30 dark:bg-white/[0.04] text-muted-foreground ring-1 ring-border dark:ring-white/10",
+  failed: "bg-destructive/15 text-red-600 dark:text-red-300 ring-1 ring-red-400/30",
 };
 
 type VoiceProvider = "RETELL" | "OPENAI_REALTIME";

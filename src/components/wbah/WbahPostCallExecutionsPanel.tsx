@@ -89,21 +89,21 @@ const FILTERS: { value: StatusFilter; label: string }[] = [
 function statusBadge(displayStatus: WbahExecutionDisplayStatus) {
   if (displayStatus === "failed") {
     return (
-      <Badge variant="outline" className="text-[10px] border-red-500/40 text-red-300">
+      <Badge variant="outline" className="text-[10px] border-red-500/40 text-red-600 dark:text-red-300">
         Failed
       </Badge>
     );
   }
   if (displayStatus === "warning") {
     return (
-      <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-300">
+      <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-600 dark:text-amber-300">
         Warning
       </Badge>
     );
   }
   if (displayStatus === "success") {
     return (
-      <Badge variant="outline" className="text-[10px] border-emerald-500/40 text-emerald-300">
+      <Badge variant="outline" className="text-[10px] border-emerald-500/40 text-emerald-600 dark:text-emerald-300">
         Success
       </Badge>
     );

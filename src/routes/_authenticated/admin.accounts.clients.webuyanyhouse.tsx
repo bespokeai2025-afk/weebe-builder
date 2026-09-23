@@ -44,7 +44,7 @@ function StatusBadge({ ok, label }: { ok: boolean; label: string }) {
   return (
     <span className={cn(
       "inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full",
-      ok ? "bg-emerald-500/20 text-emerald-400" : "bg-gray-800 text-gray-500",
+      ok ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400" : "bg-muted dark:bg-gray-800 text-muted-foreground dark:text-gray-500",
     )}>
       {ok ? <CheckCircle2 className="w-2.5 h-2.5" /> : <XCircle className="w-2.5 h-2.5" />}
       {label}
@@ -54,10 +54,10 @@ function StatusBadge({ ok, label }: { ok: boolean; label: string }) {
 
 function SyncStatusPill({ status }: { status: string }) {
   const map: Record<string, string> = {
-    success: "bg-emerald-500/20 text-emerald-400",
-    partial: "bg-yellow-500/20 text-yellow-400",
-    running: "bg-sky-500/20 text-sky-400",
-    error:   "bg-red-500/20 text-red-400",
+    success: "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400",
+    partial: "bg-yellow-500/20 text-yellow-600 dark:text-yellow-400",
+    running: "bg-sky-500/20 text-sky-600 dark:text-sky-400",
+    error:   "bg-red-500/20 text-red-600 dark:text-red-400",
     idle:    "bg-gray-800 text-gray-500",
   };
   return (

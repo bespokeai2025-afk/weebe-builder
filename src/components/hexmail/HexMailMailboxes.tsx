@@ -9,17 +9,17 @@ import { Label } from "@/components/ui/label";
 import { getSenderDomains, getMailboxes, addMailbox, updateMailbox, deleteMailbox } from "@/lib/hexmail/deliverability.server";
 
 const STATUS_STYLES: Record<string, string> = {
-  pending:   "border-white/10 text-muted-foreground/50",
-  warming:   "border-amber-500/20 text-amber-400",
-  active:    "border-emerald-500/20 text-emerald-400",
-  paused:    "border-white/10 text-muted-foreground/40",
-  suspended: "border-red-500/20 text-red-400",
+  pending:   "border-border dark:border-white/10 text-muted-foreground/50",
+  warming:   "border-amber-500/20 text-amber-600 dark:text-amber-400",
+  active:    "border-emerald-500/20 text-emerald-600 dark:text-emerald-400",
+  paused:    "border-border dark:border-white/10 text-muted-foreground/40",
+  suspended: "border-red-500/20 text-red-600 dark:text-red-400",
 };
 
 function StatusIcon({ status }: { status: string }) {
-  if (status === "active")  return <CheckCircle  className="h-3.5 w-3.5 text-emerald-400" />;
-  if (status === "warming") return <Flame         className="h-3.5 w-3.5 text-amber-400" />;
-  if (status === "suspended" || status === "paused") return <XCircle className="h-3.5 w-3.5 text-red-400" />;
+  if (status === "active")  return <CheckCircle  className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />;
+  if (status === "warming") return <Flame         className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />;
+  if (status === "suspended" || status === "paused") return <XCircle className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />;
   return <AlertTriangle className="h-3.5 w-3.5 text-muted-foreground/40" />;
 }
 
