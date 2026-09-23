@@ -634,8 +634,14 @@ export const listWhatsappThreads = createServerFn({ method: "GET" })
         assignedTeamId: conv.assigned_team_id,
         tags: conv.tags ?? [],
         attributes: conv.attributes ?? {},
-        // Stored count is authoritative — it survives page reloads and is shared across agents.
-        unread: conv.unread_count,
+        // Stored count is authoritative — it survives page reloads and is shared across agents —
+        // but a thread that has been read shows no badge regardless of what the counter says.
+        // The DB recomputes that counter as "inbound since the last outbound", so anything that
+        // touches a message row can re-raise it on a thread the team read and chose not to answer.
+        // Deriving it here means the list is right even if a counter goes stale again.
+        unread: isWhatsappThreadSeen(conv.last_read_at, conv.last_message_at)
+          ? 0
+          : conv.unread_count,
         lastReadAt: conv.last_read_at,
         // Reading a thread clears the indicator, replying is not required. The
         // dot used to be `last_direction === "inbound"`, so "Okay, thank you"
@@ -1526,7 +1532,11 @@ export const previewWatiTemplateSend = createServerFn({ method: "POST" })
     if (!workspaceId) throw new Error("No active workspace");
     const sb = supabase as any;
 
-    const { data: tpl } = await sb
+    // Service role, like every other read of this table. wati_templates has RLS enabled with no
+    // policies at all, so a user-scoped client sees zero rows and the preview reported an
+    // APPROVED template as missing while the campaign sent from it perfectly well. Workspace
+    // scoping is enforced by the filter below, with workspaceId coming from the authed context.
+    const { data: tpl } = await (supabaseAdmin as any)
       .from("wati_templates")
       .select("name, components, body_preview")
       .eq("workspace_id", workspaceId)

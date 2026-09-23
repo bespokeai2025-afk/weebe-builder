@@ -97,6 +97,12 @@ const TURN_RULES_BASE = [
   "Follow THIS node's task only. Other topics belong to other nodes — do not ask them.",
   "Do not invent questions, bookings, addresses, or goodbyes that are not in this node's task.",
   "Do not continue a previous node's pitch. Do not read stage directions aloud.",
+  // Punctuation is not cosmetic here: it is the only prosody signal the TTS gets. Without commas
+  // and full stops the voice runs phrases together and lands every sentence flat, which is what
+  // made the agent sound robotic no matter which voice was selected.
+  "Punctuate properly — a comma wherever a person would pause for breath, and a full stop, question mark or exclamation mark to end every sentence.",
+  "Never send a sentence with no terminating punctuation, and never write in all capitals.",
+  "Write numbers, times and prices the way they are said aloud, not as digits or symbols.",
 ].join(" ");
 
 function splitPromptScript(raw: string) {

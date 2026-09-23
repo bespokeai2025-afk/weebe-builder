@@ -81,10 +81,40 @@ export async function* alignPcm16(source: AsyncIterable<Buffer>): AsyncGenerator
   // A trailing odd byte is an incomplete sample; dropping it is correct.
 }
 
+/** Sentence terminators — a segment ending here gets full falling intonation. */
+const SENTENCE_END = /[.!?\n]/;
+/** Clause breaks — where a person would draw breath. */
+const CLAUSE_BREAK = /[,;:\u2014\u2013]/;
+
+/**
+ * Best place to cut `buf` at or before `limit`.
+ *
+ * Order matters and is the whole point of this function: a segment handed to TTS is spoken as a
+ * complete utterance, so cutting mid-clause makes the voice fall away and restart — which is what
+ * made the agent sound robotic regardless of the voice model. Prefer a sentence end, then a clause
+ * break, then a word boundary, and only chop mid-word as a last resort.
+ *
+ * Returns the number of characters to take, including the punctuation itself.
+ */
+export function findSpeechCut(buf: string, limit: number): number {
+  const window = buf.slice(0, limit);
+  for (const re of [SENTENCE_END, CLAUSE_BREAK]) {
+    for (let i = window.length - 1; i >= 0; i--) {
+      if (re.test(window[i]!)) return i + 1;
+    }
+  }
+  const space = window.lastIndexOf(" ");
+  return space > 0 ? space : Math.min(buf.length, limit);
+}
+
 /**
  * Batch a token stream into speakable segments for providers that cannot accept
  * partial text. Flushes on sentence-ending punctuation, or once `maxChars`
  * accumulate so a long clause never stalls playback.
+ *
+ * The early first flush exists so audio starts before the model finishes its sentence, but it must
+ * still land on punctuation: a 12-character opening cut at a space ("Good afternoon") was spoken as
+ * a finished sentence and the rest restarted after it.
  */
 export async function* batchIntoSentences(
   textStream: AsyncIterable<string>,
@@ -99,11 +129,15 @@ export async function* batchIntoSentences(
     buf += token;
 
     if (!sentFirst && buf.trim().length >= firstFlushAt) {
-      const window = buf.slice(0, Math.min(buf.length, firstFlushAt + 8));
-      const lastSpace = window.lastIndexOf(" ");
-      const cut = lastSpace > 0 ? lastSpace : Math.min(buf.length, firstFlushAt);
+      const cut = findSpeechCut(buf, Math.min(buf.length, firstFlushAt + 24));
       const segment = buf.slice(0, cut).trim();
-      if (segment) {
+      // Only open early on a real boundary. Otherwise keep accumulating — a clipped first phrase
+      // costs more in naturalness than the few hundred milliseconds it saves.
+      const endsCleanly = /[.!?,;:\u2014\u2013]$/.test(segment);
+      // A long sentence with no commas must not hold the first audio indefinitely, so past twice
+      // the window take the best word boundary going.
+      const waitedTooLong = buf.trim().length >= firstFlushAt * 2;
+      if (segment && (endsCleanly || waitedTooLong)) {
         yield segment;
         buf = buf.slice(cut);
         sentFirst = true;
@@ -125,8 +159,8 @@ export async function* batchIntoSentences(
     }
 
     while (buf.length >= maxChars) {
-      const lastSpace = buf.lastIndexOf(" ", maxChars);
-      const cut = lastSpace > 0 ? lastSpace : maxChars;
+      // Cut on punctuation where possible rather than the nearest space.
+      const cut = findSpeechCut(buf, maxChars);
       const segment = buf.slice(0, cut).trim();
       if (segment) yield segment;
       buf = buf.slice(cut);
@@ -148,8 +182,13 @@ export function normalizeSpeechText(text: string): string {
     .trim();
 }
 
-/** Sentence-sized batches for providers without native token streaming. */
-export const VOICE_LATENCY_TTS_BATCH = { maxChars: 160, firstFlushChars: 12 } as const;
+/**
+ * Sentence-sized batches for providers without native token streaming.
+ *
+ * firstFlushChars was 12, which cut the opening phrase mid-clause on every single turn. 40 is still
+ * only a few tokens of latency, and `findSpeechCut` keeps the cut on punctuation.
+ */
+export const VOICE_LATENCY_TTS_BATCH = { maxChars: 160, firstFlushChars: 40 } as const;
 
 export async function* batchForVoiceLatency(
   textStream: AsyncIterable<string>,
@@ -173,8 +212,7 @@ export function* splitSpeakableChunks(text: string, maxChars = 120): Generator<s
   for (const raw of sentences) {
     let segment = raw.trim();
     while (segment.length > maxChars) {
-      const cut = segment.lastIndexOf(" ", maxChars);
-      const idx = cut > 0 ? cut : maxChars;
+      const idx = findSpeechCut(segment, maxChars);
       const piece = segment.slice(0, idx).trim();
       if (piece) yield piece;
       segment = segment.slice(idx).trim();

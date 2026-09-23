@@ -38,7 +38,7 @@ import {
   type SttProviderName,
   type SttSession,
 } from "../stt";
-import { createTtsProvider } from "../tts";
+import { createTtsProvider, parseTtsProviderName } from "../tts";
 import { normalizeSpeechText, type TtsVoiceRequest } from "../tts/types";
 import { FishAudioTtsProvider, resolveFishTtsModel } from "../tts/fish.provider";
 import type { TtsProvider, TtsProviderName } from "../tts";
@@ -352,9 +352,20 @@ export class CascadeSession {
    * while the greeting TTS is still synthesizing.
    */
   async prepare(): Promise<CascadeSessionBanner> {
-    this.tts = createTtsProvider("fish", {
+    // Honour the agent's TTS choice; "fish" remains the default when nothing is set.
+    const ttsChoice =
+      parseTtsProviderName(this.config.ttsProvider) ??
+      parseTtsProviderName((this.config.settings as Record<string, unknown> | null)?.webeeTtsProvider) ??
+      "fish";
+    this.tts = createTtsProvider(ttsChoice, {
       fishApiKey: process.env.FISH_API_KEY,
       fishTtsModel: this.fishTtsModel,
+      openaiApiKey: process.env.OPENAI_API_KEY,
+      openaiTtsModel: (this.config.settings as Record<string, unknown> | null)?.webeeTtsModel as
+        | string
+        | undefined,
+      openaiTtsInstructions: (this.config.settings as Record<string, unknown> | null)
+        ?.webeeTtsInstructions as string | undefined,
     });
 
     // Lock voice before graph load — Retell agent-level voice, never re-resolved mid-call.

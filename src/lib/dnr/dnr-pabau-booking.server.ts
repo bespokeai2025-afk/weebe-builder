@@ -29,6 +29,12 @@ import {
   serviceDisabledAtLocation,
   type PabauLocationRow,
 } from "@/lib/pabau/pabau-location.shared";
+import {
+  pabauListShifts,
+  pickShiftForSlot,
+  shiftsForDateAtLocation,
+  type PabauShift,
+} from "@/lib/dnr/dnr-pabau-rota.server";
 import { DNR_VOICE } from "./dnr-voice.config";
 
 export interface PabauServiceRow {
@@ -169,9 +175,38 @@ function generateLocationSlots(input: {
   durationMin: number;
   booked: Set<string>;
   maxSlots?: number;
-}): Array<{ start_date: string; start_time: string; display: string }> {
-  const slots: Array<{ start_date: string; start_time: string; display: string }> = [];
+  maxPerDay?: number;
+  /** Real rota. When empty, fall back to opening hours. */
+  shifts?: PabauShift[];
+  locationId: number;
+  serviceId?: number;
+  durationForShift?: number;
+  preferUserId?: number;
+}): Array<{
+  start_date: string;
+  start_time: string;
+  display: string;
+  practitioner_id?: number;
+  practitioner_name?: string;
+}> {
+  const slots: Array<{
+    start_date: string;
+    start_time: string;
+    display: string;
+    practitioner_id?: number;
+    practitioner_name?: string;
+  }> = [];
+  const rota = input.shifts ?? [];
+  const useRota = rota.length > 0;
   const max = input.maxSlots ?? 12;
+  /**
+   * Cap per day so the caller is offered a spread of dates, not one.
+   *
+   * The clinic is open 10:00–20:00, which is twenty 30-minute starts, so an overall cap alone was
+   * always filled by the first open day and the loop broke before reaching the second. A caller who
+   * asked for "sometime next week" was read a list of times for today.
+   */
+  const perDay = input.maxPerDay ?? 3;
   const step = 30;
 
   for (const sd of iterateYmdRange(input.range.start, input.range.end)) {
@@ -179,19 +214,37 @@ function generateLocationSlots(input: {
     const hours = locationHoursForDate(input.location, sd);
     if (!hours || hours.closed) continue;
 
+    const dayShifts = useRota
+      ? shiftsForDateAtLocation(rota, sd, input.locationId, input.serviceId)
+      : [];
+    // Nobody rostered means the clinic cannot honour a booking that day, whatever the door says.
+    if (useRota && dayShifts.length === 0) continue;
+
+    let today = 0;
     for (let minute = hours.openMin; minute + input.durationMin <= hours.closeMin; minute += step) {
+      if (today >= perDay || slots.length >= max) break;
       const hour = Math.floor(minute / 60);
       const min = minute % 60;
       if (!slotIsFutureInLondon(sd, hour, min)) continue;
       const st = minutesToHm(minute);
       const key = `${sd}T${st}`;
       if (input.booked.has(key)) continue;
+
+      // Only offer a time somebody is actually working, and remember who — that is the employee
+      // the appointment must be created against, or Pabau rejects it.
+      let shift: PabauShift | null = null;
+      if (useRota) {
+        shift = pickShiftForSlot(dayShifts, minute, input.durationMin, input.preferUserId);
+        if (!shift) continue;
+      }
+
       slots.push({
         start_date: sd,
         start_time: st,
         display: `${sd} at ${st}`,
+        ...(shift ? { practitioner_id: shift.userId, practitioner_name: shift.userName } : {}),
       });
-      if (slots.length >= max) break;
+      today++;
     }
   }
 
@@ -254,24 +307,28 @@ export async function pabauCheckAvailability(args: {
 
   const range = normalizeAvailabilityRange(args.startDate, args.endDate);
   const durationMin = parseDurationMinutes(service.duration);
-  const appointments = await pabauListAppointments(args.config);
+  const [appointments, shifts] = await Promise.all([
+    pabauListAppointments(args.config),
+    // The rota is what makes an offered slot bookable. If it cannot be read the generator falls
+    // back to opening hours, which is the old behaviour rather than an outage.
+    pabauListShifts(args.config, { fromDate: range.start }),
+  ]);
   const booked = buildBookedSlotSet(
     appointments,
     locationId,
     practitioner?.id,
   );
 
-  const rawSlots = generateLocationSlots({
+  const slots = generateLocationSlots({
     location,
     range,
     durationMin,
     booked,
+    locationId,
+    serviceId: service.id,
+    shifts,
+    preferUserId: practitioner?.id,
   });
-
-  const slots = rawSlots.map((s) => ({
-    ...s,
-    ...(practitioner ? { practitioner_id: practitioner.id } : {}),
-  }));
 
   const practNote = practitioner ? ` with ${practitioner.full_name}` : "";
   const rangeNote = range.adjusted
@@ -409,6 +466,31 @@ export async function pabauBookAppointment(args: {
   }
 
   const location = await pabauGetLocation(args.config, locationId);
+
+  // Resolve the rostered person for exactly this slot; fall back to the configured column so a
+  // rota read failure does not block booking outright.
+  const durationMin = parseDurationMinutes(service.duration);
+  const startMin =
+    Number(args.startTime.slice(0, 2)) * 60 + Number(args.startTime.slice(3, 5) || 0);
+  let bookingEmployeeId: number = DNR_VOICE.pabau.bookingEmployeeId;
+  let rosteredName: string | null = null;
+  try {
+    const shifts = await pabauListShifts(args.config, { fromDate: args.startDate });
+    const dayShifts = shiftsForDateAtLocation(shifts, args.startDate, locationId, service.id);
+    const shift = pickShiftForSlot(
+      dayShifts,
+      startMin,
+      durationMin,
+      args.practitionerId ? Number(args.practitionerId) : undefined,
+    );
+    if (shift) {
+      bookingEmployeeId = shift.userId;
+      rosteredName = shift.userName;
+    }
+  } catch {
+    /* keep the configured fallback */
+  }
+  void rosteredName;
   const body: Record<string, unknown> = {
     contact_id: args.contactId,
     customer_id: String(args.contactId),
@@ -417,10 +499,11 @@ export async function pabauBookAppointment(args: {
     start_time: args.startTime.length === 5 ? `${args.startTime}:00` : args.startTime,
     location_id: locationId,
     notes: buildDnrAppointmentNotes(args.notes, args.practitionerId),
-    // Always the AI Receptionist column — Pabau checks employee_id against that
-    // user's rota, and it is the one the clinic maintains for phone bookings.
-    // Pabau's create API wants employee_id here, not user_id / practitioner_id.
-    employee_id: DNR_VOICE.pabau.bookingEmployeeId,
+    // Whoever is actually rostered for this slot. Pabau validates employee_id against that user's
+    // shift, and the configured AI Receptionist column has no rota at all, so every booking against
+    // it was refused with "There is no shift for this timeslot". `employee_id` here takes a
+    // /users.id — the same kind of value as schedules.user_id, NOT schedules.employee_id.
+    employee_id: bookingEmployeeId,
   };
 
   const locName = location?.location_name ?? DNR_VOICE.location.name;

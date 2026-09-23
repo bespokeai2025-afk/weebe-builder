@@ -57,12 +57,16 @@ describe("createSttProvider", () => {
     expect(() => createSttProvider("deepgram")).toThrow(/DEEPGRAM_API_KEY/);
   });
 
+  // Asserted per provider rather than as a whole list: OpenAI is now a third engine and whether it
+  // appears depends on OPENAI_API_KEY being present in the environment running the tests.
   it("reports availability without constructing anything", () => {
-    expect(availableSttProviders()).toEqual([]);
+    expect(availableSttProviders()).not.toContain("fish");
+    expect(availableSttProviders()).not.toContain("deepgram");
     process.env.FISH_API_KEY = "fish";
-    expect(availableSttProviders()).toEqual(["fish"]);
+    expect(availableSttProviders()).toContain("fish");
     process.env.DEEPGRAM_API_KEY = "dg";
-    expect(availableSttProviders()).toEqual(["fish", "deepgram"]);
+    expect(availableSttProviders()).toContain("deepgram");
+    expect(availableSttProviders({ openaiApiKey: "sk-test" })).toContain("openai");
   });
 });
 
@@ -82,16 +86,20 @@ describe("resolveWebeeSttPreference", () => {
     expect(resolveWebeeSttPreference({ webeeSttProvider: "fish" })).toBe("fish");
   });
 
-  it("returns null when FISH_API_KEY is missing", () => {
-    expect(resolveWebeeSttPreference({})).toBeNull();
+  // Whisper is now a third engine, so "no Fish key" no longer means "no engine". What still must
+  // hold is that Fish is not chosen without a Fish key.
+  it("does not fall back to Fish when FISH_API_KEY is missing", () => {
+    expect(resolveWebeeSttPreference({})).not.toBe("fish");
   });
 });
 
 describe("parseSttProviderName", () => {
-  it("accepts fish and deepgram only", () => {
+  it("accepts fish, deepgram and openai", () => {
     expect(parseSttProviderName("fish")).toBe("fish");
     expect(parseSttProviderName("Deepgram")).toBe("deepgram");
-    expect(parseSttProviderName("whisper")).toBeNull();
+    expect(parseSttProviderName("openai")).toBe("openai");
+    // The provider calls itself "whisper"; accepted as an alias for the same engine.
+    expect(parseSttProviderName("whisper")).toBe("openai");
     expect(parseSttProviderName("")).toBeNull();
   });
 });
