@@ -686,8 +686,8 @@ function WebhookStatusBadge({ status }: { status: { registered: boolean; note: s
   return (
     <div className={cn("flex items-start gap-2 rounded-md border p-2.5", status.registered ? "bg-green-500/10 border-green-500/20" : "bg-amber-500/10 border-amber-500/20")}>
       {status.registered
-        ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500 mt-0.5 shrink-0" />
-        : <XCircle     className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />}
+        ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-500 mt-0.5 shrink-0" />
+        : <XCircle     className="h-3.5 w-3.5 text-amber-600 dark:text-amber-500 mt-0.5 shrink-0" />}
       <p className="text-xs text-muted-foreground leading-relaxed">{status.note}</p>
     </div>
   );

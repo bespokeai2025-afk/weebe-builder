@@ -5,6 +5,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge as SharedStatusBadge } from "@/components/ui/status-badge";
 import { toast } from "sonner";
 import {
   ArrowLeft, CheckCircle2, XCircle, AlertCircle, Clock,
@@ -162,10 +163,10 @@ const REDIRECT_PROVIDERS: Record<string, string> = {
 };
 
 function StatusBadge({ status }: { status: string }) {
-  if (status === "connected")    return <Badge className="text-[9px] h-4 bg-emerald-500/10 text-emerald-400 border-emerald-500/20"><CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />Connected</Badge>;
-  if (status === "error")        return <Badge className="text-[9px] h-4 bg-red-500/10 text-red-400 border-red-500/20"><XCircle className="h-2.5 w-2.5 mr-0.5" />Error</Badge>;
-  if (status === "coming_soon")  return <Badge className="text-[9px] h-4 bg-muted/40 text-muted-foreground border-border"><Clock className="h-2.5 w-2.5 mr-0.5" />Coming Soon</Badge>;
-  return <Badge className="text-[9px] h-4 bg-muted/40 text-muted-foreground border-border"><AlertCircle className="h-2.5 w-2.5 mr-0.5" />Disconnected</Badge>;
+  if (status === "connected")    return <SharedStatusBadge size="sm" tone="success" icon={<CheckCircle2 className="h-2.5 w-2.5" />} className="text-[9px] h-4">Connected</SharedStatusBadge>;
+  if (status === "error")        return <SharedStatusBadge size="sm" tone="danger" icon={<XCircle className="h-2.5 w-2.5" />} className="text-[9px] h-4">Error</SharedStatusBadge>;
+  if (status === "coming_soon")  return <SharedStatusBadge size="sm" tone="neutral" icon={<Clock className="h-2.5 w-2.5" />} className="text-[9px] h-4">Coming Soon</SharedStatusBadge>;
+  return <SharedStatusBadge size="sm" tone="neutral" icon={<AlertCircle className="h-2.5 w-2.5" />} className="text-[9px] h-4">Disconnected</SharedStatusBadge>;
 }
 
 // ── "Connect with Google" OAuth block for Google Ads ─────────────────────────
@@ -340,7 +341,7 @@ function ProviderPanel({
             <span className="font-medium text-sm">{provider.label}</span>
             <StatusBadge status={provider.status} />
             {provider.isDefault  && <Badge className="text-[9px] h-4 bg-primary/10 text-primary border-primary/20">Primary</Badge>}
-            {provider.isFallback && <Badge className="text-[9px] h-4 bg-amber-500/10 text-amber-400 border-amber-500/20">Fallback</Badge>}
+            {provider.isFallback && <Badge className="text-[9px] h-4 bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">Fallback</Badge>}
           </div>
           {provider.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{provider.description}</p>}
         </div>

@@ -29,27 +29,27 @@ const STATUS_META: Record<
   operational: {
     label: "Operational",
     icon: CheckCircle2,
-    className: "border-emerald-500/30 text-emerald-400 bg-emerald-500/5",
+    className: "border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5",
   },
   warning: {
     label: "Warning",
     icon: AlertTriangle,
-    className: "border-amber-500/30 text-amber-400 bg-amber-500/5",
+    className: "border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-500/5",
   },
   failed: {
     label: "Failed",
     icon: XCircle,
-    className: "border-red-500/30 text-red-400 bg-red-500/5",
+    className: "border-red-500/30 text-red-600 dark:text-red-400 bg-red-500/5",
   },
   not_configured: {
     label: "Not configured",
     icon: MinusCircle,
-    className: "border-white/[0.10] text-muted-foreground bg-white/[0.02]",
+    className: "border-border dark:border-white/[0.10] text-muted-foreground bg-muted/30 dark:bg-white/[0.02]",
   },
   test_required: {
     label: "Test required",
     icon: FlaskConical,
-    className: "border-sky-500/30 text-sky-400 bg-sky-500/5",
+    className: "border-sky-500/30 text-sky-600 dark:text-sky-400 bg-sky-500/5",
   },
 };
 
@@ -66,7 +66,7 @@ function StatusBadge({ status }: { status: HealthStatus }) {
 
 function AgentHealthCard({ report }: { report: AgentHealthReport }) {
   return (
-    <Card className="border-white/[0.06] bg-white/[0.02]">
+    <Card className={cn("border-border dark:border-white/[0.06] bg-muted/30 dark:bg-white/[0.02]")}>
       <CardHeader className="pb-3">
         <CardTitle className="text-sm">{report.agentName}</CardTitle>
         <CardDescription className="text-[11px]">
@@ -81,7 +81,7 @@ function AgentHealthCard({ report }: { report: AgentHealthReport }) {
           {report.items.map((it) => (
             <div
               key={it.key}
-              className="flex items-start justify-between gap-3 rounded-lg border border-white/[0.05] bg-white/[0.02] px-3 py-2.5"
+              className="flex items-start justify-between gap-3 rounded-lg border border-border dark:border-white/[0.05] bg-muted/30 dark:bg-white/[0.02] px-3 py-2.5"
             >
               <div className="min-w-0">
                 <div className="text-[12px] font-medium text-foreground">{it.label}</div>
@@ -141,12 +141,12 @@ function AgentHealthPage() {
           </div>
         ) : error ? (
           <Card className="border-red-500/20 bg-red-500/5">
-            <CardContent className="py-6 text-sm text-red-400">
+            <CardContent className="py-6 text-sm text-red-600 dark:text-red-400">
               The health check could not be completed right now. Please try again.
             </CardContent>
           </Card>
         ) : !data || data.length === 0 ? (
-          <Card className="border-white/[0.06] bg-white/[0.02]">
+<Card className="border-white/[0.06] bg-white/[0.02] dark:border-white/[0.06] dark:bg-white/[0.02]">
             <CardContent className="py-10 text-center text-sm text-muted-foreground">
               No live agents found in this workspace. Deploy an agent to see its health here.
             </CardContent>

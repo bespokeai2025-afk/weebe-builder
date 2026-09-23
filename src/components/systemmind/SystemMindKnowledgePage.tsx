@@ -9,6 +9,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge as SharedStatusBadge } from "@/components/ui/status-badge";
 import {
   getExecutiveUploadUrl,
   recordExecutiveDocument,
@@ -36,19 +37,22 @@ const CATEGORY_SUGGESTIONS = [
 ];
 
 function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { c: string; icon: React.ElementType; label: string }> = {
-    indexed:    { c: "text-emerald-400 bg-emerald-500/10", icon: CheckCircle2, label: "Indexed" },
-    pending:    { c: "text-amber-400 bg-amber-500/10",     icon: Clock,        label: "Pending" },
-    processing: { c: "text-sky-400 bg-sky-500/10",         icon: Loader2,      label: "Processing" },
-    failed:     { c: "text-red-400 bg-red-500/10",         icon: AlertTriangle, label: "Failed" },
+  const map: Record<string, { tone: "success" | "warning" | "sky" | "danger"; icon: React.ElementType; label: string }> = {
+    indexed:    { tone: "success", icon: CheckCircle2, label: "Indexed" },
+    pending:    { tone: "warning", icon: Clock,        label: "Pending" },
+    processing: { tone: "sky",     icon: Loader2,      label: "Processing" },
+    failed:     { tone: "danger",  icon: AlertTriangle, label: "Failed" },
   };
   const s = map[status] ?? map.pending;
   const Icon = s.icon;
   return (
-    <span className={cn("inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium", s.c)}>
-      <Icon className={cn("h-3 w-3", status === "processing" && "animate-spin")} />
+    <SharedStatusBadge
+      tone={s.tone}
+      icon={<Icon className={cn("h-3 w-3", status === "processing" && "animate-spin")} />}
+      className="rounded px-1.5 py-0.5 text-[10px] font-medium"
+    >
       {s.label}
-    </span>
+    </SharedStatusBadge>
   );
 }
 
@@ -196,9 +200,9 @@ export function SystemMindKnowledgePage() {
       {docList.length > 0 && (
         <div className="flex gap-3">
           {[
-            { label: "Indexed",    value: indexedCount,  color: "text-emerald-400" },
-            { label: "Processing", value: pendingCount,  color: "text-amber-400" },
-            { label: "Failed",     value: failedCount,   color: "text-red-400" },
+            { label: "Indexed",    value: indexedCount,  color: "text-emerald-600 dark:text-emerald-400" },
+            { label: "Processing", value: pendingCount,  color: "text-amber-600 dark:text-amber-400" },
+            { label: "Failed",     value: failedCount,   color: "text-red-600 dark:text-red-400" },
           ].map((s) => (
             <div key={s.label} className="flex items-center gap-1.5 rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] px-3 py-2">
               <span className={cn("text-base font-semibold", s.color)}>{s.value}</span>

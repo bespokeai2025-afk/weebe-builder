@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { StatusBadge as SharedStatusBadge } from "@/components/ui/status-badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -25,18 +26,17 @@ function StatusIcon({ status }: { status: DnsStatus }) {
 }
 
 function StatusBadge({ status, label }: { status: DnsStatus; label: string }) {
-  const styles: Record<DnsStatus, string> = {
-    pass:    "border-emerald-500/20 bg-emerald-500/5 text-emerald-400",
-    fail:    "border-red-500/20 bg-red-500/5 text-red-400",
-    warning: "border-amber-500/20 bg-amber-500/5 text-amber-400",
-    missing: "border-red-500/20 bg-red-500/5 text-red-400/80",
-    unknown: "border-white/10 bg-white/[0.02] text-muted-foreground/50",
+  const tone: Record<DnsStatus, "success" | "danger" | "warning" | "neutral"> = {
+    pass: "success",
+    fail: "danger",
+    warning: "warning",
+    missing: "danger",
+    unknown: "neutral",
   };
   return (
-    <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium", styles[status])}>
-      <StatusIcon status={status} />
+    <SharedStatusBadge tone={tone[status]} className="rounded-full border px-2 py-0.5 text-[10px] font-medium" icon={<StatusIcon status={status} />}>
       {label}
-    </span>
+    </SharedStatusBadge>
   );
 }
 
@@ -48,7 +48,7 @@ function DomainCard({ domain, onRecheck, onDelete }: { domain: any; onRecheck: (
   const qc = useQueryClient();
 
   const health = domain.healthScore;
-  const scoreColor = health.score >= 80 ? "text-emerald-400" : health.score >= 60 ? "text-amber-400" : "text-red-400";
+  const scoreColor = health.score >= 80 ? "text-emerald-600 dark:text-emerald-400" : health.score >= 60 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400";
 
   async function saveSelector() {
     setSaving(true);

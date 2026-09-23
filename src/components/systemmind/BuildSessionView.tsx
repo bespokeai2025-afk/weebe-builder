@@ -144,9 +144,9 @@ export function RiskBadge({ risk }: { risk?: string | null }) {
       variant="outline"
       className={cn(
         "text-[10px] font-semibold",
-        risk === "high"   && "border-red-500/40   text-red-400",
-        risk === "medium" && "border-amber-500/40 text-amber-400",
-        risk === "low"    && "border-green-500/40 text-green-400",
+        risk === "high"   && "border-red-500/40   text-red-600 dark:text-red-400",
+        risk === "medium" && "border-amber-500/40 text-amber-600 dark:text-amber-400",
+        risk === "low"    && "border-green-500/40 text-green-600 dark:text-green-400",
       )}
     >
       {risk} risk
@@ -156,12 +156,12 @@ export function RiskBadge({ risk }: { risk?: string | null }) {
 
 const STATUS_STYLES: Record<string, string> = {
   draft:            "border-border dark:border-white/20 text-muted-foreground",
-  testing:          "border-sky-500/40 text-sky-400",
+  testing:          "border-sky-500/40 text-sky-600 dark:text-sky-400",
   revised:          "border-border dark:border-white/15 text-muted-foreground/70",
-  pending_approval: "border-amber-500/40 text-amber-400",
-  applied:          "border-green-500/40 text-green-400",
-  deployed:         "border-emerald-500/50 text-emerald-300",
-  rejected:         "border-red-500/40 text-red-400",
+  pending_approval: "border-amber-500/40 text-amber-600 dark:text-amber-400",
+  applied:          "border-green-500/40 text-green-600 dark:text-green-400",
+  deployed:         "border-emerald-500/50 text-emerald-600 dark:text-emerald-300",
+  rejected:         "border-red-500/40 text-red-600 dark:text-red-400",
   archived:         "border-border dark:border-white/15 text-muted-foreground/60",
 };
 

@@ -21,10 +21,10 @@ import type { WorkflowDraftFull } from "@/lib/systemmind/systemmind-workflow-gen
 
 const STATUS_META: Record<string, { label: string; color: string }> = {
   draft:            { label: "Draft",            color: "text-muted-foreground border-border dark:border-white/10"  },
-  needs_review:     { label: "Needs Review",     color: "text-amber-400 border-amber-500/30"     },
-  approved:         { label: "Approved",          color: "text-green-400 border-green-500/30"     },
-  sent_to_builder:  { label: "Sent to Builder",  color: "text-sky-400 border-sky-500/30"         },
-  rejected:         { label: "Rejected",          color: "text-red-400 border-red-500/30"         },
+  needs_review:     { label: "Needs Review",     color: "text-amber-600 dark:text-amber-400 border-amber-500/30"     },
+  approved:         { label: "Approved",          color: "text-green-600 dark:text-green-400 border-green-500/30"     },
+  sent_to_builder:  { label: "Sent to Builder",  color: "text-sky-600 dark:text-sky-400 border-sky-500/30"         },
+  rejected:         { label: "Rejected",          color: "text-red-600 dark:text-red-400 border-red-500/30"         },
   archived:         { label: "Archived",          color: "text-muted-foreground border-border dark:border-white/10"  },
 };
 

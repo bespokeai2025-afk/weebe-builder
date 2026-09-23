@@ -129,8 +129,8 @@ type WaContactRow = {
 
 function outboundStatusBadgeClass(status: string | null | undefined): string {
   const s = String(status ?? "").toLowerCase();
-  if (s.includes("read")) return "text-blue-400 border-blue-500/30";
-  if (s.includes("deliver")) return "text-emerald-400 border-emerald-500/30";
+  if (s.includes("read")) return "text-blue-600 dark:text-blue-400 border-blue-500/30";
+  if (s.includes("deliver")) return "text-emerald-600 dark:text-emerald-400 border-emerald-500/30";
   if (s.includes("fail")) return "text-destructive border-destructive/30";
   return "text-muted-foreground border-border";
 }

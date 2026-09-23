@@ -31,14 +31,14 @@ const EMPTY_SUMMARY: CallbackSummary = {
 function CallbackStatusBadge({ row }: { row: CallbackRow }) {
   if (!row.hasPhone) {
     return (
-      <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-400 text-[10px]">
+      <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px]">
         No phone
       </Badge>
     );
   }
   if (row.status === "completed" || row.callbackCompleted) {
     return (
-      <Badge variant="outline" className="border-slate-500/30 bg-slate-500/10 text-slate-400 text-[10px]">
+      <Badge variant="outline" className="border-slate-500/30 bg-slate-500/10 text-slate-600 dark:text-slate-400 text-[10px]">
         Completed
       </Badge>
     );
@@ -50,7 +50,7 @@ function CallbackStatusBadge({ row }: { row: CallbackRow }) {
         ? `Overdue (${mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`})`
         : "Overdue";
     return (
-      <Badge variant="outline" className="border-rose-500/40 bg-rose-500/10 text-rose-400 text-[10px]">
+      <Badge variant="outline" className="border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400 text-[10px]">
         {label}
       </Badge>
     );
@@ -64,14 +64,14 @@ function CallbackStatusBadge({ row }: { row: CallbackRow }) {
           : `In ${Math.floor(mins / 60)}h ${mins % 60}m`
         : "Upcoming";
     return (
-      <Badge variant="outline" className="border-sky-500/40 bg-sky-500/10 text-sky-400 text-[10px]">
+      <Badge variant="outline" className="border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400 text-[10px]">
         {label}
       </Badge>
     );
   }
   if (row.status === "due") {
     return (
-      <Badge variant="outline" className="border-rose-500/40 bg-rose-500/10 text-rose-400 text-[10px]">
+      <Badge variant="outline" className="border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400 text-[10px]">
         Due now
       </Badge>
     );

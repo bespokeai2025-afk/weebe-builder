@@ -17,10 +17,10 @@ function bookingStatusBadge(status: string | null | undefined) {
   const lower = String(status ?? "").toLowerCase();
   const tone =
     lower === "success"
-      ? "bg-green-500/15 text-green-400 border-green-500/30"
+      ? "border-green-500/30 bg-green-500/15 text-green-600 dark:text-green-400"
       : lower === "failed"
-        ? "bg-red-500/15 text-red-400 border-red-500/30"
-        : "bg-muted text-muted-foreground border-white/[0.06]";
+        ? "border-red-500/30 bg-red-500/15 text-red-600 dark:text-red-400"
+        : "bg-muted text-muted-foreground border-white/[0.06] dark:border-white/[0.06]";
   return (
     <Badge variant="outline" className={cn("text-[10px] capitalize", tone)}>
       {label}

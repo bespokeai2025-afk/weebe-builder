@@ -44,6 +44,7 @@ import {
   ListOrdered,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { StatusBadge as SharedStatusBadge } from "@/components/ui/status-badge";
 import {
   listHexmailCampaigns,
   updateHexmailCampaignStatus,
@@ -52,11 +53,11 @@ import {
 } from "@/lib/hexmail/campaigns.functions";
 import { CreateCampaignForm } from "./CreateCampaignForm";
 
-const STATUS_STYLES: Record<string, string> = {
-  draft:    "bg-slate-500/10 text-slate-400 border-slate-500/20",
-  active:   "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-  paused:   "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  archived: "bg-rose-500/10 text-rose-400 border-rose-500/20",
+const STATUS_TONE: Record<string, "slate" | "success" | "warning" | "danger"> = {
+  draft: "slate",
+  active: "success",
+  paused: "warning",
+  archived: "danger",
 };
 
 const STATUS_DOT: Record<string, string> = {
@@ -68,15 +69,13 @@ const STATUS_DOT: Record<string, string> = {
 
 function StatusBadge({ status }: { status: string }) {
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded border px-2 py-0.5 text-[11px] font-medium capitalize",
-        STATUS_STYLES[status] ?? STATUS_STYLES.draft,
-      )}
+    <SharedStatusBadge
+      tone={STATUS_TONE[status] ?? "slate"}
+      icon={<span className={cn("h-1.5 w-1.5 rounded-full", STATUS_DOT[status] ?? STATUS_DOT.draft)} />}
+      className="rounded border px-2 py-0.5 text-[11px] font-medium capitalize"
     >
-      <span className={cn("h-1.5 w-1.5 rounded-full", STATUS_DOT[status] ?? STATUS_DOT.draft)} />
       {status}
-    </span>
+    </SharedStatusBadge>
   );
 }
 
