@@ -567,13 +567,27 @@ export function WhatsAppContacts() {
   // Whether the table is showing a subset, and what to call it. Deleting is
   // irreversible, so the confirm has to name the exact same set the user is
   // looking at rather than a vague "these contacts".
-  const bulkScope = useMemo(
-    () => ({
+  const bulkScope = useMemo(() => {
+    const upload = uploadFilter !== ALL_UPLOADS ? uploadFilter : null;
+    const noun =
+      messagedFilter === "not_messaged"
+        ? "not-sent"
+        : messagedFilter === "messaged"
+          ? "already-messaged"
+          : messagedFilter === "replied"
+            ? "replied"
+            : messagedFilter === "dnc"
+              ? "do-not-contact"
+              : "";
+    return {
       count: filtered.length,
-      upload: uploadFilter !== ALL_UPLOADS ? uploadFilter : null,
-    }),
-    [uploadFilter, filtered.length],
-  );
+      upload,
+      noun,
+      // Deleting is irreversible, so the confirm names the exact set on screen rather than
+      // "these contacts".
+      label: [noun, "contact"].filter(Boolean).join(" "),
+    };
+  }, [uploadFilter, messagedFilter, filtered.length]);
 
   const bulkDelete = useMutation({
     mutationFn: () =>
@@ -865,11 +879,10 @@ export function WhatsAppContacts() {
               {filtered.length > 0 && (
                 <span className="text-xs text-muted-foreground">{filtered.length} shown</span>
               )}
-              {/* Only offered on "Not sent". Clearing an import that was never
-                  messaged is the one bulk delete that is routinely safe, so it
-                  lives with that filter rather than as a mode on the Clear
-                  button, where it would sit next to "delete everything". */}
-              {messagedFilter === "not_messaged" && filtered.length > 0 && (
+              {/* Offered on "Not sent", and whenever a single upload type is selected. Both are
+                  scoped deletes that name exactly what is on screen — unlike Clear, which removes
+                  every contact in the workspace and ignores these filters entirely. */}
+              {(messagedFilter === "not_messaged" || bulkScope.upload) && filtered.length > 0 && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -877,7 +890,9 @@ export function WhatsAppContacts() {
                   onClick={() => setBulkDeleteOpen(true)}
                 >
                   <Trash2 className="h-3 w-3" />
-                  Delete {filtered.length} not sent
+                  Delete {filtered.length}
+                  {bulkScope.noun ? ` ${bulkScope.noun}` : ""}
+                  {bulkScope.upload ? ` in "${bulkScope.upload}"` : ""}
                 </Button>
               )}
             </div>
@@ -1192,10 +1207,25 @@ export function WhatsAppContacts() {
       <AlertDialog open={clearAllOpen} onOpenChange={setClearAllOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove all contacts?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This permanently deletes all {contacts.length} Buzzchat contacts in this workspace.
-              This cannot be undone.
+            <AlertDialogTitle>Remove every contact in this workspace?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>
+                  This permanently deletes all {summary.total} Buzzchat contact
+                  {summary.total === 1 ? "" : "s"} in this workspace. It cannot be undone.
+                </p>
+                {/* The old wording quoted the loaded row count and said nothing about filters,
+                    while the action itself ignores them — so with a filter applied it looked like
+                    it would remove only what was on screen. */}
+                {(bulkScope.upload || messagedFilter !== "all") && (
+                  <p className="text-xs font-medium text-destructive">
+                    Your current filter is ignored. This removes all {summary.total} contacts, not
+                    just the {filtered.length} shown
+                    {bulkScope.upload ? ` from "${bulkScope.upload}"` : ""}. To delete only those,
+                    cancel and use the delete button next to the filters.
+                  </p>
+                )}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1208,7 +1238,7 @@ export function WhatsAppContacts() {
               disabled={clearAll.isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {clearAll.isPending ? "Removing…" : "Remove all"}
+              {clearAll.isPending ? "Removing…" : `Remove all ${summary.total}`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1218,7 +1248,8 @@ export function WhatsAppContacts() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Delete {bulkScope.count} not-sent contact{bulkScope.count === 1 ? "" : "s"}
+              Delete {bulkScope.count} {bulkScope.label}
+              {bulkScope.count === 1 ? "" : "s"}
               {bulkScope.upload ? ` in "${bulkScope.upload}"` : ""}?
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
@@ -1230,8 +1261,12 @@ export function WhatsAppContacts() {
                   undone.
                 </p>
                 <p className="text-xs">
-                  Their WhatsApp history stays — only the contact records go. Anyone who has been
-                  messaged, or who has replied, is untouched.
+                  Their WhatsApp history stays — only the contact records go.
+                  {messagedFilter === "not_messaged"
+                    ? " Anyone who has been messaged, or who has replied, is untouched."
+                    : bulkScope.upload
+                      ? ` Contacts outside the "${bulkScope.upload}" upload are untouched.`
+                      : ""}
                 </p>
                 <p className="text-xs">
                   {summary.total - bulkScope.count} contact
