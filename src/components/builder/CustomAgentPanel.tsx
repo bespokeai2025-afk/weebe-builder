@@ -134,13 +134,13 @@ function ResultSection({
   children: React.ReactNode;
 }) {
   return (
-    <Collapsible className="rounded border border-white/[0.06]">
+    <Collapsible className="rounded border border-border dark:border-white/[0.06]">
       <CollapsibleTrigger className="group flex w-full items-center justify-between px-2.5 py-2 text-[10px] font-medium text-muted-foreground hover:text-foreground transition-colors">
         <span className="flex items-center gap-1.5">
           <Icon className="h-3 w-3" />
           {title}
           {badge !== undefined && (
-            <span className="ml-0.5 rounded px-1 py-0 bg-white/[0.06] text-[9px]">{badge}</span>
+            <span className="ml-0.5 rounded px-1 py-0 bg-muted dark:bg-white/[0.06] text-[9px]">{badge}</span>
           )}
         </span>
         <ChevronDown className="h-2.5 w-2.5 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
@@ -301,7 +301,7 @@ export function CustomAgentPanel() {
       </button>
 
       {/* Mode tabs */}
-      <div className="flex gap-1 rounded-lg border border-white/[0.06] p-0.5 bg-white/[0.02]">
+      <div className="flex gap-1 rounded-lg border border-border dark:border-white/[0.06] p-0.5 bg-muted/40 dark:bg-white/[0.02]">
         <button
           onClick={() => setMode("build")}
           className={`flex-1 flex items-center justify-center gap-1 py-1 rounded-md text-[10px] font-medium transition-colors ${
@@ -509,7 +509,7 @@ export function CustomAgentPanel() {
             </Select>
           </div>
 
-          <Collapsible className="rounded border border-white/[0.05]">
+          <Collapsible className="rounded border border-border dark:border-white/[0.05]">
             <CollapsibleTrigger className="group flex w-full items-center justify-between px-2 py-1.5 text-[9px] text-muted-foreground hover:text-foreground transition-colors">
               <span>Advanced hints (optional)</span>
               <ChevronDown className="h-2.5 w-2.5 group-data-[state=open]:rotate-180 transition-transform" />
@@ -622,7 +622,7 @@ export function CustomAgentPanel() {
                 >
                   <div className="space-y-1.5 pt-1">
                     {analysisResult.extraction_fields.map((f: any, i: number) => (
-                      <div key={i} className="rounded bg-white/[0.03] px-2 py-1">
+                      <div key={i} className="rounded bg-muted/60 dark:bg-white/[0.03] px-2 py-1">
                         <div className="flex items-center gap-1.5">
                           <span className="text-[10px] font-medium text-foreground">
                             {f.display_name ?? f.field_name}
@@ -843,7 +843,7 @@ export function CustomAgentPanel() {
                           className={`h-3 w-3 rounded-sm border shrink-0 flex items-center justify-center ${
                             item.completed
                               ? "bg-green-500 border-green-500"
-                              : "border-white/20"
+                              : "border-border dark:border-white/20"
                           }`}
                         />
                         <span className="text-[9px]">{item.item}</span>

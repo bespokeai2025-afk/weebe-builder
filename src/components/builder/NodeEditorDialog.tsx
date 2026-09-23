@@ -117,7 +117,7 @@ export function InstructionTypeTabs({
     <div
       className={
         compact
-          ? "rounded-md border border-white/[0.08] bg-black/20 p-0.5"
+          ? "rounded-md border border-border dark:border-white/[0.08] bg-black/20 p-0.5"
           : "rounded-lg border bg-muted/30 p-1"
       }
     >
@@ -143,7 +143,7 @@ export function InstructionTypeTabs({
                   ? `w-full rounded px-2 py-1 text-center text-[11px] font-medium leading-none transition-colors ${
                       selected
                         ? "bg-primary/15 text-primary ring-1 ring-primary/30"
-                        : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground"
+                        : "text-muted-foreground hover:bg-muted dark:hover:bg-white/[0.04] hover:text-foreground"
                     }`
                   : `w-full rounded-md px-3 py-2 text-center text-sm font-medium transition-colors ${
                       selected
@@ -270,7 +270,7 @@ export function NodeEditorDialog() {
 
   return (
     <div className="webee-node-settings flex h-full min-h-0 flex-col">
-      <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] pb-3 mb-3">
+      <div className="flex items-center justify-between gap-2 border-b border-border dark:border-white/[0.06] pb-3 mb-3">
         <div className="flex min-w-0 items-center gap-2">
           <p className="truncate text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             {d.kind.replace(/_/g, " ")}
@@ -284,7 +284,7 @@ export function NodeEditorDialog() {
         <button
           type="button"
           onClick={() => selectNode(null)}
-          className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-white/[0.06]"
+          className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted dark:hover:bg-white/[0.06]"
           aria-label="Close node editor"
         >
           <X className="h-3.5 w-3.5" />
@@ -1831,7 +1831,7 @@ export function NodeEditorDialog() {
                 return (
                   <div
                     key={t.id}
-                    className="space-y-2 rounded-lg border border-white/[0.08] bg-white/[0.02] p-2"
+                    className="space-y-2 rounded-lg border border-border dark:border-white/[0.08] bg-muted/40 dark:bg-white/[0.02] p-2"
                   >
                     <div className="flex items-start gap-2">
                       <button

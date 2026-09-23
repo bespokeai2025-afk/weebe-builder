@@ -122,7 +122,7 @@ export function FishVoiceCloneDialog({ onCloned }: Props) {
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                className="flex w-full items-center gap-2 rounded-md border border-dashed border-white/15 px-3 py-4 text-left text-xs text-muted-foreground hover:border-white/25 hover:bg-white/[0.03] transition-colors"
+                className="flex w-full items-center gap-2 rounded-md border border-dashed border-border dark:border-white/15 px-3 py-4 text-left text-xs text-muted-foreground hover:border-foreground/25 dark:hover:border-white/25 hover:bg-muted/60 dark:hover:bg-white/[0.03] transition-colors"
               >
                 {file ? (
                   <>

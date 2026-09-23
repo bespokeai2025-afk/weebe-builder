@@ -149,7 +149,7 @@ export function TestCallPrepDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[88vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
-        <DialogHeader className="space-y-1 border-b border-white/[0.06] px-5 py-4 text-left">
+        <DialogHeader className="space-y-1 border-b border-border dark:border-white/[0.06] px-5 py-4 text-left">
           <DialogTitle>Test call</DialogTitle>
           <DialogDescription>
             Pre-fill what the agent should already know. Leave a field empty to collect it live.
@@ -175,7 +175,7 @@ export function TestCallPrepDialog({
                   className={
                     startSpeaker === value
                       ? "rounded-lg border border-sky-500/45 bg-sky-500/10 px-3 py-2 text-left"
-                      : "rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-left hover:bg-white/[0.04]"
+                      : "rounded-lg border border-border dark:border-white/[0.08] bg-muted/40 dark:bg-white/[0.02] px-3 py-2 text-left hover:bg-muted dark:hover:bg-white/[0.04]"
                   }
                 >
                   <div className="text-xs font-medium text-foreground">{label}</div>
@@ -227,7 +227,7 @@ export function TestCallPrepDialog({
                   </p>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     {items.map((field) => (
-                      <label key={field.name} className="block rounded-lg border border-white/[0.06] bg-white/[0.02] p-2">
+                      <label key={field.name} className="block rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-2">
                         <span className="font-mono text-[11px] text-foreground">{field.name}</span>
                         {field.description && (
                           <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">
@@ -251,7 +251,7 @@ export function TestCallPrepDialog({
           )}
         </div>
 
-        <DialogFooter className="gap-2 border-t border-white/[0.06] px-5 py-3 sm:justify-between">
+        <DialogFooter className="gap-2 border-t border-border dark:border-white/[0.06] px-5 py-3 sm:justify-between">
           <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>

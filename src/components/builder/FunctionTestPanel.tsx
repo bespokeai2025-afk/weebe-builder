@@ -136,7 +136,7 @@ export function FunctionTestPanel({ node }: { node: FlowNode }) {
   };
 
   return (
-    <div className="space-y-2 rounded-md border border-white/[0.08] bg-white/[0.02] p-3">
+    <div className="space-y-2 rounded-md border border-border dark:border-white/[0.08] bg-muted/40 dark:bg-white/[0.02] p-3">
       <Label>Test this function</Label>
       <p className="text-[11px] text-muted-foreground">
         Runs the same executor as a live call. Uses builder variable defaults as args — edit before

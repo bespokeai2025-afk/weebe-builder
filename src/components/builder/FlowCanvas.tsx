@@ -465,7 +465,7 @@ function CanvasInner({
       <FlowMiniMap nodes={nodes} viewport={viewport} canvasSize={canvasSize} />
       {nodes.length === 0 && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div className="rounded-lg border border-white/[0.08] bg-background/80 px-4 py-3 text-center text-[12px] text-muted-foreground">
+          <div className="rounded-lg border border-border dark:border-white/[0.08] bg-background/80 px-4 py-3 text-center text-[12px] text-muted-foreground">
             Empty canvas. Right-click to add a node, or open Components.
           </div>
         </div>
@@ -473,26 +473,26 @@ function CanvasInner({
     </ReactFlow>
     {menu && (
       <div
-        className="fixed z-50 min-w-40 rounded-md border border-white/[0.08] bg-popover p-1 text-[12px] shadow-md"
+        className="fixed z-50 min-w-40 rounded-md border border-border dark:border-white/[0.08] bg-popover p-1 text-[12px] shadow-md"
         style={{ left: menu.x, top: menu.y }}
         onClick={() => setMenu(null)}
       >
         {menu.nodeId ? (
           <>
-            <button className="block w-full rounded px-2 py-1 text-left hover:bg-white/[0.06]" onClick={() => selectNode(menu.nodeId!)}>
+            <button className="block w-full rounded px-2 py-1 text-left hover:bg-muted dark:hover:bg-white/[0.06]" onClick={() => selectNode(menu.nodeId!)}>
               Edit
             </button>
-            <button className="block w-full rounded px-2 py-1 text-left hover:bg-white/[0.06]" onClick={() => duplicateSelection()}>
+            <button className="block w-full rounded px-2 py-1 text-left hover:bg-muted dark:hover:bg-white/[0.06]" onClick={() => duplicateSelection()}>
               Duplicate
             </button>
             <button
-              className="block w-full rounded px-2 py-1 text-left hover:bg-white/[0.06]"
+              className="block w-full rounded px-2 py-1 text-left hover:bg-muted dark:hover:bg-white/[0.06]"
               onClick={() => setStartNode(menu.nodeId!)}
             >
               Set as start
             </button>
             <button
-              className="block w-full rounded px-2 py-1 text-left hover:bg-white/[0.06]"
+              className="block w-full rounded px-2 py-1 text-left hover:bg-muted dark:hover:bg-white/[0.06]"
               onClick={() => {
                 const result = saveSelectionAsComponent("Saved selection");
                 if (result.ok) toast.success("Saved as component");
@@ -501,23 +501,23 @@ function CanvasInner({
             >
               Save as component
             </button>
-            <button className="block w-full rounded px-2 py-1 text-left text-rose-300 hover:bg-white/[0.06]" onClick={() => deleteSelection()}>
+            <button className="block w-full rounded px-2 py-1 text-left text-rose-300 hover:bg-muted dark:hover:bg-white/[0.06]" onClick={() => deleteSelection()}>
               Delete
             </button>
           </>
         ) : (
           <>
             <button
-              className="block w-full rounded px-2 py-1 text-left hover:bg-white/[0.06]"
+              className="block w-full rounded px-2 py-1 text-left hover:bg-muted dark:hover:bg-white/[0.06]"
               onClick={() => addNode("conversation")}
             >
               Add conversation
             </button>
-            <button className="block w-full rounded px-2 py-1 text-left hover:bg-white/[0.06]" onClick={() => pasteClipboard()}>
+            <button className="block w-full rounded px-2 py-1 text-left hover:bg-muted dark:hover:bg-white/[0.06]" onClick={() => pasteClipboard()}>
               Paste
             </button>
             <button
-              className="block w-full rounded px-2 py-1 text-left hover:bg-white/[0.06]"
+              className="block w-full rounded px-2 py-1 text-left hover:bg-muted dark:hover:bg-white/[0.06]"
               onClick={() => {
                 autoLayout();
                 requestAnimationFrame(() => rf.fitView({ padding: 0.2, duration: 200 }));

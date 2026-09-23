@@ -38,15 +38,15 @@ export function PostCallAnalysis({ data }: Props) {
           </span>
         )}
         {data.sentiment && (
-          <span className={`inline-flex items-center rounded-full px-1.5 py-px text-[9px] font-medium border border-white/[0.08] bg-white/[0.04] ${sentimentColor}`}>
+          <span className={`inline-flex items-center rounded-full px-1.5 py-px text-[9px] font-medium border border-border dark:border-white/[0.08] bg-muted dark:bg-white/[0.04] ${sentimentColor}`}>
             {data.sentiment.charAt(0).toUpperCase() + data.sentiment.slice(1)} sentiment
           </span>
         )}
       </div>
 
       {hasVariables && (
-        <div className="rounded border border-white/[0.06] bg-white/[0.02] overflow-hidden">
-          <p className="text-[9px] uppercase tracking-wider text-muted-foreground/60 font-semibold px-2 pt-1.5 pb-1 border-b border-white/[0.04]">
+        <div className="rounded border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] overflow-hidden">
+          <p className="text-[9px] uppercase tracking-wider text-muted-foreground/60 font-semibold px-2 pt-1.5 pb-1 border-b border-border/60 dark:border-white/[0.04]">
             Variables
           </p>
           <div className="divide-y divide-white/[0.04]">

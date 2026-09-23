@@ -325,11 +325,11 @@ function GuideSection({
   const [sectionOpen, setSectionOpen] = useState(true);
 
   return (
-    <div className="border border-white/[0.06] rounded-lg overflow-hidden">
+    <div className="border border-border dark:border-white/[0.06] rounded-lg overflow-hidden">
       {/* Section header */}
       <button
         onClick={() => setSectionOpen((v) => !v)}
-        className="w-full flex items-center justify-between px-3 py-2.5 bg-white/[0.03] hover:bg-white/[0.05] transition-colors text-left"
+        className="w-full flex items-center justify-between px-3 py-2.5 bg-muted/60 dark:bg-white/[0.03] hover:bg-muted dark:hover:bg-white/[0.05] transition-colors text-left"
       >
         <div className="flex items-center gap-2">
           <span className="text-sm">{section.emoji}</span>
@@ -349,7 +349,7 @@ function GuideSection({
               <div key={item.label}>
                 <button
                   onClick={() => toggle(item.label)}
-                  className="w-full flex items-center justify-between px-3 py-2 hover:bg-white/[0.03] transition-colors text-left"
+                  className="w-full flex items-center justify-between px-3 py-2 hover:bg-muted/60 dark:hover:bg-white/[0.03] transition-colors text-left"
                 >
                   <span className="text-[11px] text-slate-300 font-medium">{item.label}</span>
                   {isOpen
@@ -418,7 +418,7 @@ export function PlatformGuideDrawer({
           </div>
           <button
             onClick={onClose}
-            className="flex items-center justify-center h-5 w-5 rounded text-slate-500 hover:text-white hover:bg-white/[0.08] transition-colors"
+            className="flex items-center justify-center h-5 w-5 rounded text-slate-500 hover:text-white hover:bg-muted dark:hover:bg-white/[0.08] transition-colors"
             title="Close guide (Esc)"
           >
             <X className="h-3.5 w-3.5" />

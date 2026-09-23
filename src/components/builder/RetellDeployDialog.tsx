@@ -2936,7 +2936,7 @@ export function RetellDeployDialog({
                     issue.level === "error"
                       ? "bg-destructive/10 text-destructive"
                       : "bg-amber-500/10 text-amber-400",
-                    issue.nodeId && "hover:bg-white/[0.06]",
+                    issue.nodeId && "hover:bg-muted dark:hover:bg-white/[0.06]",
                   )}
                 >
                   {issue.level === "error" ? (
@@ -2973,7 +2973,7 @@ export function RetellDeployDialog({
       />
 
       {/* Deploy / utility cluster */}
-      <div className="flex items-center gap-0.5 rounded-md border border-white/[0.05] bg-white/[0.02] px-1 py-0.5">
+      <div className="flex items-center gap-0.5 rounded-md border border-border dark:border-white/[0.05] bg-muted/40 dark:bg-white/[0.02] px-1 py-0.5">
         {/* Pre-flight shield */}
         <Button
           size="sm"
@@ -3011,7 +3011,7 @@ export function RetellDeployDialog({
             </span>
           )}
         </Button>
-        <div className="h-3.5 w-px bg-white/[0.07] mx-0.5" />
+        <div className="h-3.5 w-px bg-muted dark:bg-white/[0.07] mx-0.5" />
         {/* Test / Run agent */}
         {inCall || calling ? (
           <Button
@@ -3113,7 +3113,7 @@ export function RetellDeployDialog({
         )}
 
         {/* Divider before primary CTA */}
-        <div className="h-3.5 w-px bg-white/[0.07] mx-0.5" />
+        <div className="h-3.5 w-px bg-muted dark:bg-white/[0.07] mx-0.5" />
 
         {/* Create / Deploy */}
         <Button
@@ -3279,7 +3279,7 @@ export function RetellDeployDialog({
       {/* Cost meter — height-matched to toolbar buttons */}
       {(inCall || spendUsedCents > 0) && (
         <div
-          className="flex h-8 items-center gap-1.5 rounded-md border border-white/[0.05] bg-white/[0.02] px-2 text-[10px] font-medium text-foreground/70"
+          className="flex h-8 items-center gap-1.5 rounded-md border border-border dark:border-white/[0.05] bg-muted/40 dark:bg-white/[0.02] px-2 text-[10px] font-medium text-foreground/70"
           title={
             costIsExact
               ? `OpenAI token cost only. Live calls add ~$${HYPERSTREAM_TELEPHONY_PER_MIN.toFixed(3)}/min Twilio telephony on top (not charged for builder test calls).`

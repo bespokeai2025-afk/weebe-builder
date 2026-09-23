@@ -406,7 +406,7 @@ function TransitionRows({
             <div className="nodrag nopan mt-0.5 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/row:opacity-100">
               <button
                 type="button"
-                className="rounded p-0.5 text-slate-300 hover:bg-white/10 hover:text-white"
+                className="rounded p-0.5 text-slate-300 hover:bg-muted dark:hover:bg-white/10 hover:text-white"
                 aria-label={editing ? "Done" : "Edit transition"}
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
@@ -733,7 +733,7 @@ function FunctionStyleNode({ id, data, selected }: NodeProps<FlowNode>) {
         </div>
 
         <div className="px-4 py-3 space-y-3">
-          <div className="flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
+          <div className="flex items-center justify-between gap-2 rounded-lg border border-border dark:border-white/10 bg-muted/60 dark:bg-white/[0.03] px-3 py-2">
             <span className="inline-flex items-center gap-1.5 text-[12px] text-[#d5e2ed]">
               <Settings className="h-3.5 w-3.5 text-violet-300" />
               Configure setting

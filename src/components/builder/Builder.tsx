@@ -399,14 +399,14 @@ function MiniAudioPlayer({ url }: { url: string }) {
       <div className="flex items-center gap-1.5">
         <button
           onClick={toggle}
-          className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-white/[0.06] hover:bg-white/[0.1] text-foreground transition-colors"
+          className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-muted dark:bg-white/[0.06] hover:bg-muted dark:hover:bg-white/[0.1] text-foreground transition-colors"
         >
           {playing
             ? <span className="flex gap-px"><span className="w-[2px] h-2.5 bg-current rounded-sm" /><span className="w-[2px] h-2.5 bg-current rounded-sm" /></span>
             : <Play className="h-2.5 w-2.5 ml-px" />}
         </button>
         <div
-          className="flex-1 h-0.5 rounded-full bg-white/[0.1] cursor-pointer"
+          className="flex-1 h-0.5 rounded-full bg-muted dark:bg-white/[0.1] cursor-pointer"
           onClick={(e) => {
             if (!audioRef.current || !duration) return;
             const rect = e.currentTarget.getBoundingClientRect();
@@ -880,7 +880,7 @@ export function Builder({
           step={step}
           value={value}
           onChange={(e) => onChange(parseFloat(e.target.value))}
-          className="w-full h-[3px] cursor-pointer rounded-full appearance-none bg-white/[0.08]
+          className="w-full h-[3px] cursor-pointer rounded-full appearance-none bg-muted dark:bg-white/[0.08]
             [&::-webkit-slider-thumb]:appearance-none
             [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3
             [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary
@@ -901,7 +901,7 @@ export function Builder({
       )}
     >
       {/* Canvas toolbar */}
-      <div className="flex flex-nowrap items-center gap-1.5 border-b border-white/[0.04] bg-background/60 px-2 py-1 backdrop-blur-sm [&_button]:h-7 [&_button]:px-2 [&_button]:text-[11px] [&_button]:gap-1 [&_button_svg]:h-3.5 [&_button_svg]:w-3.5">
+      <div className="flex flex-nowrap items-center gap-1.5 border-b border-border/60 dark:border-white/[0.04] bg-background/60 px-2 py-1 backdrop-blur-sm [&_button]:h-7 [&_button]:px-2 [&_button]:text-[11px] [&_button]:gap-1 [&_button_svg]:h-3.5 [&_button_svg]:w-3.5">
         {/* Left: panel toggle + agent name + status */}
         <div className="flex flex-1 items-center gap-1 min-w-0">
           {toolbarStart}
@@ -909,7 +909,7 @@ export function Builder({
             data-tour="agent-name-input"
             value={settings.agentName}
             onChange={(e) => setSettings({ agentName: e.target.value })}
-            className="h-7 max-w-[180px] border-transparent bg-transparent px-1.5 text-[11px] font-semibold text-foreground hover:border-white/[0.06] focus-visible:border-white/[0.1]"
+            className="h-7 max-w-[180px] border-transparent bg-transparent px-1.5 text-[11px] font-semibold text-foreground hover:border-foreground/20 dark:hover:border-white/[0.06] focus-visible:border-foreground/20 dark:focus-visible:border-white/[0.1]"
             placeholder="Agent name"
           />
           {settings.voiceProvider === "OPENAI_REALTIME" && (
@@ -922,13 +922,13 @@ export function Builder({
             </Badge>
           )}
           {/* Channel switcher */}
-          <div className="flex items-center rounded-md border border-white/[0.06] bg-white/[0.02] p-0.5 gap-0.5 shrink-0">
+          <div className="flex items-center rounded-md border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-0.5 gap-0.5 shrink-0">
             <button
               onClick={() => setSettings({ channelType: "voice" })}
               className={cn(
                 "flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium transition-colors",
                 (settings.channelType ?? "voice") === "voice"
-                  ? "bg-white/[0.08] text-foreground"
+                  ? "bg-muted dark:bg-white/[0.08] text-foreground"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
@@ -952,7 +952,7 @@ export function Builder({
         {/* Right: canvas utilities + primary actions */}
         <div className="flex flex-nowrap items-center gap-1.5">
           {/* Canvas utility cluster */}
-          <div className="flex items-center gap-0.5 rounded-md border border-white/[0.05] bg-white/[0.02] px-1 py-0.5">
+          <div className="flex items-center gap-0.5 rounded-md border border-border dark:border-white/[0.05] bg-muted/40 dark:bg-white/[0.02] px-1 py-0.5">
             <Button
               size="sm"
               variant="ghost"
@@ -1046,7 +1046,7 @@ export function Builder({
               </DropdownMenuContent>
             </DropdownMenu>
             {/* Divider */}
-            <div className="h-3.5 w-px bg-white/[0.07] mx-0.5" />
+            <div className="h-3.5 w-px bg-muted dark:bg-white/[0.07] mx-0.5" />
             {/* Clear canvas (trash) — reveals destructive color on hover only */}
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -1147,7 +1147,7 @@ export function Builder({
 
           {/* Voice Copilot — hidden in WhatsApp mode */}
           {settings.channelType !== "whatsapp" && (
-            <div className="flex items-center rounded-md bg-white/[0.03] border border-white/[0.05] px-0.5 gap-0.5">
+            <div className="flex items-center rounded-md bg-muted/60 dark:bg-white/[0.03] border border-border dark:border-white/[0.05] px-0.5 gap-0.5">
               <VoiceCopilotButton
                 onModeChange={(m) => setGuideOpen(m === "PLATFORM_HELP")}
               />
@@ -1155,7 +1155,7 @@ export function Builder({
           )}
 
           {/* Separator */}
-          <div className="h-4 w-px bg-white/[0.06]" />
+          <div className="h-4 w-px bg-muted dark:bg-white/[0.06]" />
 
           {/* Deploy / utility cluster + trailing save actions */}
           <div data-tour="deploy-btn" className="inline-flex items-center">
@@ -1198,13 +1198,13 @@ export function Builder({
       <div className="flex flex-1 min-h-0">
         {/* Left palette */}
         {leftOpen && (
-          <aside className="w-44 shrink-0 resize-x overflow-y-auto border-r border-white/[0.04] bg-background/40">
-            <div className="flex border-b border-white/[0.04] text-[10px] uppercase tracking-wider">
+          <aside className="w-44 shrink-0 resize-x overflow-y-auto border-r border-border/60 dark:border-white/[0.04] bg-background/40">
+            <div className="flex border-b border-border/60 dark:border-white/[0.04] text-[10px] uppercase tracking-wider">
               <button
                 className={cn(
                   "flex-1 py-1.5 font-medium transition-colors",
                   tab === "node"
-                    ? "bg-white/[0.04] text-foreground"
+                    ? "bg-muted dark:bg-white/[0.04] text-foreground"
                     : "text-muted-foreground hover:text-foreground",
                 )}
                 onClick={() => setTab("node")}
@@ -1215,7 +1215,7 @@ export function Builder({
                 className={cn(
                   "flex-1 py-1.5 font-medium transition-colors",
                   tab === "components"
-                    ? "bg-white/[0.04] text-foreground"
+                    ? "bg-muted dark:bg-white/[0.04] text-foreground"
                     : "text-muted-foreground hover:text-foreground",
                 )}
                 onClick={() => setTab("components")}
@@ -1230,7 +1230,7 @@ export function Builder({
                   <button
                     key={p.kind}
                     onClick={() => placeNode(p.kind)}
-                    className="w-full flex items-center gap-2 rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-white/[0.04] hover:text-foreground text-left transition-colors"
+                    className="w-full flex items-center gap-2 rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted dark:hover:bg-white/[0.04] hover:text-foreground text-left transition-colors"
                   >
                     <p.icon className={cn("h-3 w-3", p.color)} />
                     <span className="truncate">{p.label}</span>
@@ -1247,7 +1247,7 @@ export function Builder({
                       if (result.ok) toast.success("Component saved");
                       else toast.error(result.error);
                     }}
-                    className="mb-1 w-full rounded-md border border-dashed border-white/[0.08] px-2 py-1.5 text-left text-[10px] text-muted-foreground hover:bg-white/[0.04] hover:text-foreground"
+                    className="mb-1 w-full rounded-md border border-dashed border-border dark:border-white/[0.08] px-2 py-1.5 text-left text-[10px] text-muted-foreground hover:bg-muted dark:hover:bg-white/[0.04] hover:text-foreground"
                   >
                     Save selection as component
                   </button>
@@ -1261,7 +1261,7 @@ export function Builder({
                       <div key={c.id} className="group flex items-start gap-1">
                         <button
                           onClick={() => dropComponent(c.id)}
-                          className="min-w-0 flex-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-[11px] text-muted-foreground hover:bg-white/[0.04] hover:text-foreground text-left transition-colors"
+                          className="min-w-0 flex-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-[11px] text-muted-foreground hover:bg-muted dark:hover:bg-white/[0.04] hover:text-foreground text-left transition-colors"
                         >
                           <Icon className="h-3 w-3 shrink-0 text-emerald-600" />
                           <span className="flex min-w-0 flex-col">
@@ -1319,7 +1319,7 @@ export function Builder({
 
         {/* Minimized icon strip — shown when left panel is collapsed */}
         {!leftOpen && (
-          <aside className="w-9 shrink-0 border-r border-white/[0.04] bg-background/40 overflow-y-auto flex flex-col items-center py-1 gap-0.5 scrollbar-thin">
+          <aside className="w-9 shrink-0 border-r border-border/60 dark:border-white/[0.04] bg-background/40 overflow-y-auto flex flex-col items-center py-1 gap-0.5 scrollbar-thin">
             {PALETTE.map((p) => (
               <button
                 key={p.kind}
@@ -1344,7 +1344,7 @@ export function Builder({
                   }
                   void id;
                 }}
-                className="w-7 h-7 flex items-center justify-center rounded hover:bg-white/[0.06] text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                className="w-7 h-7 flex items-center justify-center rounded hover:bg-muted dark:hover:bg-white/[0.06] text-muted-foreground hover:text-foreground transition-colors shrink-0"
               >
                 <p.icon className={cn("h-3.5 w-3.5", p.color)} />
               </button>
@@ -1395,14 +1395,14 @@ export function Builder({
         {/* Right global settings / live transcript */}
         {(rightOpen || callActive || showTranscriptPanel || selectedNodeId) && (
           <aside data-tour="right-panel" className={cn(
-            "min-w-[300px] shrink-0 overflow-y-auto border-l border-white/[0.04] bg-background/40 px-2.5 py-2 space-y-1.5 hidden md:block text-[11px] [&_label]:text-[10px] [&_label]:uppercase [&_label]:tracking-wider [&_label]:text-muted-foreground [&_textarea]:text-[11px] [&_button[role=combobox]]:h-7 [&_button[role=combobox]]:text-[11px] [&_input]:text-[11px] [&_select]:text-[11px]",
+            "min-w-[300px] shrink-0 overflow-y-auto border-l border-border/60 dark:border-white/[0.04] bg-background/40 px-2.5 py-2 space-y-1.5 hidden md:block text-[11px] [&_label]:text-[10px] [&_label]:uppercase [&_label]:tracking-wider [&_label]:text-muted-foreground [&_textarea]:text-[11px] [&_button[role=combobox]]:h-7 [&_button[role=combobox]]:text-[11px] [&_input]:text-[11px] [&_select]:text-[11px]",
             selectedNodeId && rightView === "node" ? "w-[380px] max-w-[420px]" : "w-[320px] max-w-[360px]",
           )}>
 
             {showTranscriptPanel ? (
               <div className="flex flex-col h-full">
                 {/* Header */}
-                <div className="flex items-center justify-between pb-2 border-b border-white/[0.06] mb-2">
+                <div className="flex items-center justify-between pb-2 border-b border-border dark:border-white/[0.06] mb-2">
                   <div className="flex items-center gap-1.5">
                     <MessageSquare className="h-3.5 w-3.5 text-violet-400" />
                     <span className="text-[11px] font-semibold tracking-tight text-foreground">Live Transcript</span>
@@ -1442,7 +1442,7 @@ export function Builder({
                               ? entry.partial
                                 ? "bg-violet-500/10 text-violet-300/60 italic"
                                 : "bg-violet-500/15 text-violet-200"
-                              : "bg-white/[0.06] text-foreground/80"
+                              : "bg-muted dark:bg-white/[0.06] text-foreground/80"
                           }`}
                         >
                           {entry.text}
@@ -1457,7 +1457,7 @@ export function Builder({
 
                 {/* ── Post-call analysis section ── */}
                 {!callActive && (postCallData || postCallLoading || recordingUrl || lastCallMeta) && (
-                  <div className="mt-3 pt-3 border-t border-white/[0.06] space-y-2 shrink-0">
+                  <div className="mt-3 pt-3 border-t border-border dark:border-white/[0.06] space-y-2 shrink-0">
                     {/* Recording player + call metadata */}
                     {(recordingUrl || lastCallMeta) && (
                       <div className="space-y-1.5">
@@ -1506,10 +1506,10 @@ export function Builder({
               </div>
             ) : selectedNodeId && rightView === "node" ? (
               <>
-                <div className="flex border-b border-white/[0.06] mb-1 text-[10px] uppercase tracking-wider">
+                <div className="flex border-b border-border dark:border-white/[0.06] mb-1 text-[10px] uppercase tracking-wider">
                   <button
                     type="button"
-                    className="flex-1 py-1.5 font-medium bg-white/[0.04] text-foreground"
+                    className="flex-1 py-1.5 font-medium bg-muted dark:bg-white/[0.04] text-foreground"
                   >
                     Node
                   </button>
@@ -1526,7 +1526,7 @@ export function Builder({
             ) : (
             <>
             {selectedNodeId && (
-              <div className="flex border-b border-white/[0.06] mb-1 text-[10px] uppercase tracking-wider">
+              <div className="flex border-b border-border dark:border-white/[0.06] mb-1 text-[10px] uppercase tracking-wider">
                 <button
                   type="button"
                   className="flex-1 py-1.5 font-medium text-muted-foreground hover:text-foreground"
@@ -1536,14 +1536,14 @@ export function Builder({
                 </button>
                 <button
                   type="button"
-                  className="flex-1 py-1.5 font-medium bg-white/[0.04] text-foreground"
+                  className="flex-1 py-1.5 font-medium bg-muted dark:bg-white/[0.04] text-foreground"
                 >
                   Agent
                 </button>
               </div>
             )}
             {/* Panel header */}
-            <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+            <div className="flex items-center justify-between pb-2 border-b border-border dark:border-white/[0.06]">
               <h3 className="text-[11px] font-semibold tracking-tight text-foreground">Agent Settings</h3>
               <div className="flex items-center gap-1">
                 {!callActive && hasLastCallArtifacts && (
@@ -1558,7 +1558,7 @@ export function Builder({
                 )}
                 <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="flex h-5 w-5 items-center justify-center rounded hover:bg-white/[0.06] text-muted-foreground hover:text-foreground transition-colors">
+                  <button className="flex h-5 w-5 items-center justify-center rounded hover:bg-muted dark:hover:bg-white/[0.06] text-muted-foreground hover:text-foreground transition-colors">
                     <MoreHorizontal className="h-3 w-3" />
                   </button>
                 </DropdownMenuTrigger>
@@ -1584,7 +1584,7 @@ export function Builder({
                 </div>
               </div>
             ) : (
-            <div className="rounded-lg border border-white/[0.06] bg-white/[0.01] p-2.5 space-y-1.5">
+            <div className="rounded-lg border border-border dark:border-white/[0.06] bg-muted/20 dark:bg-white/[0.01] p-2.5 space-y-1.5">
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Voice Infrastructure</p>
               <div className="grid grid-cols-2 gap-1.5">
                 {(
@@ -1615,8 +1615,8 @@ export function Builder({
                         active
                           ? "border-primary/60 bg-primary/10 ring-1 ring-primary/30"
                           : !available
-                            ? "border-white/[0.04] bg-white/[0.01] opacity-40 cursor-not-allowed"
-                            : "border-white/[0.08] bg-white/[0.02] hover:border-white/[0.16] hover:bg-white/[0.04]"
+                            ? "border-border/60 dark:border-white/[0.04] bg-muted/20 dark:bg-white/[0.01] opacity-40 cursor-not-allowed"
+                            : "border-border dark:border-white/[0.08] bg-muted/40 dark:bg-white/[0.02] hover:border-foreground/20 dark:hover:border-white/[0.16] hover:bg-muted dark:hover:bg-white/[0.04]"
                       }`}
                     >
                       <Icon className={`h-3 w-3 shrink-0 ${active ? "text-primary" : "text-muted-foreground"}`} />
@@ -1631,13 +1631,13 @@ export function Builder({
               </div>
 
               {isOpenAI && (
-                <div className="flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 w-fit">
+                <div className="flex items-center gap-1.5 rounded-full border border-border dark:border-white/[0.08] bg-muted/60 dark:bg-white/[0.03] px-2 py-0.5 w-fit">
                   <Lock className="h-2.5 w-2.5 shrink-0 text-muted-foreground" />
                   <span className="text-[9px] text-muted-foreground">Routed via Master Admin Enterprise Line</span>
                 </div>
               )}
               {isElevenLabs && (
-                <div className="flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 w-fit">
+                <div className="flex items-center gap-1.5 rounded-full border border-border dark:border-white/[0.08] bg-muted/60 dark:bg-white/[0.03] px-2 py-0.5 w-fit">
                   <Lock className="h-2.5 w-2.5 shrink-0 text-muted-foreground" />
                   <span className="text-[9px] text-muted-foreground">Routed via ElevenLabs Conversational AI</span>
                 </div>
@@ -1656,7 +1656,7 @@ export function Builder({
                           "flex-1 text-[10px] py-1 rounded-md border font-medium transition-all duration-150",
                           hsVoiceProvider === p
                             ? "border-primary/60 bg-primary/10 text-primary ring-1 ring-primary/30"
-                            : "border-white/[0.08] bg-white/[0.02] text-muted-foreground hover:border-white/[0.16] hover:bg-white/[0.04] hover:text-foreground",
+                            : "border-border dark:border-white/[0.08] bg-muted/40 dark:bg-white/[0.02] text-muted-foreground hover:border-foreground/20 dark:hover:border-white/[0.16] hover:bg-muted dark:hover:bg-white/[0.04] hover:text-foreground",
                         )}
                         onClick={() => setSettings({ voiceOutputProvider: p })}
                       >
@@ -1730,15 +1730,15 @@ export function Builder({
 
                       {/* Upload voice sample — available even when list API is restricted */}
                       <div className="flex items-center gap-1.5">
-                        <div className="flex-1 h-px bg-white/[0.06]" />
+                        <div className="flex-1 h-px bg-muted dark:bg-white/[0.06]" />
                         <span className="text-[9px] text-muted-foreground/60 shrink-0">or upload</span>
-                        <div className="flex-1 h-px bg-white/[0.06]" />
+                        <div className="flex-1 h-px bg-muted dark:bg-white/[0.06]" />
                       </div>
                       <button
                         type="button"
                         disabled={elHsUploading}
                         onClick={() => elHsFileInputRef.current?.click()}
-                        className="w-full h-7 flex items-center justify-center gap-1.5 rounded-md border border-dashed border-white/[0.12] bg-white/[0.01] text-[10px] text-muted-foreground hover:border-white/[0.22] hover:bg-white/[0.03] hover:text-foreground transition-all duration-150 disabled:opacity-50 disabled:pointer-events-none"
+                        className="w-full h-7 flex items-center justify-center gap-1.5 rounded-md border border-dashed border-border dark:border-white/[0.12] bg-muted/20 dark:bg-white/[0.01] text-[10px] text-muted-foreground hover:border-foreground/25 dark:hover:border-white/[0.22] hover:bg-muted/60 dark:hover:bg-white/[0.03] hover:text-foreground transition-all duration-150 disabled:opacity-50 disabled:pointer-events-none"
                       >
                         {elHsUploading ? (
                           <><Loader2 className="h-3 w-3 animate-spin" />Cloning voice…</>
@@ -1764,7 +1764,7 @@ export function Builder({
             )}
 
             {settings.channelType !== "whatsapp" && (<>
-            <Collapsible data-tour="voice-section" className="rounded-lg border border-white/[0.06] bg-white/[0.01]">
+            <Collapsible data-tour="voice-section" className="rounded-lg border border-border dark:border-white/[0.06] bg-muted/20 dark:bg-white/[0.01]">
               <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
                 <span className="flex items-center gap-1.5"><Mic className="h-3 w-3" />Voice & Language</span>
                 <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
@@ -1832,7 +1832,7 @@ export function Builder({
                             className="h-6 text-[9px] flex-1"
                           />
                           <button
-                            className="shrink-0 flex items-center justify-center h-6 w-6 rounded border border-white/[0.08] bg-white/[0.03] text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors disabled:opacity-40"
+                            className="shrink-0 flex items-center justify-center h-6 w-6 rounded border border-border dark:border-white/[0.08] bg-muted/60 dark:bg-white/[0.03] text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors disabled:opacity-40"
                             title={retPlaying ? "Stop preview" : "Play preview"}
                             disabled={retTtsLoading}
                             onClick={async () => {
@@ -1963,7 +1963,7 @@ export function Builder({
                       <button
                         type="button"
                         onClick={() => setVoicePickerOpen(true)}
-                        className="flex w-full items-center gap-2 rounded-md border border-white/[0.08] bg-white/[0.02] px-2.5 py-2 text-left transition-colors hover:border-white/[0.16] hover:bg-white/[0.04]"
+                        className="flex w-full items-center gap-2 rounded-md border border-border dark:border-white/[0.08] bg-muted/40 dark:bg-white/[0.02] px-2.5 py-2 text-left transition-colors hover:border-foreground/20 dark:hover:border-white/[0.16] hover:bg-muted dark:hover:bg-white/[0.04]"
                       >
                         <Waves className="h-3.5 w-3.5 shrink-0 text-primary" />
                         <span className="min-w-0 flex-1">
@@ -1980,7 +1980,7 @@ export function Builder({
 
                     <Dialog open={voicePickerOpen} onOpenChange={setVoicePickerOpen}>
                       <DialogContent className="max-w-2xl gap-0 p-0">
-                        <DialogHeader className="border-b border-white/[0.06] px-5 py-3">
+                        <DialogHeader className="border-b border-border dark:border-white/[0.06] px-5 py-3">
                           <DialogTitle className="text-sm">Choose a voice</DialogTitle>
                         </DialogHeader>
                         <div className="max-h-[70vh] overflow-y-auto px-5 py-4">
@@ -2021,7 +2021,7 @@ export function Builder({
                             "text-[9px] px-2 py-0.5 rounded-md border font-medium transition-colors",
                             fishLanguage === id
                               ? "border-primary/60 bg-primary/10 text-primary"
-                              : "border-white/[0.08] text-muted-foreground hover:border-white/[0.16]",
+                              : "border-border dark:border-white/[0.08] text-muted-foreground hover:border-foreground/20 dark:hover:border-white/[0.16]",
                           )}
                           onClick={() => setFishLanguage(id)}
                         >
@@ -2036,7 +2036,7 @@ export function Builder({
                             "text-[9px] px-2 py-0.5 rounded-md border font-medium transition-colors capitalize",
                             fishTag === tag
                               ? "border-primary/60 bg-primary/10 text-primary"
-                              : "border-white/[0.08] text-muted-foreground hover:border-white/[0.16]",
+                              : "border-border dark:border-white/[0.08] text-muted-foreground hover:border-foreground/20 dark:hover:border-white/[0.16]",
                           )}
                           onClick={() => setFishTag(tag)}
                         >
@@ -2132,19 +2132,19 @@ export function Builder({
                             Loading voices…
                           </div>
                         ) : (
-                          <div className="max-h-44 overflow-y-auto rounded border border-white/[0.06] divide-y divide-white/[0.04]">
+                          <div className="max-h-44 overflow-y-auto rounded border border-border dark:border-white/[0.06] divide-y divide-white/[0.04]">
                             {(["yours", "library"] as const).map((group) => {
                               const groupVoices = fishVoices.filter((v) => fishVoiceGroup(v) === group);
                               if (groupVoices.length === 0) return null;
                               return (
                                 <div key={group}>
-                                  <p className="sticky top-0 z-10 bg-background/95 px-2 py-1 text-[8px] uppercase tracking-wide text-muted-foreground border-b border-white/[0.04]">
+                                  <p className="sticky top-0 z-10 bg-background/95 px-2 py-1 text-[8px] uppercase tracking-wide text-muted-foreground border-b border-border/60 dark:border-white/[0.04]">
                                     {group === "yours" ? "Your clones" : "Voice library"}
                                   </p>
                                   {groupVoices.map((v) => (
                                     <div
                                       key={v.voiceId}
-                                      className="flex w-full items-start gap-1.5 px-2 py-1.5 hover:bg-white/[0.04] transition-colors"
+                                      className="flex w-full items-start gap-1.5 px-2 py-1.5 hover:bg-muted dark:hover:bg-white/[0.04] transition-colors"
                                     >
                                       <button
                                         type="button"
@@ -2266,7 +2266,7 @@ export function Builder({
                       </>
                     )}
                         </div>
-                        <DialogFooter className="border-t border-white/[0.06] px-5 py-3">
+                        <DialogFooter className="border-t border-border dark:border-white/[0.06] px-5 py-3">
                           <Button size="sm" onClick={() => setVoicePickerOpen(false)}>
                             Done
                           </Button>
@@ -2356,7 +2356,7 @@ export function Builder({
                     <p className="text-[9px] text-muted-foreground/50 mt-1">Default: Low (Optimized Balanced)</p>
                   </div>
 
-                  <div className="flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-2 py-1 w-fit">
+                  <div className="flex items-center gap-1.5 rounded-full border border-border dark:border-white/[0.08] bg-muted/60 dark:bg-white/[0.03] px-2 py-1 w-fit">
                     <Lock className="h-2.5 w-2.5 shrink-0 text-muted-foreground" />
                     <span className="text-[9px] text-muted-foreground">Engine Routed via Master Admin Enterprise Line</span>
                   </div>
@@ -2365,7 +2365,7 @@ export function Builder({
             )}
             </>)}
 
-            <Collapsible data-tour="global-prompt" className="rounded-lg border border-white/[0.06] bg-white/[0.01]">
+            <Collapsible data-tour="global-prompt" className="rounded-lg border border-border dark:border-white/[0.06] bg-muted/20 dark:bg-white/[0.01]">
               <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
                 <span className="flex items-center gap-1.5"><MsgSq className="h-3 w-3" />Global Prompt</span>
                 <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
@@ -2503,11 +2503,11 @@ export function Builder({
                             className="h-6 text-[9px]"
                           />
                         </div>
-                        <div className="max-h-36 overflow-y-auto rounded border border-white/[0.06] divide-y divide-white/[0.04]">
+                        <div className="max-h-36 overflow-y-auto rounded border border-border dark:border-white/[0.06] divide-y divide-white/[0.04]">
                           {elVoiceResults.map((v) => (
                             <div
                               key={v.voice_id}
-                              className="flex w-full items-start gap-1.5 px-2 py-1.5 hover:bg-white/[0.04] transition-colors"
+                              className="flex w-full items-start gap-1.5 px-2 py-1.5 hover:bg-muted dark:hover:bg-white/[0.04] transition-colors"
                             >
                               <button
                                 className="flex flex-1 items-start gap-1.5 text-left min-w-0"
@@ -2622,7 +2622,7 @@ export function Builder({
 
             <KnowledgeBaseSection isRetell={isRetell} isHyperStream={isOpenAI || isElevenLabs} />
 
-            <Collapsible className="rounded-lg border border-white/[0.06] bg-white/[0.01]">
+            <Collapsible className="rounded-lg border border-border dark:border-white/[0.06] bg-muted/20 dark:bg-white/[0.01]">
               <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
                 <span className="flex items-center gap-1.5"><ArrowLeftRight className="h-3 w-3" />Transition</span>
                 <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
@@ -2638,7 +2638,7 @@ export function Builder({
               </CollapsibleContent>
             </Collapsible>
 
-            <Collapsible className="rounded-lg border border-white/[0.06] bg-white/[0.01]">
+            <Collapsible className="rounded-lg border border-border dark:border-white/[0.06] bg-muted/20 dark:bg-white/[0.01]">
               <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
                 <span className="flex items-center gap-1.5"><Settings2 className="h-3 w-3" />Agent</span>
                 <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
@@ -2672,7 +2672,7 @@ export function Builder({
             <BookingConfigSection />
 
             {/* Agent type selector — controls which sections appear below */}
-            <Collapsible data-tour="agent-type-select" className="rounded-lg border border-white/[0.06] bg-white/[0.01]">
+            <Collapsible data-tour="agent-type-select" className="rounded-lg border border-border dark:border-white/[0.06] bg-muted/20 dark:bg-white/[0.01]">
               <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
                 <span className="flex items-center gap-1.5"><Globe className="h-3 w-3" />Agent Type</span>
                 <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
@@ -2716,7 +2716,7 @@ export function Builder({
             {settings.agentType === "lead_generation" && <LeadGenSection />}
             {settings.agentType === "client_qualification" && <ClientQualificationSection />}
 
-            <Collapsible className="rounded-lg border border-white/[0.06] bg-white/[0.01]">
+            <Collapsible className="rounded-lg border border-border dark:border-white/[0.06] bg-muted/20 dark:bg-white/[0.01]">
               <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
                 <span>Agent Handbook</span>
                 <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
@@ -2775,7 +2775,7 @@ export function Builder({
                       <button
                         key={mode}
                         onClick={() => setSettings({ waExecutionMode: mode })}
-                        className={`w-full text-left rounded-md border px-2.5 py-2 transition-colors ${active ? "border-green-500/40 bg-green-500/10" : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04]"}`}
+                        className={`w-full text-left rounded-md border px-2.5 py-2 transition-colors ${active ? "border-green-500/40 bg-green-500/10" : "border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] hover:bg-muted dark:hover:bg-white/[0.04]"}`}
                       >
                         <p className={`text-[11px] font-medium ${active ? "text-green-400" : "text-foreground"}`}>{labels[mode]}</p>
                         <p className="text-[10px] text-muted-foreground mt-0.5">{descs[mode]}</p>

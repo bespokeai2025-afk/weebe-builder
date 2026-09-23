@@ -103,11 +103,11 @@ export function JsonSchemaField({
 
       {/* The shape, without making anyone parse braces in a small textarea. */}
       {parsed?.ok && parsed.keys.length > 0 && (
-        <div className="flex flex-wrap gap-1 rounded-md border border-white/[0.06] bg-white/[0.02] p-1.5">
+        <div className="flex flex-wrap gap-1 rounded-md border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-1.5">
           {parsed.keys.map((k) => (
             <span
               key={k}
-              className="inline-flex items-center gap-1 rounded bg-white/[0.05] px-1.5 py-0.5 font-mono text-[10px]"
+              className="inline-flex items-center gap-1 rounded bg-muted dark:bg-white/[0.05] px-1.5 py-0.5 font-mono text-[10px]"
             >
               {k}
               {parsed.required.includes(k) && <span className="text-destructive">*</span>}

@@ -1014,7 +1014,7 @@ export function VoiceCopilotButton({
         <button
           onClick={(e) => { e.stopPropagation(); setShowSheet((s) => !s); }}
           title="Voice command cheat sheet"
-          className="flex items-center justify-center h-5 w-5 rounded text-slate-600 hover:text-slate-300 hover:bg-white/[0.06] transition-colors"
+          className="flex items-center justify-center h-5 w-5 rounded text-slate-600 hover:text-slate-300 hover:bg-muted dark:hover:bg-white/[0.06] transition-colors"
         >
           <HelpCircle className="h-3 w-3" />
         </button>

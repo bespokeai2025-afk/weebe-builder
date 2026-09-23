@@ -172,7 +172,7 @@ export function WebeeMigrationDialog({
                 "ml-1 gap-1 px-1.5 py-0.5 text-[10px]",
                 isNative
                   ? "border-primary/40 bg-primary/10 text-primary"
-                  : "border-white/[0.12] text-muted-foreground",
+                  : "border-border dark:border-white/[0.12] text-muted-foreground",
               )}
             >
               {isNative ? <Waves className="h-2.5 w-2.5" /> : <Radio className="h-2.5 w-2.5" />}
@@ -199,7 +199,7 @@ export function WebeeMigrationDialog({
                 {(readinessQ.error as Error).message}
               </p>
             ) : readiness ? (
-              <div className="divide-y divide-white/[0.04] rounded-lg border border-white/[0.06] bg-white/[0.01] px-3">
+              <div className="divide-y divide-white/[0.04] rounded-lg border border-border dark:border-white/[0.06] bg-muted/20 dark:bg-white/[0.01] px-3">
                 {readiness.checks.map((c) => (
                   <CheckRow key={c.id} check={c} />
                 ))}
@@ -244,10 +244,10 @@ export function WebeeMigrationDialog({
                 No replays yet.
               </p>
             ) : (
-              <div className="overflow-hidden rounded-lg border border-white/[0.06]">
+              <div className="overflow-hidden rounded-lg border border-border dark:border-white/[0.06]">
                 <table className="w-full text-[11px]">
                   <thead>
-                    <tr className="border-b border-white/[0.06] text-left text-[9px] uppercase tracking-wider text-muted-foreground">
+                    <tr className="border-b border-border dark:border-white/[0.06] text-left text-[9px] uppercase tracking-wider text-muted-foreground">
                       <th className="px-2.5 py-1.5">Verdict</th>
                       <th className="px-2.5 py-1.5">Similarity</th>
                       <th className="px-2.5 py-1.5">Turns</th>
@@ -257,12 +257,12 @@ export function WebeeMigrationDialog({
                   </thead>
                   <tbody>
                     {runs.map((r) => (
-                      <tr key={String(r.id)} className="border-b border-white/[0.03] last:border-0">
+                      <tr key={String(r.id)} className="border-b border-border/50 dark:border-white/[0.03] last:border-0">
                         <td className="px-2.5 py-1.5">
                           <span
                             className={cn(
                               "rounded-full border px-1.5 py-0.5 text-[9px] capitalize",
-                              VERDICT_STYLES[String(r.verdict)] ?? "border-white/[0.12]",
+                              VERDICT_STYLES[String(r.verdict)] ?? "border-border dark:border-white/[0.12]",
                             )}
                           >
                             {String(r.verdict)}

@@ -73,7 +73,7 @@ export function TestCallLatencyPanel() {
   return (
     <div className="flex h-full min-h-0">
       {/* Call list */}
-      <div className="w-44 shrink-0 overflow-y-auto border-r border-white/[0.06]">
+      <div className="w-44 shrink-0 overflow-y-auto border-r border-border dark:border-white/[0.06]">
         <div className="flex items-center justify-between px-2 py-1">
           <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Test calls</span>
           <button
@@ -91,8 +91,8 @@ export function TestCallLatencyPanel() {
             type="button"
             onClick={() => setCallId(c.callId)}
             className={cn(
-              "block w-full px-2 py-1.5 text-left hover:bg-white/[0.04]",
-              callId === c.callId && "bg-white/[0.06]",
+              "block w-full px-2 py-1.5 text-left hover:bg-muted dark:hover:bg-white/[0.04]",
+              callId === c.callId && "bg-muted dark:bg-white/[0.06]",
             )}
           >
             <div className="flex items-baseline justify-between gap-1">
@@ -182,7 +182,7 @@ export function TestCallLatencyPanel() {
                 </thead>
                 <tbody className="font-mono">
                   {detail.turns.map((t) => (
-                    <tr key={t.turn_index} className="border-t border-white/[0.04]">
+                    <tr key={t.turn_index} className="border-t border-border/60 dark:border-white/[0.04]">
                       <td className="py-1 pr-2 text-muted-foreground">{t.turn_index}</td>
                       <td className="py-1 pr-2 text-right">{ms(t.endpoint_to_stt_final_ms)}</td>
                       <td className="py-1 pr-2 text-right">{ms(t.stt_to_route_ms)}</td>
