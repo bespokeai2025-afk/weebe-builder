@@ -16,9 +16,20 @@ import {
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -750,12 +761,22 @@ function TeamAccessTab({ canManage }: { canManage: boolean; myUserId: string | n
     throwOnError: false,
   });
 
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<string>("manager");
+  const inviteSchema = z.object({
+    email: z.string().min(1, "Email is required").email("Enter a valid email address"),
+    role: z
+      .string()
+      .min(1, "Role is required")
+      .refine((v) => ASSIGNABLE_ROLES.includes(v as any), "Select a valid role"),
+  });
+  const inviteForm = useForm({
+    resolver: zodResolver(inviteSchema),
+    defaultValues: { email: "", role: "manager" },
+  });
   const inviteM = useMutation({
-    mutationFn: () => createInviteFn({ data: { email: inviteEmail, roleKey: inviteRole } }),
+    mutationFn: (values: z.infer<typeof inviteSchema>) =>
+      createInviteFn({ data: { email: values.email, roleKey: values.role } }),
     onSuccess: () => {
-      setInviteEmail("");
+      inviteForm.reset({ email: "", role: "manager" });
       qc.invalidateQueries({ queryKey: ["team-invites"] });
       toast.success("Invite sent");
     },
@@ -862,44 +883,63 @@ function TeamAccessTab({ canManage }: { canManage: boolean; myUserId: string | n
             <CardDescription>They'll receive an email with a link to join this workspace.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex flex-wrap items-end gap-2">
-              <div className="flex-1 min-w-[220px]">
-                <Label htmlFor="invite-email" className="text-xs">Email</Label>
-                <Input
-                  id="invite-email"
-                  type="email"
-                  placeholder="colleague@company.com"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label className="text-xs">Role</Label>
-                <Select value={inviteRole} onValueChange={setInviteRole}>
-                  <SelectTrigger className="w-[190px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ASSIGNABLE_ROLES.map((r) => (
-                      <SelectItem key={r} value={r}>
-                        {ROLE_LABELS[r as RoleKey] ?? r}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button
-                disabled={!inviteEmail || inviteM.isPending}
-                onClick={() => inviteM.mutate()}
+            <Form {...inviteForm}>
+              <form
+                onSubmit={inviteForm.handleSubmit((values) => inviteM.mutate(values))}
+                className="flex flex-wrap items-start gap-2"
               >
-                {inviteM.isPending ? (
-                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                ) : (
-                  <UserPlus className="mr-1.5 h-4 w-4" />
-                )}
-                Send invite
-              </Button>
-            </div>
+                <FormField
+                  control={inviteForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem className="flex-1 min-w-[220px] space-y-1">
+                      <FormLabel className="text-xs">Email</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="email"
+                          placeholder="colleague@company.com"
+                          autoComplete="off"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage className="text-[11px]" />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={inviteForm.control}
+                  name="role"
+                  render={({ field }) => (
+                    <FormItem className="space-y-1">
+                      <FormLabel className="text-xs">Role</FormLabel>
+                      <FormControl>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <SelectTrigger className="w-[190px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ASSIGNABLE_ROLES.map((r) => (
+                              <SelectItem key={r} value={r}>
+                                {ROLE_LABELS[r as RoleKey] ?? r}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormMessage className="text-[11px]" />
+                    </FormItem>
+                  )}
+                />
+                <Button type="submit" disabled={inviteM.isPending} className="mt-[22px]">
+                  {inviteM.isPending ? (
+                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                  ) : (
+                    <UserPlus className="mr-1.5 h-4 w-4" />
+                  )}
+                  Send invite
+                </Button>
+              </form>
+            </Form>
             {pendingInvites.length > 0 && (
               <div className="space-y-1.5">
                 <div className="text-xs font-medium text-muted-foreground">Pending invites</div>

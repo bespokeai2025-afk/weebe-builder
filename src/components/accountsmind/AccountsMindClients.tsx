@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -22,27 +25,36 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
   Users, Settings, ChevronRight, RefreshCw, PoundSterling,
   Building2, UserCheck, ExternalLink, ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
-interface BillingForm {
-  monthlyChargeCents: number;
-  currency: string;
-  billingCycle: string;
-  includedMinutes: number;
-  includedMessages: number;
-  includedVideoSeconds: number;
-  includedEmailSends: number;
-  includedStorageMb: number;
-  contractStartDate: string;
-  contractEndDate: string;
-  status: string;
-  notes: string;
-  billingAddress: string;
-}
+const billingSchema = z.object({
+  monthlyChargeCents: z.coerce.number().int().min(0, "Must be a positive amount"),
+  currency: z.string().min(1, "Select a currency"),
+  billingCycle: z.string().min(1),
+  includedMinutes: z.coerce.number().int().min(0, "Must be ≥ 0"),
+  includedMessages: z.coerce.number().int().min(0, "Must be ≥ 0"),
+  includedVideoSeconds: z.coerce.number().int().min(0, "Must be ≥ 0"),
+  includedEmailSends: z.coerce.number().int().min(0, "Must be ≥ 0"),
+  includedStorageMb: z.coerce.number().int().min(0, "Must be ≥ 0"),
+  contractStartDate: z.string(),
+  contractEndDate: z.string(),
+  status: z.string().min(1, "Select a status"),
+  notes: z.string(),
+  billingAddress: z.string(),
+});
+type BillingForm = z.infer<typeof billingSchema>;
 
 const DEFAULTS: BillingForm = {
   monthlyChargeCents: 0,
@@ -69,9 +81,12 @@ export function AccountsMindClients() {
   const setIndustryFn = useServerFn(setClientIndustry);
 
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm]           = useState<BillingForm>(DEFAULTS);
   const [saving, setSaving]       = useState(false);
   const [industryFilter, setIndustryFilter] = useState<string>("all");
+  const form = useForm<BillingForm>({
+    resolver: zodResolver(billingSchema),
+    defaultValues: DEFAULTS,
+  });
 
   const { data: clients = [], isLoading } = useQuery({
     queryKey: ["accountsmind-clients"],
@@ -101,7 +116,7 @@ export function AccountsMindClients() {
   const openEdit = async (workspaceId: string) => {
     const profile = await getProfileFn({ data: { workspaceId } });
     if (profile) {
-      setForm({
+      form.reset({
         monthlyChargeCents:   profile.monthly_charge_cents ?? 0,
         currency:             profile.currency ?? "GBP",
         billingCycle:         profile.billing_cycle ?? "monthly",
@@ -117,32 +132,37 @@ export function AccountsMindClients() {
         billingAddress:       profile.billing_address ?? "",
       });
     } else {
-      setForm(DEFAULTS);
+      form.reset(DEFAULTS);
     }
     setEditingId(workspaceId);
   };
 
-  const save = async () => {
+  const closeDialog = () => {
+    setEditingId(null);
+    form.reset(DEFAULTS);
+  };
+
+  const onSubmit = form.handleSubmit(async (values) => {
     if (!editingId) return;
     setSaving(true);
     try {
       await upsertFn({
         data: {
           workspaceId:          editingId,
-          monthlyChargeCents:   form.monthlyChargeCents,
-          currency:             form.currency,
-          billingCycle:         form.billingCycle,
-          includedMinutes:      form.includedMinutes,
-          includedMessages:     form.includedMessages,
-          includedVideoSeconds: form.includedVideoSeconds,
-          includedEmailSends:   form.includedEmailSends,
-          includedStorageMb:    form.includedStorageMb,
+          monthlyChargeCents:   values.monthlyChargeCents,
+          currency:             values.currency,
+          billingCycle:         values.billingCycle,
+          includedMinutes:      values.includedMinutes,
+          includedMessages:     values.includedMessages,
+          includedVideoSeconds: values.includedVideoSeconds,
+          includedEmailSends:   values.includedEmailSends,
+          includedStorageMb:    values.includedStorageMb,
           overageRates:         {},
-          contractStartDate:    form.contractStartDate || null,
-          contractEndDate:      form.contractEndDate   || null,
-          status:               form.status,
-          notes:                form.notes,
-          billingAddress:       form.billingAddress,
+          contractStartDate:    values.contractStartDate || null,
+          contractEndDate:      values.contractEndDate   || null,
+          status:               values.status,
+          notes:                values.notes,
+          billingAddress:       values.billingAddress,
         },
       });
       qc.invalidateQueries({ queryKey: ["accountsmind-clients"] });
@@ -153,10 +173,7 @@ export function AccountsMindClients() {
     } finally {
       setSaving(false);
     }
-  };
-
-  const field = <K extends keyof BillingForm>(key: K, val: BillingForm[K]) =>
-    setForm((f) => ({ ...f, [key]: val }));
+  });
 
   const getWbsStatusFn = useServerFn(getWebespokeEnterpriseStatus);
   const wbsStatusQ = useQuery({
@@ -348,7 +365,7 @@ export function AccountsMindClients() {
       </div>
 
       {/* Edit dialog */}
-      <Dialog open={!!editingId} onOpenChange={(o) => !o && setEditingId(null)}>
+      <Dialog open={!!editingId} onOpenChange={(o) => !o && closeDialog()}>
         <DialogContent className="bg-card border-border text-foreground dark:bg-gray-900 dark:border-gray-700 dark:text-white max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -356,100 +373,206 @@ export function AccountsMindClients() {
               Billing Profile
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 mt-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs text-muted-foreground dark:text-gray-400">Monthly Charge (pence)</Label>
-                <Input
-                  type="number"
-                  value={form.monthlyChargeCents}
-                  onChange={(e) => field("monthlyChargeCents", Number(e.target.value))}
-                  className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white"
-                  placeholder="e.g. 50000 = £500"
+          <Form {...form}>
+            <form onSubmit={onSubmit} className="space-y-4 mt-2">
+              <div className="grid grid-cols-2 gap-3">
+                <FormField
+                  control={form.control}
+                  name="monthlyChargeCents"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs text-muted-foreground dark:text-gray-400">
+                        Monthly Charge (pence)
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          {...field}
+                          className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+                          placeholder="e.g. 50000 = £500"
+                        />
+                      </FormControl>
+                      <p className="text-[10px] text-muted-foreground dark:text-gray-500 mt-1">
+                        = {form.watch("currency") === "GBP" ? "£" : "$"}
+                        {((field.value as number) / 100).toFixed(2)}
+                      </p>
+                      <FormMessage className="text-[11px]" />
+                    </FormItem>
+                  )}
                 />
-                <p className="text-[10px] text-muted-foreground dark:text-gray-500 mt-1">
-                  = {form.currency === "GBP" ? "£" : "$"}{(form.monthlyChargeCents / 100).toFixed(2)}
-                </p>
+                <FormField
+                  control={form.control}
+                  name="currency"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs text-muted-foreground dark:text-gray-400">Currency</FormLabel>
+                      <FormControl>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <SelectTrigger className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-popover border-border dark:bg-gray-800 dark:border-gray-700">
+                            <SelectItem value="GBP">GBP (£)</SelectItem>
+                            <SelectItem value="USD">USD ($)</SelectItem>
+                            <SelectItem value="EUR">EUR (€)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormMessage className="text-[11px]" />
+                    </FormItem>
+                  )}
+                />
               </div>
-              <div>
-                <Label className="text-xs text-muted-foreground dark:text-gray-400">Currency</Label>
-                <Select value={form.currency} onValueChange={(v) => field("currency", v)}>
-                  <SelectTrigger className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-popover border-border dark:bg-gray-800 dark:border-gray-700">
-                    <SelectItem value="GBP">GBP (£)</SelectItem>
-                    <SelectItem value="USD">USD ($)</SelectItem>
-                    <SelectItem value="EUR">EUR (€)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs text-muted-foreground dark:text-gray-400">Included Minutes</Label>
-                <Input type="number" value={form.includedMinutes} onChange={(e) => field("includedMinutes", Number(e.target.value))} className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white" />
+              <div className="grid grid-cols-2 gap-3">
+                <FormField
+                  control={form.control}
+                  name="includedMinutes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs text-muted-foreground dark:text-gray-400">Included Minutes</FormLabel>
+                      <FormControl>
+                        <Input type="number" {...field} className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white" />
+                      </FormControl>
+                      <FormMessage className="text-[11px]" />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="includedMessages"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs text-muted-foreground dark:text-gray-400">Included Messages</FormLabel>
+                      <FormControl>
+                        <Input type="number" {...field} className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white" />
+                      </FormControl>
+                      <FormMessage className="text-[11px]" />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="includedEmailSends"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs text-muted-foreground dark:text-gray-400">Included Email Sends</FormLabel>
+                      <FormControl>
+                        <Input type="number" {...field} className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white" />
+                      </FormControl>
+                      <FormMessage className="text-[11px]" />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="includedVideoSeconds"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs text-muted-foreground dark:text-gray-400">Included Video Seconds</FormLabel>
+                      <FormControl>
+                        <Input type="number" {...field} className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white" />
+                      </FormControl>
+                      <FormMessage className="text-[11px]" />
+                    </FormItem>
+                  )}
+                />
               </div>
-              <div>
-                <Label className="text-xs text-muted-foreground dark:text-gray-400">Included Messages</Label>
-                <Input type="number" value={form.includedMessages} onChange={(e) => field("includedMessages", Number(e.target.value))} className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white" />
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground dark:text-gray-400">Included Email Sends</Label>
-                <Input type="number" value={form.includedEmailSends} onChange={(e) => field("includedEmailSends", Number(e.target.value))} className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white" />
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground dark:text-gray-400">Included Video Seconds</Label>
-                <Input type="number" value={form.includedVideoSeconds} onChange={(e) => field("includedVideoSeconds", Number(e.target.value))} className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white" />
-              </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs text-muted-foreground dark:text-gray-400">Contract Start</Label>
-                <Input type="date" value={form.contractStartDate} onChange={(e) => field("contractStartDate", e.target.value)} className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white" />
+              <div className="grid grid-cols-2 gap-3">
+                <FormField
+                  control={form.control}
+                  name="contractStartDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs text-muted-foreground dark:text-gray-400">Contract Start</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white" />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="contractEndDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs text-muted-foreground dark:text-gray-400">Contract End</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white" />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
               </div>
-              <div>
-                <Label className="text-xs text-muted-foreground dark:text-gray-400">Contract End</Label>
-                <Input type="date" value={form.contractEndDate} onChange={(e) => field("contractEndDate", e.target.value)} className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white" />
+
+              <FormField
+                control={form.control}
+                name="status"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs text-muted-foreground dark:text-gray-400">Status</FormLabel>
+                    <FormControl>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-popover border-border dark:bg-gray-800 dark:border-gray-700">
+                          <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="paused">Paused</SelectItem>
+                          <SelectItem value="churned">Churned</SelectItem>
+                          <SelectItem value="trial">Trial</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                    <FormMessage className="text-[11px]" />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="billingAddress"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs text-muted-foreground dark:text-gray-400">
+                      Billing address (appears on invoices as {"{to_address}"})
+                    </FormLabel>
+                    <FormControl>
+                      <Textarea
+                        {...field}
+                        placeholder={"123 High Street\nLondon\nSW1A 1AA"}
+                        className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white text-sm"
+                        rows={3}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="notes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs text-muted-foreground dark:text-gray-400">Notes</FormLabel>
+                    <FormControl>
+                      <Textarea {...field} className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white text-sm" rows={2} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={closeDialog} type="button" className="border-border text-foreground/80 dark:border-gray-700 dark:text-gray-300">
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
+                  {saving ? "Saving…" : "Save Profile"}
+                </Button>
               </div>
-            </div>
-
-            <div>
-              <Label className="text-xs text-muted-foreground dark:text-gray-400">Status</Label>
-              <Select value={form.status} onValueChange={(v) => field("status", v)}>
-                <SelectTrigger className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-popover border-border dark:bg-gray-800 dark:border-gray-700">
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="paused">Paused</SelectItem>
-                  <SelectItem value="churned">Churned</SelectItem>
-                  <SelectItem value="trial">Trial</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label className="text-xs text-muted-foreground dark:text-gray-400">Billing address (appears on invoices as {"{to_address}"})</Label>
-              <Textarea value={form.billingAddress} onChange={(e) => field("billingAddress", e.target.value)} placeholder={"123 High Street\nLondon\nSW1A 1AA"} className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white text-sm" rows={3} />
-            </div>
-
-            <div>
-              <Label className="text-xs text-muted-foreground dark:text-gray-400">Notes</Label>
-              <Textarea value={form.notes} onChange={(e) => field("notes", e.target.value)} className="mt-1 bg-muted border-border text-foreground dark:bg-gray-800 dark:border-gray-700 dark:text-white text-sm" rows={2} />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => setEditingId(null)} className="border-border text-foreground/80 dark:border-gray-700 dark:text-gray-300">
-                Cancel
-              </Button>
-              <Button onClick={save} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
-                {saving ? "Saving…" : "Save Profile"}
-              </Button>
-            </div>
-          </div>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
     </div>
