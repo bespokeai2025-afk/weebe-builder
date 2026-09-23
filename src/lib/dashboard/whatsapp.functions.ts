@@ -19,7 +19,9 @@ import {
 import type { CsvLeadRow } from "@/lib/whatsapp/csv-leads.shared";
 import { getContactFieldsMap, parseNotesToMeta } from "@/lib/whatsapp/csv-leads.shared";
 import { batchImportCsvLeads } from "@/lib/whatsapp/csv-import-batch.server";
-import { discoverLeadMetaFields } from "@/lib/whatsapp/lead-meta-fields.shared";
+import { discoverLeadMetaFields,
+  discoverLeadColumnFields,
+} from "@/lib/whatsapp/lead-meta-fields.shared";
 import type { ContactDeleteCandidate } from "@/lib/whatsapp/contact-bulk-delete.shared";
 import {
   contactDeleteRefusal,
@@ -1440,6 +1442,40 @@ export const deleteWAContactsByFilter = createServerFn({ method: "POST" })
     return { ok: true, deleted };
   });
 
+/**
+ * Deletes exactly the contacts whose ids are passed in.
+ *
+ * The filter-based delete covers "everyone on this screen"; this covers "these ones I ticked",
+ * which is the safer habit when only a handful of rows are wrong. Ids are still re-checked against
+ * the workspace on the delete itself, so a stale or foreign id from the client removes nothing.
+ */
+export const deleteWAContactsByIds = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) =>
+    z.object({ ids: z.array(z.string().uuid()).min(1).max(1000) }).parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No workspace");
+    assertNotWbahWorkspace(workspaceId);
+    const sb = supabase as any;
+
+    let deleted = 0;
+    for (let i = 0; i < data.ids.length; i += 500) {
+      const chunk = data.ids.slice(i, i + 500);
+      const { data: rows, error } = await sb
+        .from("whatsapp_contacts")
+        .delete()
+        .eq("workspace_id", workspaceId)
+        .in("id", chunk)
+        .select("id");
+      if (error) throw new Error(error.message);
+      deleted += (rows ?? []).length;
+    }
+
+    return { ok: true, deleted };
+  });
+
 export const importWAContactsCsv = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input) =>
@@ -1483,28 +1519,38 @@ export const listLeadMetaFieldOptions = createServerFn({ method: "POST" })
     if (!workspaceId) return { fields: [], leadsSampled: 0 };
     const sb = supabase as any;
 
-    const { data: rows, error } = await sb
+    const want = (data.uploadType ?? "").trim();
+
+    // Filtered in the query, not afterwards. Sampling the newest 500 leads workspace-wide and
+    // then filtering in JS meant an upload type outside that window discovered no fields at all,
+    // and the picker fell back to offering every generic column instead.
+    let query = sb
       .from("leads")
-      .select("meta, notes")
-      .eq("workspace_id", workspaceId)
+      .select("meta, notes, full_name, phone, email, company_name, source, call_summary, next_action")
+      .eq("workspace_id", workspaceId);
+    if (want) query = query.eq("meta->>upload_type", want);
+    const { data: rows, error } = await query
       .order("created_at", { ascending: false })
-      .limit(500);
+      .limit(want ? 1000 : 500);
     if (error) throw new Error(error.message);
 
-    const want = (data.uploadType ?? "").trim();
-    const leads = (rows ?? []).filter((r: { meta?: Record<string, unknown> | null }) =>
-      want ? String((r.meta ?? {}).upload_type ?? "").trim() === want : true,
-    );
+    const leads = (rows ?? []) as Array<Record<string, unknown>>;
 
     const fields = discoverLeadMetaFields(
-      (leads as Array<{ meta?: Record<string, unknown> | null; notes?: unknown }>).map((row) => ({
-        meta: row.meta ?? null,
+      leads.map((row) => ({
+        meta: (row.meta as Record<string, unknown> | null) ?? null,
         extra:
-          typeof row.notes === "string" && row.notes.trim() ? parseNotesToMeta(row.notes) : null,
+          typeof row.notes === "string" && row.notes.trim()
+            ? parseNotesToMeta(row.notes as string)
+            : null,
       })),
     );
 
-    return { fields, leadsSampled: leads.length };
+    return {
+      fields,
+      leadFields: discoverLeadColumnFields(leads),
+      leadsSampled: leads.length,
+    };
   });
 
 /**

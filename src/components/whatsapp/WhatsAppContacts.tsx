@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -70,6 +70,7 @@ import {
   deleteWAContact,
   deleteAllWAContacts,
   deleteWAContactsByFilter,
+  deleteWAContactsByIds,
   getWhatsappInboxMeta,
   importWAContactsCsv,
   exportBuzzchatContactsCsv,
@@ -402,6 +403,7 @@ export function WhatsAppContacts() {
   const deleteFn = useServerFn(deleteWAContact);
   const deleteAllFn = useServerFn(deleteAllWAContacts);
   const deleteFilteredFn = useServerFn(deleteWAContactsByFilter);
+  const deleteSelectedFn = useServerFn(deleteWAContactsByIds);
   const importCsvFn = useServerFn(importWAContactsCsv);
   const exportBuzzchatFn = useServerFn(exportBuzzchatContactsCsv);
   const backfillFn = useServerFn(backfillWhatsappContactedStatus);
@@ -458,6 +460,8 @@ export function WhatsAppContacts() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [clearAllOpen, setClearAllOpen] = useState(false);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectedDeleteOpen, setSelectedDeleteOpen] = useState(false);
   const [form, setForm] = useState(emptyForm());
   const [docsContact, setDocsContact] = useState<any>(null);
   const [detailContact, setDetailContact] = useState<any>(null);
@@ -588,6 +592,56 @@ export function WhatsAppContacts() {
       label: [noun, "contact"].filter(Boolean).join(" "),
     };
   }, [uploadFilter, messagedFilter, filtered.length]);
+
+  // Row selection. Deliberately keyed on ids rather than "everything matching the filter": the
+  // filtered delete already covers that, and a tick-box list is the one place where what gets
+  // deleted should be exactly what the eye can see.
+  const visibleIds = useMemo(() => filtered.map((c) => c.id), [filtered]);
+  const selectedVisibleIds = useMemo(
+    () => visibleIds.filter((id) => selectedIds.has(id)),
+    [visibleIds, selectedIds],
+  );
+  const allVisibleSelected = visibleIds.length > 0 && selectedVisibleIds.length === visibleIds.length;
+
+  const toggleRow = (id: string) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const toggleAllVisible = () =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) for (const id of visibleIds) next.delete(id);
+      else for (const id of visibleIds) next.add(id);
+      return next;
+    });
+
+  // A row that scrolls out of the filter must not stay silently ticked — otherwise "delete 12
+  // selected" could remove rows the user can no longer see.
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      if (prev.size === 0) return prev;
+      const visible = new Set(visibleIds);
+      const next = new Set([...prev].filter((id) => visible.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [visibleIds]);
+
+  const deleteSelected = useMutation({
+    mutationFn: () => deleteSelectedFn({ data: { ids: selectedVisibleIds } }),
+    onSuccess: (res: { deleted?: number }) => {
+      qc.invalidateQueries({ queryKey: ["wa-contacts"] });
+      qc.invalidateQueries({ queryKey: ["wa-contacts-meta"] });
+      setSelectedDeleteOpen(false);
+      setSelectedIds(new Set());
+      setDetailContact(null);
+      toast.success(`Deleted ${res.deleted ?? 0} contact(s)`);
+    },
+    onError: (e: Error) => toast.error("Could not delete", { description: e.message }),
+  });
 
   const bulkDelete = useMutation({
     mutationFn: () =>
@@ -879,6 +933,26 @@ export function WhatsAppContacts() {
               {filtered.length > 0 && (
                 <span className="text-xs text-muted-foreground">{filtered.length} shown</span>
               )}
+              {selectedVisibleIds.length > 0 && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 gap-1.5 border-destructive/40 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => setSelectedDeleteOpen(true)}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    Delete {selectedVisibleIds.length} selected
+                  </Button>
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                    onClick={() => setSelectedIds(new Set())}
+                  >
+                    Clear selection
+                  </button>
+                </>
+              )}
               {/* Offered on "Not sent", and whenever a single upload type is selected. Both are
                   scoped deletes that name exactly what is on screen — unlike Clear, which removes
                   every contact in the workspace and ignores these filters entirely. */}
@@ -925,6 +999,13 @@ export function WhatsAppContacts() {
               <table className="w-full text-sm">
                 <thead className="sticky top-0 z-10 border-b border-white/[0.06] bg-muted/50">
                   <tr>
+                    <th className="w-10 px-4 py-2.5 text-left">
+                      <Checkbox
+                        aria-label="Select all shown"
+                        checked={allVisibleSelected}
+                        onCheckedChange={toggleAllVisible}
+                      />
+                    </th>
                     {[
                       "Owner",
                       "Property",
@@ -960,6 +1041,14 @@ export function WhatsAppContacts() {
                         )}
                         onClick={() => setDetailContact(c)}
                       >
+                        {/* stopPropagation: ticking a row must not also open its detail panel. */}
+                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            aria-label={`Select ${c.name || c.phone}`}
+                            checked={selectedIds.has(c.id)}
+                            onCheckedChange={() => toggleRow(c.id)}
+                          />
+                        </td>
                         <td className="px-4 py-3">
                           <p className="font-medium leading-tight">{c.name || "—"}</p>
                           <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
@@ -1239,6 +1328,44 @@ export function WhatsAppContacts() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {clearAll.isPending ? "Removing…" : `Remove all ${summary.total}`}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={selectedDeleteOpen} onOpenChange={setSelectedDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete {selectedVisibleIds.length} selected contact
+              {selectedVisibleIds.length === 1 ? "" : "s"}?
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>
+                  This permanently deletes only the {selectedVisibleIds.length} contact
+                  {selectedVisibleIds.length === 1 ? "" : "s"} you ticked. It cannot be undone.
+                </p>
+                <p className="text-xs">
+                  Their WhatsApp history stays — only the contact records go. Nothing else on this
+                  screen is affected.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteSelected.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                deleteSelected.mutate();
+              }}
+              disabled={deleteSelected.isPending || selectedVisibleIds.length === 0}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteSelected.isPending
+                ? "Deleting…"
+                : `Delete ${selectedVisibleIds.length}`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
