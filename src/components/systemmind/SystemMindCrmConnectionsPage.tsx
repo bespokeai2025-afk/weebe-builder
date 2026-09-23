@@ -5,6 +5,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { StatusBadge } from "@/components/ui/status-badge";
 import {
   getCrmConnectorCatalogFn, listCrmConnectionsFn, saveCrmConnectionFn,
   deleteCrmConnectionFn, testCrmConnectionFn, refreshCrmCredentialsFn,
@@ -14,7 +15,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import {
@@ -28,10 +28,10 @@ type CatalogEntry = {
   fields: Array<{ key: string; label: string; type: string; required: boolean; help: string; placeholder?: string; options?: string[] }>;
 };
 
-function StatusBadge({ status }: { status: string }) {
-  if (status === "connected") return <Badge className="bg-emerald-600/15 text-emerald-600 border-emerald-600/30">Connected</Badge>;
-  if (status === "failed") return <Badge variant="destructive">Failed</Badge>;
-  return <Badge variant="secondary">Not tested</Badge>;
+function ConnStatusBadge({ status }: { status: string }) {
+  if (status === "connected") return <StatusBadge tone="success">Connected</StatusBadge>;
+  if (status === "failed") return <StatusBadge tone="danger">Failed</StatusBadge>;
+  return <StatusBadge tone="neutral">Not tested</StatusBadge>;
 }
 
 function EvidenceList({ report }: { report: any }) {
@@ -201,7 +201,7 @@ function ConnectionCard(props: { conn: any; entry: CatalogEntry | null; onChange
           <div className="flex items-center gap-2">
             <Plug className="h-4 w-4 text-muted-foreground" />
             <CardTitle className="text-base">{conn.label || entry?.label || conn.provider}</CardTitle>
-            <StatusBadge status={conn.status} />
+            <ConnStatusBadge status={conn.status} />
           </div>
           <div className="flex flex-wrap gap-1.5">
             <Button size="sm" variant="outline" onClick={() => test.mutate()} disabled={test.isPending}>

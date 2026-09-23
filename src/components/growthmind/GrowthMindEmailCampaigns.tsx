@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GrowthMindShell } from "./GrowthMindShell";
+import { StatusBadge as SharedStatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,23 +31,16 @@ import {
 
 // ── Status badge ──────────────────────────────────────────────────────────────
 
-const STATUS_COLORS: Record<string, string> = {
-  draft:     "bg-slate-500/15 text-slate-400 border-slate-500/20",
-  scheduled: "bg-blue-500/15 text-blue-400 border-blue-500/20",
-  sending:   "bg-amber-500/15 text-amber-400 border-amber-500/20",
-  sent:      "bg-emerald-500/15 text-emerald-400 border-emerald-500/20",
-  failed:    "bg-red-500/15 text-red-400 border-red-500/20",
+const STATUS_TONES: Record<string, "slate" | "info" | "warning" | "success" | "danger"> = {
+  draft: "slate",
+  scheduled: "info",
+  sending: "warning",
+  sent: "success",
+  failed: "danger",
 };
 
 function StatusBadge({ status }: { status: string }) {
-  return (
-    <span className={cn(
-      "rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize",
-      STATUS_COLORS[status] ?? STATUS_COLORS.draft,
-    )}>
-      {status}
-    </span>
-  );
+  return <SharedStatusBadge tone={STATUS_TONES[status] ?? "slate"}>{status}</SharedStatusBadge>;
 }
 
 // ── Tab types ─────────────────────────────────────────────────────────────────

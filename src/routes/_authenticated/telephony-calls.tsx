@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { RecordingPlayerDialog } from "@/components/RecordingPlayerDialog";
 import { listTelephonyCalls } from "@/lib/telephony/telephony.functions";
 
@@ -30,38 +31,38 @@ function fmtDuration(s?: number | null) {
 
 
 function statusBadge(s: string) {
-  const map: Record<string, string> = {
-    completed: "bg-emerald-500/15 text-emerald-400",
-    active: "bg-primary/15 text-primary",
-    answered: "bg-primary/15 text-primary",
-    ringing: "bg-amber-500/15 text-amber-400",
-    initiated: "bg-muted text-muted-foreground",
-    voicemail: "bg-amber-500/15 text-amber-400",
-    failed: "bg-destructive/15 text-destructive",
-    transferred: "bg-violet-500/15 text-violet-400",
+  const tone: Record<string, "success" | "info" | "warning" | "neutral" | "danger" | "violet"> = {
+    completed: "success",
+    active: "info",
+    answered: "info",
+    ringing: "warning",
+    initiated: "neutral",
+    voicemail: "warning",
+    failed: "danger",
+    transferred: "violet",
   };
   return (
-    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium capitalize ${map[s] ?? "bg-muted text-muted-foreground"}`}>
+    <StatusBadge tone={tone[s] ?? "neutral"} className="text-xs font-medium capitalize">
       {s}
-    </span>
+    </StatusBadge>
   );
 }
 
 function outcomeBadge(o?: string | null) {
   if (!o) return null;
-  const map: Record<string, string> = {
-    booked: "bg-emerald-500/15 text-emerald-400",
-    qualified: "bg-blue-500/15 text-blue-400",
-    voicemail: "bg-amber-500/15 text-amber-400",
-    callback: "bg-violet-500/15 text-violet-400",
-    no_answer: "bg-muted text-muted-foreground",
-    failed: "bg-destructive/15 text-destructive",
-    other: "bg-muted text-muted-foreground",
+  const tone: Record<string, "success" | "info" | "warning" | "violet" | "neutral" | "danger"> = {
+    booked: "success",
+    qualified: "info",
+    voicemail: "warning",
+    callback: "violet",
+    no_answer: "neutral",
+    failed: "danger",
+    other: "neutral",
   };
   return (
-    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium capitalize ${map[o] ?? "bg-muted text-muted-foreground"}`}>
+    <StatusBadge tone={tone[o] ?? "neutral"} className="text-xs font-medium capitalize">
       {o.replace("_", " ")}
-    </span>
+    </StatusBadge>
   );
 }
 

@@ -52,6 +52,7 @@ import {
   stickyHead,
 } from "@/components/dashboard/PageShell";
 import { cn } from "@/lib/utils";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { AssignLeadsDialog } from "@/components/leads/AssignLeadsDialog";
 import { getMyPermissions } from "@/lib/permissions/team-access.functions";
@@ -169,39 +170,40 @@ function fmtCallDate(iso: string | null | undefined, isWbah = false) {
 
 function sentimentBadge(s: string | null) {
   if (!s) return null;
-  const map: Record<string, string> = {
-    positive: "bg-emerald-500/15 text-emerald-400",
-    neutral: "bg-amber-500/15 text-amber-400",
-    negative: "bg-red-500/15 text-red-400",
+  const tone: Record<string, "success" | "warning" | "danger" | "neutral"> = {
+    positive: "success",
+    neutral: "warning",
+    negative: "danger",
   };
   return (
-    <span
-      className={`rounded-full px-2 py-0.5 text-[11px] ${map[s] ?? "bg-muted text-muted-foreground"}`}
-    >
+    <StatusBadge tone={tone[s] ?? "neutral"} size="sm">
       {s}
-    </span>
+    </StatusBadge>
   );
 }
 
 function scoreBadge(score: number | null) {
   if (score == null) return <span className="text-muted-foreground">—</span>;
-  const color = score >= 70 ? "text-emerald-400" : score >= 40 ? "text-amber-400" : "text-red-400";
+  const color =
+    score >= 70
+      ? "text-emerald-600 dark:text-emerald-400"
+      : score >= 40
+        ? "text-amber-600 dark:text-amber-400"
+        : "text-red-600 dark:text-red-400";
   return <span className={`font-semibold ${color}`}>{score}</span>;
 }
 
 function interestBadge(level: string | null) {
   if (!level) return null;
-  const map: Record<string, string> = {
-    high: "bg-emerald-500/15 text-emerald-400",
-    medium: "bg-amber-500/15 text-amber-400",
-    low: "bg-red-500/15 text-red-400",
+  const tone: Record<string, "success" | "warning" | "danger" | "neutral"> = {
+    high: "success",
+    medium: "warning",
+    low: "danger",
   };
   return (
-    <span
-      className={`rounded-full px-2 py-0.5 text-[11px] ${map[level] ?? "bg-muted text-muted-foreground"}`}
-    >
+    <StatusBadge tone={tone[level] ?? "neutral"} size="sm">
       {level}
-    </span>
+    </StatusBadge>
   );
 }
 
@@ -215,38 +217,34 @@ function fmtDuration(ms: number | null): string {
 
 function callStatusBadge(status: string | null) {
   if (!status) return <span className="text-muted-foreground text-[11px]">—</span>;
-  const map: Record<string, string> = {
-    completed: "bg-emerald-500/15 text-emerald-400",
-    failed: "bg-red-500/15 text-red-400",
-    no_answer: "bg-orange-500/15 text-orange-400",
-    initiated: "bg-blue-500/15 text-blue-400",
-    in_progress: "bg-blue-500/15 text-blue-400",
+  const tone: Record<string, "success" | "danger" | "orange" | "info" | "neutral"> = {
+    completed: "success",
+    failed: "danger",
+    no_answer: "orange",
+    initiated: "info",
+    in_progress: "info",
   };
   return (
-    <span
-      className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize whitespace-nowrap ${map[status] ?? "bg-muted text-muted-foreground"}`}
-    >
+    <StatusBadge tone={tone[status] ?? "neutral"} size="sm" className="font-medium capitalize">
       {status.replace(/_/g, " ")}
-    </span>
+    </StatusBadge>
   );
 }
 
 function bookingStatusBadge(status: string | null) {
   if (!status) return <span className="text-muted-foreground text-[11px]">—</span>;
   const lower = status.toLowerCase();
-  const map: Record<string, string> = {
-    booked: "bg-emerald-500/15 text-emerald-400",
-    confirmed: "bg-emerald-500/15 text-emerald-400",
-    success: "bg-emerald-500/15 text-emerald-400",
-    pending: "bg-amber-500/15 text-amber-400",
-    cancelled: "bg-red-500/15 text-red-400",
+  const tone: Record<string, "success" | "warning" | "danger" | "neutral"> = {
+    booked: "success",
+    confirmed: "success",
+    success: "success",
+    pending: "warning",
+    cancelled: "danger",
   };
   return (
-    <span
-      className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize whitespace-nowrap ${map[lower] ?? "bg-muted text-muted-foreground"}`}
-    >
+    <StatusBadge tone={tone[lower] ?? "neutral"} size="sm" className="font-medium capitalize">
       {status.replace(/_/g, " ")}
-    </span>
+    </StatusBadge>
   );
 }
 
@@ -331,26 +329,29 @@ function preferredContactBadgeSpec(lead: any): LeadBadgeSpec | null {
     .trim();
   if (!raw) return null;
   if (raw === "phone" || raw === "call")
-    return { Icon: Phone, label: "Prefers phone", tone: "text-blue-400 bg-blue-500/10" };
+    return { Icon: Phone, label: "Prefers phone", tone: "text-blue-400 bg-blue-500/10", tooltip: "Prefers phone" };
   if (raw === "email")
-    return { Icon: Mail, label: "Prefers email", tone: "text-orange-400 bg-orange-500/10" };
+    return { Icon: Mail, label: "Prefers email", tone: "text-orange-400 bg-orange-500/10", tooltip: "Prefers email" };
   if (raw === "whatsapp")
     return {
       Icon: MessageCircle,
       label: "Prefers WhatsApp",
       tone: "text-emerald-400 bg-emerald-500/10",
+      tooltip: "Prefers WhatsApp",
     };
   if (raw === "sms" || raw === "text")
     return {
       Icon: MessageSquareText,
       label: "Prefers SMS",
       tone: "text-fuchsia-400 bg-fuchsia-500/10",
+      tooltip: "Prefers SMS",
     };
   if (raw === "any" || raw === "no_preference")
     return {
       Icon: Contact,
       label: "No contact preference",
       tone: "text-slate-400 bg-slate-500/10",
+      tooltip: "No contact preference",
     };
   return null;
 }
@@ -413,13 +414,13 @@ function BookingFailedBadge({ lead, detailed = false }: { lead: any; detailed?: 
       ? lead.meta.booking_error.trim()
       : null;
   return (
-    <span
+    <StatusBadge
+      tone="danger"
+      icon={<AlertTriangle className="h-2.5 w-2.5" />}
       title={err ? `Booking failed — follow up. Error: ${err}` : "Booking failed — follow up"}
-      className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-500/15 px-1.5 py-0.5 text-[10px] font-medium text-red-400 ring-1 ring-red-500/30 whitespace-nowrap"
     >
-      <AlertTriangle className="h-2.5 w-2.5" />
       {detailed ? "Booking failed — follow up" : "Booking failed"}
-    </span>
+    </StatusBadge>
   );
 }
 
@@ -427,38 +428,42 @@ const STATUS_OPTIONS = [
   {
     value: "interested",
     label: "Open",
-    color: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30",
+    color: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 ring-emerald-500/20",
   },
   {
     value: "qualified",
     label: "Qualified",
-    color: "bg-violet-500/15 text-violet-400 ring-violet-500/30",
+    color: "bg-violet-500/15 text-violet-600 dark:text-violet-400 ring-violet-500/20",
   },
   {
     value: "callback_requested",
     label: "Callback Requested",
-    color: "bg-amber-500/15 text-amber-400 ring-amber-500/30",
+    color: "bg-amber-500/15 text-amber-600 dark:text-amber-400 ring-amber-500/20",
   },
   {
     value: "need_to_call",
     label: "Needs to Call",
-    color: "bg-sky-500/15 text-sky-400 ring-sky-500/30",
+    color: "bg-sky-500/15 text-sky-600 dark:text-sky-400 ring-sky-500/20",
   },
-  { value: "not_interested", label: "Closed", color: "bg-red-500/15 text-red-400 ring-red-500/30" },
+  {
+    value: "not_interested",
+    label: "Closed",
+    color: "bg-red-500/15 text-red-600 dark:text-red-400 ring-red-500/20",
+  },
   {
     value: "completed",
     label: "Completed",
-    color: "bg-blue-500/15 text-blue-400 ring-blue-500/30",
+    color: "bg-blue-500/15 text-blue-600 dark:text-blue-400 ring-blue-500/20",
   },
   {
     value: "no_answer",
     label: "No Answer",
-    color: "bg-orange-500/15 text-orange-400 ring-orange-500/30",
+    color: "bg-orange-500/15 text-orange-600 dark:text-orange-400 ring-orange-500/20",
   },
   {
     value: "scheduled",
     label: "Scheduled",
-    color: "bg-purple-500/15 text-purple-400 ring-purple-500/30",
+    color: "bg-purple-500/15 text-purple-600 dark:text-purple-400 ring-purple-500/20",
   },
 ] as const;
 
@@ -1676,36 +1681,45 @@ function LeadsPage() {
                                 // shorter neutral calls are just "Neutral".
                                 if (ns === "neutral") {
                                   return lead.meta?.partial_qualified ? (
-                                    <span className="rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 bg-sky-500/15 text-sky-400 ring-sky-500/20">
+                                    <StatusBadge
+                                      tone="sky"
+                                      size="sm"
+                                      className="ring-1 ring-sky-500/20"
+                                    >
                                       Partial Qualified
-                                    </span>
+                                    </StatusBadge>
                                   ) : (
-                                    <span className="rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 bg-amber-500/15 text-amber-400 ring-amber-500/20">
+                                    <StatusBadge
+                                      tone="warning"
+                                      size="sm"
+                                      className="ring-1 ring-amber-500/20"
+                                    >
                                       Neutral
-                                    </span>
+                                    </StatusBadge>
                                   );
                                 }
-                                const cfg: Record<string, { label: string; cls: string }> = {
+                                const cfg: Record<
+                                  string,
+                                  { label: string; tone: "success" | "danger" | "neutral" }
+                                > = {
                                   positive: {
                                     label: "Qualified",
-                                    cls: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/20",
+                                    tone: "success",
                                   },
                                   negative: {
                                     label: "Not Qualified",
-                                    cls: "bg-red-500/15     text-red-400     ring-red-500/20",
+                                    tone: "danger",
                                   },
                                   unknown: {
                                     label: "Unknown",
-                                    cls: "bg-muted text-muted-foreground ring-border",
+                                    tone: "neutral",
                                   },
                                 };
-                                const { label, cls } = cfg[ns] ?? cfg.unknown;
+                                const { label, tone } = cfg[ns] ?? cfg.unknown;
                                 return (
-                                  <span
-                                    className={`rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ${cls}`}
-                                  >
+                                  <StatusBadge tone={tone} size="sm" className="font-medium">
                                     {label}
-                                  </span>
+                                  </StatusBadge>
                                 );
                               }
                               const sd = statusDisplay(lead.status);

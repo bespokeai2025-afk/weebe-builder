@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DashboardPage, KpiCard, SummaryTooltip, stickyCell, stickyHead } from "@/components/dashboard/PageShell";
 import { cn } from "@/lib/utils";
+import { StatusBadge } from "@/components/ui/status-badge";
 import {
   wbahAppointmentDate,
   wbahAppointmentTime,
@@ -118,57 +119,81 @@ function fmtCallDate(iso: string | null | undefined, isWbah = false) {
 
 function qualStatusBadge(s: string | null) {
   if (!s) return <span className="text-muted-foreground text-xs">—</span>;
-  const map: Record<string, string> = {
-    qualified: "bg-emerald-500/15 text-emerald-400",
-    partially_qualified: "bg-amber-500/15 text-amber-400",
-    not_qualified: "bg-red-500/15 text-red-400",
-    callback_required: "bg-blue-500/15 text-blue-400",
+  const tone: Record<string, "success" | "warning" | "danger" | "info" | "neutral"> = {
+    qualified: "success",
+    partially_qualified: "warning",
+    not_qualified: "danger",
+    callback_required: "info",
   };
-  const label = s.replace(/_/g, " ");
   return (
-    <span className={`rounded-full px-2 py-0.5 text-[11px] capitalize ${map[s] ?? "bg-muted text-muted-foreground"}`}>
-      {label}
-    </span>
+    <StatusBadge tone={tone[s] ?? "neutral"} size="sm" className="capitalize">
+      {s.replace(/_/g, " ")}
+    </StatusBadge>
   );
 }
 
 function scoreBadge(score: number | null) {
   if (score == null) return <span className="text-muted-foreground">—</span>;
-  const color = score >= 70 ? "text-emerald-400" : score >= 40 ? "text-amber-400" : "text-red-400";
+  const color =
+    score >= 70
+      ? "text-emerald-600 dark:text-emerald-400"
+      : score >= 40
+        ? "text-amber-600 dark:text-amber-400"
+        : "text-red-600 dark:text-red-400";
   return <span className={`font-semibold tabular-nums ${color}`}>{score}</span>;
 }
 
 function wbahLeadStatusBadge(lead: { sentiment?: string | null; meta?: { partial_qualified?: boolean } | null }) {
   const ns = normalizeSentiment(lead.sentiment);
   if (ns === "neutral") {
-    return isWbahPartialQualified(lead)
-      ? <span className="rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 bg-sky-500/15 text-sky-400 ring-sky-500/20">Partial Qualified</span>
-      : <span className="rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 bg-amber-500/15 text-amber-400 ring-amber-500/20">Neutral</span>;
+    return isWbahPartialQualified(lead) ? (
+      <StatusBadge tone="sky" size="sm" className="ring-1 ring-sky-500/20">
+        Partial Qualified
+      </StatusBadge>
+    ) : (
+      <StatusBadge tone="warning" size="sm" className="ring-1 ring-amber-500/20">
+        Neutral
+      </StatusBadge>
+    );
   }
-  const cfg: Record<string, { label: string; cls: string }> = {
-    positive: { label: "Qualified", cls: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/20" },
-    negative: { label: "Not Qualified", cls: "bg-red-500/15 text-red-400 ring-red-500/20" },
-    unknown: { label: "Unknown", cls: "bg-muted text-muted-foreground ring-border" },
+  const cfg: Record<string, { label: string; tone: "success" | "danger" | "neutral" }> = {
+    positive: { label: "Qualified", tone: "success" },
+    negative: { label: "Not Qualified", tone: "danger" },
+    unknown: { label: "Unknown", tone: "neutral" },
   };
-  const { label, cls } = cfg[ns] ?? cfg.unknown;
-  return <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ${cls}`}>{label}</span>;
+  const { label, tone } = cfg[ns] ?? cfg.unknown;
+  return (
+    <StatusBadge tone={tone} size="sm" className="font-medium">
+      {label}
+    </StatusBadge>
+  );
 }
 
 function boolBadge(v: boolean | null, trueLabel = "Yes", falseLabel = "No") {
   if (v == null) return <span className="text-muted-foreground text-xs">—</span>;
-  return v
-    ? <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] text-emerald-400">{trueLabel}</span>
-    : <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">{falseLabel}</span>;
+  return v ? (
+    <StatusBadge tone="success" size="sm">
+      {trueLabel}
+    </StatusBadge>
+  ) : (
+    <StatusBadge tone="neutral" size="sm">
+      {falseLabel}
+    </StatusBadge>
+  );
 }
 
 function urgencyBadge(v: string | null) {
   if (!v || v === "none") return <span className="text-muted-foreground text-xs">—</span>;
-  const map: Record<string, string> = {
-    high: "bg-red-500/15 text-red-400",
-    medium: "bg-amber-500/15 text-amber-400",
-    low: "bg-emerald-500/15 text-emerald-400",
+  const tone: Record<string, "danger" | "warning" | "success" | "neutral"> = {
+    high: "danger",
+    medium: "warning",
+    low: "success",
   };
-  return <span className={`rounded-full px-2 py-0.5 text-[11px] capitalize ${map[v] ?? "bg-muted text-muted-foreground"}`}>{v}</span>;
+  return (
+    <StatusBadge tone={tone[v] ?? "neutral"} size="sm" className="capitalize">
+      {v}
+    </StatusBadge>
+  );
 }
 
 
@@ -183,34 +208,34 @@ function fmtDuration(ms: number | null): string {
 
 function callStatusBadge(status: string | null) {
   if (!status) return <span className="text-muted-foreground text-[11px]">—</span>;
-  const map: Record<string, string> = {
-    completed:   "bg-emerald-500/15 text-emerald-400",
-    failed:      "bg-red-500/15 text-red-400",
-    no_answer:   "bg-orange-500/15 text-orange-400",
-    initiated:   "bg-blue-500/15 text-blue-400",
-    in_progress: "bg-blue-500/15 text-blue-400",
+  const tone: Record<string, "success" | "danger" | "orange" | "info" | "neutral"> = {
+    completed: "success",
+    failed: "danger",
+    no_answer: "orange",
+    initiated: "info",
+    in_progress: "info",
   };
   return (
-    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize whitespace-nowrap ${map[status] ?? "bg-muted text-muted-foreground"}`}>
+    <StatusBadge tone={tone[status] ?? "neutral"} size="sm" className="font-medium capitalize">
       {status.replace(/_/g, " ")}
-    </span>
+    </StatusBadge>
   );
 }
 
 function bookingStatusBadge(status: string | null) {
   if (!status) return <span className="text-muted-foreground text-[11px]">—</span>;
   const lower = status.toLowerCase();
-  const map: Record<string, string> = {
-    booked:    "bg-emerald-500/15 text-emerald-400",
-    confirmed: "bg-emerald-500/15 text-emerald-400",
-    success:   "bg-emerald-500/15 text-emerald-400",
-    pending:   "bg-amber-500/15 text-amber-400",
-    cancelled: "bg-red-500/15 text-red-400",
+  const tone: Record<string, "success" | "warning" | "danger" | "neutral"> = {
+    booked: "success",
+    confirmed: "success",
+    success: "success",
+    pending: "warning",
+    cancelled: "danger",
   };
   return (
-    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize whitespace-nowrap ${map[lower] ?? "bg-muted text-muted-foreground"}`}>
+    <StatusBadge tone={tone[lower] ?? "neutral"} size="sm" className="font-medium capitalize">
       {status.replace(/_/g, " ")}
-    </span>
+    </StatusBadge>
   );
 }
 
