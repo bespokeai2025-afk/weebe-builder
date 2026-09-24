@@ -91,13 +91,18 @@ export const Route = createFileRoute("/api/public/retell/pabau/book-appointment"
               pabauRaw: result.raw,
             });
           }
-          return dnrPabauJson(
-            {
-              ...result,
-              filled_from_session: merged.filled_from_session,
-            },
-            result.ok ? 200 : 502,
-          );
+          // `result.ok === false` here means Pabau *refused* the booking — no shift rostered,
+          // the slot was just taken, or a permission gap — every one of which is an ordinary,
+          // expected conversational turn: `describePabauBookingFailure` already turned it into a
+          // spoken message and a hint for what the agent should try next. That is a 200 with
+          // `ok: false` in the body, the same as check_availability returning zero slots — not a
+          // 502. A 502 tells Retell (and Retell's own tool-call handling) that *our* webhook
+          // failed, which is what was surfacing as a raw gateway error mid-call instead of the
+          // agent offering another time.
+          return dnrPabauJson({
+            ...result,
+            filled_from_session: merged.filled_from_session,
+          });
         }),
     },
   },

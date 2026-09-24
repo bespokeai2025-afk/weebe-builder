@@ -311,7 +311,7 @@ export async function pabauCheckAvailability(args: {
     pabauListAppointments(args.config),
     // The rota is what makes an offered slot bookable. If it cannot be read the generator falls
     // back to opening hours, which is the old behaviour rather than an outage.
-    pabauListShifts(args.config, { fromDate: range.start }),
+    pabauListShifts(args.config, { fromDate: range.start, toDate: range.end }),
   ]);
   const booked = buildBookedSlotSet(
     appointments,

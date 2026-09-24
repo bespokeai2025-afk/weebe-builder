@@ -129,3 +129,84 @@ describe("pickShiftForSlot", () => {
     expect(pickShiftForSlot([], 600, 30, undefined)).toBeNull();
   });
 });
+
+describe("pabauListShifts", () => {
+  /**
+   * `/schedules?date=` is a single-day filter — `page`/`per_page` only paginate through more
+   * staff rostered on *that same day*. Treating it as an open-ended range meant every page of a
+   * multi-day search still queried `fromDate`, so a caller asking for "next week" only ever saw
+   * today's rota, and every later day looked entirely unstaffed and was skipped. Fixed by
+   * querying every day in the range individually.
+   */
+  const dayOf = (url: string) => new URL(url).searchParams.get("date");
+
+  function mockFetchOneShiftPerDay() {
+    const requestedDates: string[] = [];
+    global.fetch = (async (url: string) => {
+      const date = dayOf(url)!;
+      requestedDates.push(date);
+      return {
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            schedules: [
+              {
+                id: "1",
+                employee_id: "1",
+                user_id: "53128",
+                user_name: "Nurse Julie",
+                shift_date: date.split("-").reverse().join("/"), // Pabau's DD/MM/YYYY
+                start_time: "10:00",
+                end_time: "20:00",
+                location: "3526",
+                is_holiday: 0,
+                all_services: 1,
+                service_ids: [],
+              },
+            ],
+          }),
+      } as Response;
+    }) as typeof fetch;
+    return requestedDates;
+  }
+
+  it("queries every day in the range, not just the first", async () => {
+    const { pabauListShifts } = await import("@/lib/dnr/dnr-pabau-rota.server");
+    const requestedDates = mockFetchOneShiftPerDay();
+
+    const shifts = await pabauListShifts(
+      { apiKey: "test-key" },
+      { fromDate: "2026-09-24", toDate: "2026-09-27" },
+    );
+
+    expect(requestedDates.sort()).toEqual(["2026-09-24", "2026-09-25", "2026-09-26", "2026-09-27"]);
+    expect(shifts.map((s) => s.date).sort()).toEqual([
+      "2026-09-24",
+      "2026-09-25",
+      "2026-09-26",
+      "2026-09-27",
+    ]);
+  });
+
+  it("makes one request for a single-day lookup, same as before", async () => {
+    const { pabauListShifts } = await import("@/lib/dnr/dnr-pabau-rota.server");
+    const requestedDates = mockFetchOneShiftPerDay();
+
+    await pabauListShifts({ apiKey: "test-key" }, { fromDate: "2026-09-24" });
+
+    expect(requestedDates).toEqual(["2026-09-24"]);
+  });
+
+  it("still returns whatever it found before a day's request fails, rather than throwing", async () => {
+    global.fetch = (async () => {
+      throw new Error("network down");
+    }) as typeof fetch;
+    const { pabauListShifts } = await import("@/lib/dnr/dnr-pabau-rota.server");
+
+    const shifts = await pabauListShifts(
+      { apiKey: "test-key" },
+      { fromDate: "2026-09-24", toDate: "2026-09-25" },
+    );
+    expect(shifts).toEqual([]);
+  });
+});

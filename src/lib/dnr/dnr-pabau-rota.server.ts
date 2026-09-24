@@ -7,6 +7,13 @@
  * "exposes no shift/rota endpoint on this API key"; it does, and it takes `date`, `page` and
  * `per_page`.
  *
+ * `date=` is a single-day filter, not a "from this date" range — `page`/`per_page` paginate
+ * through more staff rostered on *that same day*, never into the next one. Treating it as an
+ * open-ended range (the original assumption here) meant every request after the first used
+ * `fromDate` for every page and only ever saw today's rota; every later day in the search window
+ * then found zero shifts and was skipped outright, which is why callers were offered slots for
+ * today only, however far out they asked. Fixed by fetching each day in the range explicitly.
+ *
  * Two id fields travel on a shift and they are not interchangeable: `user_id` matches `/users.id`
  * (which is what the booking API accepts as `employee_id`), while `employee_id` is a separate
  * internal id that does not appear in `/users` at all. Only `user_id` is used here.
@@ -16,6 +23,7 @@ import {
   pabauRequestHeaders,
   resolvePabauApiBase,
 } from "@/lib/pabau/pabau-api.shared";
+import { iterateYmdRange } from "@/lib/dnr/dnr-london-dates.shared";
 // Defined in pabau-receptionist.server, not pabau-api.shared — the sibling DNR modules import it
 // from the latter, which is why they each carry a pre-existing TS2305.
 import type { PabauClientConfig } from "@/lib/pabau/pabau-receptionist.server";
@@ -82,27 +90,20 @@ export function parsePabauShift(row: Record<string, unknown>): PabauShift | null
   };
 }
 
-/**
- * Shifts from `fromDate` onwards.
- *
- * `/schedules?date=` returns rows from that date, paginated; it ignores employee or location
- * filters, so the narrowing happens here.
- */
-export async function pabauListShifts(
-  config: PabauClientConfig,
-  opts: { fromDate: string; maxPages?: number },
+/** One day's rota, paginated in case more than 100 people are rostered on it (unlikely, but the
+ * loop is cheap and it's the same safety margin the original code had). */
+async function fetchShiftsForOneDay(
+  base: string,
+  headers: Record<string, string>,
+  date: string,
+  maxPages: number,
 ): Promise<PabauShift[]> {
-  const apiKey = config.apiKey.trim();
-  const base = resolvePabauApiBase(apiKey, config.baseUrl);
-  const headers = pabauRequestHeaders();
-  const maxPages = opts.maxPages ?? 4;
-
-  const byId = new Map<string, PabauShift>();
+  const out: PabauShift[] = [];
   for (let page = 1; page <= maxPages; page++) {
     let json: unknown;
     try {
       json = await pabauFetch(
-        `${base}/schedules?date=${encodeURIComponent(opts.fromDate)}&per_page=100&page=${page}`,
+        `${base}/schedules?date=${encodeURIComponent(date)}&per_page=100&page=${page}`,
         { headers },
         "Pabau list schedules",
       );
@@ -116,9 +117,41 @@ export async function pabauListShifts(
     for (const raw of rows) {
       if (!raw || typeof raw !== "object") continue;
       const shift = parsePabauShift(raw as Record<string, unknown>);
-      if (shift) byId.set(`${shift.userId}:${shift.date}:${shift.startMin}`, shift);
+      if (shift) out.push(shift);
     }
-    if (rows.length < 50) break;
+    if (rows.length < 100) break;
+  }
+  return out;
+}
+
+/**
+ * Shifts for every day from `fromDate` to `toDate` (inclusive, same day when `toDate` is omitted).
+ *
+ * One `/schedules?date=` call per day — the endpoint has no range filter, so a multi-day search
+ * window means multiple requests. Run with bounded concurrency so a 3-week window (the widest
+ * `normalizeAvailabilityRange` allows) doesn't serialise into a multi-second wait mid-call, but
+ * doesn't fire 20+ requests at Pabau at once either.
+ */
+export async function pabauListShifts(
+  config: PabauClientConfig,
+  opts: { fromDate: string; toDate?: string; maxPagesPerDay?: number },
+): Promise<PabauShift[]> {
+  const apiKey = config.apiKey.trim();
+  const base = resolvePabauApiBase(apiKey, config.baseUrl);
+  const headers = pabauRequestHeaders();
+  const maxPagesPerDay = opts.maxPagesPerDay ?? 2;
+  const days = [...iterateYmdRange(opts.fromDate, opts.toDate ?? opts.fromDate)];
+
+  const byId = new Map<string, PabauShift>();
+  const CONCURRENCY = 5;
+  for (let i = 0; i < days.length; i += CONCURRENCY) {
+    const batch = days.slice(i, i + CONCURRENCY);
+    const results = await Promise.all(
+      batch.map((date) => fetchShiftsForOneDay(base, headers, date, maxPagesPerDay)),
+    );
+    for (const shifts of results) {
+      for (const shift of shifts) byId.set(`${shift.userId}:${shift.date}:${shift.startMin}`, shift);
+    }
   }
   return [...byId.values()];
 }
