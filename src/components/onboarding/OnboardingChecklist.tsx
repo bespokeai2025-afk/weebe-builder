@@ -71,8 +71,8 @@ const STEPS: ChecklistStep[] = [
 
 const PATH_META: Record<OnboardingPath, { label: string; icon: any; color: string }> = {
   agent_builder: { label: "Agent Builder", icon: Cpu,        color: "text-orange-400" },
-  grow:          { label: "Growth",        icon: TrendingUp, color: "text-emerald-400" },
-  both:          { label: "Full Platform", icon: Zap,        color: "text-violet-400"  },
+  grow:          { label: "Growth",        icon: TrendingUp, color: "text-emerald-600 dark:text-emerald-400" },
+  both:          { label: "Full Platform", icon: Zap,        color: "text-violet-600 dark:text-violet-400"  },
 };
 
 export function OnboardingChecklist() {
@@ -108,7 +108,7 @@ export function OnboardingChecklist() {
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          className="ml-auto flex items-center gap-2 rounded-xl border border-white/[0.10] bg-card/90 backdrop-blur px-4 py-2.5 shadow-xl hover:border-white/20 transition-all">
+          className="ml-auto flex items-center gap-2 rounded-xl border border-border dark:border-white/[0.10] bg-card/90 backdrop-blur px-4 py-2.5 shadow-xl hover:border-border dark:hover:border-white/20 transition-all">
           <ListChecks className="h-4 w-4 text-muted-foreground" />
           <div className="flex-1 text-left">
             <p className="text-xs font-semibold leading-tight">Getting Started</p>
@@ -120,9 +120,9 @@ export function OnboardingChecklist() {
 
       {/* Expanded panel */}
       {open && (
-        <div className="rounded-2xl border border-white/[0.10] bg-card/95 backdrop-blur shadow-2xl overflow-hidden">
+        <div className="rounded-2xl border border-border dark:border-white/[0.10] bg-card/95 backdrop-blur shadow-2xl overflow-hidden">
           {/* Header */}
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-white/[0.06]">
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-border dark:border-white/[0.06]">
             <pathMeta.icon className={cn("h-4 w-4", pathMeta.color)} />
             <div className="flex-1">
               <p className="text-xs font-semibold">{pathMeta.label} Setup</p>
@@ -141,7 +141,7 @@ export function OnboardingChecklist() {
           </div>
 
           {/* Progress bar */}
-          <div className="h-1 bg-white/[0.04]">
+          <div className="h-1 bg-muted dark:bg-white/[0.04]">
             <div
               className="h-1 bg-gradient-to-r from-violet-500 to-emerald-500 transition-all duration-500"
               style={{ width: `${pct}%` }}
@@ -160,7 +160,7 @@ export function OnboardingChecklist() {
                     "w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-colors",
                     done
                       ? "text-muted-foreground/60"
-                      : "hover:bg-white/[0.04] text-foreground",
+                      : "hover:bg-muted dark:hover:bg-white/[0.04] text-foreground",
                   )}>
                   {done
                     ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
@@ -174,7 +174,7 @@ export function OnboardingChecklist() {
 
           {allDone && (
             <div className="mx-3 mb-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-3 text-center">
-              <p className="text-xs font-semibold text-emerald-400">🎉 Setup complete!</p>
+              <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">🎉 Setup complete!</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">You're all set to get results from WEBEE.</p>
             </div>
           )}
@@ -182,12 +182,12 @@ export function OnboardingChecklist() {
           {!allDone && (
             <button
               onClick={() => navigate({ to: "/systemmind/setup-assistant" as any })}
-              className="w-full flex items-center gap-2 border-t border-white/[0.06] px-4 py-2.5 text-left hover:bg-sky-500/[0.06] transition-colors group">
-              <Sparkles className="h-3.5 w-3.5 shrink-0 text-sky-400" />
-              <span className="flex-1 text-[11px] text-muted-foreground group-hover:text-sky-300 transition-colors">
+              className="w-full flex items-center gap-2 border-t border-border dark:border-white/[0.06] px-4 py-2.5 text-left hover:bg-sky-500/[0.06] transition-colors group">
+              <Sparkles className="h-3.5 w-3.5 shrink-0 text-sky-600 dark:text-sky-400" />
+              <span className="flex-1 text-[11px] text-muted-foreground group-hover:text-sky-600 dark:group-hover:text-sky-300 transition-colors">
                 Get a personalised setup plan from the Setup Assistant
               </span>
-              <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground/40 group-hover:text-sky-400 transition-colors" />
+              <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground/40 group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors" />
             </button>
           )}
         </div>

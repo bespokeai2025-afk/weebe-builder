@@ -273,7 +273,7 @@ export function OnboardingWelcome() {
         {/* Dismiss button */}
         <button
           onClick={handleDismiss}
-          className="absolute top-4 right-4 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-white/[0.05] text-muted-foreground hover:bg-white/[0.10] hover:text-foreground transition-colors">
+          className="absolute top-4 right-4 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-white/[0.05] text-white/60 dark:text-muted-foreground hover:bg-white/[0.10] hover:text-white dark:hover:text-foreground transition-colors">
           <X className="h-3.5 w-3.5" />
         </button>
 
@@ -361,7 +361,7 @@ function WelcomeStep({ onNext }: { onNext(): void }) {
           </div>
         </div>
         <h2 className="text-2xl font-bold tracking-tight">Welcome to WEBEE</h2>
-        <p className="text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
+        <p className="text-sm text-white/60 dark:text-muted-foreground max-w-md mx-auto leading-relaxed">
           Your AI-powered business operating system. Here's what's waiting for you:
         </p>
       </div>
@@ -374,7 +374,7 @@ function WelcomeStep({ onNext }: { onNext(): void }) {
             </div>
             <div>
               <p className="text-xs font-semibold">{p.label}</p>
-              <p className="text-[10px] text-muted-foreground leading-snug mt-0.5">{p.desc}</p>
+              <p className="text-[10px] text-white/60 dark:text-muted-foreground leading-snug mt-0.5">{p.desc}</p>
             </div>
           </div>
         ))}
@@ -396,7 +396,7 @@ function PathStep({ onSelect, saving }: { onSelect(p: OnboardingPath): void; sav
     <div className="space-y-6">
       <div className="text-center space-y-1">
         <h2 className="text-xl font-bold">What would you like to do?</h2>
-        <p className="text-sm text-muted-foreground">Choose your focus — you can always access all areas later.</p>
+        <p className="text-sm text-white/60 dark:text-muted-foreground">Choose your focus — you can always access all areas later.</p>
       </div>
 
       <div className="space-y-3">
@@ -411,17 +411,17 @@ function PathStep({ onSelect, saving }: { onSelect(p: OnboardingPath): void; sav
             </div>
             <div className="flex-1">
               <p className="font-semibold text-sm">{p.label}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{p.sub}</p>
+              <p className="text-xs text-white/60 dark:text-muted-foreground mt-0.5">{p.sub}</p>
             </div>
             {saving
-              ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-              : <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+              ? <Loader2 className="h-4 w-4 animate-spin text-white/60 dark:text-muted-foreground" />
+              : <ChevronRight className="h-4 w-4 text-white/60 dark:text-muted-foreground group-hover:text-white dark:hover:text-foreground transition-colors" />
             }
           </button>
         ))}
       </div>
 
-      <p className="text-center text-[10px] text-muted-foreground/60">
+      <p className="text-center text-[10px] text-white/55 dark:text-muted-foreground/60">
         Your platform knowledge bases are already prepared — no WEBEE business data is included.
       </p>
     </div>
@@ -442,7 +442,7 @@ function DnaStep({
 }) {
   const field = (key: keyof DnaForm, label: string, placeholder: string, required = false) => (
     <div className="space-y-1">
-      <Label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+      <Label className="text-[10px] font-semibold uppercase tracking-widest text-white/60 dark:text-muted-foreground">
         {label}{required && <span className="text-red-400 ml-0.5">*</span>}
       </Label>
       <Input
@@ -458,7 +458,7 @@ function DnaStep({
     <div className="space-y-5">
       <div className="space-y-1">
         <h2 className="text-xl font-bold">Tell us about your business</h2>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-white/60 dark:text-muted-foreground">
           This becomes your Business DNA — private to your workspace. You can complete the full profile later.
         </p>
       </div>
@@ -470,7 +470,7 @@ function DnaStep({
         {field("locations",      "Locations",           "e.g. London, Manchester")}
       </div>
       <div className="space-y-1">
-        <Label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+        <Label className="text-[10px] font-semibold uppercase tracking-widest text-white/60 dark:text-muted-foreground">
           Target Customers <span className="text-red-400 ml-0.5">*</span>
         </Label>
         <textarea
@@ -478,7 +478,7 @@ function DnaStep({
           value={dna.targetCustomers}
           onChange={e => onChange({ ...dna, targetCustomers: e.target.value })}
           placeholder="Describe your ideal customer — who they are, their role, size of company…"
-          className="w-full resize-none rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-white/20 focus:outline-none transition-colors"
+          className="w-full resize-none rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white dark:text-foreground placeholder:text-white/50 dark:placeholder:text-muted-foreground/50 focus:border-white/20 focus:outline-none transition-colors"
         />
       </div>
 
@@ -488,11 +488,11 @@ function DnaStep({
       </div>
 
       <div className="flex items-center gap-3 pt-1">
-        <button onClick={onBack} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
+        <button onClick={onBack} className="flex items-center gap-1 text-sm text-white/60 dark:text-muted-foreground hover:text-white dark:hover:text-foreground transition-colors">
           <ArrowLeft className="h-3.5 w-3.5" /> Back
         </button>
         <div className="flex-1" />
-        <button onClick={onSkip} className="text-sm text-muted-foreground hover:text-foreground transition-colors px-3">
+        <button onClick={onSkip} className="text-sm text-white/60 dark:text-muted-foreground hover:text-white dark:hover:text-foreground transition-colors px-3">
           Skip for now
         </button>
         <Button
@@ -521,7 +521,7 @@ function CrmStep({
     <div className="space-y-6">
       <div className="space-y-1">
         <h2 className="text-xl font-bold">Business Operations Setup</h2>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-white/60 dark:text-muted-foreground">
           How would you like to manage your leads, contacts, and pipeline?
         </p>
       </div>
@@ -534,22 +534,22 @@ function CrmStep({
             disabled={saving}
             className="w-full flex items-center gap-4 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 text-left hover:border-white/[0.15] hover:bg-white/[0.05] transition-all group disabled:opacity-50">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/[0.04]">
-              <opt.icon className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+              <opt.icon className="h-4 w-4 text-white/60 dark:text-muted-foreground group-hover:text-white dark:hover:text-foreground transition-colors" />
             </div>
             <div className="flex-1">
               <p className="text-sm font-medium">{opt.label}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{opt.desc}</p>
+              <p className="text-xs text-white/60 dark:text-muted-foreground mt-0.5">{opt.desc}</p>
             </div>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+            {saving ? <Loader2 className="h-4 w-4 animate-spin text-white/60 dark:text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-white/60 dark:text-muted-foreground" />}
           </button>
         ))}
       </div>
 
       <div className="flex items-center gap-3">
-        <button onClick={onBack} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
+        <button onClick={onBack} className="flex items-center gap-1 text-sm text-white/60 dark:text-muted-foreground hover:text-white dark:hover:text-foreground transition-colors">
           <ArrowLeft className="h-3.5 w-3.5" /> Back
         </button>
-        <p className="flex-1 text-center text-[10px] text-muted-foreground/60">
+        <p className="flex-1 text-center text-[10px] text-white/55 dark:text-muted-foreground/60">
           CRM connection is fully optional — you can change this anytime.
         </p>
       </div>
@@ -564,8 +564,8 @@ function ChecklistItem({ done, label }: { done: boolean; label: string }) {
     <div className="flex items-center gap-2.5 text-sm">
       {done
         ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
-        : <Circle className="h-4 w-4 shrink-0 text-muted-foreground/40" />}
-      <span className={done ? "text-foreground" : "text-muted-foreground"}>{label}</span>
+        : <Circle className="h-4 w-4 shrink-0 text-white/45 dark:text-muted-foreground/40" />}
+      <span className={done ? "text-white dark:text-foreground" : "text-white/60 dark:text-muted-foreground"}>{label}</span>
     </div>
   );
 }
@@ -583,7 +583,7 @@ function SetupAssistantCallout({ onOpen, saving }: { onOpen(): void; saving: boo
       </div>
       <div className="flex-1">
         <p className="text-sm font-semibold text-sky-300">Want a personalised setup plan?</p>
-        <p className="text-xs text-muted-foreground mt-0.5">
+        <p className="text-xs text-white/60 dark:text-muted-foreground mt-0.5">
           Describe your business and the Setup Assistant drafts a tailored checklist — you approve every step.
         </p>
       </div>
@@ -602,7 +602,7 @@ function SummaryAgentStep({ onDone, onSetupAssistant, saving }: { onDone(): void
           </div>
         </div>
         <h2 className="text-xl font-bold">Ready to build AI Agents</h2>
-        <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+        <p className="text-sm text-white/60 dark:text-muted-foreground max-w-sm mx-auto">
           Your platform knowledge bases are set up. Here's your getting-started checklist:
         </p>
       </div>
@@ -637,7 +637,7 @@ function SummaryGrowStep({ crmChoice, onDone, onSetupAssistant, saving }: { crmC
           </div>
         </div>
         <h2 className="text-xl font-bold">You're ready to grow</h2>
-        <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+        <p className="text-sm text-white/60 dark:text-muted-foreground max-w-sm mx-auto">
           Business DNA saved, platform knowledge installed, CRM choice recorded. Your checklist:
         </p>
       </div>
@@ -674,7 +674,7 @@ function SummaryBothStep({ crmChoice, onDone, onSetupAssistant, saving }: { crmC
           </div>
         </div>
         <h2 className="text-xl font-bold">Full platform unlocked</h2>
-        <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+        <p className="text-sm text-white/60 dark:text-muted-foreground max-w-sm mx-auto">
           Platform knowledge installed, Business DNA started. Your full checklist:
         </p>
       </div>
