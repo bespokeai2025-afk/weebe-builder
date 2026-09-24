@@ -219,6 +219,7 @@
 
   html {
     color-scheme: light;
+    scroll-behavior: smooth;
     font-family:
       "Inter var",
       "Inter",
@@ -601,6 +602,12 @@
   .platform-nebula__wash::before {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
   }
 }
 

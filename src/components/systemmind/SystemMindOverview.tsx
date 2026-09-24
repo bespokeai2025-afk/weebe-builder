@@ -48,8 +48,8 @@ function StatCard({ label, value, sub, icon: Icon, accent, href }: {
 }) {
   const inner = (
     <div className={cn(
-      "rounded-xl border p-4 transition-colors",
-      href ? "cursor-pointer hover:bg-muted dark:hover:bg-white/[0.04]" : "",
+      "rounded-xl border p-4 transition-all",
+      href ? "cursor-pointer hover:bg-muted dark:hover:bg-white/[0.04] hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/5 dark:hover:shadow-black/20" : "",
       accent === "amber"   ? "border-amber-500/20 bg-amber-500/[0.03]"
       : accent === "emerald" ? "border-emerald-500/20 bg-emerald-500/[0.03]"
       : accent === "red"     ? "border-red-500/20 bg-red-500/[0.03]"

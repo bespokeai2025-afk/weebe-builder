@@ -255,22 +255,23 @@ function DashboardPage() {
                         <span className="text-[10px] text-emerald-500 font-medium shrink-0">Live</span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+                    <div className="flex items-center gap-2 mt-0.5 min-w-0">
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0">
                         {FLOW_LABELS[agent.agentType] ?? agent.agentType}
                       </Badge>
                       {agent.isDeployed ? (
-                        <span className="flex items-center gap-1 text-[10px] text-emerald-500/70 font-medium">
+                        <span className="flex items-center gap-1 text-[10px] text-emerald-500/70 font-medium shrink-0">
                           <CheckCircle2 className="h-2.5 w-2.5" />Deployed
                         </span>
                       ) : (
-                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground shrink-0">
                           <Circle className="h-2.5 w-2.5" />Draft
                         </span>
                       )}
                       {agent.phoneNumber && (
-                        <span className="font-mono text-[10px] text-muted-foreground flex items-center gap-1">
-                          <PhoneCall className="h-2.5 w-2.5" />{agent.phoneNumber}
+                        <span className="font-mono text-[10px] text-muted-foreground flex items-center gap-1 min-w-0">
+                          <PhoneCall className="h-2.5 w-2.5 shrink-0" />
+                          <span className="truncate">{agent.phoneNumber}</span>
                         </span>
                       )}
                     </div>

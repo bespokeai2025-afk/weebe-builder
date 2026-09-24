@@ -364,7 +364,7 @@ export function GrowthMindOverview() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
 
               {/* DNA completion card */}
-              <Link to="/growthmind/business-dna" className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-4 hover:border-emerald-500/20 hover:bg-emerald-500/[0.03] transition-all group">
+              <Link to="/growthmind/business-dna" className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-4 hover:border-emerald-500/20 hover:bg-emerald-500/[0.03] hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/5 dark:hover:shadow-black/20 transition-all group">
                 <div className="flex items-center gap-2 mb-2">
                   <Dna className="h-4 w-4 text-emerald-400 shrink-0" />
                   <p className="text-xs font-semibold">Business DNA</p>
@@ -392,7 +392,7 @@ export function GrowthMindOverview() {
               </Link>
 
               {/* Current Value Point card */}
-              <Link to="/growthmind/business-dna" className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-4 hover:border-emerald-500/20 hover:bg-emerald-500/[0.03] transition-all group">
+              <Link to="/growthmind/business-dna" className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-4 hover:border-emerald-500/20 hover:bg-emerald-500/[0.03] hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/5 dark:hover:shadow-black/20 transition-all group">
                 <div className="flex items-center gap-2 mb-2">
                   <Zap className="h-4 w-4 text-amber-400 shrink-0" />
                   <p className="text-xs font-semibold">Top Value Point</p>
