@@ -73,6 +73,18 @@ export const WBAH_RETELL_AGENT_MAP: Record<string, WbahRetellAgentMapping> = {
     agentName: "WBAH Rebooking Agent",
     role: "rebooking",
   },
+  // Moved again to a further new Retell workspace — same rule as above: add IDs only, keep the
+  // earlier ones (calls already in flight, or historical records, still resolve against them).
+  agent_1757a7dd54cbce6d8febf0eb59: {
+    workspaceId: WBAH_WORKSPACE_ID,
+    agentName: "WBAH New Leads Agent",
+    role: "new_leads_dialer",
+  },
+  agent_d1bad38378b4b4e78784fb6ef0: {
+    workspaceId: WBAH_WORKSPACE_ID,
+    agentName: "WBAH Rebooking Agent",
+    role: "rebooking",
+  },
 };
 
 /**
