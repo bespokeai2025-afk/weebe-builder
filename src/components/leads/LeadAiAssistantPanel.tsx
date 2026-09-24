@@ -310,7 +310,7 @@ export function LeadAiAssistantPanel({
                     {checklist.items.map((item) => (
                       <label
                         key={item}
-                        className="flex cursor-pointer items-start gap-2 rounded px-1 py-0.5 hover:bg-white/[0.03]"
+                        className="flex cursor-pointer items-start gap-2 rounded px-1 py-0.5 hover:bg-muted/50 dark:hover:bg-white/[0.03]"
                       >
                         <Checkbox
                           className="mt-0.5"
