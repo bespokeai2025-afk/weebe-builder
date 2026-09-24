@@ -60,23 +60,53 @@ function cfg(config: PabauClientConfig) {
   return { base, headers: pabauRequestHeaders() };
 }
 
+/** Same person's number, regardless of spacing, +44/0 prefix, or a couple of extra/missing digits. */
+function phoneDigitsMatch(a: string, b: string): boolean {
+  const da = a.replace(/\D/g, "");
+  const db = b.replace(/\D/g, "");
+  const n = Math.min(da.length, db.length, 10);
+  if (n < 7) return false;
+  return da.slice(-n) === db.slice(-n);
+}
+
+/**
+ * Query one search variant and pick the caller's own record out of whatever comes back.
+ *
+ * This used to require exactly one row in the response (`total === 1` or `items.length === 1`)
+ * before trusting it — reasonable-looking, but `search=` matches on name and email too, not just
+ * the phone, and `mobile=` isn't guaranteed to be an exact filter either. A clinic's client list
+ * commonly has more than one row share close-enough digits (family members, an old record kept
+ * alongside a new one), and the strict count silently discarded a genuine match the moment a
+ * second row appeared — which is indistinguishable, to the caller, from "you're not in the
+ * system" even though they clearly are. Matching each row's own mobile against the number we
+ * searched for is what actually establishes identity; the row count never did.
+ */
 async function searchClientsQuery(
   config: PabauClientConfig,
   param: "mobile" | "search",
   value: string,
+  targetDigits: string,
 ): Promise<PabauClientMatch | null> {
   const { base, headers } = cfg(config);
   const url = `${base}/clients?${param}=${encodeURIComponent(value)}`;
   try {
     const json = await pabauFetch(url, { headers }, `Pabau search clients by ${param}`);
-    const total = Number((json as Record<string, unknown>)?.total ?? 0);
-    const items = pabauListItems(json);
-    if (total === 1 && items.length >= 1) {
-      return parsePabauClientRow(items[0]) ?? null;
-    }
-    if (items.length === 1) {
-      return parsePabauClientRow(items[0]) ?? null;
-    }
+    const items = pabauListItems(json)
+      .map(parsePabauClientRow)
+      .filter((c): c is PabauClientMatch => !!c);
+    if (items.length === 0) return null;
+
+    const exact = items.find((c) => c.mobile && phoneDigitsMatch(c.mobile, targetDigits));
+    if (exact) return exact;
+
+    // No row's own mobile matched. If any row carried a mobile at all, that was a real,
+    // checkable comparison that failed — trusting a different row now would be a guess, and a
+    // wrong guess here means booking or updating a stranger's record. Only fall back to "the
+    // only row" when nothing in the response had a mobile to check in the first place (some
+    // Pabau rows omit `communications.mobile` entirely).
+    const anyRowHadAMobile = items.some((c) => c.mobile);
+    if (anyRowHadAMobile) return null;
+    return items.length === 1 ? items[0]! : null;
   } catch {
     /* try next variant */
   }
@@ -88,10 +118,11 @@ export async function pabauFindClientByPhone(
   config: PabauClientConfig,
   phone: string,
 ): Promise<PabauClientMatch | null> {
+  const targetDigits = phone.replace(/\D/g, "");
   const variants = pabauPhoneSearchVariants(phone);
   for (const variant of variants) {
     for (const param of ["mobile", "search"] as const) {
-      const hit = await searchClientsQuery(config, param, variant);
+      const hit = await searchClientsQuery(config, param, variant, targetDigits);
       if (hit) return hit;
     }
   }

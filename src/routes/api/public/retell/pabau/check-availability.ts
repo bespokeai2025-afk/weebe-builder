@@ -19,7 +19,9 @@ export const Route = createFileRoute("/api/public/retell/pabau/check-availabilit
             practitioner_name: z.string().optional(),
           }).safeParse(args);
           if (!body.success) {
-            return dnrPabauJson({ error: "service_name required" }, 400);
+            // A malformed function call from the LLM, not a webhook failure — 200 so the agent
+            // gets the message back and can retry with a valid service_name.
+            return dnrPabauJson({ error: "service_name required" });
           }
           const result = await pabauCheckAvailability({
             config: pabau,

@@ -40,22 +40,22 @@ export const Route = createFileRoute("/api/public/retell/pabau/book-appointment"
               details: parsed.details,
               arg_keys: Object.keys(merged.args),
             });
-            return dnrPabauJson(
-              {
-                error: parsed.error,
-                hint: parsed.hint ?? dnrBookAppointmentHint(),
-                missing_fields: parsed.missing ?? [],
-                invalid_fields: parsed.invalid ?? [],
-                details: parsed.details,
-                session: sessionState,
-                session_available: sessionState.has_contact_id,
-                next_step:
-                  !sessionState.has_service_name || sessionState.slot_count === 0
-                    ? "Call check_availability with exact service_name and valid date range, then book_appointment again."
-                    : undefined,
-              },
-              400,
-            );
+            // A malformed/incomplete function call, not a webhook failure — 200 so the agent
+            // gets `next_step` back and can correct course, same reasoning as the ok:false
+            // case below.
+            return dnrPabauJson({
+              error: parsed.error,
+              hint: parsed.hint ?? dnrBookAppointmentHint(),
+              missing_fields: parsed.missing ?? [],
+              invalid_fields: parsed.invalid ?? [],
+              details: parsed.details,
+              session: sessionState,
+              session_available: sessionState.has_contact_id,
+              next_step:
+                !sessionState.has_service_name || sessionState.slot_count === 0
+                  ? "Call check_availability with exact service_name and valid date range, then book_appointment again."
+                  : undefined,
+            });
           }
           const body = parsed.data;
           const locationId =
@@ -65,7 +65,7 @@ export const Route = createFileRoute("/api/public/retell/pabau/book-appointment"
           const services = await pabauListServices(pabau, locationId);
           const matched = matchPabauService(services, body.service_name);
           if (!matched) {
-            return dnrPabauJson({ error: `Unknown service: ${body.service_name}` }, 400);
+            return dnrPabauJson({ error: `Unknown service: ${body.service_name}` });
           }
           const result = await pabauBookAppointment({
             config: pabau,
