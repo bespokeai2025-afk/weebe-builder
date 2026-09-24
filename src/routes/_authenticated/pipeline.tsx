@@ -270,7 +270,7 @@ function LeadCard({
           {lead.hasDocuments && lead.effective_stage === "documentation" ? (
             <CheckCircle2 className="h-3.5 w-3.5 text-teal-500" title="Client documents received" />
           ) : lead.hasDocuments ? (
-            <FolderOpen className="h-3.5 w-3.5 text-blue-400" title="Has documents" />
+            <FolderOpen className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" title="Has documents" />
           ) : null}
           {onMove && !overlay && (() => {
             const idx = stageOrder.findIndex((s) => s.id === lead.effective_stage);

@@ -111,7 +111,7 @@ function PipelineCard({
         if (!moved.current && !overlay) onOpen?.(lead);
       }}
       className={cn(
-        "flex items-start gap-2 rounded-md border border-white/[0.06] bg-card/80 py-2 pl-2 pr-2.5 text-xs cursor-pointer select-none",
+        "flex items-start gap-2 rounded-md border border-border dark:border-white/[0.06] bg-card/80 py-2 pl-2 pr-2.5 text-xs cursor-pointer select-none",
         "transition-shadow hover:shadow-sm hover:border-primary/30",
         isDragging && "opacity-40 shadow-none",
         overlay && "w-52 shadow-xl ring-2 ring-primary/30 rotate-1 cursor-grabbing",

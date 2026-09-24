@@ -353,7 +353,7 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
       <SheetContent className="w-[480px] sm:max-w-[480px] flex flex-col gap-0 p-0 overflow-hidden">
 
         {/* ── Header ─────────────────────────────────────────────────────── */}
-        <SheetHeader className="px-5 pt-5 pb-4 border-b border-white/[0.06] shrink-0">
+        <SheetHeader className="px-5 pt-5 pb-4 border-b border-border dark:border-white/[0.06] shrink-0">
           <div className="flex items-start gap-3">
             {/* Avatar */}
             <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-sm font-bold text-muted-foreground shrink-0">
@@ -579,7 +579,7 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
                   </div>
                 )}
               </section>
-              <Separator className="bg-white/[0.06]" />
+              <Separator className="bg-border dark:bg-white/[0.06]" />
             </>
           )}
 
@@ -592,7 +592,7 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
                 <span className="text-xs text-muted-foreground">Loading…</span>
               </div>
             ) : detail?.callSummary ? (
-              <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-4 py-3">
+              <div className="rounded-lg border border-border dark:border-white/[0.06] bg-muted/20 dark:bg-white/[0.02] px-4 py-3">
                 <div className="flex items-start gap-2">
                   <FileText className="h-3.5 w-3.5 text-primary/60 shrink-0 mt-0.5" />
                   <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">
@@ -607,7 +607,7 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
             )}
           </section>
 
-          <Separator className="bg-white/[0.06]" />
+          <Separator className="bg-border dark:bg-white/[0.06]" />
 
           {/* ── Notes ─────────────────────────────────────────────────────── */}
           <section className="space-y-3">
@@ -624,7 +624,7 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
                 }}
                 placeholder="Write a note… (⌘↵ to save)"
                 rows={3}
-                className="w-full resize-none rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40 leading-relaxed"
+                className="w-full resize-none rounded-lg border border-input dark:border-white/[0.08] bg-muted/20 dark:bg-white/[0.03] px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40 leading-relaxed"
               />
               <div className="flex justify-end">
                 <Button
@@ -657,7 +657,7 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
                 {notes.map((note) => (
                   <div
                     key={note.id}
-                    className="group relative rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5"
+                    className="group relative rounded-lg border border-border dark:border-white/[0.06] bg-muted/20 dark:bg-white/[0.02] px-3 py-2.5"
                   >
                     <div className="flex items-center justify-between gap-2 mb-1">
                       <span className="text-[10px] text-muted-foreground/70 tabular-nums">
@@ -684,7 +684,7 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
             )}
           </section>
 
-          <Separator className="bg-white/[0.06]" />
+          <Separator className="bg-border dark:bg-white/[0.06]" />
 
           {/* ── Documents ─────────────────────────────────────────────────── */}
           <section className="space-y-3">
@@ -761,7 +761,7 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
             )}
           </section>
 
-          <Separator className="bg-white/[0.06]" />
+          <Separator className="bg-border dark:bg-white/[0.06]" />
 
           {/* ── Calendar Appointment ───────────────────────────────────────── */}
           <section className="space-y-3">
@@ -884,7 +884,7 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
             )}
 
             {bookOpen && (
-              <div className="space-y-3 rounded-lg border border-white/[0.06] bg-white/[0.02] p-4">
+              <div className="space-y-3 rounded-lg border border-border dark:border-white/[0.06] bg-muted/20 dark:bg-white/[0.02] p-4">
                 <div>
                   <Label className="text-[11px] text-muted-foreground">Title</Label>
                   <Input
@@ -961,7 +961,7 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
                     onChange={(e) => setBNotes(e.target.value)}
                     placeholder="Reason for the appointment…"
                     rows={2}
-                    className="mt-1 w-full resize-none rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40 leading-relaxed"
+                    className="mt-1 w-full resize-none rounded-lg border border-input dark:border-white/[0.08] bg-muted/20 dark:bg-white/[0.03] px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40 leading-relaxed"
                   />
                 </div>
 
