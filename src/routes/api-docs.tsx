@@ -255,7 +255,7 @@ function CopyButton({ text }: { text: string }) {
   return (
     <button
       onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-      className="p-1.5 rounded hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
+      className="p-1.5 rounded hover:bg-muted/60 dark:hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
       title="Copy"
     >
       {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}

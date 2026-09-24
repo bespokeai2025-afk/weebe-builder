@@ -199,7 +199,7 @@ export function WebeeMigrationDialog({
                 {(readinessQ.error as Error).message}
               </p>
             ) : readiness ? (
-              <div className="divide-y divide-white/[0.04] rounded-lg border border-border dark:border-white/[0.06] bg-muted/20 dark:bg-white/[0.01] px-3">
+              <div className="divide-y divide-border dark:divide-white/[0.04] rounded-lg border border-border dark:border-white/[0.06] bg-muted/20 dark:bg-white/[0.01] px-3">
                 {readiness.checks.map((c) => (
                   <CheckRow key={c.id} check={c} />
                 ))}

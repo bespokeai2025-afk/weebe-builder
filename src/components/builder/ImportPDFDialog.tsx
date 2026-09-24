@@ -551,7 +551,7 @@ export function ImportPDFDialog({
             </div>
 
             {/* Node list */}
-            <div className="rounded-md border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] max-h-48 overflow-y-auto divide-y divide-white/[0.04]">
+            <div className="rounded-md border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] max-h-48 overflow-y-auto divide-y divide-border dark:divide-white/[0.04]">
               {flowResult.nodes.map((node, idx) => {
                 const data = node.data as { kind: string; label: string; dialogue: string; isStart?: boolean; transitions?: Array<{ condition: string }> };
                 const txCount = data.transitions?.length ?? 0;

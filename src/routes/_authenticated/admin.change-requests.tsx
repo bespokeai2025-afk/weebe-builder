@@ -196,7 +196,7 @@ function AdminChangeRequestsPage() {
         </div>
 
         {/* Table */}
-        <div className="rounded-lg border border-white/[0.06] bg-white/[0.01] overflow-hidden">
+        <div className="rounded-lg border border-border dark:border-white/[0.06] bg-muted/10 dark:bg-white/[0.01] overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center py-16 text-muted-foreground text-sm">
               Loading…
@@ -210,7 +210,7 @@ function AdminChangeRequestsPage() {
             <>
             <Table>
               <TableHeader>
-                <TableRow className="border-white/[0.06]">
+                <TableRow className="border-border dark:border-white/[0.06]">
                   <TableHead className="text-[10px] text-muted-foreground">Workspace</TableHead>
                   <TableHead className="text-[10px] text-muted-foreground">Title</TableHead>
                   <TableHead className="text-[10px] text-muted-foreground">Type</TableHead>
@@ -228,7 +228,7 @@ function AdminChangeRequestsPage() {
                   return (
                     <TableRow
                       key={r.id}
-                      className="border-white/[0.04] cursor-pointer hover:bg-white/[0.02]"
+                      className="border-border dark:border-white/[0.04] cursor-pointer hover:bg-muted/20 dark:hover:bg-white/[0.02]"
                       onClick={() => openRow(r)}
                     >
                       <TableCell className="text-xs text-muted-foreground">

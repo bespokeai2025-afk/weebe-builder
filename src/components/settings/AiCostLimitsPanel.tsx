@@ -52,8 +52,8 @@ function LimitField({
   disabled: boolean;
 }) {
   return (
-    <div className="flex items-start gap-4 p-4 rounded-xl border border-white/[0.06] bg-card/40">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/[0.04] ring-1 ring-white/[0.08]">
+    <div className="flex items-start gap-4 p-4 rounded-xl border border-border dark:border-white/[0.06] bg-card/40">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/30 dark:bg-white/[0.04] ring-1 ring-border dark:ring-white/[0.08]">
         {icon}
       </div>
       <div className="flex-1 min-w-0">

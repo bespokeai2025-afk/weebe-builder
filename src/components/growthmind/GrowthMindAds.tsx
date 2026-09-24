@@ -199,7 +199,7 @@ function AccountModal({ initial, defaultPlatform = "google", onClose, onSave, sa
                 Customer ID needed. You'll pick the advertising account after signing in.
               </p>
               <Button type="button" size="sm"
-                className="h-7 px-3 text-[11px] gap-1.5 bg-white text-black hover:bg-white/90 w-full justify-center"
+                className="h-7 px-3 text-[11px] gap-1.5 bg-white text-black hover:bg-muted/90 dark:hover:bg-white/90 w-full justify-center"
                 disabled={!oauthReady || oauthConnecting}
                 onClick={handleGoogleConnect}>
                 {oauthConnecting
@@ -517,7 +517,7 @@ function AccountDetail({ account, onEdit, onDelete }: {
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/[0.03]">
+            <tbody className="divide-y divide-border dark:divide-white/[0.03]">
               {campaigns.map(c => {
                 const cpl = c.cpl ?? (Number(c.conversions) > 0 ? Number(c.spend) / Number(c.conversions) : null);
                 return (
@@ -668,7 +668,7 @@ function PlatformCard({ platform, accounts, onConnect, onEdit, onDelete, extra }
 
       {/* Expanded: list of accounts with campaign detail */}
       {expanded && connected && (
-        <div className="border-t border-border dark:border-white/[0.06] divide-y divide-white/[0.04]">
+        <div className="border-t border-border dark:border-white/[0.06] divide-y divide-border dark:divide-white/[0.04]">
           {accounts.map(acct => (
             <div key={acct.id}>
               {/* Account sub-header */}

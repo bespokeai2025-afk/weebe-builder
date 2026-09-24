@@ -88,7 +88,7 @@ function PlatformKnowledgePage() {
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/[0.04] ring-1 ring-white/[0.08]">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted/30 dark:bg-white/[0.04] ring-1 ring-border dark:ring-white/[0.08]">
             <Library className="h-5 w-5 text-foreground" />
           </div>
           <div>
@@ -123,15 +123,15 @@ function PlatformKnowledgePage() {
       {/* Stats row */}
       {!statsLoading && stats && (
         <div className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+          <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/20 dark:bg-white/[0.02] p-4">
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Total Docs</p>
             <p className="mt-1 text-2xl font-bold">{stats.totalDocs}</p>
           </div>
-          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+          <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/20 dark:bg-white/[0.02] p-4">
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Indexed</p>
             <p className="mt-1 text-2xl font-bold text-emerald-400">{stats.totalIndexed}</p>
           </div>
-          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+          <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/20 dark:bg-white/[0.02] p-4">
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Total Chunks</p>
             <p className="mt-1 text-2xl font-bold">{stats.totalChunks}</p>
           </div>
@@ -152,7 +152,7 @@ function PlatformKnowledgePage() {
       )}
 
       {/* Explanation */}
-      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 text-xs text-muted-foreground leading-relaxed space-y-2">
+      <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/20 dark:bg-white/[0.02] p-5 text-xs text-muted-foreground leading-relaxed space-y-2">
         <p className="font-medium text-foreground/80">How Platform Knowledge Works</p>
         <p>Documents uploaded here are stored once globally and automatically included in every workspace's executive AI context. No duplication — all workspaces benefit instantly when you add or update content.</p>
         <p><strong className="text-foreground/70">Retrieval order:</strong> Workspace-specific knowledge is always retrieved first. Platform knowledge fills in when workspace content is sparse or a query matches platform material better.</p>
@@ -165,15 +165,15 @@ function PlatformKnowledgePage() {
 // ── KB Card ───────────────────────────────────────────────────────────────────
 function KbCard({ kb, stats }: { kb: any; stats: any }) {
   const [open, setOpen] = useState(false);
-  const meta = KB_META[kb.slug] ?? { icon: Library, accent: "text-foreground bg-white/[0.06] ring-white/[0.12]", label: kb.slug };
+  const meta = KB_META[kb.slug] ?? { icon: Library, accent: "text-foreground bg-muted/40 dark:bg-white/[0.06] ring-border dark:ring-white/[0.12]", label: kb.slug };
   const Icon = meta.icon;
   const ChevronIcon = open ? ChevronDown : ChevronRight;
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02]">
+    <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/20 dark:bg-white/[0.02]">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center gap-3 p-4 text-left hover:bg-white/[0.02] transition-colors rounded-xl"
+        className="w-full flex items-center gap-3 p-4 text-left hover:bg-muted/20 dark:hover:bg-white/[0.02] transition-colors rounded-xl"
       >
         <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ring-1", meta.accent)}>
           <Icon className="h-4 w-4" />
@@ -181,7 +181,7 @@ function KbCard({ kb, stats }: { kb: any; stats: any }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold">{kb.name}</span>
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.06] text-muted-foreground font-mono">
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/40 dark:bg-white/[0.06] text-muted-foreground font-mono">
               {kb.slug}
             </span>
           </div>
@@ -266,12 +266,12 @@ function KbDetail({ kbId: _kbId, kbSlug }: { kbId: string; kbSlug: string }) {
   }, [kbSlug, uploadFn, recordFn, refetch, qc]);
 
   return (
-    <div className="border-t border-white/[0.06] px-4 pb-4 pt-3 space-y-3">
+    <div className="border-t border-border dark:border-white/[0.06] px-4 pb-4 pt-3 space-y-3">
       {/* Upload row */}
       <div className="flex items-center gap-3">
         <label className={cn(
-          "flex items-center gap-2 rounded-lg border border-white/[0.08] px-3 py-1.5 text-xs font-medium cursor-pointer transition-colors",
-          uploading ? "opacity-60 cursor-not-allowed" : "hover:bg-white/[0.04]",
+          "flex items-center gap-2 rounded-lg border border-border dark:border-white/[0.08] px-3 py-1.5 text-xs font-medium cursor-pointer transition-colors",
+          uploading ? "opacity-60 cursor-not-allowed" : "hover:bg-muted/30 dark:hover:bg-white/[0.04]",
         )}>
           {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
           {uploading ? "Uploading…" : "Upload Document"}
@@ -304,7 +304,7 @@ function KbDetail({ kbId: _kbId, kbSlug }: { kbId: string; kbSlug: string }) {
             return (
               <div
                 key={doc.id}
-                className="flex items-center gap-3 rounded-lg border border-white/[0.04] bg-white/[0.02] px-3 py-2 text-xs"
+                className="flex items-center gap-3 rounded-lg border border-border dark:border-white/[0.04] bg-muted/20 dark:bg-white/[0.02] px-3 py-2 text-xs"
               >
                 <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                 <span className="flex-1 truncate font-medium">{doc.title}</span>
@@ -324,7 +324,7 @@ function KbDetail({ kbId: _kbId, kbSlug }: { kbId: string; kbSlug: string }) {
                     onClick={() => reindexMut.mutate(doc.id)}
                     disabled={reindexMut.isPending}
                     title="Re-index"
-                    className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition-colors disabled:opacity-40"
+                    className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted/40 dark:hover:bg-white/[0.06] transition-colors disabled:opacity-40"
                   >
                     <RefreshCw className={cn("h-3.5 w-3.5", reindexMut.isPending && "animate-spin")} />
                   </button>

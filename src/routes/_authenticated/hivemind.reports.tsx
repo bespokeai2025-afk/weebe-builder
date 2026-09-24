@@ -289,7 +289,7 @@ function HiveMindReports() {
                 <p className="text-sm font-semibold">Report Contents</p>
                 <p className="text-[11px] text-muted-foreground">Click any section to preview</p>
               </div>
-              <div className="divide-y divide-white/[0.04]">
+              <div className="divide-y divide-border dark:divide-white/[0.04]">
                 {sections.map(section => {
                   const open = previewOpen.has(section.id);
                   const Icon = SECTION_ICONS[section.id] ?? FileText;

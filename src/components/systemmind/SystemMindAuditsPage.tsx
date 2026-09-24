@@ -60,7 +60,7 @@ function AuditRow({ audit }: { audit: any }) {
       </button>
 
       {open && findings.length > 0 && (
-        <div className="border-t border-border dark:border-white/[0.06] divide-y divide-white/[0.04]">
+        <div className="border-t border-border dark:border-white/[0.06] divide-y divide-border dark:divide-white/[0.04]">
           {findings.map((f, i) => (
             <div key={i} className="px-4 py-3 flex gap-3">
               <span className={cn("shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase self-start mt-0.5", FINDING_SEVERITY_BADGE[f.severity] ?? FINDING_SEVERITY_BADGE.info)}>

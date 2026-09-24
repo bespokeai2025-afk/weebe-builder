@@ -146,7 +146,7 @@ export function WbahLiveTransferHoursPanel() {
 
   if (permsQ.isLoading) {
     return (
-      <div className="rounded-xl border border-white/[0.06] bg-card/50 p-4 flex items-center gap-2 text-xs text-muted-foreground">
+      <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/50 p-4 flex items-center gap-2 text-xs text-muted-foreground">
         <Loader2 className="h-3.5 w-3.5 animate-spin" />
         Loading permissions…
       </div>
@@ -159,7 +159,7 @@ export function WbahLiveTransferHoursPanel() {
   const busy = settingsQ.isLoading || saving || resetting;
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-card/50 p-4">
+    <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/50 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -248,7 +248,7 @@ export function WbahLiveTransferHoursPanel() {
       )}
 
       {rows && data && (
-        <div className="mt-4 space-y-3 rounded-lg border border-white/[0.06] bg-card/40 p-3">
+        <div className="mt-4 space-y-3 rounded-lg border border-border dark:border-white/[0.06] bg-card/40 p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               <Clock className="h-3.5 w-3.5 text-emerald-400" />
@@ -284,7 +284,7 @@ export function WbahLiveTransferHoursPanel() {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[420px] text-left text-[11px]">
               <thead>
-                <tr className="border-b border-white/[0.06] text-muted-foreground">
+                <tr className="border-b border-border dark:border-white/[0.06] text-muted-foreground">
                   <th className="py-2 pr-3 font-medium">Day</th>
                   <th className="py-2 pr-3 font-medium w-16">Open</th>
                   <th className="py-2 pr-3 font-medium">Start</th>
@@ -293,7 +293,7 @@ export function WbahLiveTransferHoursPanel() {
               </thead>
               <tbody>
                 {rows.map((row) => (
-                  <tr key={row.weekday} className="border-b border-white/[0.04] last:border-0">
+                  <tr key={row.weekday} className="border-b border-border dark:border-white/[0.04] last:border-0">
                     <td className="py-2 pr-3 font-medium text-foreground whitespace-nowrap">
                       {row.label}
                       <span className="ml-1 text-[10px] text-muted-foreground">({row.weekday})</span>

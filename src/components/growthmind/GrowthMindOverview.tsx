@@ -529,7 +529,7 @@ export function GrowthMindOverview() {
                     View all <ArrowRight className="h-3 w-3" />
                   </Link>
                 </div>
-                <div className="divide-y divide-white/[0.04]">
+                <div className="divide-y divide-border dark:divide-white/[0.04]">
                   {recs.slice(0, 4).length === 0 ? (
                     <div className="px-4 py-6 text-center text-sm text-muted-foreground">
                       No issues detected — all clear!
@@ -778,7 +778,7 @@ export function GrowthMindOverview() {
                   </button>
                 </div>
 
-                <div className="divide-y divide-white/[0.04]">
+                <div className="divide-y divide-border dark:divide-white/[0.04]">
                   {/* Campaign proposals */}
                   {campaignProposals
                     .filter((p: any) => showRejected || p.status !== "rejected")

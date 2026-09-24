@@ -173,7 +173,7 @@ export function ActiveWorkOrdersWidget({
           Loading…
         </div>
       ) : (
-        <div className="divide-y divide-white/[0.04]">
+        <div className="divide-y divide-border dark:divide-white/[0.04]">
           {shown.map((wo) => (
             <MiniWorkOrderRow key={wo.id} wo={wo} />
           ))}

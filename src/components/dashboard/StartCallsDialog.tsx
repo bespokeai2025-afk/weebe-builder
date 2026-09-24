@@ -212,7 +212,7 @@ export function StartCallsDialog({
               </div>
 
               {/* Custom setup switch */}
-              <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3 space-y-2.5">
+              <div className="rounded-lg border border-border dark:border-white/[0.08] bg-muted/20 dark:bg-white/[0.02] p-3 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-2 text-sm font-medium">
                     <Settings2 className="h-4 w-4 text-sky-400" />
@@ -263,7 +263,7 @@ export function StartCallsDialog({
 
               {/* Schedule toggle */}
               {canSchedule && (
-                <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3 space-y-3">
+                <div className="rounded-lg border border-border dark:border-white/[0.08] bg-muted/20 dark:bg-white/[0.02] p-3 space-y-3">
                   <button
                     type="button"
                     onClick={() => setSchedule((v) => !v)}

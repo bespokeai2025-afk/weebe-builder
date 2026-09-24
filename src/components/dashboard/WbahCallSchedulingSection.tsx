@@ -366,7 +366,7 @@ export function WbahCallSchedulingSection() {
           </div>
         )}
         {testRow && testRow.dynamicsFetched === 0 && (
-          <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-[11px] text-muted-foreground">
+          <div className="rounded-lg border border-border dark:border-white/[0.08] bg-muted/20 dark:bg-white/[0.02] px-3 py-2 text-[11px] text-muted-foreground">
             No test leads in Dynamics matching the test view.
           </div>
         )}
@@ -376,10 +376,10 @@ export function WbahCallSchedulingSection() {
             no mobile number in Dynamics.
           </div>
         )}
-        <div className="overflow-x-auto rounded-lg border border-white/[0.06]">
+        <div className="overflow-x-auto rounded-lg border border-border dark:border-white/[0.06]">
         <table className="w-full text-left text-[11px]">
           <thead>
-            <tr className="border-b border-white/[0.06] bg-white/[0.02] text-muted-foreground">
+            <tr className="border-b border-border dark:border-white/[0.06] bg-muted/20 dark:bg-white/[0.02] text-muted-foreground">
               <th className="px-3 py-2 font-medium">Category</th>
               <th className="px-3 py-2 font-medium">Fetched</th>
               <th className="px-3 py-2 font-medium">Inserted</th>
@@ -395,7 +395,7 @@ export function WbahCallSchedulingSection() {
               <tr
                 key={c.slug}
                 className={cn(
-                  "border-b border-white/[0.04] last:border-0",
+                  "border-b border-border dark:border-white/[0.04] last:border-0",
                   isTest && "bg-amber-500/[0.04]",
                 )}
               >
@@ -570,7 +570,7 @@ export function WbahCallSchedulingSection() {
       </div>
 
       {/* Dynamics category sync */}
-      <div className="rounded-xl border border-white/[0.06] bg-card/50 p-4">
+      <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/50 p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold">
@@ -657,7 +657,7 @@ export function WbahCallSchedulingSection() {
           { label: "Daily Campaigns", value: totalDaily, icon: PhoneCall, color: "text-violet-400", bg: "bg-violet-500/10", sub: "Recurring daily" },
           { label: "Custom Interval", value: totalCustom, icon: Clock, color: "text-amber-400", bg: "bg-amber-500/10", sub: "Custom schedule" },
         ].map((s) => (
-          <div key={s.label} className="min-w-0 rounded-xl border border-white/[0.06] bg-card/60 p-3">
+          <div key={s.label} className="min-w-0 rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-3">
             <div className={cn("mb-1.5 inline-flex rounded-lg p-1.5", s.bg)}>
               <s.icon className={cn("h-3.5 w-3.5", s.color)} />
             </div>
@@ -708,7 +708,7 @@ export function WbahCallSchedulingSection() {
       ) : (
         <div className="space-y-3">
           {filtered.map((c) => (
-            <div key={campaignId(c)} className="rounded-xl border border-white/[0.06] bg-card/60 p-4">
+            <div key={campaignId(c)} className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-3 min-w-0">
                   <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-500/15">
@@ -768,7 +768,7 @@ export function WbahCallSchedulingSection() {
                   <button
                     title="Edit"
                     onClick={() => openEdit(c)}
-                    className="rounded p-1.5 text-muted-foreground hover:bg-white/[0.06] hover:text-foreground transition-colors"
+                    className="rounded p-1.5 text-muted-foreground hover:bg-muted/40 dark:hover:bg-white/[0.06] hover:text-foreground transition-colors"
                   >
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
@@ -806,7 +806,7 @@ export function WbahCallSchedulingSection() {
                 </div>
               </div>
 
-              <div className="mt-3 flex items-center justify-between border-t border-white/[0.04] pt-2.5">
+              <div className="mt-3 flex items-center justify-between border-t border-border dark:border-white/[0.04] pt-2.5">
                 <div className="flex items-center gap-4 text-[10px] text-muted-foreground flex-wrap">
                   <span>
                     Frequency:{" "}
@@ -856,7 +856,7 @@ export function WbahCallSchedulingSection() {
 
           <div className="overflow-y-auto flex-1 pr-1 space-y-4 pb-1">
             {/* Campaign Details */}
-            <div className="rounded-xl border border-white/[0.06] bg-card/40 p-4 space-y-3">
+            <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/40 p-4 space-y-3">
               <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 <Phone className="h-3.5 w-3.5 text-blue-400" />
                 Campaign Details
@@ -913,7 +913,7 @@ export function WbahCallSchedulingSection() {
             </div>
 
             {/* Lead Targeting */}
-            <div className="rounded-xl border border-white/[0.06] bg-card/40 p-4 space-y-3">
+            <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/40 p-4 space-y-3">
               <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 <Globe className="h-3.5 w-3.5 text-violet-400" />
                 Lead Targeting
@@ -929,7 +929,7 @@ export function WbahCallSchedulingSection() {
                       return (
                         <span
                           key={`filter-chip:${s.value}:${s.source ?? "dynamics"}`}
-                          className="inline-flex items-center gap-1 rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 text-[10px] text-muted-foreground"
+                          className="inline-flex items-center gap-1 rounded-md border border-border dark:border-white/[0.08] bg-muted/20 dark:bg-white/[0.03] px-2 py-0.5 text-[10px] text-muted-foreground"
                         >
                           {s.label}
                           {isTest && <WbahTestLeadBadge label="UAT" />}
@@ -940,7 +940,7 @@ export function WbahCallSchedulingSection() {
                   </div>
                 )}
                 {leadStatusOptionsQ.isLoading ? (
-                  <div className="mt-1 flex h-8 items-center gap-2 rounded-md border border-white/[0.06] px-3 text-xs text-muted-foreground">
+                  <div className="mt-1 flex h-8 items-center gap-2 rounded-md border border-border dark:border-white/[0.06] px-3 text-xs text-muted-foreground">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     Loading lead statuses…
                   </div>
@@ -1025,7 +1025,7 @@ export function WbahCallSchedulingSection() {
             </div>
 
             {/* Schedule Configuration */}
-            <div className="rounded-xl border border-white/[0.06] bg-card/40 p-4 space-y-3">
+            <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/40 p-4 space-y-3">
               <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 <Clock className="h-3.5 w-3.5 text-emerald-400" />
                 Schedule
@@ -1105,7 +1105,7 @@ export function WbahCallSchedulingSection() {
                     {scheduleWeekdays.map((d) => (
                       <label
                         key={d.value}
-                        className="flex items-center gap-2 rounded-md border border-white/[0.06] px-2 py-1.5 text-[11px] cursor-pointer hover:bg-white/[0.03]"
+                        className="flex items-center gap-2 rounded-md border border-border dark:border-white/[0.06] px-2 py-1.5 text-[11px] cursor-pointer hover:bg-muted/20 dark:hover:bg-white/[0.03]"
                       >
                         <Checkbox
                           checked={form.days_of_week?.includes(d.value) ?? false}
@@ -1125,7 +1125,7 @@ export function WbahCallSchedulingSection() {
 
               <div>
                 <Label className="text-xs mb-1 block">Frequency</Label>
-                <div className="flex rounded-lg border border-white/[0.08] overflow-hidden">
+                <div className="flex rounded-lg border border-border dark:border-white/[0.08] overflow-hidden">
                   {(["daily", "custom"] as const).map((freq) => (
                     <button
                       key={freq}

@@ -419,7 +419,7 @@ export function WatiIntegrationSettings() {
                   { key: "contacts",  label: "Contacts",  icon: Users,     mut: syncContacts,  queryKey: ["wa-contacts"] },
                 ] as const
               ).map(({ key, label, icon: Icon, mut }) => (
-                <div key={key} className="flex items-center justify-between rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+                <div key={key} className="flex items-center justify-between rounded-md border border-border dark:border-white/[0.06] bg-muted/20 dark:bg-white/[0.02] px-3 py-2">
                   <div className="flex items-center gap-2">
                     <Icon className="h-3.5 w-3.5 text-muted-foreground" />
                     <span className="text-xs">{label}</span>
@@ -515,7 +515,7 @@ export function WatiIntegrationSettings() {
             </button>
 
             {showForm && (
-              <div className="space-y-3 rounded-lg border border-white/[0.06] bg-white/[0.01] p-4">
+              <div className="space-y-3 rounded-lg border border-border dark:border-white/[0.06] bg-muted/10 dark:bg-white/[0.01] p-4">
                 <div className="space-y-1.5">
                   <Label className="text-xs">API Key</Label>
                   <Input

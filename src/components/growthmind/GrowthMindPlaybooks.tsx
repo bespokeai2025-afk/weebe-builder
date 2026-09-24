@@ -151,7 +151,7 @@ function PlaybookCard({
 
       {/* Expanded tactics */}
       {expanded && (
-        <div className="border-t border-border dark:border-white/[0.06] divide-y divide-white/[0.04]">
+        <div className="border-t border-border dark:border-white/[0.06] divide-y divide-border dark:divide-white/[0.04]">
           {playbook.sections.map(section => (
             <div key={section.channel} className="px-4 py-3">
               <div className="flex items-center gap-2 mb-2">

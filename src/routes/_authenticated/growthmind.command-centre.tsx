@@ -173,7 +173,7 @@ function CommandCentrePage() {
         {d.recentJobs.length === 0 ? (
           <p className="mt-2 text-sm text-muted-foreground">Nothing published in the last 30 days.</p>
         ) : (
-          <ul className="mt-2 divide-y divide-white/[0.04]">
+          <ul className="mt-2 divide-y divide-border dark:divide-white/[0.04]">
             {d.recentJobs.map((j: any) => (
               <li key={j.id} className="flex items-center justify-between gap-3 py-2 text-sm">
                 <div className="flex min-w-0 items-center gap-2">

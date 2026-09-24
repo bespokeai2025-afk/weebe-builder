@@ -910,7 +910,7 @@ export function Builder({
             data-tour="agent-name-input"
             value={settings.agentName}
             onChange={(e) => setSettings({ agentName: e.target.value })}
-            className="h-7 max-w-[180px] border-transparent bg-transparent px-1.5 text-[11px] font-semibold text-foreground hover:border-foreground/20 dark:hover:border-white/[0.06] focus-visible:border-foreground/20 dark:focus-visible:border-white/[0.1]"
+            className="h-7 max-w-[180px] border-transparent bg-transparent px-1.5 text-[11px] font-semibold text-foreground hover:border-foreground/20 dark:hover:border-white/[0.06] focus-visible:border-foreground/20 dark:focus-visible:border-border dark:border-white/[0.1]"
             placeholder="Agent name"
           />
           {settings.voiceProvider === "OPENAI_REALTIME" && (
@@ -1359,7 +1359,7 @@ export function Builder({
           <button
             onClick={() => setLeftOpen((v) => !v)}
             title={leftOpen ? "Collapse panel" : "Expand panel"}
-            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 z-30 flex h-12 w-4 items-center justify-center rounded-sm border border-white/[0.1] bg-[#121b2b]/90 text-white/50 hover:text-white/85 hover:bg-white/[0.08] hover:border-white/[0.18] transition-all duration-200 backdrop-blur-sm"
+            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 z-30 flex h-12 w-4 items-center justify-center rounded-sm border border-border dark:border-white/[0.1] bg-[#121b2b]/90 text-white/50 hover:text-white/85 hover:bg-muted/50 dark:hover:bg-white/[0.08] hover:border-border dark:hover:border-white/[0.18] transition-all duration-200 backdrop-blur-sm"
           >
             {leftOpen
               ? <ChevronLeft className="h-3 w-3 shrink-0" strokeWidth={1.5} />
@@ -1370,7 +1370,7 @@ export function Builder({
           <button
             onClick={() => setRightOpen((v) => !v)}
             title={rightOpen ? "Collapse settings" : "Expand settings"}
-            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-30 flex h-12 w-4 items-center justify-center rounded-sm border border-white/[0.1] bg-[#121b2b]/90 text-white/50 hover:text-white/85 hover:bg-white/[0.08] hover:border-white/[0.18] transition-all duration-200 backdrop-blur-sm"
+            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-30 flex h-12 w-4 items-center justify-center rounded-sm border border-border dark:border-white/[0.1] bg-[#121b2b]/90 text-white/50 hover:text-white/85 hover:bg-muted/50 dark:hover:bg-white/[0.08] hover:border-border dark:hover:border-white/[0.18] transition-all duration-200 backdrop-blur-sm"
           >
             {rightOpen
               ? <ChevronRight className="h-3 w-3 shrink-0" strokeWidth={1.5} />
@@ -2193,7 +2193,7 @@ export function Builder({
                             Loading voices…
                           </div>
                         ) : (
-                          <div className="max-h-44 overflow-y-auto rounded border border-border dark:border-white/[0.06] divide-y divide-white/[0.04]">
+                          <div className="max-h-44 overflow-y-auto rounded border border-border dark:border-white/[0.06] divide-y divide-border dark:divide-white/[0.04]">
                             {(["yours", "library"] as const).map((group) => {
                               const groupVoices = fishVoices.filter((v) => fishVoiceGroup(v) === group);
                               if (groupVoices.length === 0) return null;
@@ -2564,7 +2564,7 @@ export function Builder({
                             className="h-6 text-[9px]"
                           />
                         </div>
-                        <div className="max-h-36 overflow-y-auto rounded border border-border dark:border-white/[0.06] divide-y divide-white/[0.04]">
+                        <div className="max-h-36 overflow-y-auto rounded border border-border dark:border-white/[0.06] divide-y divide-border dark:divide-white/[0.04]">
                           {elVoiceResults.map((v) => (
                             <div
                               key={v.voice_id}

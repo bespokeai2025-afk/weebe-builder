@@ -254,7 +254,7 @@ export function LeadWhatsAppPanel({ leadId, phone, contactName }: LeadWhatsAppPa
 
       <div
         ref={historyRef}
-        className="rounded-lg border border-white/[0.06] bg-white/[0.02] max-h-72 overflow-y-auto divide-y divide-white/[0.04]"
+        className="rounded-lg border border-border dark:border-white/[0.06] bg-muted/20 dark:bg-white/[0.02] max-h-72 overflow-y-auto divide-y divide-border dark:divide-white/[0.04]"
       >
         {isLoading ? (
           <div className="flex justify-center py-6">
@@ -294,7 +294,7 @@ export function LeadWhatsAppPanel({ leadId, phone, contactName }: LeadWhatsAppPa
       </div>
 
       {sessionOpen ? (
-        <div className="space-y-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+        <div className="space-y-2 rounded-lg border border-border dark:border-white/[0.06] bg-muted/20 dark:bg-white/[0.02] p-3">
           <Label className="text-[10px] text-muted-foreground">Reply in session</Label>
           <Textarea
             value={reply}
@@ -323,7 +323,7 @@ export function LeadWhatsAppPanel({ leadId, phone, contactName }: LeadWhatsAppPa
         </p>
       )}
 
-      <div className="space-y-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+      <div className="space-y-2 rounded-lg border border-border dark:border-white/[0.06] bg-muted/20 dark:bg-white/[0.02] p-3">
         <Label className="text-[10px] text-muted-foreground">Send template</Label>
         <Select
           value={templateName}

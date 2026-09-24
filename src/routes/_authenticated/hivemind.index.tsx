@@ -506,7 +506,7 @@ function HiveMindOverview() {
                 View all →
               </Link>
             </div>
-            <div className="divide-y divide-white/[0.04]">
+            <div className="divide-y divide-border dark:divide-white/[0.04]">
               {sysRecs.slice(0, 5).map(r => (
                 <div key={r.id} className="flex items-start gap-3 px-4 py-3">
                   <div className={cn(
@@ -668,7 +668,7 @@ function HiveMindOverview() {
                       <EmptyState icon={Users} text={`No new leads ${sinceLabel.toLowerCase()}`} />
                     ) : (
                       <>
-                        <div className="rounded-xl border border-border dark:border-white/[0.06] overflow-hidden divide-y divide-white/[0.04]">
+                        <div className="rounded-xl border border-border dark:border-white/[0.06] overflow-hidden divide-y divide-border dark:divide-white/[0.04]">
                           {b.newLeads.map((lead: any) => (
                             <div key={lead.id} className={cn(
                               "flex items-center gap-3 px-4 py-2.5 hover:bg-muted/25 dark:hover:bg-white/[0.015] transition-colors",
@@ -766,7 +766,7 @@ function HiveMindOverview() {
                       } />
                     ) : (
                       <>
-                        <div className="rounded-xl border border-amber-500/15 overflow-hidden divide-y divide-white/[0.04]">
+                        <div className="rounded-xl border border-amber-500/15 overflow-hidden divide-y divide-border dark:divide-white/[0.04]">
                           {visibleStale.map((c: any) => (
                             <div key={c.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/25 dark:hover:bg-white/[0.015] group">
                               <div className="h-7 w-7 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0 text-xs font-bold text-amber-300">
@@ -818,7 +818,7 @@ function HiveMindOverview() {
                       <EmptyState icon={Zap} text={`No pipeline changes ${sinceLabel.toLowerCase()}`} />
                     ) : (
                       <>
-                        <div className="rounded-xl border border-border dark:border-white/[0.06] overflow-hidden divide-y divide-white/[0.04]">
+                        <div className="rounded-xl border border-border dark:border-white/[0.06] overflow-hidden divide-y divide-border dark:divide-white/[0.04]">
                           {b.recentPipelineChanges.map((c: any) => (
                             <div key={c.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/25 dark:hover:bg-white/[0.015]">
                               <div className="h-7 w-7 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0">
@@ -850,7 +850,7 @@ function HiveMindOverview() {
                     {!b?.inboundWA?.length ? (
                       <EmptyState icon={MessageSquare} text={`No new inbound WhatsApp messages ${sinceLabel.toLowerCase()}`} />
                     ) : (
-                      <div className="rounded-xl border border-green-500/15 overflow-hidden divide-y divide-white/[0.04]">
+                      <div className="rounded-xl border border-green-500/15 overflow-hidden divide-y divide-border dark:divide-white/[0.04]">
                         {b.inboundWA.map((m: any) => (
                           <div key={m.id} className="flex items-start gap-3 px-4 py-2.5 hover:bg-muted/25 dark:hover:bg-white/[0.015]">
                             <div className="h-7 w-7 rounded-full bg-green-500/10 flex items-center justify-center shrink-0">
@@ -895,7 +895,7 @@ function HiveMindOverview() {
                     {!b?.recentEmailCampaigns?.length ? (
                       <EmptyState icon={MailOpen} text={`No email campaign activity ${sinceLabel.toLowerCase()}`} />
                     ) : (
-                      <div className="rounded-xl border border-sky-500/10 overflow-hidden divide-y divide-white/[0.04]">
+                      <div className="rounded-xl border border-sky-500/10 overflow-hidden divide-y divide-border dark:divide-white/[0.04]">
                         {b.recentEmailCampaigns.map((c: any) => (
                           <div key={c.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/25 dark:hover:bg-white/[0.015]">
                             <div className="h-7 w-7 rounded-full bg-sky-500/10 flex items-center justify-center shrink-0">

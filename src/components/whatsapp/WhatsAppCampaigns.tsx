@@ -968,7 +968,7 @@ export function WhatsAppCampaigns() {
       )}
 
       {isLoading ? (
-        <div className="overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
+        <div className="overflow-hidden rounded-xl border border-border dark:border-white/[0.06] bg-card/60">
           <div className="divide-y divide-border/60">
             {[...Array(4)].map((_, i) => (
               <div key={i} className="flex items-center gap-4 px-4 py-3.5 animate-pulse">
@@ -1002,7 +1002,7 @@ export function WhatsAppCampaigns() {
           No campaigns match these filters.
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
+        <div className="overflow-hidden rounded-xl border border-border dark:border-white/[0.06] bg-card/60">
           <table className="w-full text-sm">
             <thead className="bg-muted/50 border-b border-border">
               <tr>
@@ -1646,7 +1646,7 @@ export function WhatsAppCampaigns() {
                                     className={cn(
                                       "rounded px-1 py-0.5 text-[9px]",
                                       prm.resolved
-                                        ? "bg-white/[0.06] text-muted-foreground"
+                                        ? "bg-muted/40 dark:bg-white/[0.06] text-muted-foreground"
                                         : "bg-amber-500/15 text-amber-600 dark:text-amber-400",
                                     )}
                                   >
@@ -1794,7 +1794,7 @@ export function WhatsAppCampaigns() {
                           this table; ticking rows sends to exactly those, and
                           ticking nothing falls back to the batch controls
                           below. */}
-                      <div className="space-y-1.5 rounded-md border border-white/[0.06] p-2">
+                      <div className="space-y-1.5 rounded-md border border-border dark:border-white/[0.06] p-2">
                         <div className="flex items-center gap-2">
                           <Input
                             value={audienceSearch}
@@ -1809,7 +1809,7 @@ export function WhatsAppCampaigns() {
                           </span>
                         </div>
 
-                        <div className="flex items-center gap-2 border-b border-white/[0.06] pb-1.5">
+                        <div className="flex items-center gap-2 border-b border-border dark:border-white/[0.06] pb-1.5">
                           <Checkbox
                             checked={
                               audienceRows.length > 0 && pickedPhones.size === audienceRows.length
@@ -1880,7 +1880,7 @@ export function WhatsAppCampaigns() {
                               return (
                                 <label
                                   key={phone}
-                                  className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 hover:bg-white/[0.03]"
+                                  className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 hover:bg-muted/20 dark:hover:bg-white/[0.03]"
                                 >
                                   <Checkbox
                                     checked={pickedPhones.has(phone)}
@@ -1900,7 +1900,7 @@ export function WhatsAppCampaigns() {
                                     {phone}
                                   </span>
                                   {label && (
-                                    <span className="shrink-0 rounded bg-white/[0.06] px-1 py-0.5 text-[9px] text-muted-foreground">
+                                    <span className="shrink-0 rounded bg-muted/40 dark:bg-white/[0.06] px-1 py-0.5 text-[9px] text-muted-foreground">
                                       {label}
                                     </span>
                                   )}
@@ -1924,7 +1924,7 @@ export function WhatsAppCampaigns() {
                           of the way and says so. */}
                       <div
                         className={cn(
-                          "space-y-2 rounded-md border border-white/[0.06] p-2 transition-opacity",
+                          "space-y-2 rounded-md border border-border dark:border-white/[0.06] p-2 transition-opacity",
                           pickedPhones.size > 0 && "pointer-events-none opacity-40",
                         )}
                       >

@@ -225,7 +225,7 @@ function GoogleAdsOAuthConnect({ creds }: { creds: Record<string, string> }) {
       )}
       <Button
         size="sm"
-        className="h-7 px-3 text-[11px] gap-1.5 bg-white text-black hover:bg-white/90"
+        className="h-7 px-3 text-[11px] gap-1.5 bg-white text-black hover:bg-muted/90 dark:hover:bg-white/90"
         disabled={!ready || connecting}
         onClick={handleConnect}
       >

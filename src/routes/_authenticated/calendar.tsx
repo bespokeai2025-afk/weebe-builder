@@ -171,7 +171,7 @@ function BookingDetailDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[85vh] w-full max-w-lg flex-col gap-0 p-0">
-        <DialogHeader className="border-b border-white/[0.06] px-6 py-4">
+        <DialogHeader className="border-b border-border dark:border-white/[0.06] px-6 py-4">
           <DialogTitle className="text-base font-semibold leading-snug pr-6">{booking.title}</DialogTitle>
           <DialogDescription className="sr-only">Booking details for {booking.title}</DialogDescription>
           {onOpenAssistant && booking.lead_id && (
@@ -187,7 +187,7 @@ function BookingDetailDialog({
           )}
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto divide-y divide-white/[0.05]">
+        <div className="flex-1 overflow-y-auto divide-y divide-border dark:divide-white/[0.05]">
           {/* Appointment info */}
           <div className="px-6 py-4 space-y-2.5">
             <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mb-3">Appointment</p>
@@ -288,7 +288,7 @@ function BookingDetailDialog({
             <Textarea
               placeholder="Add meeting notes, follow-up actions, or anything relevant…"
               value={notes} onChange={(e) => setNotes(e.target.value)}
-              className="min-h-[120px] text-sm resize-none border-white/[0.08] bg-white/[0.03] focus:border-blue-500/40"
+              className="min-h-[120px] text-sm resize-none border-border dark:border-white/[0.08] bg-muted/20 dark:bg-white/[0.03] focus:border-blue-500/40"
               rows={5}
             />
             <div className="flex items-center justify-between gap-2">
@@ -480,14 +480,14 @@ function CalendarPage() {
       </div>
 
       {data?.isWbah && allBookings.length === 0 && (
-        <div className="mb-4 rounded-lg border border-white/[0.08] bg-card/40 px-4 py-3 text-xs text-muted-foreground">
+        <div className="mb-4 rounded-lg border border-border dark:border-white/[0.08] bg-card/40 px-4 py-3 text-xs text-muted-foreground">
           No Calendly appointments found yet. Bookings from qualified calls with an appointment date will appear here — try Refresh to sync the latest CRM data.
         </div>
       )}
 
       {/* ── Legend + Agent filter ── */}
       {(legendEntries.length > 0 || (data?.isWbah && wbahAgentOptions.length > 0)) && (
-        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-white/[0.06] bg-card/40 px-4 py-3">
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-border dark:border-white/[0.06] bg-card/40 px-4 py-3">
           <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mr-1">Filter by</span>
 
           {legendEntries.map((entry) => {
@@ -510,7 +510,7 @@ function CalendarPage() {
                 {!entry.isManual && !data?.isWbah && agentTypeByName.has(entry.key) && (
                   <span className="text-[9px] opacity-70">· {agentTypeByName.get(entry.key)}</span>
                 )}
-                <span className="ml-0.5 rounded-full bg-white/10 px-1 text-[10px] tabular-nums">{entry.count}</span>
+                <span className="ml-0.5 rounded-full bg-muted/60 dark:bg-white/10 px-1 text-[10px] tabular-nums">{entry.count}</span>
               </button>
             );
           })}
@@ -530,8 +530,8 @@ function CalendarPage() {
       <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
 
         {/* Month grid */}
-        <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06]">
+        <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-border dark:border-white/[0.06]">
             <h3 className="text-sm font-semibold">{monthLabel}</h3>
             <div className="flex items-center gap-1">
               <Button variant="ghost" size="icon" className="h-7 w-7"
@@ -549,7 +549,7 @@ function CalendarPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-7 gap-px bg-white/[0.04] text-center text-[10px] uppercase tracking-wider text-muted-foreground">
+          <div className="grid grid-cols-7 gap-px bg-muted/30 dark:bg-white/[0.04] text-center text-[10px] uppercase tracking-wider text-muted-foreground">
             {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d) => (
               <div key={d} className="bg-card/80 py-1.5">{d}</div>
             ))}
@@ -563,7 +563,7 @@ function CalendarPage() {
               return (
                 <button key={k} onClick={() => setSelected(d)}
                   className={cn(
-                    "relative flex h-20 flex-col items-start justify-start gap-0.5 bg-card/50 p-1.5 text-left transition-colors hover:bg-white/[0.03]",
+                    "relative flex h-20 flex-col items-start justify-start gap-0.5 bg-card/50 p-1.5 text-left transition-colors hover:bg-muted/20 dark:hover:bg-white/[0.03]",
                     !inMonth && "opacity-35",
                     isSelected && "ring-1 ring-inset ring-primary/60",
                   )}
@@ -599,8 +599,8 @@ function CalendarPage() {
         </div>
 
         {/* Day panel */}
-        <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
-          <div className="px-4 py-2.5 border-b border-white/[0.06]">
+        <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-border dark:border-white/[0.06]">
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               {selected.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}
             </p>
@@ -613,13 +613,13 @@ function CalendarPage() {
               <p className="text-xs text-muted-foreground/60">Nothing scheduled for this day.</p>
             </div>
           ) : (
-            <ul className="divide-y divide-white/[0.04]">
+            <ul className="divide-y divide-border dark:divide-white/[0.04]">
               {dayBookings.map((b) => {
                 const style = bookingStyle(b, agentColorMap);
                 return (
                   <li key={b.id}>
                     <button onClick={() => openDetail(b)}
-                      className="w-full text-left px-4 py-3 hover:bg-white/[0.02] transition-colors group">
+                      className="w-full text-left px-4 py-3 hover:bg-muted/20 dark:hover:bg-white/[0.02] transition-colors group">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
                           {/* Coloured source indicator */}

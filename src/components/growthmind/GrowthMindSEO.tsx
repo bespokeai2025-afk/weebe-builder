@@ -395,7 +395,7 @@ function CsvImportModal({
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-white/[0.04]">
+                  <tbody className="divide-y divide-border dark:divide-white/[0.04]">
                     {parsed.slice(0, 200).map((row, i) => {
                       const isDupe = existing.includes(row.term.toLowerCase());
                       return (
@@ -583,7 +583,7 @@ function GscSuggestModal({
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-white/[0.04]">
+                  <tbody className="divide-y divide-border dark:divide-white/[0.04]">
                     {visible.map((q, i) => {
                       const isDupe = existing.includes(q.term.toLowerCase());
                       const checked = selected.has(q.term);
@@ -2467,7 +2467,7 @@ export function GrowthMindSEO() {
                             <th className="px-4 py-2" />
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-white/[0.04]">
+                        <tbody className="divide-y divide-border dark:divide-white/[0.04]">
                           {keywords.map(kw => (
                             <KeywordRow
                               key={kw.id}
@@ -2634,7 +2634,7 @@ export function GrowthMindSEO() {
                       </p>
                     </div>
                   ) : contentIdeas.length === 0 ? null : (
-                    <div className="divide-y divide-white/[0.04]">
+                    <div className="divide-y divide-border dark:divide-white/[0.04]">
                       {contentIdeas.map(idea => (
                         <ContentIdeaRow
                           key={idea.id}

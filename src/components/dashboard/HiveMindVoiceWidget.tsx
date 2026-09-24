@@ -154,7 +154,7 @@ export function HiveMindVoiceButton() {
       {open && (
         <div className="fixed bottom-6 right-6 z-50 flex flex-col w-80 rounded-2xl border border-violet-500/30 bg-card/95 shadow-2xl backdrop-blur-xl overflow-hidden">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06] bg-violet-500/5">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border dark:border-white/[0.06] bg-violet-500/5">
             <div className="flex items-center gap-2.5">
               <div className={cn("h-8 w-8 rounded-full flex items-center justify-center bg-violet-500/20 ring-1 ring-violet-500/40", inCall && "ring-2 ring-violet-400/60")}>
                 <Brain className={cn("h-4 w-4 text-violet-400", inCall && "animate-pulse")} />
@@ -190,7 +190,7 @@ export function HiveMindVoiceButton() {
                   "max-w-[85%] rounded-xl px-3 py-1.5 text-xs leading-relaxed",
                   entry.role === "agent"
                     ? "bg-violet-500/15 text-violet-100 rounded-tl-sm"
-                    : "bg-white/10 text-foreground rounded-tr-sm",
+                    : "bg-muted/60 dark:bg-white/10 text-foreground rounded-tr-sm",
                   entry.partial && "opacity-60 italic",
                 )}>
                   {entry.text}
@@ -200,7 +200,7 @@ export function HiveMindVoiceButton() {
           </div>
 
           {/* Controls */}
-          <div className="px-4 py-3 border-t border-white/[0.06] flex items-center justify-center">
+          <div className="px-4 py-3 border-t border-border dark:border-white/[0.06] flex items-center justify-center">
             {inCall ? (
               <Button
                 size="sm"

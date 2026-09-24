@@ -342,7 +342,7 @@ function GuideSection({
 
       {/* Items */}
       {sectionOpen && (
-        <div className="divide-y divide-white/[0.04]">
+        <div className="divide-y divide-border dark:divide-white/[0.04]">
           {section.items.map((item) => {
             const isOpen = openItems.has(item.label);
             return (

@@ -63,7 +63,7 @@ function FixPlanCard({ plan, onStepToggle }: { plan: any; onStepToggle: (planId:
       </button>
 
       {open && (
-        <div className="border-t border-border dark:border-white/[0.06] divide-y divide-white/[0.04]">
+        <div className="border-t border-border dark:border-white/[0.06] divide-y divide-border dark:divide-white/[0.04]">
           {plan.detail && (
             <div className="px-4 py-2.5">
               <p className="text-xs text-muted-foreground leading-relaxed">{plan.detail}</p>

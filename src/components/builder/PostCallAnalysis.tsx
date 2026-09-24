@@ -49,7 +49,7 @@ export function PostCallAnalysis({ data }: Props) {
           <p className="text-[9px] uppercase tracking-wider text-muted-foreground/60 font-semibold px-2 pt-1.5 pb-1 border-b border-border/60 dark:border-white/[0.04]">
             Variables
           </p>
-          <div className="divide-y divide-white/[0.04]">
+          <div className="divide-y divide-border dark:divide-white/[0.04]">
             {Object.entries(data.variables).map(([key, value]) => (
               <div key={key} className="flex items-start gap-2 px-2 py-1 text-[10px]">
                 <span className="shrink-0 text-muted-foreground/70 font-mono">{key}</span>

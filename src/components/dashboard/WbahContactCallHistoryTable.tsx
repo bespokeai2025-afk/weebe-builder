@@ -33,7 +33,7 @@ export function WbahContactCallHistoryTable({
     <div className="overflow-x-auto">
       <table className="w-full text-xs">
         <thead>
-          <tr className="border-b border-white/[0.06] text-left text-[10px] uppercase tracking-wide text-muted-foreground">
+          <tr className="border-b border-border dark:border-white/[0.06] text-left text-[10px] uppercase tracking-wide text-muted-foreground">
             <th className="px-2 py-1.5">Date</th>
             <th className="px-2 py-1.5">Status</th>
             <th className="px-2 py-1.5">Sentiment</th>
@@ -51,7 +51,7 @@ export function WbahContactCallHistoryTable({
             const bookingRow = wbahHistoryCallToBookingRow(c as unknown as Record<string, unknown>);
             const pending = isWbahCallAnalysisPending(bookingRow);
             return (
-              <tr key={c.id} className="border-b border-white/[0.04] align-middle">
+              <tr key={c.id} className="border-b border-border dark:border-white/[0.04] align-middle">
                 <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">
                   {fmtDate(c.startedAt)}
                 </td>

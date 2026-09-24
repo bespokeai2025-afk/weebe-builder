@@ -106,7 +106,7 @@ export function GrowthMindCampaigns() {
                   </Link>
                 </div>
               ) : (
-                <div className="divide-y divide-white/[0.04]">
+                <div className="divide-y divide-border dark:divide-white/[0.04]">
                   {campaigns.map((c: any) => {
                     const isActive = c.status === "running" || c.status === "active";
                     return (

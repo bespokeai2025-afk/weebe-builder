@@ -41,7 +41,7 @@ export function LoadingProgress({
         <span>{label}…</span>
         <span className="tabular-nums text-foreground">{pct}%</span>
       </div>
-      <div className="h-1.5 w-48 overflow-hidden rounded-full bg-white/[0.08]">
+      <div className="h-1.5 w-48 overflow-hidden rounded-full bg-muted/50 dark:bg-white/[0.08]">
         <div
           className="h-full rounded-full bg-primary transition-[width] duration-200 ease-out"
           style={{ width: `${pct}%` }}

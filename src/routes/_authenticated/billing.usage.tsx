@@ -159,7 +159,7 @@ function UsageDashboardPage() {
       {data.topProviders.length > 0 && (
         <div>
           <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Top Cost Drivers</h2>
-          <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 divide-y divide-white/[0.04]">
+          <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/60 divide-y divide-border dark:divide-white/[0.04]">
             {data.topProviders.map(p => (
               <div key={p.provider} className="flex items-center justify-between px-4 py-3">
                 <span className="text-sm capitalize">{p.provider.replace(/_/g, " ")}</span>

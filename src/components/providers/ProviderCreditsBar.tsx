@@ -73,7 +73,7 @@ export function ProviderCreditsBar() {
         </div>
       )}
 
-      <div className="rounded-xl border border-white/[0.06] bg-card/40 px-4 py-3">
+      <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/40 px-4 py-3">
         <div className="mb-2.5 flex items-center gap-2">
           <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
           <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
@@ -98,7 +98,7 @@ export function ProviderCreditsBar() {
                   isWarning || isError
                     ? "border-red-500/30 bg-red-500/10 text-red-300"
                     : isDisconnected
-                    ? "border-white/[0.06] bg-white/[0.03] text-muted-foreground"
+                    ? "border-border dark:border-white/[0.06] bg-muted/20 dark:bg-white/[0.03] text-muted-foreground"
                     : "border-emerald-500/20 bg-emerald-500/8 text-emerald-300",
                 )}
               >

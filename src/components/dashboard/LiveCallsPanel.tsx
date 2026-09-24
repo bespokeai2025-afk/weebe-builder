@@ -112,10 +112,10 @@ function CallCard({ call }: { call: LiveCall }) {
   return (
     <div className={`rounded-xl border overflow-hidden ${
       isCompleted
-        ? "border-white/[0.06] bg-card/40"
-        : "border-white/[0.08] bg-card/60"
+        ? "border-border dark:border-white/[0.06] bg-card/40"
+        : "border-border dark:border-white/[0.08] bg-card/60"
     }`}>
-      <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-white/[0.06]">
+      <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border dark:border-white/[0.06]">
         <div className="flex items-center gap-2.5 min-w-0">
           <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${iconBg}`}>
             {isWebCall ? (
@@ -138,7 +138,7 @@ function CallCard({ call }: { call: LiveCall }) {
       </div>
 
       {call.current_node_label && (
-        <div className="flex items-center gap-1.5 px-4 py-1.5 border-b border-white/[0.04] bg-white/[0.02]">
+        <div className="flex items-center gap-1.5 px-4 py-1.5 border-b border-border dark:border-white/[0.04] bg-muted/20 dark:bg-white/[0.02]">
           <GitBranch className="h-3 w-3 text-violet-400/80 shrink-0" />
           <span className="text-[10px] text-muted-foreground truncate">
             Step: <span className="text-foreground/80 font-medium">{call.current_node_label}</span>
@@ -414,7 +414,7 @@ export function LiveCallsPanel() {
           className={`ml-auto flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-medium transition-colors ${
             enabled
               ? "bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25"
-              : "bg-white/5 text-muted-foreground hover:bg-white/10"
+              : "bg-muted/40 dark:bg-white/5 text-muted-foreground hover:bg-muted/60 dark:hover:bg-white/10"
           }`}
         >
           <Power className="h-3 w-3" />
@@ -430,7 +430,7 @@ export function LiveCallsPanel() {
       )}
 
       {!enabled ? (
-        <div className="rounded-xl border border-white/[0.06] bg-card/30 px-5 py-5 flex items-center gap-3 text-sm text-muted-foreground">
+        <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/30 px-5 py-5 flex items-center gap-3 text-sm text-muted-foreground">
           <MicOff className="h-4 w-4 shrink-0" />
           <span>Live call monitoring is off. Press <strong>On</strong> to start streaming transcripts.</span>
         </div>
@@ -455,7 +455,7 @@ export function LiveCallsPanel() {
           </a>
         </div>
       ) : calls.length === 0 ? (
-        <div className="rounded-xl border border-white/[0.06] bg-card/30 px-5 py-5 flex items-center gap-3 text-sm text-muted-foreground">
+        <div className="rounded-xl border border-border dark:border-white/[0.06] bg-card/30 px-5 py-5 flex items-center gap-3 text-sm text-muted-foreground">
           <MicOff className="h-4 w-4 shrink-0" />
           <span>No active calls right now. Transcripts appear here the moment a call starts.</span>
         </div>

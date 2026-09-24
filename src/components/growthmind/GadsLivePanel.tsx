@@ -133,7 +133,7 @@ function ConversionUploadStatus() {
 
       <div className="flex flex-wrap items-center gap-2 mt-2.5">
         {cfg.reauthorisationRequired && (
-          <Button size="sm" className="h-7 text-[11px] bg-white text-black hover:bg-white/90 gap-1.5"
+          <Button size="sm" className="h-7 text-[11px] bg-white text-black hover:bg-muted/90 dark:hover:bg-white/90 gap-1.5"
             onClick={handleEnable} disabled={enabling}>
             {enabling ? <Loader2 className="h-3 w-3 animate-spin" /> : <ShieldCheck className="h-3 w-3" />}
             Enable Conversion Uploads
@@ -367,7 +367,7 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
 
         <div className="flex flex-wrap items-center gap-2 mt-2.5">
           {(!state?.oauthConnected || state?.stateLabel === "needs_reconnect") && (
-            <Button size="sm" className="h-7 text-[11px] bg-white text-black hover:bg-white/90" onClick={onConnectClick}>
+            <Button size="sm" className="h-7 text-[11px] bg-white text-black hover:bg-muted/90 dark:hover:bg-white/90" onClick={onConnectClick}>
               Connect with Google
             </Button>
           )}
@@ -559,7 +559,7 @@ export function GadsLivePanel({ onConnectClick }: { onConnectClick: () => void }
                           ))}
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-white/[0.03]">
+                      <tbody className="divide-y divide-border dark:divide-white/[0.03]">
                         {visibleCampaigns.map((c: any) => (
                           <Fragment key={c.campaignId}>
                             <tr className="hover:bg-muted/40 dark:hover:bg-white/[0.02] transition-colors cursor-pointer"

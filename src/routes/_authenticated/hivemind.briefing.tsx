@@ -295,7 +295,7 @@ function HiveMindBriefingPage() {
               <div className="px-4 py-3 border-b border-border dark:border-white/[0.06]">
                 <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-semibold">Agent Performance</p>
               </div>
-              <div className="divide-y divide-white/[0.04]">
+              <div className="divide-y divide-border dark:divide-white/[0.04]">
                 {d.agentRankings.slice(0, 5).map((a, i) => (
                   <div key={i} className="px-4 py-2.5 flex items-center gap-3">
                     <span className="text-[11px] text-muted-foreground w-4 shrink-0">{i + 1}</span>

@@ -221,7 +221,7 @@ function HiveMindSystemHealth() {
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-white/[0.04]">
+                    <tbody className="divide-y divide-border dark:divide-white/[0.04]">
                       {data.phoneNumbers.map((p: any) => (
                         <tr key={p.id} className="hover:bg-muted/25 dark:hover:bg-white/[0.015]">
                           <td className="px-4 py-2.5 font-mono text-xs">{p.phone_number}</td>

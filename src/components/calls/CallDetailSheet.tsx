@@ -265,7 +265,7 @@ export function CallDetailSheet({
             title="Post-call data"
             count={Object.keys(call.custom_analysis_data ?? {}).length}
           >
-            <div className="overflow-hidden rounded border border-white/[0.06]">
+            <div className="overflow-hidden rounded border border-border dark:border-white/[0.06]">
               <table className="w-full text-[11px]">
                 <tbody>
                   {(
@@ -275,8 +275,8 @@ export function CallDetailSheet({
                       ["in_voicemail", call.in_voicemail],
                     ] as Array<[string, unknown]>
                   ).map(([k, v], i) => (
-                    <tr key={k} className={cn(i > 0 && "border-t border-white/[0.04]")}>
-                      <td className="w-[42%] bg-white/[0.02] px-2.5 py-1.5 align-top font-mono text-[10px] text-muted-foreground">
+                    <tr key={k} className={cn(i > 0 && "border-t border-border dark:border-white/[0.04]")}>
+                      <td className="w-[42%] bg-muted/20 dark:bg-white/[0.02] px-2.5 py-1.5 align-top font-mono text-[10px] text-muted-foreground">
                         {k}
                       </td>
                       <td className="px-2.5 py-1.5 align-top font-medium">
@@ -285,8 +285,8 @@ export function CallDetailSheet({
                     </tr>
                   ))}
                   {Object.entries(call.custom_analysis_data ?? {}).map(([k, v]) => (
-                    <tr key={`custom-${k}`} className="border-t border-white/[0.04]">
-                      <td className="w-[42%] bg-white/[0.02] px-2.5 py-1.5 align-top font-mono text-[10px] text-muted-foreground">
+                    <tr key={`custom-${k}`} className="border-t border-border dark:border-white/[0.04]">
+                      <td className="w-[42%] bg-muted/20 dark:bg-white/[0.02] px-2.5 py-1.5 align-top font-mono text-[10px] text-muted-foreground">
                         {k}
                       </td>
                       <td className="px-2.5 py-1.5 align-top font-medium">

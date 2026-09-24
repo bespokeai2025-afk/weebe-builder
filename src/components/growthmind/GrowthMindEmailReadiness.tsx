@@ -58,7 +58,7 @@ export function GrowthMindEmailReadiness() {
       </div>
 
       {/* Score card */}
-      <div className="rounded-xl border border-border dark:border-white/[0.08] bg-gradient-to-br from-white/[0.03] to-transparent p-6 flex flex-col sm:flex-row items-center gap-6">
+      <div className="rounded-xl border border-border dark:border-white/[0.08] bg-gradient-to-br from-muted/20 dark:from-white/[0.03] to-transparent p-6 flex flex-col sm:flex-row items-center gap-6">
         {isLoading ? (
           <div className="w-28 h-28 animate-pulse rounded-full bg-muted dark:bg-white/[0.06]" />
         ) : (

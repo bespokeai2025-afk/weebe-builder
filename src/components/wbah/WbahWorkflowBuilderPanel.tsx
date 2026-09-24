@@ -601,7 +601,7 @@ export function WbahWorkflowEditorPanel({
         Toggle branches below — only approved step types are saved. Test call required before Apply.
       </p>
       <VisualStepEditor answers={answers} onToggleStep={toggleStep} />
-      <div className="rounded-lg border border-white/[0.06] bg-black/20 p-2">
+      <div className="rounded-lg border border-border dark:border-white/[0.06] bg-black/20 p-2">
         <WorkflowFlowDiagram config={previewConfig} />
       </div>
       <Button
