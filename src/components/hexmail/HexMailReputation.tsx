@@ -26,7 +26,7 @@ function HealthBar({ label, score, max = 30 }: { label: string; score: number; m
   return (
     <div className="flex items-center gap-3">
       <span className="text-xs text-muted-foreground/60 w-14">{label}</span>
-      <div className="flex-1 h-1.5 rounded-full bg-white/[0.06]">
+      <div className="flex-1 h-1.5 rounded-full bg-muted/40 dark:bg-white/[0.06]">
         <div className={cn("h-full rounded-full transition-all", color)} style={{ width: `${pct}%` }} />
       </div>
       <span className="text-xs tabular-nums text-muted-foreground/50">{score}/{max}</span>
@@ -69,7 +69,7 @@ export function HexMailReputation() {
 
       {/* Health breakdown */}
       {!loadingDomains && topDomain && (
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+        <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/20 dark:bg-white/[0.02] p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-medium">DNS Health Breakdown — {topDomain.domain}</h2>
             <div className="flex items-center gap-1.5">
@@ -96,7 +96,7 @@ export function HexMailReputation() {
           { label: "Delivery Fails", value: failures,             warn: failures > 5,      good: failures === 0,    sub: "last 30 days" },
           { label: "Total Events",   value: total,                warn: false,             good: total === 0,       sub: "reputation events" },
         ].map((m) => (
-          <div key={m.label} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 flex flex-col gap-1">
+          <div key={m.label} className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/20 dark:bg-white/[0.02] p-4 flex flex-col gap-1">
             <span className="text-[10px] text-muted-foreground/50 uppercase tracking-widest">{m.label}</span>
             <span className={cn("text-2xl font-bold", m.warn ? "text-red-400" : m.good ? "text-emerald-400" : "text-foreground")}>
               {m.value}
@@ -107,7 +107,7 @@ export function HexMailReputation() {
       </div>
 
       {/* Thresholds guide */}
-      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 flex flex-col gap-2">
+      <div className="rounded-xl border border-border dark:border-white/[0.06] bg-muted/20 dark:bg-white/[0.02] p-4 flex flex-col gap-2">
         <h2 className="text-xs font-medium text-muted-foreground/70 mb-1">Industry Safety Thresholds</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
           {[
@@ -131,16 +131,16 @@ export function HexMailReputation() {
         <h2 className="text-sm font-medium text-muted-foreground mb-3">Event Log</h2>
         {loadingEvents ? (
           <div className="flex flex-col gap-2">
-            {[...Array(4)].map((_, i) => <div key={i} className="h-10 animate-pulse rounded-lg bg-white/[0.03]" />)}
+            {[...Array(4)].map((_, i) => <div key={i} className="h-10 animate-pulse rounded-lg bg-muted/20 dark:bg-white/[0.03]" />)}
           </div>
         ) : events.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-white/[0.10] p-8 text-center flex flex-col items-center gap-2">
+          <div className="rounded-xl border border-dashed border-border dark:border-white/[0.10] p-8 text-center flex flex-col items-center gap-2">
             <CheckCircle className="h-8 w-8 text-emerald-400/30" />
             <p className="text-sm font-medium">No reputation events recorded</p>
             <p className="text-xs text-muted-foreground/50">Events from Resend webhooks and manual checks will appear here.</p>
           </div>
         ) : (
-          <div className="rounded-xl border border-white/[0.06] divide-y divide-white/[0.04] overflow-hidden">
+          <div className="rounded-xl border border-border dark:border-white/[0.06] divide-y divide-border dark:divide-white/[0.04] overflow-hidden">
             {events.map((ev: any) => {
               const sev = SEVERITY_STYLES[ev.severity] ?? SEVERITY_STYLES.info;
               const SevIcon = sev.icon;
@@ -172,12 +172,12 @@ export function HexMailReputation() {
       </div>
 
       {/* Webhook tip */}
-      <div className="rounded-xl border border-white/[0.06] bg-blue-500/[0.03] p-4 flex items-start gap-3">
+      <div className="rounded-xl border border-border dark:border-white/[0.06] bg-blue-500/[0.03] p-4 flex items-start gap-3">
         <ShieldAlert className="h-4 w-4 text-blue-400/60 shrink-0 mt-0.5" />
         <div className="text-xs text-muted-foreground/60 leading-relaxed">
           <strong className="text-foreground/70">Connect Resend webhooks</strong> to automatically track bounces and complaints.
           Set your webhook URL in the Resend dashboard to:{" "}
-          <code className="text-[10px] font-mono bg-white/[0.05] px-1.5 py-0.5 rounded">
+          <code className="text-[10px] font-mono bg-muted/40 dark:bg-white/[0.05] px-1.5 py-0.5 rounded">
             https://yourdomain.com/api/public/resend-webhook
           </code>
         </div>

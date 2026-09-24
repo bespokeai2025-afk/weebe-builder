@@ -74,13 +74,13 @@ export function HexMailMailboxes() {
       </div>
 
       {showAdd && (
-        <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-5 flex flex-col gap-4">
+        <div className="rounded-xl border border-border dark:border-white/[0.08] bg-muted/20 dark:bg-white/[0.02] p-5 flex flex-col gap-4">
           <h2 className="text-sm font-semibold">Add Mailbox</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="sm:col-span-1">
               <Label className="text-xs text-muted-foreground/60 mb-1 block">Sender Domain *</Label>
               <select value={domainId} onChange={(e) => setDomainId(e.target.value)}
-                className="w-full h-10 rounded-md border border-white/[0.08] bg-white/[0.03] px-3 text-sm text-foreground">
+                className="w-full h-10 rounded-md border border-border dark:border-white/[0.08] bg-muted/20 dark:bg-white/[0.03] px-3 text-sm text-foreground">
                 <option value="">Select domain…</option>
                 {domains.map((d: any) => <option key={d.id} value={d.id}>{d.domain}</option>)}
               </select>
@@ -88,12 +88,12 @@ export function HexMailMailboxes() {
             <div className="sm:col-span-1">
               <Label className="text-xs text-muted-foreground/60 mb-1 block">Email Address *</Label>
               <Input value={email} onChange={(e) => setEmail(e.target.value)}
-                placeholder="hello@yourdomain.com" className="bg-white/[0.03] border-white/[0.08]" />
+                placeholder="hello@yourdomain.com" className="bg-muted/20 dark:bg-white/[0.03] border-border dark:border-white/[0.08]" />
             </div>
             <div>
               <Label className="text-xs text-muted-foreground/60 mb-1 block">Daily Send Limit</Label>
               <Input type="number" value={limit} onChange={(e) => setLimit(Number(e.target.value))} min={1} max={10000}
-                className="bg-white/[0.03] border-white/[0.08]" />
+                className="bg-muted/20 dark:bg-white/[0.03] border-border dark:border-white/[0.08]" />
             </div>
           </div>
           {addMut.error && <p className="text-xs text-red-400">{(addMut.error as any).message}</p>}
@@ -108,16 +108,16 @@ export function HexMailMailboxes() {
 
       {isLoading ? (
         <div className="flex flex-col gap-3">
-          {[...Array(3)].map((_, i) => <div key={i} className="h-16 animate-pulse rounded-xl bg-white/[0.03]" />)}
+          {[...Array(3)].map((_, i) => <div key={i} className="h-16 animate-pulse rounded-xl bg-muted/20 dark:bg-white/[0.03]" />)}
         </div>
       ) : mailboxes.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-white/[0.10] p-10 text-center flex flex-col items-center gap-2">
+        <div className="rounded-xl border border-dashed border-border dark:border-white/[0.10] p-10 text-center flex flex-col items-center gap-2">
           <Inbox className="h-8 w-8 text-muted-foreground/30" />
           <p className="text-sm font-medium">No mailboxes configured</p>
           <p className="text-xs text-muted-foreground/50">Add a mailbox to manage daily send limits and warmup.</p>
         </div>
       ) : (
-        <div className="rounded-xl border border-white/[0.06] overflow-hidden divide-y divide-white/[0.04]">
+        <div className="rounded-xl border border-border dark:border-white/[0.06] overflow-hidden divide-y divide-border dark:divide-white/[0.04]">
           <div className="grid grid-cols-12 px-4 py-2 text-[10px] text-muted-foreground/40 uppercase tracking-widest">
             <span className="col-span-4">Email</span>
             <span className="col-span-2">Status</span>
@@ -146,7 +146,7 @@ export function HexMailMailboxes() {
                   {editId === m.id ? (
                     <div className="flex items-center justify-end gap-1">
                       <Input type="number" value={editLimit} onChange={(e) => setEditLimit(Number(e.target.value))}
-                        className="w-20 h-6 text-xs text-right bg-white/[0.03] border-white/[0.08]" />
+                        className="w-20 h-6 text-xs text-right bg-muted/20 dark:bg-white/[0.03] border-border dark:border-white/[0.08]" />
                       <Button size="sm" className="h-6 px-2 text-[10px]"
                         onClick={() => updateMut.mutate({ mailboxId: m.id, dailySendLimit: editLimit })}>
                         Save
@@ -163,13 +163,13 @@ export function HexMailMailboxes() {
                   <span className="text-xs text-muted-foreground/50 tabular-nums">{m.warmup_stage}/10</span>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <select value={m.status} onChange={(e) => updateMut.mutate({ mailboxId: m.id, status: e.target.value })}
-                      className="h-6 text-[10px] rounded border border-white/[0.08] bg-white/[0.03] px-1">
+                      className="h-6 text-[10px] rounded border border-border dark:border-white/[0.08] bg-muted/20 dark:bg-white/[0.03] px-1">
                       {["pending","warming","active","paused","suspended"].map((s) => (
                         <option key={s} value={s}>{s}</option>
                       ))}
                     </select>
                     <button onClick={() => { if (confirm("Delete mailbox?")) deleteMut.mutate(m.id); }}
-                      className="rounded p-1 hover:text-red-400 text-muted-foreground/30 transition-colors">
+                      className="rounded p-1 hover:text-red-600 dark:hover:text-red-400 text-muted-foreground/30 transition-colors">
                       <Trash2 className="h-3 w-3" />
                     </button>
                   </div>
@@ -181,7 +181,7 @@ export function HexMailMailboxes() {
       )}
 
       {/* Safety rule reminder */}
-      <div className="rounded-xl border border-white/[0.06] bg-amber-500/[0.03] p-4 flex items-start gap-3">
+      <div className="rounded-xl border border-border dark:border-white/[0.06] bg-amber-500/[0.03] p-4 flex items-start gap-3">
         <AlertTriangle className="h-4 w-4 text-amber-400/70 shrink-0 mt-0.5" />
         <div className="text-xs text-muted-foreground/60 leading-relaxed">
           <strong className="text-foreground/70">Safety rules:</strong> Campaigns are blocked if a mailbox exceeds its daily limit, is paused or suspended,
