@@ -89,9 +89,9 @@ function parseTranscript(transcript: string | null | undefined): Turn[] {
 
 function sentimentTone(v?: string | null) {
   const s = String(v ?? "").toLowerCase();
-  if (s.includes("positive")) return "border-emerald-500/40 text-emerald-300";
-  if (s.includes("negative")) return "border-rose-500/40 text-rose-300";
-  if (s) return "border-white/20 text-muted-foreground";
+  if (s.includes("positive")) return "border-emerald-500/40 text-emerald-700 dark:text-emerald-300";
+  if (s.includes("negative")) return "border-rose-500/40 text-rose-700 dark:text-rose-300";
+  if (s) return "border-border dark:border-white/20 text-muted-foreground";
   return "";
 }
 
@@ -114,8 +114,8 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-lg border border-white/[0.07] bg-white/[0.015]">
-      <header className="flex items-center gap-2 border-b border-white/[0.06] px-3 py-2">
+    <section className="rounded-lg border border-border dark:border-white/[0.07] bg-muted/20 dark:bg-white/[0.015]">
+      <header className="flex items-center gap-2 border-b border-border dark:border-white/[0.06] px-3 py-2">
         <Icon className="h-3.5 w-3.5 text-muted-foreground" />
         <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
           {title}
@@ -156,7 +156,7 @@ export function CallDetailSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-3xl">
-        <SheetHeader className="space-y-2 border-b border-white/[0.07] px-5 py-3.5">
+        <SheetHeader className="space-y-2 border-b border-border dark:border-white/[0.07] px-5 py-3.5">
           <div className="flex flex-wrap items-center gap-2">
             <SheetTitle className="text-sm">{call.agent_name || "Call"}</SheetTitle>
             {call.is_test_call && (
@@ -191,7 +191,7 @@ export function CallDetailSheet({
               a light grey bar that looked pasted onto a dark panel. Housed in
               the same surface as every other panel instead. */}
           {call.recording_url && (
-            <div className="flex items-center gap-2.5 rounded-lg border border-white/[0.07] bg-white/[0.015] px-3 py-2">
+            <div className="flex items-center gap-2.5 rounded-lg border border-border dark:border-white/[0.07] bg-muted/20 dark:bg-white/[0.015] px-3 py-2">
               <Volume2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
               <audio
                 controls
@@ -228,12 +228,12 @@ export function CallDetailSheet({
             ) : (
               <>
                 {/* A table, not a dropdown: the point is to scan many at once. */}
-                <div className="overflow-hidden rounded border border-white/[0.06]">
+                <div className="overflow-hidden rounded border border-border dark:border-white/[0.06]">
                   <table className="w-full text-[11px]">
                     <tbody>
                       {outcome.map(([k, v], i) => (
-                        <tr key={k} className={cn(i > 0 && "border-t border-white/[0.04]")}>
-                          <td className="w-[42%] bg-white/[0.02] px-2.5 py-1.5 align-top font-mono text-[10px] text-muted-foreground">
+                        <tr key={k} className={cn(i > 0 && "border-t border-border dark:border-white/[0.04]")}>
+                          <td className="w-[42%] bg-muted/20 dark:bg-white/[0.02] px-2.5 py-1.5 align-top font-mono text-[10px] text-muted-foreground">
                             {k}
                           </td>
                           <td className="px-2.5 py-1.5 align-top font-medium break-words">
@@ -260,7 +260,7 @@ export function CallDetailSheet({
                         {setup.map(([k, v]) => (
                           <span
                             key={k}
-                            className="rounded bg-white/[0.04] px-1.5 py-0.5 font-mono text-[9.5px] text-muted-foreground"
+                            className="rounded bg-muted/40 dark:bg-white/[0.04] px-1.5 py-0.5 font-mono text-[9.5px] text-muted-foreground"
                           >
                             {k}={String(v ?? "")}
                           </span>
@@ -279,7 +279,7 @@ export function CallDetailSheet({
                 {tools.map((t, i) => (
                   <div
                     key={i}
-                    className="flex items-center gap-2 rounded border border-white/[0.06] px-2 py-1 text-[11px]"
+                    className="flex items-center gap-2 rounded border border-border dark:border-white/[0.06] px-2 py-1 text-[11px]"
                   >
                     <span
                       className={cn(
@@ -312,7 +312,7 @@ export function CallDetailSheet({
                         "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full",
                         t.role === "agent"
                           ? "bg-primary/15 text-primary"
-                          : "bg-white/[0.06] text-muted-foreground",
+                          : "bg-muted dark:bg-white/[0.06] text-muted-foreground",
                       )}
                     >
                       {t.role === "agent" ? (

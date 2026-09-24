@@ -78,8 +78,8 @@ export function CallInspectorPanel({
   ];
 
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-black/30">
-      <div className="flex items-center gap-1 border-b border-white/[0.06] px-2 py-1.5">
+    <div className="rounded-lg border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-black/30">
+      <div className="flex items-center gap-1 border-b border-border dark:border-white/[0.06] px-2 py-1.5">
         {tabs.map((t) => (
           <button
             key={t.id}
@@ -88,7 +88,7 @@ export function CallInspectorPanel({
             className={cn(
               "rounded px-2 py-1 text-[11px] font-medium transition-colors",
               tab === t.id
-                ? "bg-white/[0.08] text-foreground"
+                ? "bg-muted dark:bg-white/[0.08] text-foreground"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
@@ -161,7 +161,7 @@ export function CallInspectorPanel({
               </thead>
               <tbody>
                 {tools.map((t, i) => (
-                  <tr key={String(t.tool_call_id ?? i)} className="border-t border-white/[0.04]">
+                  <tr key={String(t.tool_call_id ?? i)} className="border-t border-border dark:border-white/[0.04]">
                     <td className="py-1 pr-3 tabular-nums text-muted-foreground">
                       {fmtOffset(t.start_time_sec)}
                     </td>
