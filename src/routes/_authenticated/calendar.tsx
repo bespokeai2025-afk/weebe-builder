@@ -20,7 +20,13 @@ import {
   Bot,
   PenLine,
   Phone,
+  Sparkles,
 } from "lucide-react";
+import {
+  LeadAiAssistantPanel,
+  type AssistantTarget,
+} from "@/components/leads/LeadAiAssistantPanel";
+import { useSalesAssistantAccess } from "@/hooks/useSalesAssistantAccess";
 import { useMemo, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -93,13 +99,15 @@ function bookingStyle(b: UnifiedBooking, agentColorMap: Map<string, WbahAgentSty
 
 // ── Booking detail dialog ─────────────────────────────────────────────────────
 function BookingDetailDialog({
-  booking, open, onOpenChange, onNotesSaved, onCancelled,
+  booking, open, onOpenChange, onNotesSaved, onCancelled, onOpenAssistant,
 }: {
   booking: UnifiedBooking | null;
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onNotesSaved: (id: string, notes: string) => void;
   onCancelled: (id: string) => void;
+  /** Null when the booking has no linked lead, or the assistant is not available here. */
+  onOpenAssistant: ((booking: UnifiedBooking) => void) | null;
 }) {
   const getDetailFn  = useServerFn(getBookingDetail);
   const updateNotesFn = useServerFn(updateBookingNotes);
@@ -166,6 +174,17 @@ function BookingDetailDialog({
         <DialogHeader className="border-b border-white/[0.06] px-6 py-4">
           <DialogTitle className="text-base font-semibold leading-snug pr-6">{booking.title}</DialogTitle>
           <DialogDescription className="sr-only">Booking details for {booking.title}</DialogDescription>
+          {onOpenAssistant && booking.lead_id && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="mt-2 h-7 w-fit gap-1.5 text-[11px]"
+              onClick={() => onOpenAssistant(booking)}
+            >
+              <Sparkles className="h-3 w-3 text-primary" />
+              AI Sales Assistant
+            </Button>
+          )}
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto divide-y divide-white/[0.05]">
@@ -384,6 +403,8 @@ function CalendarPage() {
   const [selected, setSelected] = useState(() => new Date());
   const [detailBooking, setDetailBooking] = useState<UnifiedBooking | null>(null);
   const [detailOpen,    setDetailOpen]    = useState(false);
+  const [assistantTarget, setAssistantTarget] = useState<AssistantTarget | null>(null);
+  const canUseAssistant = useSalesAssistantAccess();
 
   const now      = Date.now();
   const upcoming = bookings.filter((b) => new Date(b.start_at).getTime() > now && b.status !== "cancelled");
@@ -645,6 +666,23 @@ function CalendarPage() {
       <BookingDetailDialog
         booking={detailBooking} open={detailOpen} onOpenChange={setDetailOpen}
         onNotesSaved={handleNotesSaved} onCancelled={handleCancelled}
+        onOpenAssistant={
+          canUseAssistant
+            ? (b) =>
+                setAssistantTarget({
+                  id: String(b.lead_id),
+                  source: "lead",
+                  name: b.attendee_name,
+                  // The booking carries no company of its own; the title is
+                  // "… — Name (Company)", so take what is in the brackets.
+                  company: /\(([^)]+)\)\s*$/.exec(b.title ?? "")?.[1] ?? null,
+                })
+            : null
+        }
+      />
+      <LeadAiAssistantPanel
+        target={assistantTarget}
+        onOpenChange={(o) => !o && setAssistantTarget(null)}
       />
       </>
       )}

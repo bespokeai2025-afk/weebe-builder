@@ -25,8 +25,18 @@ export type ManualLeadPayload = {
   source: string;
 };
 
-/** Source recorded on a hand-typed lead; matches what upsertLead reports to notifications. */
-export const MANUAL_LEAD_SOURCE = "Manual entry";
+/**
+ * Source recorded on a hand-typed lead.
+ *
+ * Must be a member of the `lead_source` Postgres enum, not a display string. This was
+ * "Manual entry", which made every Add Lead submission fail with
+ * `invalid input value for enum lead_source`. Use MANUAL_LEAD_SOURCE_LABEL for anything shown to
+ * a person.
+ */
+export const MANUAL_LEAD_SOURCE = "manual";
+
+/** How the manual source is written out for people, e.g. in the new-lead notification. */
+export const MANUAL_LEAD_SOURCE_LABEL = "Manual entry";
 
 function orNull(value: string | undefined): string | null {
   const t = (value ?? "").trim();

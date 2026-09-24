@@ -29,6 +29,7 @@ import { Route as AuthenticatedAccountsmindRouteImport } from './routes/_authent
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAgentHealthRouteImport } from './routes/_authenticated/agent-health'
 import { Route as AuthenticatedAnalyticsRouteImport } from './routes/_authenticated/analytics'
+import { Route as AuthenticatedAutoDialerRouteImport } from './routes/_authenticated/auto-dialer'
 import { Route as AuthenticatedBillingRouteImport } from './routes/_authenticated/billing'
 import { Route as AuthenticatedBuilderRouteImport } from './routes/_authenticated/builder'
 import { Route as AuthenticatedCalendarRouteImport } from './routes/_authenticated/calendar'
@@ -328,6 +329,9 @@ import { Route as ApiPublicRetellPabauCheckAvailabilityRouteImport } from './rou
 import { Route as ApiPublicRetellPabauFindOrCreateClientRouteImport } from './routes/api/public/retell/pabau/find-or-create-client'
 import { Route as ApiPublicRetellPabauListLocationsRouteImport } from './routes/api/public/retell/pabau/list-locations'
 import { Route as ApiPublicRetellPabauListServicesRouteImport } from './routes/api/public/retell/pabau/list-services'
+import { Route as ApiPublicTelephonyDialerConnectTargetIdRouteImport } from './routes/api/public/telephony/dialer-connect.$targetId'
+import { Route as ApiPublicTelephonyDialerLeadStatusTargetIdRouteImport } from './routes/api/public/telephony/dialer-lead-status.$targetId'
+import { Route as ApiPublicTelephonyDialerResultTargetIdRouteImport } from './routes/api/public/telephony/dialer-result.$targetId'
 import { Route as ApiPublicTelephonyInboundHealthRouteImport } from './routes/api/public/telephony/inbound.health'
 import { Route as ApiPublicTelephonyStatusHealthRouteImport } from './routes/api/public/telephony/status.health'
 import { Route as ApiRuntimeAgentIdExportRouteImport } from './routes/api/runtime/agent.$id.export'
@@ -335,6 +339,7 @@ import { Route as ApiV1MindsConversationsIdRouteImport } from './routes/api/v1/m
 import { Route as ApiV1MindsTasksIdRouteImport } from './routes/api/v1/minds.tasks.$id'
 import { Route as ApiV1MindsToolsExecuteRouteImport } from './routes/api/v1/minds.tools.execute'
 import { Route as ApiV1WhatsappConversationsMarkReadRouteImport } from './routes/api/v1/whatsapp.conversations.mark-read'
+import { Route as ApiPublicTelephonyDialerLegAnsweredTargetIdRouteRouteImport } from './routes/api/public/telephony/dialer-leg-answered.$targetId.$route'
 import { Route as ApiPublicV1SitesSiteKeyCategoriesRouteImport } from './routes/api/public/v1/sites.$siteKey.categories'
 import { Route as ApiPublicV1SitesSiteKeyFeedRouteImport } from './routes/api/public/v1/sites.$siteKey.feed'
 import { Route as ApiPublicV1SitesSiteKeyPostsRouteImport } from './routes/api/public/v1/sites.$siteKey.posts'
@@ -444,6 +449,11 @@ const AuthenticatedAgentHealthRoute =
 const AuthenticatedAnalyticsRoute = AuthenticatedAnalyticsRouteImport.update({
   id: '/analytics',
   path: '/analytics',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedAutoDialerRoute = AuthenticatedAutoDialerRouteImport.update({
+  id: '/auto-dialer',
+  path: '/auto-dialer',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedBillingRoute = AuthenticatedBillingRouteImport.update({
@@ -2149,6 +2159,24 @@ const ApiPublicRetellPabauListServicesRoute =
     path: '/api/public/retell/pabau/list-services',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicTelephonyDialerConnectTargetIdRoute =
+  ApiPublicTelephonyDialerConnectTargetIdRouteImport.update({
+    id: '/api/public/telephony/dialer-connect/$targetId',
+    path: '/api/public/telephony/dialer-connect/$targetId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicTelephonyDialerLeadStatusTargetIdRoute =
+  ApiPublicTelephonyDialerLeadStatusTargetIdRouteImport.update({
+    id: '/api/public/telephony/dialer-lead-status/$targetId',
+    path: '/api/public/telephony/dialer-lead-status/$targetId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicTelephonyDialerResultTargetIdRoute =
+  ApiPublicTelephonyDialerResultTargetIdRouteImport.update({
+    id: '/api/public/telephony/dialer-result/$targetId',
+    path: '/api/public/telephony/dialer-result/$targetId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicTelephonyInboundHealthRoute =
   ApiPublicTelephonyInboundHealthRouteImport.update({
     id: '/health',
@@ -2187,6 +2215,12 @@ const ApiV1WhatsappConversationsMarkReadRoute =
     id: '/mark-read',
     path: '/mark-read',
     getParentRoute: () => ApiV1WhatsappConversationsRoute,
+  } as any)
+const ApiPublicTelephonyDialerLegAnsweredTargetIdRouteRoute =
+  ApiPublicTelephonyDialerLegAnsweredTargetIdRouteRouteImport.update({
+    id: '/api/public/telephony/dialer-leg-answered/$targetId/$route',
+    path: '/api/public/telephony/dialer-leg-answered/$targetId/$route',
+    getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicV1SitesSiteKeyCategoriesRoute =
   ApiPublicV1SitesSiteKeyCategoriesRouteImport.update({
@@ -2263,6 +2297,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/agent-health': typeof AuthenticatedAgentHealthRoute
   '/analytics': typeof AuthenticatedAnalyticsRoute
+  '/auto-dialer': typeof AuthenticatedAutoDialerRoute
   '/billing': typeof AuthenticatedBillingRouteWithChildren
   '/builder': typeof AuthenticatedBuilderRoute
   '/calendar': typeof AuthenticatedCalendarRoute
@@ -2561,6 +2596,9 @@ export interface FileRoutesByFullPath {
   '/api/public/retell/pabau/find-or-create-client': typeof ApiPublicRetellPabauFindOrCreateClientRoute
   '/api/public/retell/pabau/list-locations': typeof ApiPublicRetellPabauListLocationsRoute
   '/api/public/retell/pabau/list-services': typeof ApiPublicRetellPabauListServicesRoute
+  '/api/public/telephony/dialer-connect/$targetId': typeof ApiPublicTelephonyDialerConnectTargetIdRoute
+  '/api/public/telephony/dialer-lead-status/$targetId': typeof ApiPublicTelephonyDialerLeadStatusTargetIdRoute
+  '/api/public/telephony/dialer-result/$targetId': typeof ApiPublicTelephonyDialerResultTargetIdRoute
   '/api/public/telephony/inbound/health': typeof ApiPublicTelephonyInboundHealthRoute
   '/api/public/telephony/status/health': typeof ApiPublicTelephonyStatusHealthRoute
   '/api/runtime/agent/$id/export': typeof ApiRuntimeAgentIdExportRoute
@@ -2569,6 +2607,7 @@ export interface FileRoutesByFullPath {
   '/api/v1/minds/tools/execute': typeof ApiV1MindsToolsExecuteRoute
   '/api/v1/whatsapp/conversations/mark-read': typeof ApiV1WhatsappConversationsMarkReadRoute
   '/admin/accounts/clients/': typeof AuthenticatedAdminAccountsClientsIndexRoute
+  '/api/public/telephony/dialer-leg-answered/$targetId/$route': typeof ApiPublicTelephonyDialerLegAnsweredTargetIdRouteRoute
   '/api/public/v1/sites/$siteKey/categories': typeof ApiPublicV1SitesSiteKeyCategoriesRoute
   '/api/public/v1/sites/$siteKey/feed': typeof ApiPublicV1SitesSiteKeyFeedRoute
   '/api/public/v1/sites/$siteKey/posts': typeof ApiPublicV1SitesSiteKeyPostsRouteWithChildren
@@ -2598,6 +2637,7 @@ export interface FileRoutesByTo {
   '/accountsmind': typeof AuthenticatedAccountsmindRoute
   '/agent-health': typeof AuthenticatedAgentHealthRoute
   '/analytics': typeof AuthenticatedAnalyticsRoute
+  '/auto-dialer': typeof AuthenticatedAutoDialerRoute
   '/billing': typeof AuthenticatedBillingRouteWithChildren
   '/builder': typeof AuthenticatedBuilderRoute
   '/calendar': typeof AuthenticatedCalendarRoute
@@ -2887,6 +2927,9 @@ export interface FileRoutesByTo {
   '/api/public/retell/pabau/find-or-create-client': typeof ApiPublicRetellPabauFindOrCreateClientRoute
   '/api/public/retell/pabau/list-locations': typeof ApiPublicRetellPabauListLocationsRoute
   '/api/public/retell/pabau/list-services': typeof ApiPublicRetellPabauListServicesRoute
+  '/api/public/telephony/dialer-connect/$targetId': typeof ApiPublicTelephonyDialerConnectTargetIdRoute
+  '/api/public/telephony/dialer-lead-status/$targetId': typeof ApiPublicTelephonyDialerLeadStatusTargetIdRoute
+  '/api/public/telephony/dialer-result/$targetId': typeof ApiPublicTelephonyDialerResultTargetIdRoute
   '/api/public/telephony/inbound/health': typeof ApiPublicTelephonyInboundHealthRoute
   '/api/public/telephony/status/health': typeof ApiPublicTelephonyStatusHealthRoute
   '/api/runtime/agent/$id/export': typeof ApiRuntimeAgentIdExportRoute
@@ -2895,6 +2938,7 @@ export interface FileRoutesByTo {
   '/api/v1/minds/tools/execute': typeof ApiV1MindsToolsExecuteRoute
   '/api/v1/whatsapp/conversations/mark-read': typeof ApiV1WhatsappConversationsMarkReadRoute
   '/admin/accounts/clients': typeof AuthenticatedAdminAccountsClientsIndexRoute
+  '/api/public/telephony/dialer-leg-answered/$targetId/$route': typeof ApiPublicTelephonyDialerLegAnsweredTargetIdRouteRoute
   '/api/public/v1/sites/$siteKey/categories': typeof ApiPublicV1SitesSiteKeyCategoriesRoute
   '/api/public/v1/sites/$siteKey/feed': typeof ApiPublicV1SitesSiteKeyFeedRoute
   '/api/public/v1/sites/$siteKey/posts': typeof ApiPublicV1SitesSiteKeyPostsRouteWithChildren
@@ -2927,6 +2971,7 @@ export interface FileRoutesById {
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/agent-health': typeof AuthenticatedAgentHealthRoute
   '/_authenticated/analytics': typeof AuthenticatedAnalyticsRoute
+  '/_authenticated/auto-dialer': typeof AuthenticatedAutoDialerRoute
   '/_authenticated/billing': typeof AuthenticatedBillingRouteWithChildren
   '/_authenticated/builder': typeof AuthenticatedBuilderRoute
   '/_authenticated/calendar': typeof AuthenticatedCalendarRoute
@@ -3225,6 +3270,9 @@ export interface FileRoutesById {
   '/api/public/retell/pabau/find-or-create-client': typeof ApiPublicRetellPabauFindOrCreateClientRoute
   '/api/public/retell/pabau/list-locations': typeof ApiPublicRetellPabauListLocationsRoute
   '/api/public/retell/pabau/list-services': typeof ApiPublicRetellPabauListServicesRoute
+  '/api/public/telephony/dialer-connect/$targetId': typeof ApiPublicTelephonyDialerConnectTargetIdRoute
+  '/api/public/telephony/dialer-lead-status/$targetId': typeof ApiPublicTelephonyDialerLeadStatusTargetIdRoute
+  '/api/public/telephony/dialer-result/$targetId': typeof ApiPublicTelephonyDialerResultTargetIdRoute
   '/api/public/telephony/inbound/health': typeof ApiPublicTelephonyInboundHealthRoute
   '/api/public/telephony/status/health': typeof ApiPublicTelephonyStatusHealthRoute
   '/api/runtime/agent/$id/export': typeof ApiRuntimeAgentIdExportRoute
@@ -3233,6 +3281,7 @@ export interface FileRoutesById {
   '/api/v1/minds/tools/execute': typeof ApiV1MindsToolsExecuteRoute
   '/api/v1/whatsapp/conversations/mark-read': typeof ApiV1WhatsappConversationsMarkReadRoute
   '/_authenticated/admin/accounts/clients/': typeof AuthenticatedAdminAccountsClientsIndexRoute
+  '/api/public/telephony/dialer-leg-answered/$targetId/$route': typeof ApiPublicTelephonyDialerLegAnsweredTargetIdRouteRoute
   '/api/public/v1/sites/$siteKey/categories': typeof ApiPublicV1SitesSiteKeyCategoriesRoute
   '/api/public/v1/sites/$siteKey/feed': typeof ApiPublicV1SitesSiteKeyFeedRoute
   '/api/public/v1/sites/$siteKey/posts': typeof ApiPublicV1SitesSiteKeyPostsRouteWithChildren
@@ -3265,6 +3314,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/agent-health'
     | '/analytics'
+    | '/auto-dialer'
     | '/billing'
     | '/builder'
     | '/calendar'
@@ -3563,6 +3613,9 @@ export interface FileRouteTypes {
     | '/api/public/retell/pabau/find-or-create-client'
     | '/api/public/retell/pabau/list-locations'
     | '/api/public/retell/pabau/list-services'
+    | '/api/public/telephony/dialer-connect/$targetId'
+    | '/api/public/telephony/dialer-lead-status/$targetId'
+    | '/api/public/telephony/dialer-result/$targetId'
     | '/api/public/telephony/inbound/health'
     | '/api/public/telephony/status/health'
     | '/api/runtime/agent/$id/export'
@@ -3571,6 +3624,7 @@ export interface FileRouteTypes {
     | '/api/v1/minds/tools/execute'
     | '/api/v1/whatsapp/conversations/mark-read'
     | '/admin/accounts/clients/'
+    | '/api/public/telephony/dialer-leg-answered/$targetId/$route'
     | '/api/public/v1/sites/$siteKey/categories'
     | '/api/public/v1/sites/$siteKey/feed'
     | '/api/public/v1/sites/$siteKey/posts'
@@ -3600,6 +3654,7 @@ export interface FileRouteTypes {
     | '/accountsmind'
     | '/agent-health'
     | '/analytics'
+    | '/auto-dialer'
     | '/billing'
     | '/builder'
     | '/calendar'
@@ -3889,6 +3944,9 @@ export interface FileRouteTypes {
     | '/api/public/retell/pabau/find-or-create-client'
     | '/api/public/retell/pabau/list-locations'
     | '/api/public/retell/pabau/list-services'
+    | '/api/public/telephony/dialer-connect/$targetId'
+    | '/api/public/telephony/dialer-lead-status/$targetId'
+    | '/api/public/telephony/dialer-result/$targetId'
     | '/api/public/telephony/inbound/health'
     | '/api/public/telephony/status/health'
     | '/api/runtime/agent/$id/export'
@@ -3897,6 +3955,7 @@ export interface FileRouteTypes {
     | '/api/v1/minds/tools/execute'
     | '/api/v1/whatsapp/conversations/mark-read'
     | '/admin/accounts/clients'
+    | '/api/public/telephony/dialer-leg-answered/$targetId/$route'
     | '/api/public/v1/sites/$siteKey/categories'
     | '/api/public/v1/sites/$siteKey/feed'
     | '/api/public/v1/sites/$siteKey/posts'
@@ -3928,6 +3987,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin'
     | '/_authenticated/agent-health'
     | '/_authenticated/analytics'
+    | '/_authenticated/auto-dialer'
     | '/_authenticated/billing'
     | '/_authenticated/builder'
     | '/_authenticated/calendar'
@@ -4226,6 +4286,9 @@ export interface FileRouteTypes {
     | '/api/public/retell/pabau/find-or-create-client'
     | '/api/public/retell/pabau/list-locations'
     | '/api/public/retell/pabau/list-services'
+    | '/api/public/telephony/dialer-connect/$targetId'
+    | '/api/public/telephony/dialer-lead-status/$targetId'
+    | '/api/public/telephony/dialer-result/$targetId'
     | '/api/public/telephony/inbound/health'
     | '/api/public/telephony/status/health'
     | '/api/runtime/agent/$id/export'
@@ -4234,6 +4297,7 @@ export interface FileRouteTypes {
     | '/api/v1/minds/tools/execute'
     | '/api/v1/whatsapp/conversations/mark-read'
     | '/_authenticated/admin/accounts/clients/'
+    | '/api/public/telephony/dialer-leg-answered/$targetId/$route'
     | '/api/public/v1/sites/$siteKey/categories'
     | '/api/public/v1/sites/$siteKey/feed'
     | '/api/public/v1/sites/$siteKey/posts'
@@ -4373,6 +4437,10 @@ export interface RootRouteChildren {
   ApiPublicRetellPabauFindOrCreateClientRoute: typeof ApiPublicRetellPabauFindOrCreateClientRoute
   ApiPublicRetellPabauListLocationsRoute: typeof ApiPublicRetellPabauListLocationsRoute
   ApiPublicRetellPabauListServicesRoute: typeof ApiPublicRetellPabauListServicesRoute
+  ApiPublicTelephonyDialerConnectTargetIdRoute: typeof ApiPublicTelephonyDialerConnectTargetIdRoute
+  ApiPublicTelephonyDialerLeadStatusTargetIdRoute: typeof ApiPublicTelephonyDialerLeadStatusTargetIdRoute
+  ApiPublicTelephonyDialerResultTargetIdRoute: typeof ApiPublicTelephonyDialerResultTargetIdRoute
+  ApiPublicTelephonyDialerLegAnsweredTargetIdRouteRoute: typeof ApiPublicTelephonyDialerLegAnsweredTargetIdRouteRoute
   ApiPublicV1SitesSiteKeyCategoriesRoute: typeof ApiPublicV1SitesSiteKeyCategoriesRoute
   ApiPublicV1SitesSiteKeyFeedRoute: typeof ApiPublicV1SitesSiteKeyFeedRoute
   ApiPublicV1SitesSiteKeyPostsRoute: typeof ApiPublicV1SitesSiteKeyPostsRouteWithChildren
@@ -4520,6 +4588,13 @@ declare module '@tanstack/react-router' {
       path: '/analytics'
       fullPath: '/analytics'
       preLoaderRoute: typeof AuthenticatedAnalyticsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/auto-dialer': {
+      id: '/_authenticated/auto-dialer'
+      path: '/auto-dialer'
+      fullPath: '/auto-dialer'
+      preLoaderRoute: typeof AuthenticatedAutoDialerRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/billing': {
@@ -6615,6 +6690,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicRetellPabauListServicesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/telephony/dialer-connect/$targetId': {
+      id: '/api/public/telephony/dialer-connect/$targetId'
+      path: '/api/public/telephony/dialer-connect/$targetId'
+      fullPath: '/api/public/telephony/dialer-connect/$targetId'
+      preLoaderRoute: typeof ApiPublicTelephonyDialerConnectTargetIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/telephony/dialer-lead-status/$targetId': {
+      id: '/api/public/telephony/dialer-lead-status/$targetId'
+      path: '/api/public/telephony/dialer-lead-status/$targetId'
+      fullPath: '/api/public/telephony/dialer-lead-status/$targetId'
+      preLoaderRoute: typeof ApiPublicTelephonyDialerLeadStatusTargetIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/telephony/dialer-result/$targetId': {
+      id: '/api/public/telephony/dialer-result/$targetId'
+      path: '/api/public/telephony/dialer-result/$targetId'
+      fullPath: '/api/public/telephony/dialer-result/$targetId'
+      preLoaderRoute: typeof ApiPublicTelephonyDialerResultTargetIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/telephony/inbound/health': {
       id: '/api/public/telephony/inbound/health'
       path: '/health'
@@ -6663,6 +6759,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/v1/whatsapp/conversations/mark-read'
       preLoaderRoute: typeof ApiV1WhatsappConversationsMarkReadRouteImport
       parentRoute: typeof ApiV1WhatsappConversationsRoute
+    }
+    '/api/public/telephony/dialer-leg-answered/$targetId/$route': {
+      id: '/api/public/telephony/dialer-leg-answered/$targetId/$route'
+      path: '/api/public/telephony/dialer-leg-answered/$targetId/$route'
+      fullPath: '/api/public/telephony/dialer-leg-answered/$targetId/$route'
+      preLoaderRoute: typeof ApiPublicTelephonyDialerLegAnsweredTargetIdRouteRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/public/v1/sites/$siteKey/categories': {
       id: '/api/public/v1/sites/$siteKey/categories'
@@ -7232,6 +7335,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
   AuthenticatedAgentHealthRoute: typeof AuthenticatedAgentHealthRoute
   AuthenticatedAnalyticsRoute: typeof AuthenticatedAnalyticsRoute
+  AuthenticatedAutoDialerRoute: typeof AuthenticatedAutoDialerRoute
   AuthenticatedBillingRoute: typeof AuthenticatedBillingRouteWithChildren
   AuthenticatedBuilderRoute: typeof AuthenticatedBuilderRoute
   AuthenticatedCalendarRoute: typeof AuthenticatedCalendarRoute
@@ -7278,6 +7382,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
   AuthenticatedAgentHealthRoute: AuthenticatedAgentHealthRoute,
   AuthenticatedAnalyticsRoute: AuthenticatedAnalyticsRoute,
+  AuthenticatedAutoDialerRoute: AuthenticatedAutoDialerRoute,
   AuthenticatedBillingRoute: AuthenticatedBillingRouteWithChildren,
   AuthenticatedBuilderRoute: AuthenticatedBuilderRoute,
   AuthenticatedCalendarRoute: AuthenticatedCalendarRoute,
@@ -7735,6 +7840,14 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicRetellPabauListLocationsRoute:
     ApiPublicRetellPabauListLocationsRoute,
   ApiPublicRetellPabauListServicesRoute: ApiPublicRetellPabauListServicesRoute,
+  ApiPublicTelephonyDialerConnectTargetIdRoute:
+    ApiPublicTelephonyDialerConnectTargetIdRoute,
+  ApiPublicTelephonyDialerLeadStatusTargetIdRoute:
+    ApiPublicTelephonyDialerLeadStatusTargetIdRoute,
+  ApiPublicTelephonyDialerResultTargetIdRoute:
+    ApiPublicTelephonyDialerResultTargetIdRoute,
+  ApiPublicTelephonyDialerLegAnsweredTargetIdRouteRoute:
+    ApiPublicTelephonyDialerLegAnsweredTargetIdRouteRoute,
   ApiPublicV1SitesSiteKeyCategoriesRoute:
     ApiPublicV1SitesSiteKeyCategoriesRoute,
   ApiPublicV1SitesSiteKeyFeedRoute: ApiPublicV1SitesSiteKeyFeedRoute,

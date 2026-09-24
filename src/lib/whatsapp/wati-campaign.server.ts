@@ -743,16 +743,24 @@ export async function resolveCampaignAudienceLeads(
       .eq("workspace_id", workspaceId)
       .eq("do_not_contact", true)
       .limit(10000);
+    // Keyed on the identity tail as well as the exact digits: the same person is stored as
+    // "555501966", "0555501966" and "971555501966", so an exact-only match left two of the three
+    // formats sendable and an opt-out recorded against one of them protected nothing.
+    const dncKeys = new Set<string>();
     if (!dncErr) {
       for (const row of (dncRows ?? []) as Array<{ phone: string }>) {
         const p = normalizeWhatsAppPhone(row.phone);
         if (p) dncSet.add(p);
+        const k = phoneMatchKey(row.phone);
+        if (k) dncKeys.add(k);
       }
     }
     rows = rows.filter((lead) => {
       const phone = normalizeWhatsAppPhone(String(lead.phone ?? ""));
       if (!phone) return false;
       if (dncSet.has(phone)) return false;
+      const leadKey = phoneMatchKey(lead.phone as string);
+      if (leadKey && dncKeys.has(leadKey)) return false;
       if (String(lead.status ?? "") === "do_not_call") return false;
       if (lead.whatsapp_opt_in === false && !f.lead_ids?.length) return false;
       return true;
@@ -962,7 +970,11 @@ export function watiMediaMimeFromPath(path: string | null): string | null {
  * Nothing could then be opened or downloaded. Hence the explicit typeof checks below: a string
  * `data` is the path, and only a real object is read for fields.
  */
-function parseWatiMediaFields(payload: Record<string, unknown>): {
+/**
+ * Media fields for a WATI message. Exported because the inbox sync needs the same parsing as the
+ * webhook — without it, an image that arrived via sync was stored with no attachment, or dropped.
+ */
+export function parseWatiMediaFields(payload: Record<string, unknown>): {
   media_url: string | null;
   media_mime_type: string | null;
   media_filename: string | null;

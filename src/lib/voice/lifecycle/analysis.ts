@@ -81,32 +81,54 @@ export async function analyzeCall(input: AnalyzeCallInput): Promise<RetellCallAn
     return heuristicAnalysis(transcript, voicemailHeuristic);
   }
 
+  const model = input.model || DEFAULT_ANALYSIS_MODEL;
+  const schema = input.schema ?? [];
+
   try {
-    const raw = await gptComplete(
-      [
-        { role: "system", content: SYSTEM_PROMPT },
+    // Built-ins and custom fields run separately and concurrently.
+    //
+    // They used to share ONE call with one JSON reply capped at 900 tokens. Custom fields are
+    // often full extraction prompts in their own right — a nested "structured JSON output", a
+    // multi-tag sentiment classifier — written for Retell, which evaluates each field on its own.
+    // Crammed together they competed for the budget, their instructions interfered, and fields
+    // named like the built-ins (call_summary, user_sentiment) were left null because the model had
+    // "already answered" them at the top level. On a real 16-turn call, 9 of 10 fields came back
+    // empty, including an email the caller had spoken.
+    const [builtInsRaw, custom] = await Promise.all([
+      gptComplete(
+        [
+          { role: "system", content: SYSTEM_PROMPT },
+          {
+            role: "user",
+            content: buildUserPrompt({
+              transcript,
+              agentName: input.agentName,
+              successCriteria: input.successCriteria,
+              schema: [],
+              durationSeconds: input.durationSeconds,
+              disconnectionReason: input.disconnectionReason,
+            }),
+          },
+        ],
         {
-          role: "user",
-          content: buildUserPrompt({
-            transcript,
-            agentName: input.agentName,
-            successCriteria: input.successCriteria,
-            schema: input.schema ?? [],
-            durationSeconds: input.durationSeconds,
-            disconnectionReason: input.disconnectionReason,
-          }),
+          model,
+          apiKey,
+          temperature: 0,
+          maxTokens: 900,
+          responseFormat: "json_object",
+          signal: input.signal,
         },
-      ],
-      {
-        model: input.model || DEFAULT_ANALYSIS_MODEL,
+      ),
+      extractCustomFields(transcript, schema, {
+        model,
         apiKey,
-        temperature: 0,
-        maxTokens: 900,
-        responseFormat: "json_object",
+        agentName: input.agentName,
         signal: input.signal,
-      },
-    );
-    return normalizeAnalysis(raw, input.schema ?? [], voicemailHeuristic);
+      }),
+    ]);
+    const analysis = normalizeAnalysis(builtInsRaw, [], voicemailHeuristic);
+    analysis.custom_analysis_data = coerceCustomData(custom, schema);
+    return analysis;
   } catch (err) {
     console.warn(
       "[voice-analysis] analysis pass failed, falling back to heuristics:",
@@ -114,6 +136,99 @@ export async function analyzeCall(input: AnalyzeCallInput): Promise<RetellCallAn
     );
     return heuristicAnalysis(transcript, voicemailHeuristic);
   }
+}
+
+const FIELD_SYSTEM_PROMPT = [
+  "You extract exactly ONE field from a completed phone call transcript between an AI agent and a caller.",
+  "Follow the field's instructions exactly — they may ask for a date, a label, a summary or a JSON object.",
+  'Reply with a single JSON object of the form {"value": ...} and nothing else.',
+  "If the instructions ask for a JSON object, put that object in value.",
+  "Use null for value when the transcript does not establish it. Never invent facts that are not in the transcript.",
+  'Speech-to-text may have mangled spoken details ("jane gmail.com" for jane@gmail.com); recover them when the meaning is clear.',
+].join(" ");
+
+/** How many field extractions run at once — enough to finish fast, few enough to avoid rate limits. */
+const FIELD_CONCURRENCY = 4;
+
+async function mapPool<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i]!);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+/**
+ * Extract each custom post-call field with its own call, the way Retell evaluates them.
+ *
+ * One field failing leaves that field null; it never blanks the rest.
+ */
+export async function extractCustomFields(
+  transcript: string,
+  schema: readonly AnalysisField[],
+  opts: { model: string; apiKey: string; agentName?: string | null; signal?: AbortSignal },
+): Promise<Record<string, unknown>> {
+  const fields = schema.filter((f) => f.name);
+  if (fields.length === 0) return {};
+
+  const values = await mapPool(fields, FIELD_CONCURRENCY, async (field) => {
+    const spec = [
+      `Field name: ${field.name}`,
+      `Type: ${field.type ?? "string"}`,
+      field.choices?.length ? `Allowed values: ${field.choices.join(", ")}` : "",
+      field.description ? `Instructions:\n${field.description}` : "",
+      field.examples?.length ? `Example value: ${field.examples[0]}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+    try {
+      const raw = await gptComplete(
+        [
+          { role: "system", content: FIELD_SYSTEM_PROMPT },
+          {
+            role: "user",
+            content: `${opts.agentName ? `Agent: ${opts.agentName}\n\n` : ""}Transcript:\n${transcript}\n\n${spec}`,
+          },
+        ],
+        {
+          model: opts.model,
+          apiKey: opts.apiKey,
+          temperature: 0,
+          // A field may itself be a structured JSON summary, so it gets real room.
+          maxTokens: 1200,
+          responseFormat: "json_object",
+          signal: opts.signal,
+        },
+      );
+      const parsed = JSON.parse(extractJsonObject(raw)) as Record<string, unknown>;
+      // A field whose own instructions say "produce a JSON object" often returns that object
+      // directly rather than inside {"value": …}. Treat it as the value instead of dropping it.
+      const value =
+        parsed && typeof parsed === "object" && "value" in parsed
+          ? parsed.value
+          : parsed && typeof parsed === "object" && Object.keys(parsed).length > 0
+            ? parsed
+            : null;
+      return [field.name, value ?? null] as const;
+    } catch (err) {
+      console.warn(
+        `[voice-analysis] field "${field.name}" extraction failed:`,
+        err instanceof Error ? err.message : err,
+      );
+      return [field.name, null] as const;
+    }
+  });
+
+  return Object.fromEntries(values);
 }
 
 /**
@@ -231,7 +346,11 @@ export function normalizeAnalysis(
 
 /** Pull the outermost `{...}` out of a reply that wrapped it in prose or fences. */
 function extractJsonObject(raw: string): string {
-  const trimmed = raw.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+  const trimmed = raw
+    .trim()
+    .replace(/^```(?:json)?/i, "")
+    .replace(/```$/, "")
+    .trim();
   if (trimmed.startsWith("{")) return trimmed;
   const start = trimmed.indexOf("{");
   const end = trimmed.lastIndexOf("}");
@@ -267,6 +386,14 @@ function normalizeSentiment(value: unknown): string {
  * Unrequested keys are dropped so booking and CRM mappers, which look up fields
  * by name, cannot be fed a hallucinated `appointment_date`.
  */
+/** "null", "none", "n/a", "unknown" and friends — an answer that means "not found". */
+export function isNullWord(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  return /^(null|none|n\/a|na|nil|undefined|unknown|not (found|provided|mentioned|available|stated)|-+)\.?$/i.test(
+    value.trim(),
+  );
+}
+
 function coerceCustomData(
   custom: Record<string, unknown>,
   schema: readonly AnalysisField[],
@@ -276,13 +403,16 @@ function coerceCustomData(
   for (const field of schema) {
     if (!field.name) continue;
     const value = custom[field.name];
-    if (value == null || value === "") {
+    // The model sometimes writes the WORD instead of JSON null — stored as-is, a field showed the
+    // literal text "null" on the call as though it had been extracted.
+    if (value == null || value === "" || isNullWord(value)) {
       out[field.name] = null;
       continue;
     }
     switch (field.type) {
       case "number": {
-        const num = typeof value === "number" ? value : Number(String(value).replace(/[^0-9.-]/g, ""));
+        const num =
+          typeof value === "number" ? value : Number(String(value).replace(/[^0-9.-]/g, ""));
         out[field.name] = Number.isFinite(num) ? num : null;
         break;
       }

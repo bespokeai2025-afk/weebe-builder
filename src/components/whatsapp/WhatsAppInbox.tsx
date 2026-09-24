@@ -191,7 +191,10 @@ export function WhatsAppInbox() {
       // Reply-oriented queues must be narrowed in the query, not after it: the
       // page is capped at 60 conversations and a campaign blast fills it with
       // outbound-only threads, burying real replies past the cut.
-      repliedOnly: queueFilter === "working" || queueFilter === "needs_reply" ? true : undefined,
+      repliedOnly:
+        queueFilter === "working" || queueFilter === "needs_reply" || queueFilter === "all"
+          ? true
+          : undefined,
       campaignId: campaignFilter === CAMPAIGN_ALL ? undefined : campaignFilter,
       area: areaFilter === AREA_ALL ? undefined : areaFilter,
       inboxScope: inboxScope === "all" ? undefined : inboxScope,

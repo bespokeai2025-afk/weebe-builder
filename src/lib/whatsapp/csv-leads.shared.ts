@@ -152,6 +152,20 @@ const JVC_CONTEXT_NOTE_KEYS = new Set([
   "masterlocation",
   "masterproject",
   "unitnumber",
+  // A plain "Unit" header is how owner exports usually label it (e.g. "R3 Bliss 2-V-1"). Only
+  // "unitnumber" was recognised, so that column was dropped on import and there was nothing to map
+  // a template's {{property_name}} slot to.
+  "unit",
+  "unitno",
+  "unitid",
+  "villa",
+  "villano",
+  "villanumber",
+  "plot",
+  "plotno",
+  "plotnumber",
+  "apartment",
+  "apartmentno",
   "propertynumber",
   "completionstatus",
   "propertytype",

@@ -18,6 +18,7 @@ import {
   defaultWatiTemplateParamMapping,
   encodeLiteralTemplateField,
   extractWatiTemplateParamSlots,
+  templateSendsLiteralPlaceholders,
   isLiteralTemplateField,
   literalTemplateFieldText,
   WATI_TEMPLATE_PARAM_FIELD_OPTIONS,
@@ -53,10 +54,11 @@ export function InboxTemplateComposer({
   });
 
   const selected = (watiTemplates as any[]).find((t) => t.name === templateName);
-  const paramSlots = useMemo(
-    () => extractWatiTemplateParamSlots(selected),
-    [selected],
-  );
+  // A template whose body says "[Name]" but declares no variables sends that text
+  // verbatim — WhatsApp only fills declared variables. One reached a customer as
+  // "Hi [Name] 👋" with nothing in the product flagging it.
+  const literalPlaceholders = useMemo(() => templateSendsLiteralPlaceholders(selected), [selected]);
+  const paramSlots = useMemo(() => extractWatiTemplateParamSlots(selected), [selected]);
 
   const send = useMutation({
     mutationFn: () =>
@@ -74,8 +76,7 @@ export function InboxTemplateComposer({
       toast.success("Template sent — the 24-hour window reopens when they reply");
       onSent?.();
     },
-    onError: (e: Error) =>
-      toast.error("Could not send the template", { description: e.message }),
+    onError: (e: Error) => toast.error("Could not send the template", { description: e.message }),
   });
 
   const approved = (watiTemplates as any[]).filter(
@@ -85,8 +86,8 @@ export function InboxTemplateComposer({
   return (
     <div className="space-y-2 rounded-lg border border-border bg-muted/20 px-3 py-2.5">
       <p className="text-xs text-muted-foreground">
-        <span className="font-medium text-warning">24-hour window closed.</span>{" "}
-        Send an approved template to reconnect.
+        <span className="font-medium text-warning">24-hour window closed.</span> Send an approved
+        template to reconnect.
       </p>
       <div className="flex items-center gap-2">
         <Select
@@ -133,11 +134,21 @@ export function InboxTemplateComposer({
           disabled={!templateName || send.isPending}
           onClick={() => send.mutate()}
         >
-          {send.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+          {send.isPending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Send className="h-3.5 w-3.5" />
+          )}
           Send
         </Button>
       </div>
 
+      {literalPlaceholders.length > 0 && (
+        <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-[10px] text-amber-600 dark:text-amber-400">
+          This template has no variables, so {literalPlaceholders.join(", ")} will be sent exactly
+          as written. Add a WhatsApp variable to the template to personalise it.
+        </p>
+      )}
       {paramSlots.map((slot) => {
         const mapped = paramMapping[slot] ?? "";
         const isFixed = isLiteralTemplateField(mapped);

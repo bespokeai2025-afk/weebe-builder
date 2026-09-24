@@ -66,7 +66,12 @@ describe("threadMatchesInboxQueue — unchanged behaviour the fix relies on", ()
     expect(threadMatchesInboxQueue({ ...replied, expired: true }, "working")).toBe(false);
   });
 
-  it("still shows an outbound-only thread under All but not the Inbox", () => {
+  /**
+   * "All" used to mean every conversation, which put a blast's hundreds of outbound-only threads
+   * ahead of the handful of people who actually answered. It now means the whole reply history:
+   * everyone who has ever replied, including threads that are remarked, expired or closed.
+   */
+  it("hides an outbound-only thread from both All and the Inbox", () => {
     const sendOnly = {
       lastDirection: "outbound",
       lastInboundAt: null,
@@ -74,7 +79,14 @@ describe("threadMatchesInboxQueue — unchanged behaviour the fix relies on", ()
       listingOutcome: null,
       expired: false,
     };
-    expect(threadMatchesInboxQueue(sendOnly, "all")).toBe(true);
+    expect(threadMatchesInboxQueue(sendOnly, "all")).toBe(false);
     expect(threadMatchesInboxQueue(sendOnly, "working")).toBe(false);
+  });
+
+  it("keeps a replied thread under All after it leaves the Inbox", () => {
+    const remarked = { ...replied, listingOutcome: "interested" };
+    expect(threadMatchesInboxQueue(remarked, "working")).toBe(false);
+    expect(threadMatchesInboxQueue(remarked, "all")).toBe(true);
+    expect(threadMatchesInboxQueue({ ...replied, status: "solved" }, "all")).toBe(true);
   });
 });

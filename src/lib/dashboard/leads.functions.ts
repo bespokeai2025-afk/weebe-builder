@@ -7,6 +7,10 @@ import { resolveDeploymentMode } from "@/lib/runtime/adapter";
 import { placeNativeOutboundCall } from "@/lib/telephony/native-outbound.server";
 import { cacheWrap, invalidateDashboardCache } from "@/lib/cache/redis.server";
 import { LEAD_STATUS_CATEGORY_MAP } from "@/lib/dashboard/lead-status-categories";
+import {
+  MANUAL_LEAD_SOURCE,
+  MANUAL_LEAD_SOURCE_LABEL,
+} from "@/lib/dashboard/manual-lead.shared";
 
 const OVERVIEW_STATS_TTL = 90; // 90 seconds
 
@@ -512,7 +516,11 @@ export const upsertLead = createServerFn({ method: "POST" })
       await notifyNewLead({
         workspaceId, leadId: row!.id as string,
         name: data.full_name ?? null, phone: data.phone, email: data.email || null,
-        source: data.source ?? "Manual entry",
+        // The stored source is an enum member ("manual"); the notification is read by a person.
+        source:
+          data.source === MANUAL_LEAD_SOURCE || !data.source
+            ? MANUAL_LEAD_SOURCE_LABEL
+            : data.source,
       });
     } catch { /* best-effort */ }
     const { triggerAutoCallForNewLead } = await import("@/lib/qualification/auto-call.server");

@@ -19,7 +19,12 @@ import { loadFlowFromAgent, mergeRuntimeVariables } from "../graph/load";
 import type { ConversationFlow, VariableValue } from "../graph/types";
 import { buildLanguageLockInstruction } from "../language-lock.shared";
 import { resolveCallVoiceId } from "../call-voice-profile.shared";
-import { resolveWebeeClassifierModel, resolveWebeeLlmProvider, resolveWebeeSpeechModel, resolveWebeeStrongClassifierModel } from "../webee-native.shared";
+import {
+  resolveWebeeClassifierModel,
+  resolveWebeeLlmProvider,
+  resolveWebeeSpeechModel,
+  resolveWebeeStrongClassifierModel,
+} from "../webee-native.shared";
 
 export interface GraphRuntime {
   vm: ConversationVm;
@@ -34,6 +39,11 @@ export interface GraphRuntime {
   agent: { id: string; name: string | null; workspaceId: string | null } | null;
   /** Agent settings, so callers can read post-call analysis config. */
   settings: Record<string, unknown>;
+  /**
+   * The agent's `variables` column — the Post-Call Data Retrieval fields as edited in the
+   * builder. Separate from `settings` because that is where the builder saves them.
+   */
+  analysisVariables: unknown;
 }
 
 export interface BuildGraphRuntimeOptions {
@@ -51,10 +61,7 @@ export interface BuildGraphRuntimeOptions {
   sendSms?(message: string, variables: Record<string, VariableValue>): Promise<boolean>;
 }
 
-function applyStartSpeaker(
-  flow: ConversationFlow,
-  speaker?: "agent" | "user",
-): ConversationFlow {
+function applyStartSpeaker(flow: ConversationFlow, speaker?: "agent" | "user"): ConversationFlow {
   if (speaker !== "agent" && speaker !== "user") return flow;
   const startId = String(flow.start_node_id ?? "").trim();
   const nodes = Array.isArray(flow.nodes) ? flow.nodes : [];
@@ -91,6 +98,7 @@ export async function buildGraphRuntime(
   let settings: Record<string, unknown> = isRecord(options.settings) ? options.settings : {};
   let variables: Record<string, VariableValue> = { ...(options.variables ?? {}) };
   let agent: GraphRuntime["agent"] = null;
+  let analysisVariables: unknown = null;
 
   let variableNames: string[] = [];
 
@@ -102,7 +110,7 @@ export async function buildGraphRuntime(
   if (options.agentId && options.supabase) {
     const { data, error } = await options.supabase
       .from("agents")
-      .select("flow_data, settings, name, workspace_id")
+      .select("flow_data, settings, name, workspace_id, variables")
       .eq("id", options.agentId)
       .maybeSingle();
     if (error) {
@@ -116,6 +124,7 @@ export async function buildGraphRuntime(
         name: (data.name as string | null) ?? null,
         workspaceId: (data.workspace_id as string | null) ?? null,
       };
+      analysisVariables = (data as { variables?: unknown }).variables ?? null;
       const stored = isRecord(data.settings) ? (data.settings as Record<string, unknown>) : {};
       // An explicitly passed settings object wins, so a test call can preview
       // unsaved voice or model changes.
@@ -182,7 +191,9 @@ export async function buildGraphRuntime(
   const classifierModel = resolveWebeeClassifierModel(settings);
   const strongClassifierModel = resolveWebeeStrongClassifierModel(settings);
   const llmProvider = resolveWebeeLlmProvider(settings);
-  console.info(`${logPrefix} graph LLM provider=${llmProvider} speech=${configuredModel} classifier=${classifierModel}`);
+  console.info(
+    `${logPrefix} graph LLM provider=${llmProvider} speech=${configuredModel} classifier=${classifierModel}`,
+  );
   let vm!: ConversationVm;
   const llm = createTracedVmLlm(
     createOpenAiVmLlm({
@@ -190,8 +201,7 @@ export async function buildGraphRuntime(
       provider: llmProvider,
       defaultModel: configuredModel,
       classifierModel,
-      temperature:
-        typeof flow.model_temperature === "number" ? flow.model_temperature : undefined,
+      temperature: typeof flow.model_temperature === "number" ? flow.model_temperature : undefined,
     }),
     () => vm.getTurnTrace(),
   );
@@ -230,5 +240,6 @@ export async function buildGraphRuntime(
     warnings,
     agent,
     settings,
+    analysisVariables,
   };
 }

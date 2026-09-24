@@ -200,6 +200,29 @@ export const resetDataRecord = createServerFn({ method: "POST" })
     return { updated };
   });
 
+/**
+ * Soft-delete — sets `is_deleted`, same column `listDataRecords` already filters on, rather than
+ * a hard DELETE. A wrong selection here is common (the toolbar's own "select all" spans the whole
+ * filtered list), and a mistaken delete should be recoverable by support, not gone outright.
+ */
+export const deleteDataRecords = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) => RecordIdsSchema.parse(input))
+  .handler(async ({ context, data }) => {
+    const { supabase } = context;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No active workspace");
+    const sb = supabase as any;
+
+    const { error, count } = await sb
+      .from("data_records")
+      .update({ is_deleted: true }, { count: "exact" })
+      .eq("workspace_id", workspaceId)
+      .in("id", data.recordIds);
+    if (error) throw new Error(error.message);
+    return { deleted: count ?? 0 };
+  });
+
 export const startCallingRecords = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input) =>

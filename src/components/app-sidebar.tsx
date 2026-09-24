@@ -24,6 +24,7 @@ import {
   Megaphone,
   Settings2,
   PhoneIncoming,
+  PhoneOutgoing,
   Kanban,
   Zap,
   FileText,
@@ -530,6 +531,8 @@ export function AppSidebar() {
                   {[
                     { title: "Phone Numbers",    url: "/phone-numbers",      icon: Phone },
                     { title: "Telephony Calls",  url: "/telephony-calls",    icon: PhoneIncoming },
+                    { title: "Auto Dialer",      url: "/auto-dialer",        icon: PhoneOutgoing },
+                    { title: "Campaigns",        url: "/campaigns",          icon: Megaphone },
                     { title: "Telephony Config", url: "/telephony-settings", icon: Settings2 },
                   ].map((item) => {
                     const active = isActive(item.url);

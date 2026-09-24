@@ -55,6 +55,7 @@ import { cn } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { AssignLeadsDialog } from "@/components/leads/AssignLeadsDialog";
+import { QuickDialerCallButton } from "@/components/leads/QuickDialerCallButton";
 import { getMyPermissions } from "@/lib/permissions/team-access.functions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -1650,6 +1651,7 @@ function LeadsPage() {
                           <span className="inline-flex items-center gap-1">
                             {lead.phone}
                             <PreferredContactBadge lead={lead} onEmailClick={setEmailDialogLead} />
+                            <QuickDialerCallButton phone={lead.phone} name={lead.full_name} />
                           </span>
                           {String(
                             lead?.preferred_contact ??

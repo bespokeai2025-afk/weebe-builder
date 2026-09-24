@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo, useEffect, useRef } from "react";
@@ -17,16 +17,19 @@ import {
   Download,
   AlertCircle,
   Phone,
+  PhoneForwarded,
   Play,
   FileText,
   ExternalLink,
   Eye,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 import {
   LeadAiAssistantPanel,
   type AssistantTarget,
 } from "@/components/leads/LeadAiAssistantPanel";
+import { QuickDialerCallButton } from "@/components/leads/QuickDialerCallButton";
 import { useSalesAssistantAccess } from "@/hooks/useSalesAssistantAccess";
 import { WbahCallSchedulingSection } from "@/components/dashboard/WbahCallSchedulingSection";
 import { WbahTestLeadBadge } from "@/components/dashboard/WbahTestLeadBadge";
@@ -73,12 +76,17 @@ import { Badge } from "@/components/ui/badge";
 import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { toast } from "sonner";
 import {
+  createDialerSessionFromDataRecords,
+  getDialerQuickCallDefaults,
+} from "@/lib/telephony/auto-dialer.functions";
+import {
   listDataRecords,
   importDataRecords,
   assignAgentToRecords,
   scheduleCallsForRecords,
   startCallingRecords,
   resetDataRecord,
+  deleteDataRecords,
   fetchCrmPeople,
   fetchQualifiedLeads,
   setRecordCallStatus,
@@ -802,6 +810,7 @@ function DynamicDataTable({
   toggleAll,
   toggleOne,
   onReset,
+  onDelete,
   onGenerate,
   canGenerate,
 }: {
@@ -812,6 +821,7 @@ function DynamicDataTable({
   toggleAll: (v: boolean | "indeterminate") => void;
   toggleOne: (id: string) => void;
   onReset: (id: string) => void;
+  onDelete: (id: string) => void;
   onGenerate: (record: any) => void;
   canGenerate: boolean;
 }) {
@@ -886,7 +896,10 @@ function DynamicDataTable({
               </td>
               <td className="px-2.5 py-1 text-xs font-medium whitespace-nowrap">{r.name}</td>
               <td className="whitespace-nowrap px-2.5 py-1 text-muted-foreground text-[11px] font-mono">
-                {r.mobile_number}
+                <span className="inline-flex items-center gap-1">
+                  {r.mobile_number}
+                  <QuickDialerCallButton phone={r.mobile_number} name={r.name} />
+                </span>
               </td>
               {extraCols.map((c) => (
                 <td key={c.key} className="px-2.5 py-1 text-muted-foreground text-[11px]">
@@ -911,6 +924,13 @@ function DynamicDataTable({
                     className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 focus:opacity-100"
                   >
                     <RotateCcw className="h-3 w-3" />
+                  </button>
+                  <button
+                    title="Delete this record"
+                    onClick={() => onDelete(r.id)}
+                    className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-rose-400 group-hover:opacity-100 focus:opacity-100"
+                  >
+                    <Trash2 className="h-3 w-3" />
                   </button>
                 </div>
               </td>
@@ -951,6 +971,7 @@ function DataPage() {
   const [showCsvImport, setShowCsvImport] = useState(false);
   const [importing, setImporting] = useState(false);
   const [startCallingOpen, setStartCallingOpen] = useState(false);
+  const [autoDialOpen, setAutoDialOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [callScheduleOpen, setCallScheduleOpen] = useState(false);
   const { isWbah, resolved: isWbahResolved } = useIsWbahWorkspace();
@@ -1033,7 +1054,11 @@ function DataPage() {
   const assignFn = useServerFn(assignAgentToRecords);
   const scheduleFn = useServerFn(scheduleCallsForRecords);
   const startCallFn = useServerFn(startCallingRecords);
+  const createAutoDialFn = useServerFn(createDialerSessionFromDataRecords);
+  const dialerDefaultsFn = useServerFn(getDialerQuickCallDefaults);
+  const navigate = useNavigate();
   const resetFn = useServerFn(resetDataRecord);
+  const deleteRecordsFn = useServerFn(deleteDataRecords);
   const getScheduleFn = useServerFn(getCallSchedule);
   const setScheduleFn = useServerFn(setCallSchedule);
   const listAgentsFn = useServerFn(listLiveAgents);
@@ -1426,6 +1451,37 @@ function DataPage() {
     }
   }
 
+  const { data: dialerDefaultsData } = useQuery({
+    queryKey: ["dialer-quick-call-defaults"],
+    queryFn: () => dialerDefaultsFn(),
+    throwOnError: false,
+  });
+  const dialerDefaultRouteNumbers =
+    dialerDefaultsData?.routeNumbers && dialerDefaultsData.routeNumbers.length === 2
+      ? (dialerDefaultsData.routeNumbers as [string, string])
+      : null;
+
+  async function handleAutoDial(routeNumbers: [string, string]) {
+    try {
+      const result = await createAutoDialFn({
+        data: {
+          recordIds: Array.from(selected),
+          routeNumbers,
+        },
+      });
+      toast.success(`Dialling ${result.targetCount} record(s)…`, {
+        description:
+          result.skipped > 0
+            ? `${result.skipped} record(s) had no dialable phone number and were skipped.`
+            : "Watch progress in Auto Dialer.",
+      });
+      setSelected(new Set());
+      navigate({ to: "/auto-dialer", search: { session: result.sessionId } });
+    } catch (err) {
+      toast.error("Couldn't start the auto dialer", { description: (err as Error).message });
+    }
+  }
+
   async function handleStartCalling(agentId: string | null, fromNumber: string | null) {
     try {
       const result = await startCallFn({
@@ -1485,6 +1541,31 @@ function DataPage() {
       qc.invalidateQueries({ queryKey: ["data-records"] });
     } catch (err) {
       toast.error("Failed to disqualify", { description: (err as Error).message });
+    }
+  }
+
+  async function handleDeleteRecords(recordIds: string[]) {
+    if (recordIds.length === 0) return;
+    if (
+      !confirm(
+        `Delete ${recordIds.length} record${recordIds.length !== 1 ? "s" : ""}? This removes ${
+          recordIds.length !== 1 ? "them" : "it"
+        } from this list — support can restore ${recordIds.length !== 1 ? "them" : "it"} if needed.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      const result = await deleteRecordsFn({ data: { recordIds } });
+      toast.success(`Deleted ${result.deleted} record${result.deleted !== 1 ? "s" : ""}`);
+      setSelected((prev) => {
+        const next = new Set(prev);
+        recordIds.forEach((id) => next.delete(id));
+        return next;
+      });
+      qc.invalidateQueries({ queryKey: ["data-records"] });
+    } catch (err) {
+      toast.error("Delete failed", { description: (err as Error).message });
     }
   }
 
@@ -2362,11 +2443,30 @@ function DataPage() {
                     <Button
                       variant="outline"
                       size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => setAutoDialOpen(true)}
+                      title="Dials each record and bridges to 2 real people — not the AI agent"
+                    >
+                      <PhoneForwarded className="mr-1 h-3.5 w-3.5" />
+                      Auto Dial
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       className="h-7 text-xs text-rose-400 border-rose-400/30 hover:bg-rose-500/10"
                       onClick={handleDisqualify}
                     >
                       <X className="mr-1 h-3.5 w-3.5" />
                       Disqualify
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs text-rose-400 border-rose-400/30 hover:bg-rose-500/10"
+                      onClick={() => handleDeleteRecords(Array.from(selected))}
+                    >
+                      <Trash2 className="mr-1 h-3.5 w-3.5" />
+                      Delete
                     </Button>
                   </>
                 )}
@@ -2445,6 +2545,7 @@ function DataPage() {
                   toggleAll={toggleAll}
                   toggleOne={toggleOne}
                   onReset={handleReset}
+                  onDelete={(id: string) => handleDeleteRecords([id])}
                   canGenerate={canUseAssistant}
                   onGenerate={(r: any) =>
                     setAssistantTarget({
@@ -3608,6 +3709,14 @@ function DataPage() {
         onStart={handleStartCalling}
       />
 
+      <AutoDialSetupDialog
+        open={autoDialOpen}
+        onOpenChange={setAutoDialOpen}
+        recordCount={selected.size}
+        defaultRouteNumbers={dialerDefaultRouteNumbers}
+        onStart={handleAutoDial}
+      />
+
       <ScheduleCallsDialog
         open={scheduleOpen}
         onOpenChange={setScheduleOpen}
@@ -4092,6 +4201,89 @@ function StartCallingDialog({
           </Button>
           <Button onClick={handleStart} disabled={loading}>
             {loading ? "Starting…" : `Start ${recordCount} call${recordCount !== 1 ? "s" : ""}`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Auto Dial — separate from "Start Calling" above. That one puts an AI agent
+ * on the line; this bridges two real people once the selected records answer.
+ */
+function AutoDialSetupDialog({
+  open,
+  onOpenChange,
+  recordCount,
+  defaultRouteNumbers,
+  onStart,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  recordCount: number;
+  defaultRouteNumbers: [string, string] | null;
+  onStart: (routeNumbers: [string, string]) => Promise<void>;
+}) {
+  const [route1, setRoute1] = useState("");
+  const [route2, setRoute2] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setRoute1(defaultRouteNumbers?.[0] ?? "");
+      setRoute2(defaultRouteNumbers?.[1] ?? "");
+      setLoading(false);
+    }
+  }, [open, defaultRouteNumbers]);
+
+  async function handleStart() {
+    setLoading(true);
+    try {
+      await onStart([route1.trim(), route2.trim()]);
+      onOpenChange(false);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Auto Dial</DialogTitle>
+          <DialogDescription>
+            Dials the {recordCount} selected record{recordCount !== 1 ? "s" : ""} one at a time.
+            When one answers, both numbers below ring at once and the call connects to whichever
+            picks up first.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="autodial-route1">Route number 1</Label>
+            <Input
+              id="autodial-route1"
+              placeholder="+971585248237"
+              value={route1}
+              onChange={(e) => setRoute1(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="autodial-route2">Route number 2</Label>
+            <Input
+              id="autodial-route2"
+              placeholder="+971501234567"
+              value={route2}
+              onChange={(e) => setRoute2(e.target.value)}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+            Cancel
+          </Button>
+          <Button onClick={handleStart} disabled={loading}>
+            {loading ? "Starting…" : `Dial ${recordCount} record${recordCount !== 1 ? "s" : ""}`}
           </Button>
         </DialogFooter>
       </DialogContent>

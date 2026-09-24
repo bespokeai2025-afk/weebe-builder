@@ -458,11 +458,24 @@ export interface BuilderSettings {
   /** True when the selected Fish voice is a workspace clone (not a library voice). */
   webeeVoiceOwned?: boolean;
   /**
-   * STT for WEBEE_NATIVE. TTS stays Fish Audio either way.
+   * STT for WEBEE_NATIVE.
    * "fish"     — Fish realtime ASR (default)
    * "deepgram" — Deepgram Nova-2
+   * "openai"   — Whisper. Batch, not streaming: the transcription lands after end-of-speech, so it
+   *              costs more turn latency than the other two.
    */
-  webeeSttProvider?: "fish" | "deepgram";
+  webeeSttProvider?: "fish" | "deepgram" | "openai";
+  /**
+   * TTS for WEBEE_NATIVE.
+   * "fish"   — Fish Audio (default; native sample rate and input streaming)
+   * "openai" — OpenAI speech. Fixed 24 kHz, resampled for telephony, and synthesised clause by
+   *            clause because the endpoint needs complete text.
+   */
+  webeeTtsProvider?: "fish" | "openai";
+  /** OpenAI speech model (defaults to gpt-4o-mini-tts). */
+  webeeTtsModel?: string;
+  /** Delivery direction for the gpt-4o voices, e.g. "Warm, unhurried, British English." */
+  webeeTtsInstructions?: string;
   /**
    * Graph / speech LLM provider for WEBEE_NATIVE. OpenAI is the default so a
    * Cerebras quota miss cannot freeze the call.

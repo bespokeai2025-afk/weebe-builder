@@ -64,6 +64,11 @@ import {
   previewWatiTemplateSend,
 } from "@/lib/dashboard/whatsapp.functions";
 import {
+  BOOKKEEPING_LEAD_COLUMNS,
+  isOfferableFieldOption,
+  mergeFieldOptions,
+} from "@/lib/whatsapp/lead-meta-fields.shared";
+import {
   CAMPAIGN_TYPE_LABELS,
   CAMPAIGN_TYPES,
   DEFAULT_CAMPAIGN_TYPE,
@@ -92,6 +97,7 @@ import {
   defaultWatiTemplateParamMapping,
   extractWatiTemplateParamSlots,
   getTemplateSlotHint,
+  templateSendsLiteralPlaceholders,
   validateWatiTemplateParamMapping,
   WATI_TEMPLATE_PARAM_FIELD_OPTIONS,
   encodeLiteralTemplateField,
@@ -419,6 +425,7 @@ export function WhatsAppCampaigns() {
   );
   const paramSlots = watiTemplateParamSlots(selectedWatiTemplate);
   const paramMappingError = validateWatiTemplateParamMapping(paramSlots, form.template_params);
+  const templateLiteralPlaceholders = templateSendsLiteralPlaceholders(selectedWatiTemplate);
 
   // The property fields this workspace's leads actually have. The hardcoded list
   // is one dataset's column spellings; a workspace whose column imported as
@@ -431,13 +438,70 @@ export function WhatsAppCampaigns() {
     staleTime: 60_000,
     throwOnError: false,
   });
-  const discoveredFields = (metaFields?.fields ?? []) as Array<{
+  type FieldOption = {
     value: string;
     label: string;
     filled: number;
     coverage: number;
     sample: string;
-  }>;
+  };
+  const discoveredFields = (metaFields?.fields ?? []) as FieldOption[];
+  const leadColumnFields = (metaFields?.leadFields ?? []) as FieldOption[];
+
+  // Everything the picker offers, split by whether this upload type actually holds data for it.
+  // An import leaves stray keys behind — Bliss 2 carries 25 meta keys but only three are on more
+  // than a couple of its leads — and the generic property list describes a different dataset
+  // entirely. Showing all of it buried the handful that work, and picking a dead one sends filler.
+  const [showAllParamFields, setShowAllParamFields] = useState(false);
+  // Coverage is measured over whichever audience is selected — one upload, or the whole list when
+  // it is "All uploads". Either way it answers the only question that matters when mapping a
+  // variable: will this field actually have a value for the people about to be messaged. Gating
+  // this on an upload type being chosen meant the default "All uploads" audience got no filtering
+  // at all, which is the state the picker was reported in.
+  const haveCoverage = (metaFields?.leadsSampled ?? 0) > 0;
+
+  const rankByCoverage = (a: FieldOption, b: FieldOption) =>
+    b.coverage - a.coverage || a.label.localeCompare(b.label);
+
+  // One merged list. "Lead fields" vs "imported columns" is an implementation detail — the reader
+  // just saw "Email 100%" in both groups with no way to choose between them.
+  const allFields = haveCoverage
+    ? mergeFieldOptions(leadColumnFields, discoveredFields)
+    : LEAD_PARAM_FIELDS.filter(
+        (f) => f.group === "lead" && !BOOKKEEPING_LEAD_COLUMNS.has(f.value),
+      ).map((f) => ({
+        value: f.value,
+        label: f.label,
+        filled: 0,
+        coverage: 0,
+        sample: "",
+      }));
+
+  // Offered by default: the columns this upload actually carries, plus the identity columns the
+  // import normalised. Held back: columns this upload is empty on, and our own bookkeeping
+  // columns, which the importer writes at 100% on every upload and so coverage can never remove.
+  const relevantFields = haveCoverage ? allFields.filter(isOfferableFieldOption) : allFields;
+  const emptyFields = haveCoverage ? allFields.filter((f) => !isOfferableFieldOption(f)) : [];
+  const genericPropertyFields = LEAD_PARAM_FIELDS.filter(
+    (f) =>
+      f.group === "property" &&
+      // Hide a generic option when the real column is already offered under its own name.
+      !discoveredFields.some((d) => d.value === f.value),
+  );
+  const hiddenFieldCount = emptyFields.length + genericPropertyFields.length;
+  /**
+   * A slot saved against a field that is now hidden (an old campaign, or a column this upload
+   * happens to be sparse on) would render as a blank dropdown and read as a lost mapping. Keep the
+   * full list open whenever that is the case, so what is already chosen stays visible.
+   */
+  const mappingUsesHiddenField = Object.values(form.template_params ?? {}).some(
+    (v) =>
+      typeof v === "string" &&
+      v !== "" &&
+      !isLiteralTemplateField(v) &&
+      !relevantFields.some((f) => f.value === v),
+  );
+  const showEveryField = showAllParamFields || mappingUsesHiddenField;
 
   // Render the template as it will actually send, and report any variable that
   // resolves for nobody — the failure that otherwise reaches customers.
@@ -1341,9 +1405,59 @@ export function WhatsAppCampaigns() {
                   </div>
                 )}
 
+                {/* Placeholder-looking text with no variables behind it goes out
+                    verbatim — WhatsApp only fills declared variables. */}
+                {templateLiteralPlaceholders.length > 0 && (
+                  <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-[11px] text-amber-600 dark:text-amber-400">
+                    This template has no variables, so{" "}
+                    <strong>{templateLiteralPlaceholders.join(", ")}</strong> will be sent to every
+                    recipient exactly as written. Add a WhatsApp variable to the template to
+                    personalise it.
+                  </p>
+                )}
+
                 {paramSlots.length > 0 && (
                   <div className="space-y-2 rounded-md border border-border/60 p-3">
-                    <Label className="text-xs">Fill each {"{{variable}}"}</Label>
+                    {/* The upload comes first, because it decides which fields exist to map to.
+                        Same state as the audience picker below, so the two cannot diverge — a
+                        campaign always maps against the list it will actually send to. */}
+                    {uploadTypeOptions.length > 0 && (
+                      <div className="space-y-1.5 border-b border-border/60 pb-3">
+                        <Label className="text-xs">1. Which upload are you sending to?</Label>
+                        <Select
+                          value={audienceUploadType || AUDIENCE_ALL_UPLOADS}
+                          onValueChange={(v) => {
+                            setAudienceUploadType(v === AUDIENCE_ALL_UPLOADS ? "" : v);
+                            // The old list described a different upload; keep it collapsed so the
+                            // new one is read on its own terms.
+                            setShowAllParamFields(false);
+                          }}
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={AUDIENCE_ALL_UPLOADS}>
+                              All uploads (fields from every list)
+                            </SelectItem>
+                            {uploadTypeOptions.map((t: string) => (
+                              <SelectItem key={t} value={t}>
+                                {t}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[10px] text-muted-foreground">
+                          {audienceUploadType
+                            ? `Sending to "${audienceUploadType}" — the ${relevantFields.length} fields below are the ones it actually has data for.`
+                            : "Pick one to send to a single list and narrow the fields below to what that list holds."}
+                        </p>
+                      </div>
+                    )}
+                    <Label className="text-xs">
+                      {uploadTypeOptions.length > 0 ? "2. " : ""}
+                      Fill each {"{{variable}}"}
+                    </Label>
                     {paramSlots.map((slot) => {
                       const mapped = form.template_params[slot] ?? "";
                       const isFixed = isLiteralTemplateField(mapped);
@@ -1355,60 +1469,70 @@ export function WhatsAppCampaigns() {
                             <span className="text-[10px] text-muted-foreground w-20 shrink-0">{`{{${slot}}}`}</span>
                             <Select
                               value={selectValue || undefined}
-                              onValueChange={(v) =>
+                              onValueChange={(v) => {
+                                // Reveals the rest of the list instead of mapping the slot.
+                                if (v === "__show_all__") {
+                                  setShowAllParamFields(true);
+                                  return;
+                                }
                                 setForm({
                                   ...form,
                                   template_params: {
                                     ...form.template_params,
                                     [slot]: v === "__fixed__" ? encodeLiteralTemplateField("") : v,
                                   },
-                                })
-                              }
+                                });
+                              }}
                             >
                               <SelectTrigger className="h-8 text-xs flex-1">
                                 <SelectValue placeholder="Lead / property field…" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="__fixed__">
-                                  Fixed text (same for everyone)
-                                </SelectItem>
-                                <SelectItem value="__group_lead__" disabled>
-                                  — Lead fields —
-                                </SelectItem>
-                                {LEAD_PARAM_FIELDS.filter((f) => f.group === "lead").map((f) => (
+                                {relevantFields.map((f) => (
                                   <SelectItem key={f.value} value={f.value}>
                                     {f.label}
+                                    {haveCoverage && (
+                                      <span className="ml-1.5 text-[10px] text-muted-foreground">
+                                        {f.sample ? `e.g. ${f.sample}` : `${f.coverage}% filled`}
+                                      </span>
+                                    )}
                                   </SelectItem>
                                 ))}
-                                {discoveredFields.length > 0 && (
+
+                                {/* Not a field — an escape hatch for wording the template does not
+                                    hold, like an agent name. Sits at the end so the actual data
+                                    fields read as the primary choice. */}
+                                <SelectItem value="__fixed__" className="text-muted-foreground">
+                                  Type the same words for everyone…
+                                </SelectItem>
+
+                                {hiddenFieldCount > 0 && !showEveryField && (
+                                  <SelectItem value="__show_all__" className="text-muted-foreground">
+                                    Show {hiddenFieldCount} more field
+                                    {hiddenFieldCount === 1 ? "" : "s"}
+                                    {audienceUploadType.trim()
+                                      ? ` not in "${audienceUploadType.trim()}"…`
+                                      : "…"}
+                                  </SelectItem>
+                                )}
+
+                                {showEveryField && (
                                   <>
-                                    <SelectItem value="__group_yours__" disabled>
-                                      — Your imported columns —
+                                    <SelectItem value="__group_empty__" disabled>
+                                      — Not in this upload, or internal —
                                     </SelectItem>
-                                    {discoveredFields.map((f) => (
+                                    {[...emptyFields, ...genericPropertyFields.map((f) => ({
+                                      value: f.value,
+                                      label: f.label,
+                                      coverage: 0,
+                                      sample: "",
+                                    }))].map((f) => (
                                       <SelectItem key={f.value} value={f.value}>
                                         {f.label}
-                                        <span className="ml-1.5 text-[10px] text-muted-foreground">
-                                          {f.coverage}% · e.g. {f.sample}
-                                        </span>
                                       </SelectItem>
                                     ))}
                                   </>
                                 )}
-                                <SelectItem value="__group_property__" disabled>
-                                  — Standard property fields —
-                                </SelectItem>
-                                {LEAD_PARAM_FIELDS.filter(
-                                  (f) =>
-                                    f.group === "property" &&
-                                    // Hide a generic option when the real column is
-                                    // already offered above under its own name.
-                                    !discoveredFields.some((d) => d.value === f.value),
-                                ).map((f) => (
-                                  <SelectItem key={f.value} value={f.value}>
-                                    {f.label}
-                                  </SelectItem>
-                                ))}
                               </SelectContent>
                             </Select>
                           </div>
@@ -1653,8 +1777,8 @@ export function WhatsAppCampaigns() {
                           </Select>
                           <p className="mt-1 text-[10px] text-muted-foreground">
                             {audienceUploadType
-                              ? `Only contacts imported as "${audienceUploadType}" will be loaded.`
-                              : "Every contact is eligible. Choose an upload to send to one list only."}
+                              ? `Only contacts imported as "${audienceUploadType}" will be loaded. This is the same choice as in the template section — changing it here changes the fields offered there.`
+                              : "Every contact is eligible. Choose an upload to send to one list only, and to narrow the template fields to what it holds."}
                           </p>
                         </div>
                       )}

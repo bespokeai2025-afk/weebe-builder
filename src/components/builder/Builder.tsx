@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { OPENAI_TTS_VOICES } from "@/lib/voice/tts/openai-voices.shared";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -1886,7 +1887,7 @@ export function Builder({
                       <Select
                         value={settings.webeeSttProvider ?? "fish"}
                         onValueChange={(v) =>
-                          setSettings({ webeeSttProvider: v as "fish" | "deepgram" })
+                          setSettings({ webeeSttProvider: v as "fish" | "deepgram" | "openai" })
                         }
                       >
                         <SelectTrigger className="h-8 text-[11px]">
@@ -1895,9 +1896,69 @@ export function Builder({
                         <SelectContent>
                           <SelectItem value="fish">Fish Audio ASR</SelectItem>
                           <SelectItem value="deepgram">Deepgram Nova-2</SelectItem>
+                          <SelectItem value="openai">OpenAI Whisper</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {settings.webeeSttProvider === "openai" && (
+                        <p className="text-[10px] text-muted-foreground">
+                          Whisper transcribes after the caller stops speaking, so replies come back
+                          slower than Fish or Deepgram, which transcribe as they listen.
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] text-muted-foreground">Text-to-speech</Label>
+                      <Select
+                        value={settings.webeeTtsProvider ?? "fish"}
+                        onValueChange={(v) =>
+                          setSettings({ webeeTtsProvider: v as "fish" | "openai" })
+                        }
+                      >
+                        <SelectTrigger className="h-8 text-[11px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="fish">Fish Audio</SelectItem>
+                          <SelectItem value="openai">OpenAI</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
+                    {settings.webeeTtsProvider === "openai" && (
+                      <>
+                        <div className="space-y-1.5">
+                          <Label className="text-[10px] text-muted-foreground">OpenAI voice</Label>
+                          <Select
+                            value={settings.voiceId ?? "alloy"}
+                            onValueChange={(v) => setSettings({ voiceId: v })}
+                          >
+                            <SelectTrigger className="h-8 text-[11px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {OPENAI_TTS_VOICES.map((v) => (
+                                <SelectItem key={v} value={v} className="capitalize">
+                                  {v}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-[10px] text-muted-foreground">
+                            Delivery direction (optional)
+                          </Label>
+                          <Input
+                            className="h-8 text-[11px]"
+                            placeholder="Warm, unhurried, British English."
+                            value={settings.webeeTtsInstructions ?? ""}
+                            onChange={(e) => setSettings({ webeeTtsInstructions: e.target.value })}
+                          />
+                          <p className="text-[10px] text-muted-foreground">
+                            How the voice should sound. Used by the gpt-4o voices only.
+                          </p>
+                        </div>
+                      </>
+                    )}
                     <div className="space-y-1.5">
                       <Label className="text-[10px] text-muted-foreground">LLM</Label>
                       <Select

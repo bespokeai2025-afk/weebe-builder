@@ -1,4 +1,9 @@
-import { findLeadByPhone, normalizeWhatsAppPhone, phoneTail } from "@/lib/whatsapp/wati-campaign.server";
+import {
+  findLeadByPhone,
+  normalizeWhatsAppPhone,
+  phoneMatchKey,
+  phoneTail,
+} from "@/lib/whatsapp/wati-campaign.server";
 import { resolveCampaignType, type CampaignType } from "@/lib/whatsapp/campaign-types.shared";
 
 export type WaContactMessageStats = {
@@ -248,27 +253,42 @@ export async function markWhatsappContactDoNotContact(
   if (!normalized) return;
   const now = new Date().toISOString();
 
-  const { data: existing } = await sb
+  // Every row for this person, not just the exact number they replied from. One human is commonly
+  // stored under several formats ("555501966", "0555501966", "971555501966"); flagging only the
+  // exact match left the other rows in the next campaign's audience.
+  const key = phoneMatchKey(normalized);
+  const { data: candidates } = await sb
     .from("whatsapp_contacts")
-    .select("id, tags")
-    .eq("workspace_id", workspaceId)
-    .eq("phone", normalized)
-    .maybeSingle();
+    .select("id, phone, tags")
+    .eq("workspace_id", workspaceId);
+  const siblings = ((candidates ?? []) as Array<{ id: string; phone: string; tags?: string[] }>)
+    .filter((c) => (key ? phoneMatchKey(c.phone) === key : c.phone === normalized));
+  const existing = siblings.find((c) => c.phone === normalized) ?? siblings[0];
 
-  const tags = Array.from(
-    new Set([...(existing?.tags ?? []), "dnc"].filter(Boolean)),
-  );
-
-  if (existing?.id) {
-    await sb
-      .from("whatsapp_contacts")
-      .update({
+  if (siblings.length > 0) {
+    for (const row of siblings) {
+      await sb
+        .from("whatsapp_contacts")
+        .update({
+          do_not_contact: true,
+          lead_status: "lost",
+          tags: Array.from(new Set([...(row.tags ?? []), "dnc"].filter(Boolean))),
+          updated_at: now,
+        })
+        .eq("id", row.id);
+    }
+    // The number they actually replied from may not have a row of its own yet.
+    if (!siblings.some((c) => c.phone === normalized)) {
+      await sb.from("whatsapp_contacts").insert({
+        workspace_id: workspaceId,
+        phone: normalized,
+        name: contactName ?? null,
         do_not_contact: true,
         lead_status: "lost",
-        tags,
-        updated_at: now,
-      })
-      .eq("id", existing.id);
+        tags: ["dnc"],
+        source: "webhook",
+      });
+    }
   } else {
     await sb.from("whatsapp_contacts").insert({
       workspace_id: workspaceId,
@@ -276,17 +296,34 @@ export async function markWhatsappContactDoNotContact(
       name: contactName ?? null,
       do_not_contact: true,
       lead_status: "lost",
-      tags,
+      tags: ["dnc"],
       source: "webhook",
     });
   }
 
-  const lead = await findLeadByPhone(sb, workspaceId, normalized);
-  if (lead?.id) {
+  // Same again for leads: the audience is built from leads, so a lead row left opted-in is what
+  // actually puts an opted-out person back into a campaign.
+  const { data: leadRows } = await sb
+    .from("leads")
+    .select("id, phone")
+    .eq("workspace_id", workspaceId);
+  const leadMatches = ((leadRows ?? []) as Array<{ id: string; phone: string | null }>).filter((l) =>
+    key ? phoneMatchKey(l.phone) === key : normalizeWhatsAppPhone(l.phone) === normalized,
+  );
+  for (const l of leadMatches) {
     await sb
       .from("leads")
       .update({ whatsapp_opt_in: false, status: "do_not_call", updated_at: now })
-      .eq("id", lead.id);
+      .eq("id", l.id);
+  }
+  if (leadMatches.length === 0) {
+    const lead = await findLeadByPhone(sb, workspaceId, normalized);
+    if (lead?.id) {
+      await sb
+        .from("leads")
+        .update({ whatsapp_opt_in: false, status: "do_not_call", updated_at: now })
+        .eq("id", lead.id);
+    }
   }
 }
 

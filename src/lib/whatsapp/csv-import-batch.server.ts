@@ -3,7 +3,7 @@
  */
 import type { CsvLeadRow } from "@/lib/whatsapp/csv-leads.shared";
 import { parseNotesToMeta } from "@/lib/whatsapp/csv-leads.shared";
-import { normalizeWhatsAppPhone, phoneTail } from "@/lib/whatsapp/wati-campaign.server";
+import { normalizeWhatsAppPhone, phoneMatchKey } from "@/lib/whatsapp/wati-campaign.server";
 import {
   DEFAULT_CAMPAIGN_LEAD_STAGE,
   readListingStage,
@@ -110,7 +110,10 @@ async function fetchLeadsByTails(
   tails: string[],
 ): Promise<ExistingLead[]> {
   const out: ExistingLead[] = [];
-  const unique = [...new Set(tails.filter((t) => t && t.length >= 10))];
+  // 8, not 10. A UAE mobile in national format ("527574999") is 9 digits, so a 10-digit floor
+  // dropped it here and it was never compared against the existing lead — which is how one person
+  // ended up stored as 527574999, 0527574999 and 971527574999, each getting its own campaign send.
+  const unique = [...new Set(tails.filter((t) => t && t.length >= 8))];
   for (let i = 0; i < unique.length; i += 40) {
     const chunk = unique.slice(i, i + 40);
     const or = chunk.map((t) => `phone.like.%${t}`).join(",");
@@ -131,7 +134,9 @@ function buildLeadLookup(leads: ExistingLead[]): LeadLookup {
   for (const lead of leads) {
     const normalized = normalizeWhatsAppPhone(lead.phone);
     if (normalized) byExact.set(normalized, lead);
-    const tail = phoneTail(normalized);
+    // phoneMatchKey (last 9, min 8) rather than phoneTail (last 10, min 10): the shorter key is
+    // what lets a national-format number match the same person stored with a country code.
+    const tail = phoneMatchKey(normalized);
     if (tail && !byTail.has(tail)) byTail.set(tail, lead);
   }
   return { byExact, byTail };
@@ -143,7 +148,7 @@ function resolveExistingLead(
 ): ExistingLead | null {
   const exact = lookup.byExact.get(phone);
   if (exact) return exact;
-  const tail = phoneTail(phone);
+  const tail = phoneMatchKey(phone);
   if (tail && lookup.byTail.has(tail)) return lookup.byTail.get(tail)!;
   return null;
 }
@@ -159,7 +164,7 @@ async function loadLeadLookupForRows(
     const phone = normalizeWhatsAppPhone(row.phone);
     if (!phone || phone.replace(/\D/g, "").length < 7) continue;
     normalizedPhones.push(phone);
-    const tail = phoneTail(phone);
+    const tail = phoneMatchKey(phone);
     if (tail) tails.push(tail);
   }
 
@@ -170,7 +175,7 @@ async function loadLeadLookupForRows(
     ...new Set(
       normalizedPhones
         .filter((p) => !lookup.byExact.has(p))
-        .map((p) => phoneTail(p))
+        .map((p) => phoneMatchKey(p))
         .filter((t): t is string => !!t && !lookup.byTail.has(t)),
     ),
   ];
@@ -179,7 +184,7 @@ async function loadLeadLookupForRows(
     for (const lead of byTailRows) {
       const normalized = normalizeWhatsAppPhone(lead.phone);
       if (normalized && !lookup.byExact.has(normalized)) lookup.byExact.set(normalized, lead);
-      const tail = phoneTail(normalized);
+      const tail = phoneMatchKey(normalized);
       if (tail && !lookup.byTail.has(tail)) lookup.byTail.set(tail, lead);
     }
   }
@@ -194,6 +199,14 @@ async function fetchContactsByPhones(
 ): Promise<Map<string, ExistingContact>> {
   const map = new Map<string, ExistingContact>();
   const unique = [...new Set(phones.filter(Boolean))];
+  const add = (row: ExistingContact) => {
+    const normalized = normalizeWhatsAppPhone(row.phone);
+    if (normalized && !map.has(normalized)) map.set(normalized, row);
+    // Also keyed by the 9-digit identity so a national-format import row resolves to the same
+    // contact as one stored with a country code, instead of creating a second row.
+    const tail = phoneMatchKey(row.phone);
+    if (tail && !map.has(tail)) map.set(tail, row);
+  };
   for (let i = 0; i < unique.length; i += 500) {
     const chunk = unique.slice(i, i + 500);
     const { data, error } = await sb
@@ -202,10 +215,20 @@ async function fetchContactsByPhones(
       .eq("workspace_id", workspaceId)
       .in("phone", chunk);
     if (error) throw new Error(error.message);
-    for (const row of (data ?? []) as ExistingContact[]) {
-      const normalized = normalizeWhatsAppPhone(row.phone);
-      if (normalized) map.set(normalized, row);
-    }
+    for (const row of (data ?? []) as ExistingContact[]) add(row);
+  }
+
+  // Anything still unmatched may be stored under a different format — look those up by tail.
+  const unresolved = [...new Set(unique.map((p) => phoneMatchKey(p)).filter((t): t is string => !!t && !map.has(t)))];
+  for (let i = 0; i < unresolved.length; i += 40) {
+    const chunk = unresolved.slice(i, i + 40);
+    const { data, error } = await sb
+      .from("whatsapp_contacts")
+      .select("id, phone, name, notes, tags, lead_status")
+      .eq("workspace_id", workspaceId)
+      .or(chunk.map((t) => `phone.like.%${t}`).join(","));
+    if (error) throw new Error(error.message);
+    for (const row of (data ?? []) as ExistingContact[]) add(row);
   }
   return map;
 }
@@ -341,7 +364,7 @@ export async function batchImportCsvLeads(
     }
 
     if (opts?.syncWhatsappContacts && existingContacts) {
-      const prev = existingContacts.get(phone);
+      const prev = existingContacts.get(phone) ?? existingContacts.get(phoneMatchKey(phone) ?? "");
       if (prev?.id) contactUpdated++;
       else contactInserted++;
       // rowMeta, not row.import_meta: it carries the stamped upload_type, and

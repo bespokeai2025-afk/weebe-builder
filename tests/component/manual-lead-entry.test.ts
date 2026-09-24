@@ -54,7 +54,24 @@ describe("buildManualLeadPayload", () => {
   });
 
   it("always records the manual source", () => {
-    expect(buildManualLeadPayload({ phone: "123" }).source).toBe("Manual entry");
+    expect(buildManualLeadPayload({ phone: "123" }).source).toBe(MANUAL_LEAD_SOURCE);
+  });
+
+  /**
+   * leads.source is the lead_source Postgres enum. This previously held the display string
+   * "Manual entry", so every Add Lead submission was rejected with
+   * `invalid input value for enum lead_source`, and the old assertion pinned the broken value
+   * rather than catching it. Checked against the enum's members instead.
+   */
+  it("uses a real lead_source enum member, not a display string", () => {
+    const LEAD_SOURCE_ENUM = [
+      "website", "inbound", "outbound", "referral", "import", "website_form", "landing_page",
+      "facebook_lead_form", "google_ads_lead_form", "tiktok_lead_form", "linkedin_lead_form",
+      "zapier", "make", "custom_form", "webee_website_form", "api", "whatsapp", "manual",
+    ];
+    expect(LEAD_SOURCE_ENUM).toContain(MANUAL_LEAD_SOURCE);
+    expect(MANUAL_LEAD_SOURCE).not.toMatch(/[\sA-Z]/);
+    expect(buildManualLeadPayload({ phone: "123" }).source).toBe("manual");
   });
 });
 

@@ -20,8 +20,13 @@ export const Route = createFileRoute("/api/public/retell/pabau/list-services")({
               service_name: s.service_name,
               duration: s.duration,
               category: s.category_name,
+              // Pabau does carry a price per service. It was fetched and then dropped here, so the
+              // agent had nothing to quote and every price question became a transfer.
+              price_from: s.price ?? null,
             })),
-            summary: `${services.length} treatments at ${DNR_VOICE.location.name}. Use exact service_name when booking.`,
+            summary:
+              `${services.length} treatments at ${DNR_VOICE.location.name}. Use exact service_name when booking. ` +
+              `price_from is a starting price only — quote it as "prices start from" and say Dr Nyla confirms at consultation. Never quote a total.`,
           });
         }),
     },

@@ -12,13 +12,17 @@
  * nested inside it.
  */
 import { useMemo, useState } from "react";
-import { Bot, User, Wrench, Variable, FileText, Clock, Volume2 } from "lucide-react";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+  Bot,
+  User,
+  Wrench,
+  Variable,
+  FileText,
+  Clock,
+  Volume2,
+  ClipboardCheck,
+} from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -40,7 +44,41 @@ export type CallDetailRow = {
   is_test_call?: boolean | null;
   collected_variables?: Record<string, unknown> | null;
   tool_calls?: Array<Record<string, unknown>> | null;
+  /** Post-call analysis — the built-ins, and the agent's own fields keyed by name. */
+  call_successful?: boolean | null;
+  in_voicemail?: boolean | null;
+  custom_analysis_data?: Record<string, unknown> | null;
 };
+
+/**
+ * One post-call value, formatted for reading.
+ *
+ * Structured fields (structured_json_output and friends) arrive as objects or as JSON strings;
+ * both are shown indented rather than as one unreadable line.
+ */
+function PostCallValue({ value }: { value: unknown }) {
+  if (value === null || value === undefined || value === "") {
+    return <span className="text-muted-foreground">— not found in this call</span>;
+  }
+  if (typeof value === "boolean") return <span>{value ? "Yes" : "No"}</span>;
+  let structured: unknown = null;
+  if (typeof value === "object") structured = value;
+  else if (typeof value === "string" && /^[\[{]/.test(value.trim())) {
+    try {
+      structured = JSON.parse(value);
+    } catch {
+      structured = null;
+    }
+  }
+  if (structured && typeof structured === "object") {
+    return (
+      <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-black/20 p-1.5 font-mono text-[10px] leading-relaxed">
+        {JSON.stringify(structured, null, 2)}
+      </pre>
+    );
+  }
+  return <span className="whitespace-pre-wrap break-words">{String(value)}</span>;
+}
 
 /** Setup variables that are plumbing, not conversation outcomes. */
 const SETUP_KEYS = new Set([
@@ -151,7 +189,8 @@ export function CallDetailSheet({
   const tools = Array.isArray(call?.tool_calls) ? call!.tool_calls! : [];
 
   if (!call) return null;
-  const contact = call.to_number && call.to_number !== "web:test" ? call.to_number : call.from_number;
+  const contact =
+    call.to_number && call.to_number !== "web:test" ? call.to_number : call.from_number;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -217,6 +256,53 @@ export function CallDetailSheet({
                 <span className="text-muted-foreground">No summary generated for this call.</span>
               )}
             </p>
+          </Panel>
+
+          {/* Post-call data, as Retell shows it: the built-in verdicts, then every
+              field the agent defines, including the ones this call did not fill. */}
+          <Panel
+            icon={ClipboardCheck}
+            title="Post-call data"
+            count={Object.keys(call.custom_analysis_data ?? {}).length}
+          >
+            <div className="overflow-hidden rounded border border-white/[0.06]">
+              <table className="w-full text-[11px]">
+                <tbody>
+                  {(
+                    [
+                      ["call_successful", call.call_successful],
+                      ["user_sentiment", call.sentiment],
+                      ["in_voicemail", call.in_voicemail],
+                    ] as Array<[string, unknown]>
+                  ).map(([k, v], i) => (
+                    <tr key={k} className={cn(i > 0 && "border-t border-white/[0.04]")}>
+                      <td className="w-[42%] bg-white/[0.02] px-2.5 py-1.5 align-top font-mono text-[10px] text-muted-foreground">
+                        {k}
+                      </td>
+                      <td className="px-2.5 py-1.5 align-top font-medium">
+                        <PostCallValue value={v} />
+                      </td>
+                    </tr>
+                  ))}
+                  {Object.entries(call.custom_analysis_data ?? {}).map(([k, v]) => (
+                    <tr key={`custom-${k}`} className="border-t border-white/[0.04]">
+                      <td className="w-[42%] bg-white/[0.02] px-2.5 py-1.5 align-top font-mono text-[10px] text-muted-foreground">
+                        {k}
+                      </td>
+                      <td className="px-2.5 py-1.5 align-top font-medium">
+                        <PostCallValue value={v} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {Object.keys(call.custom_analysis_data ?? {}).length === 0 && (
+              <p className="mt-1.5 text-[10px] text-muted-foreground">
+                No custom fields were extracted for this call. Define them under Post-Call Data
+                Retrieval on the agent; calls from before this was added will not have them.
+              </p>
+            )}
           </Panel>
 
           <Panel icon={Variable} title="Extracted variables" count={outcome.length}>

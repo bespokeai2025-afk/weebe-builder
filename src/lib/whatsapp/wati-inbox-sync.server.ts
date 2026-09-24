@@ -7,6 +7,8 @@ import { watiApiV1Base } from "@/lib/whatsapp/wati-api-base.shared";
 import {
   getWatiConnectionForWorkspace,
   normalizeWhatsAppPhone,
+  parseWatiMediaFields,
+  phoneMatchKey,
 } from "@/lib/whatsapp/wati-campaign.server";
 import {
   extractWatiConversationMessageText,
@@ -22,7 +24,10 @@ import {
   collapseOptimisticOutboundDuplicates,
   findRedundantOptimisticMessageIds,
 } from "@/lib/whatsapp/whatsapp-message-dedupe.server";
-import { isWatiNonTextPlaceholderBody } from "@/lib/whatsapp/wati-message-content.shared";
+import {
+  describeWatiNonTextBody,
+  isWatiNonTextPlaceholderBody,
+} from "@/lib/whatsapp/wati-message-content.shared";
 
 type WatiConn = {
   api_key: string;
@@ -42,6 +47,9 @@ export type ParsedWatiInboxMessage = {
   wati_status: string | null;
   conversation_id: string | null;
   ticket_id: string | null;
+  media_url: string | null;
+  media_mime_type: string | null;
+  media_filename: string | null;
 };
 
 const syncThrottleMs =
@@ -157,8 +165,13 @@ export function parseWatiV1InboxMessage(
   const eventType = String(msg.eventType ?? msg.type ?? "").toLowerCase();
   if (eventType === "ticket") return null;
 
-  const body = extractWatiConversationMessageText(msg);
-  if (!body?.trim()) return null;
+  const media = parseWatiMediaFields(msg);
+  // An image or voice note sent without a caption has no text at all. Returning null here dropped
+  // the message entirely, so attachments visible in WATI never reached the inbox. Fall back to the
+  // same placeholder the webhook uses ("[image]", a document filename) and keep the attachment.
+  const text = extractWatiConversationMessageText(msg);
+  const body = text?.trim() || (media.media_url ? describeWatiNonTextBody(msg) : "");
+  if (!body.trim()) return null;
 
   let direction: "inbound" | "outbound";
   let senderChannel: string | null = null;
@@ -227,6 +240,7 @@ export function parseWatiV1InboxMessage(
     wati_status: idOrNull(rawStatus),
     conversation_id: idOrNull(msg.conversationId ?? msg.conversation_id),
     ticket_id: idOrNull(msg.ticketId ?? msg.ticket_id),
+    ...media,
   };
 }
 
@@ -431,13 +445,23 @@ export async function syncWatiInboxForPhones(
     // Ticket rows travel with the messages, so chat status costs no extra request.
     const chatState = deriveWatiChatState(watiMessages);
 
-    const { data: existingRows } = await admin
+    // Matched on the last 9 digits, not the exact string. The same person is stored under several
+    // formats — the webhook writes the reply as "971527574999" while a sync for "527574999" found
+    // nothing to compare against and inserted a second copy of the same message, which then showed
+    // as two threads in the inbox. The duplicate check below still requires a matching id, or the
+    // same body and direction within a few seconds, so widening the candidate set cannot merge two
+    // genuinely different messages.
+    const tail = phoneMatchKey(phone);
+    let existingQuery = admin
       .from("whatsapp_messages")
       .select(
         "id, external_id, whatsapp_message_id, sent_at, body, direction, sender_channel, campaign_id",
       )
-      .eq("workspace_id", workspaceId)
-      .eq("contact_phone", phone)
+      .eq("workspace_id", workspaceId);
+    existingQuery = tail
+      ? existingQuery.like("contact_phone", `%${tail}`)
+      : existingQuery.eq("contact_phone", phone);
+    const { data: existingRows } = await existingQuery
       .order("sent_at", { ascending: false })
       .limit(200);
 
@@ -506,6 +530,9 @@ export async function syncWatiInboxForPhones(
         wati_status: parsed.wati_status,
         conversation_id: parsed.conversation_id,
         ticket_id: parsed.ticket_id,
+        media_url: parsed.media_url,
+        media_mime_type: parsed.media_mime_type,
+        media_filename: parsed.media_filename,
         campaign_id:
           parsed.direction === "inbound"
             ? attributeReplyToCampaign(parsed.sent_at, campaignSends)

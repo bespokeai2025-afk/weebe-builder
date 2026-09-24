@@ -116,7 +116,7 @@ export async function loadCallAgentConfig(
 
   const { data: agentRow } = await sb
     .from("agents")
-    .select("name, flow_data, settings")
+    .select("name, flow_data, settings, variables")
     .eq("id", config.agentId)
     .maybeSingle();
   if (!agentRow) return config;
@@ -130,7 +130,7 @@ export async function loadCallAgentConfig(
   config.voiceId = isWebeeNativeMode(config.deploymentMode)
     ? ((settings.webeeVoiceId as string | undefined) ?? "")
     : ((settings.voice_id as string | undefined) ?? DEFAULT_VOICE);
-  config.analysisSchema = readAnalysisSchema(settings);
+  config.analysisSchema = readAnalysisSchema(settings, agentRow.variables);
   config.analysisModel = (settings.postCallAnalysisModel as string | undefined) ?? null;
   config.successCriteria = (settings.successCriteria as string | undefined) ?? null;
   // Stored model ids may be retired preview aliases, so always re-resolve.
@@ -169,20 +169,36 @@ export async function loadCallAgentConfig(
 }
 
 /**
- * Read the post-call extraction schema out of an agent's settings.
+ * Read the post-call extraction schema for an agent.
  *
- * Two sources, because agents reach the DB by two routes: ones imported from
- * Retell keep the raw `post_call_analysis_data`, while ones built in the builder
- * only have `variables`, which the exporter turns into that same array. Reading
- * both means native calls extract the same fields the Retell path did.
+ * Sources, in order of authority:
+ *   1. `builderVariables` — the agent's `variables` column, which is exactly what the Post-Call
+ *      Data Retrieval panel edits. The only source the user can change, so it wins.
+ *   2. `settings.rawAgent.post_call_analysis_data` — the snapshot taken when an agent was imported
+ *      from Retell.
+ *   3. `settings.variables` — where older builder agents stored their fields.
+ *
+ * The `variables` column was previously never read — neither call path selected it — so on an
+ * imported agent every builder edit was ignored in favour of the import-day snapshot, and an agent
+ * built purely in the builder extracted no custom fields at all. Existing agents only appeared to
+ * work because their snapshot happened to match what was in the builder.
  */
-export function readAnalysisSchema(settings: Record<string, unknown>): AnalysisField[] {
+export function readAnalysisSchema(
+  settings: Record<string, unknown>,
+  builderVariables?: unknown,
+): AnalysisField[] {
+  const fromBuilder = fieldsFromBuilderVariables(builderVariables);
+  if (fromBuilder.length > 0) return fromBuilder;
+
   const raw = (settings.rawAgent as Record<string, unknown> | undefined)?.post_call_analysis_data;
   if (Array.isArray(raw) && raw.length > 0) {
     return raw.map((entry) => normalizeAnalysisField(entry as Record<string, unknown>));
   }
 
-  const variables = settings.variables;
+  return fieldsFromBuilderVariables(settings.variables);
+}
+
+function fieldsFromBuilderVariables(variables: unknown): AnalysisField[] {
   if (!Array.isArray(variables)) return [];
   return variables
     .map((v) => v as Record<string, unknown>)
@@ -402,7 +418,9 @@ export async function finalizeCall(
  * Test calls already pass these on `session.init`; telephony must read them
  * from the saved agent or barge-in / keyword boost silently reset to defaults.
  */
-export function nativeCascadeOptionsFromSettings(settings: Record<string, unknown> | null | undefined): {
+export function nativeCascadeOptionsFromSettings(
+  settings: Record<string, unknown> | null | undefined,
+): {
   boostedKeywords?: string[];
   speechLanguages?: string[];
   silenceDurationMs?: number;

@@ -9,6 +9,7 @@
  * Relative imports only — this module is reachable from vite.config.ts.
  */
 
+import { normaliseSpokenNumbers, validateExtractedValue } from "./extraction-validation.shared";
 import { gptComplete, gptStream, type ChatMsg, type VoiceLlmProvider } from "../llm/gpt";
 import {
   WEBEE_NATIVE_CLASSIFIER_MODEL,
@@ -37,7 +38,7 @@ const CLASSIFY_SYSTEM = [
   "Pick exactly one transition option, or none.",
   'Reply with JSON only: {"transition": <option_number_or_label>}',
   "Option numbers are 1-based. Use 0 if none apply.",
-  "Labels may match option text (e.g. \"positive\"). Do not generate speech.",
+  'Labels may match option text (e.g. "positive"). Do not generate speech.',
 ].join("\n");
 
 /** gpt-oss spends a slice of max_tokens on reasoning — keep room for spoken words. */
@@ -50,6 +51,13 @@ const EXTRACT_SYSTEM = [
   "Return a JSON object containing only the requested fields.",
   "Use null for any field the conversation does not clearly establish — never guess,",
   "and never carry over an example value as if the caller had said it.",
+  "Only put a value in a field if it is that kind of information. An email address goes only in",
+  "an email field, a phone number only in a phone field, a person's name only in a name field.",
+  "If the caller gave an email when asked for a phone number, the phone field is null.",
+  "Take values from what the CALLER said, not from what the agent said.",
+  "Phone numbers in the conversation have already been converted to digits — copy them",
+  "exactly, digit for digit, without adding or removing any. Write phone numbers as digits only.",
+  "If the caller corrects themselves, use the corrected value.",
 ].join("\n");
 
 export function createOpenAiVmLlm(options: OpenAiVmLlmOptions): VmLlm {
@@ -121,9 +129,16 @@ export function createOpenAiVmLlm(options: OpenAiVmLlmOptions): VmLlm {
         })
         .join("\n");
 
+      // The caller's spoken numbers become numerals here, deterministically, so the
+      // model only copies digits — left to the model, "double oh" lost a zero.
+      const normalised = messages.map((m) =>
+        m.role === "user" && typeof m.content === "string"
+          ? { ...m, content: normaliseSpokenNumbers(m.content) }
+          : m,
+      );
       const prompt: LlmMessage[] = [
         { role: "system", content: EXTRACT_SYSTEM },
-        ...messages,
+        ...normalised,
         {
           role: "user",
           content: `Extract these fields from the conversation:\n${spec}\n\nReturn JSON with exactly these keys.`,
@@ -150,7 +165,11 @@ export function createOpenAiVmLlm(options: OpenAiVmLlmOptions): VmLlm {
       const source = parsed as Record<string, unknown>;
       for (const field of fields) {
         if (!(field.name in source)) continue;
-        const value = coerce(source[field.name], field.type);
+        // Type first, then meaning: a string that is the wrong kind for its field
+        // (an email in mobile_number) is dropped so the agent asks again, rather
+        // than stored and read back to the caller.
+        const typed = coerce(source[field.name], field.type);
+        const value = validateExtractedValue(field, typed);
         if (value !== null) out[field.name] = value;
       }
       return out;
