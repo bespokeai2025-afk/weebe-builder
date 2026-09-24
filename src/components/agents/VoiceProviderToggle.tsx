@@ -85,7 +85,7 @@ export function VoiceProviderToggle({ agentId, currentProvider, hasPhone }: Prop
                 "disabled:cursor-not-allowed disabled:opacity-50",
                 isActive
                   ? "border-primary/60 bg-primary/10 ring-1 ring-primary/30"
-                  : "border-white/[0.08] bg-white/[0.02] hover:border-white/[0.16] hover:bg-white/[0.04]",
+                  : "border-border dark:border-white/[0.08] bg-muted/20 dark:bg-white/[0.02] hover:border-border dark:hover:border-white/[0.16] hover:bg-muted/30 dark:hover:bg-white/[0.04]",
               )}
             >
               <Icon
@@ -114,7 +114,7 @@ export function VoiceProviderToggle({ agentId, currentProvider, hasPhone }: Prop
       </div>
 
       {active === "OPENAI_REALTIME" && (
-        <div className="flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 w-fit">
+        <div className="flex items-center gap-1.5 rounded-full border border-border dark:border-white/[0.08] bg-muted/30 dark:bg-white/[0.03] px-2.5 py-1 w-fit">
           <Lock className="h-3 w-3 shrink-0 text-muted-foreground" />
           <span className="text-[10px] text-muted-foreground">
             Routed via Master Admin Enterprise Line

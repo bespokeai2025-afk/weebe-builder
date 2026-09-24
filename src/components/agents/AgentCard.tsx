@@ -174,9 +174,9 @@ export function AgentCard({ agent, loading, onOpen, onDeploy, onGuidedDeploy, on
     <div
       className={cn(
         "group/card relative isolate flex flex-col rounded-2xl bg-card/80 backdrop-blur-sm",
-        "ring-1 ring-white/[0.06] transition-all duration-200",
+        "ring-1 ring-border dark:ring-white/[0.06] transition-all duration-200",
         "p-6 md:p-7",
-        "hover:-translate-y-0.5 hover:ring-white/[0.12]",
+        "hover:-translate-y-0.5 hover:ring-black/10 dark:hover:ring-white/[0.12]",
         "shadow-[0_1px_0_rgba(255,255,255,0.04)_inset,0_1px_2px_rgba(0,0,0,0.35)]",
         "hover:shadow-[0_1px_0_rgba(255,255,255,0.06)_inset,0_8px_28px_-12px_rgba(0,0,0,0.7)]",
       )}
@@ -216,25 +216,25 @@ export function AgentCard({ agent, loading, onOpen, onDeploy, onGuidedDeploy, on
               <Badge
                 key={t}
                 variant="secondary"
-                className="h-5 rounded-full bg-white/[0.04] px-2 text-[10px] font-normal text-muted-foreground ring-1 ring-white/[0.06] hover:bg-white/[0.06]"
+                className="h-5 rounded-full bg-muted dark:bg-white/[0.04] px-2 text-[10px] font-normal text-muted-foreground ring-1 ring-border dark:ring-white/[0.06] hover:bg-muted/70 dark:hover:bg-white/[0.06]"
               >
                 {t}
               </Badge>
             ))}
             <Badge
               variant="secondary"
-              className="h-5 gap-1 rounded-full bg-white/[0.04] px-2 text-[10px] font-normal ring-1 ring-white/[0.06] hover:bg-white/[0.06]"
+              className="h-5 gap-1 rounded-full bg-muted dark:bg-white/[0.04] px-2 text-[10px] font-normal ring-1 ring-border dark:ring-white/[0.06] hover:bg-muted/70 dark:hover:bg-white/[0.06]"
               title={voiceProvider === "OPENAI_REALTIME" ? "HyperStream Engine (Instant Response)" : "OmniVoice Engine (Premium Catalog)"}
             >
               {voiceProvider === "OPENAI_REALTIME" ? (
                 <>
-                  <Zap className="h-2.5 w-2.5 text-violet-400" />
-                  <span className="text-violet-300">HyperStream</span>
+                  <Zap className="h-2.5 w-2.5 text-violet-600 dark:text-violet-400" />
+                  <span className="text-violet-700 dark:text-violet-300">HyperStream</span>
                 </>
               ) : (
                 <>
-                  <Radio className="h-2.5 w-2.5 text-sky-400" />
-                  <span className="text-sky-300">OmniVoice</span>
+                  <Radio className="h-2.5 w-2.5 text-sky-600 dark:text-sky-400" />
+                  <span className="text-sky-700 dark:text-sky-300">OmniVoice</span>
                 </>
               )}
             </Badge>
@@ -246,7 +246,7 @@ export function AgentCard({ agent, loading, onOpen, onDeploy, onGuidedDeploy, on
             {voiceProvider === "OPENAI_REALTIME" && (
               <Badge
                 variant="outline"
-                className="shrink-0 border-violet-500/40 bg-violet-500/10 text-violet-300 gap-1 px-2 py-0.5 text-[10px] font-semibold"
+                className="shrink-0 border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-300 gap-1 px-2 py-0.5 text-[10px] font-semibold"
               >
                 <Zap className="h-3 w-3" />
                 Enterprise Line
@@ -289,7 +289,7 @@ export function AgentCard({ agent, loading, onOpen, onDeploy, onGuidedDeploy, on
       </div>
 
       {/* Actions */}
-      <div className="mt-6 flex items-center justify-between border-t border-white/[0.04] pt-4">
+      <div className="mt-6 flex items-center justify-between border-t border-border dark:border-white/[0.04] pt-4">
         <div className="flex items-center gap-1.5 opacity-0 transition-opacity duration-200 group-hover/card:opacity-100">
           <Button
             size="sm"

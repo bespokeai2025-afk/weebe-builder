@@ -187,12 +187,12 @@ function MyAgentsPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {/* Voice engine filter */}
-            <div className="flex items-center rounded-lg bg-white/[0.03] p-0.5 ring-1 ring-white/[0.06]">
+            <div className="flex items-center rounded-lg bg-muted/30 dark:bg-white/[0.03] p-0.5 ring-1 ring-border dark:ring-white/[0.06]">
               {(
                 [
                   { value: "ALL", label: "All" },
-                  { value: "RETELL", label: "OmniVoice", icon: <Radio className="h-3 w-3 text-sky-400" /> },
-                  { value: "OPENAI_REALTIME", label: "HyperStream", icon: <Zap className="h-3 w-3 text-violet-400" /> },
+                  { value: "RETELL", label: "OmniVoice", icon: <Radio className="h-3 w-3 text-sky-600 dark:text-sky-400" /> },
+                  { value: "OPENAI_REALTIME", label: "HyperStream", icon: <Zap className="h-3 w-3 text-violet-600 dark:text-violet-400" /> },
                 ] as const
               ).map(({ value, label, icon }) => (
                 <button
@@ -206,7 +206,7 @@ function MyAgentsPage() {
                   }
                   className={`inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[11px] font-medium transition-all ${
                     voiceFilter === value
-                      ? "bg-white/[0.08] text-foreground shadow-sm ring-1 ring-white/[0.10]"
+                      ? "bg-muted dark:bg-white/[0.08] text-foreground shadow-sm ring-1 ring-border dark:ring-white/[0.10]"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
@@ -215,8 +215,8 @@ function MyAgentsPage() {
                   {value !== "ALL" && (
                     <span className={`rounded px-1 py-px text-[10px] font-semibold tabular-nums leading-none ${
                       voiceFilter === value
-                        ? "bg-white/[0.10] text-foreground"
-                        : "bg-white/[0.05] text-muted-foreground"
+                        ? "bg-muted dark:bg-white/[0.10] text-foreground"
+                        : "bg-muted/40 dark:bg-white/[0.05] text-muted-foreground"
                     }`}>
                       {engineCounts[value]}
                     </span>
@@ -231,7 +231,7 @@ function MyAgentsPage() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search agents…"
-                className="h-9 w-56 border-white/[0.06] bg-white/[0.02] pl-8 text-sm"
+                className="h-9 w-56 border-border dark:border-white/[0.06] bg-muted/20 dark:bg-white/[0.02] pl-8 text-sm"
               />
             </div>
             <Button asChild size="sm" variant="outline" className="h-9 gap-1.5">
@@ -254,7 +254,7 @@ function MyAgentsPage() {
             <Loader2 className="h-4 w-4 animate-spin" /> Loading your agents…
           </div>
         ) : agents.length === 0 ? (
-          <div className="rounded-xl bg-card/60 p-8 text-center ring-1 ring-white/[0.06]">
+          <div className="rounded-xl bg-card/60 p-8 text-center ring-1 ring-border dark:ring-white/[0.06]">
             <h2 className="text-lg font-semibold tracking-tight">No agents yet</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Spin up your first voice agent in the builder.
@@ -267,7 +267,7 @@ function MyAgentsPage() {
             </Button>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="rounded-2xl bg-card/60 p-10 text-center ring-1 ring-white/[0.06] text-sm text-muted-foreground">
+          <div className="rounded-2xl bg-card/60 p-10 text-center ring-1 ring-border dark:ring-white/[0.06] text-sm text-muted-foreground">
             {query.trim() && voiceFilter !== "ALL"
               ? `No ${voiceFilter === "OPENAI_REALTIME" ? "HyperStream" : "OmniVoice"} agents match "${query}".`
               : query.trim()
