@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
-  LayoutGrid,
   LayoutTemplate,
   LayoutDashboard,
+  Bot,
   Workflow,
   CalendarDays,
   CreditCard,
@@ -160,7 +160,7 @@ type NavItem = {
 // it's intentionally left out rather than pointed at the wrong route.
 const MAIN_NAV_ITEMS: NavItem[] = [
   { title: "Overview",  url: "/dashboard", icon: LayoutDashboard },
-  { title: "Agents",    url: "/my-agents", icon: LayoutGrid, tourId: "nav-agents" },
+  { title: "Agents",    url: "/my-agents", icon: Bot, tourId: "nav-agents" },
   { title: "Leads",     url: "/leads",     icon: UserCheck },
   { title: "Builder",   url: "/builder",   icon: Workflow,   moduleId: "builder" },
   { title: "Campaigns", url: "/campaigns", icon: Megaphone },
@@ -412,7 +412,7 @@ export function AppSidebar() {
     const visible = items.filter((item) => !isRoleHidden(item));
     if (visible.length === 0) return null;
     return (
-      <SidebarGroup>
+      <SidebarGroup className="py-1">
         {!collapsed && (
           <SidebarGroupLabel className="px-2 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/70">
             {label}
@@ -502,27 +502,27 @@ export function AppSidebar() {
         </DropdownMenu>
       </SidebarHeader>
 
-      <div className="mx-2 my-1 h-px bg-muted/40 dark:bg-white/[0.05] group-data-[collapsible=icon]:mx-1.5" />
+      <div className="mx-2 my-1 h-[2px] shrink-0 rounded-full bg-foreground/20 group-data-[collapsible=icon]:mx-1.5" />
 
-      <SidebarContent className="px-1.5 pt-2 group-data-[collapsible=icon]:px-1.5">
+      <SidebarContent className="gap-0 px-1.5 pt-2 group-data-[collapsible=icon]:px-1.5">
         {renderNavGroup("Main", MAIN_NAV_ITEMS)}
 
-        <div className="mx-2 my-1.5 h-px bg-muted/40 dark:bg-white/[0.05] group-data-[collapsible=icon]:mx-1.5" />
+        <div className="mx-2 my-1 h-[2px] shrink-0 rounded-full bg-foreground/20 group-data-[collapsible=icon]:mx-1.5" />
         {renderNavGroup(
           "AI Executives",
           isAdmin ? [...AI_EXECUTIVE_ITEMS, ACCOUNTSMIND_ITEM] : AI_EXECUTIVE_ITEMS,
         )}
 
-        <div className="mx-2 my-1.5 h-px bg-muted/40 dark:bg-white/[0.05] group-data-[collapsible=icon]:mx-1.5" />
+        <div className="mx-2 my-1 h-[2px] shrink-0 rounded-full bg-foreground/20 group-data-[collapsible=icon]:mx-1.5" />
         {renderNavGroup("Workspace", WORKSPACE_NAV_ITEMS)}
 
-        <div className="mx-2 my-1.5 h-px bg-muted/40 dark:bg-white/[0.05] group-data-[collapsible=icon]:mx-1.5" />
+        <div className="mx-2 my-1 h-[2px] shrink-0 rounded-full bg-foreground/20 group-data-[collapsible=icon]:mx-1.5" />
         {renderNavGroup("Administration", ADMINISTRATION_NAV_ITEMS)}
 
         {isAdmin && (
           <>
-            <div className="mx-2 my-1.5 h-px bg-muted/40 dark:bg-white/[0.05] group-data-[collapsible=icon]:mx-1.5" />
-            <SidebarGroup>
+            <div className="mx-2 my-1 h-[2px] shrink-0 rounded-full bg-foreground/20 group-data-[collapsible=icon]:mx-1.5" />
+            <SidebarGroup className="py-1">
               {!collapsed && (
                 <SidebarGroupLabel className="px-2 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/70">
                   Telephony
@@ -562,8 +562,8 @@ export function AppSidebar() {
               </SidebarGroupContent>
             </SidebarGroup>
 
-            <div className="mx-2 my-1.5 h-px bg-muted/40 dark:bg-white/[0.05] group-data-[collapsible=icon]:mx-1.5" />
-            <SidebarGroup>
+            <div className="mx-2 my-1 h-[2px] shrink-0 rounded-full bg-foreground/20 group-data-[collapsible=icon]:mx-1.5" />
+            <SidebarGroup className="py-1">
               {!collapsed && (
                 <SidebarGroupLabel className="px-2 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/70">
                   Administration
@@ -786,7 +786,7 @@ export function AppSidebar() {
         )}
       </SidebarContent>
 
-      <div className="mx-2 mb-1 h-px bg-muted/40 dark:bg-white/[0.05] group-data-[collapsible=icon]:mx-1.5" />
+      <div className="mx-2 mb-1 h-[2px] shrink-0 rounded-full bg-foreground/20 group-data-[collapsible=icon]:mx-1.5" />
       <SidebarFooter className="px-1.5 pb-3 group-data-[collapsible=icon]:px-1.5">
 
       {/* ── Upgrade module dialog ─────────────────────────────────────────── */}
