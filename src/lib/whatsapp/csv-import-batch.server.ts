@@ -13,7 +13,6 @@ import {
 } from "@/lib/whatsapp/campaign-leads.shared";
 
 const BATCH_UPSERT = 200;
-const UPDATE_CONCURRENCY = 24;
 
 type ExistingLead = {
   id: string;
@@ -66,22 +65,6 @@ function mergeLeadMeta(
 function leadMetaFromCsvRow(row: CsvLeadRow): Record<string, string> {
   if (row.import_meta && Object.keys(row.import_meta).length > 0) return row.import_meta;
   return parseNotesToMeta(row.notes);
-}
-
-async function runPool<T>(
-  items: T[],
-  concurrency: number,
-  fn: (item: T) => Promise<void>,
-): Promise<void> {
-  if (items.length === 0) return;
-  let index = 0;
-  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
-    while (index < items.length) {
-      const i = index++;
-      await fn(items[i]!);
-    }
-  });
-  await Promise.all(workers);
 }
 
 async function fetchLeadsByPhones(
@@ -265,6 +248,30 @@ async function insertLeadChunks(
   return created;
 }
 
+/**
+ * Bulk-write already-matched leads in chunks, one upsert per chunk instead of one UPDATE per
+ * row. Re-selecting an existing Buzzchat audience for a campaign is the common case — most of
+ * the contacts already have a lead — and that used to mean one HTTP round trip per contact
+ * (a concurrency-24 pool of individual `.update()` calls), which is what made loading a few
+ * hundred contacts visibly slow.
+ * `onConflict: "id"` makes this an UPDATE for every row here, since `id` always already exists.
+ */
+async function updateLeadChunks(
+  sb: any,
+  rows: Array<{ id: string; phone: string; workspace_id: string; patch: Record<string, unknown> }>,
+): Promise<void> {
+  for (let i = 0; i < rows.length; i += BATCH_UPSERT) {
+    const chunk = rows.slice(i, i + BATCH_UPSERT).map((r) => ({
+      id: r.id,
+      phone: r.phone,
+      workspace_id: r.workspace_id,
+      ...r.patch,
+    }));
+    const { error } = await sb.from("leads").upsert(chunk, { onConflict: "id" });
+    if (error) throw new Error(error.message);
+  }
+}
+
 export type CsvImportBatchResult = {
   leadIds: string[];
   inserted: number;
@@ -300,7 +307,7 @@ export async function batchImportCsvLeads(
   let contactUpdated = 0;
 
   type LeadInsert = Record<string, unknown> & { phone: string };
-  type LeadUpdate = { id: string; patch: Record<string, unknown> };
+  type LeadUpdate = { id: string; phone: string; workspace_id: string; patch: Record<string, unknown> };
   const toInsert: LeadInsert[] = [];
   const toUpdate: LeadUpdate[] = [];
   const contactUpserts: Record<string, unknown>[] = [];
@@ -340,11 +347,18 @@ export async function batchImportCsvLeads(
         whatsapp_opt_in: true,
         meta: mergedMeta,
       };
-      if (row.full_name) patch.full_name = row.full_name;
-      if (row.email) patch.email = row.email;
-      if (row.company_name) patch.company_name = row.company_name;
-      if (row.notes) patch.notes = row.notes;
-      toUpdate.push({ id: existing.id, patch });
+      // Every optional field is always present in the patch, falling back to the lead's current
+      // value rather than being omitted — the write below is a single bulk upsert across many
+      // rows with different fields set, and an absent key there is NULL, not "leave unchanged".
+      // Filling it here keeps the old per-row "only touch what changed" behaviour exact.
+      patch.full_name = row.full_name || existing.full_name || null;
+      patch.email = row.email || existing.email || null;
+      patch.company_name = row.company_name || existing.company_name || null;
+      patch.notes = row.notes || existing.notes || null;
+      // workspace_id + phone are the only NOT NULL columns leads has with no default — carried
+      // along even though this row always updates, because upsert's INSERT ... ON CONFLICT still
+      // validates them against the VALUES tuple before the conflict is even evaluated.
+      toUpdate.push({ id: existing.id, phone, workspace_id: workspaceId, patch });
       leadIds.push(existing.id);
       updated++;
     } else {
@@ -416,10 +430,7 @@ export async function batchImportCsvLeads(
   }
 
   if (toUpdate.length > 0) {
-    await runPool(toUpdate, UPDATE_CONCURRENCY, async ({ id, patch }) => {
-      const { error } = await sb.from("leads").update(patch).eq("id", id);
-      if (error) throw new Error(error.message);
-    });
+    await updateLeadChunks(sb, toUpdate);
   }
 
   return {

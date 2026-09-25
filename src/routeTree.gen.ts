@@ -216,6 +216,7 @@ import { Route as ApiPublicRetellWebhookRouteImport } from './routes/api/public/
 import { Route as ApiPublicTiktokAdsWebhookRouteImport } from './routes/api/public/tiktok-ads-webhook'
 import { Route as ApiPublicVideoJobPollerRouteImport } from './routes/api/public/video-job-poller'
 import { Route as ApiPublicVoiceWebhookRouteImport } from './routes/api/public/voice-webhook'
+import { Route as ApiPublicWbahEnvCheckRouteImport } from './routes/api/public/wbah-env-check'
 import { Route as ApiPublicWbahPostCallQueueRouteImport } from './routes/api/public/wbah-post-call-queue'
 import { Route as ApiV1AgentsRouteImport } from './routes/api/v1/agents'
 import { Route as ApiV1AnalyticsRouteImport } from './routes/api/v1/analytics'
@@ -1526,6 +1527,11 @@ const ApiPublicVoiceWebhookRoute = ApiPublicVoiceWebhookRouteImport.update({
   path: '/api/public/voice-webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicWbahEnvCheckRoute = ApiPublicWbahEnvCheckRouteImport.update({
+  id: '/api/public/wbah-env-check',
+  path: '/api/public/wbah-env-check',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicWbahPostCallQueueRoute =
   ApiPublicWbahPostCallQueueRouteImport.update({
     id: '/api/public/wbah-post-call-queue',
@@ -2477,6 +2483,7 @@ export interface FileRoutesByFullPath {
   '/api/public/tiktok-ads-webhook': typeof ApiPublicTiktokAdsWebhookRoute
   '/api/public/video-job-poller': typeof ApiPublicVideoJobPollerRoute
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
+  '/api/public/wbah-env-check': typeof ApiPublicWbahEnvCheckRoute
   '/api/public/wbah-post-call-queue': typeof ApiPublicWbahPostCallQueueRoute
   '/api/v1/agents': typeof ApiV1AgentsRouteWithChildren
   '/api/v1/analytics': typeof ApiV1AnalyticsRoute
@@ -2809,6 +2816,7 @@ export interface FileRoutesByTo {
   '/api/public/tiktok-ads-webhook': typeof ApiPublicTiktokAdsWebhookRoute
   '/api/public/video-job-poller': typeof ApiPublicVideoJobPollerRoute
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
+  '/api/public/wbah-env-check': typeof ApiPublicWbahEnvCheckRoute
   '/api/public/wbah-post-call-queue': typeof ApiPublicWbahPostCallQueueRoute
   '/api/v1/agents': typeof ApiV1AgentsRouteWithChildren
   '/api/v1/analytics': typeof ApiV1AnalyticsRoute
@@ -3151,6 +3159,7 @@ export interface FileRoutesById {
   '/api/public/tiktok-ads-webhook': typeof ApiPublicTiktokAdsWebhookRoute
   '/api/public/video-job-poller': typeof ApiPublicVideoJobPollerRoute
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
+  '/api/public/wbah-env-check': typeof ApiPublicWbahEnvCheckRoute
   '/api/public/wbah-post-call-queue': typeof ApiPublicWbahPostCallQueueRoute
   '/api/v1/agents': typeof ApiV1AgentsRouteWithChildren
   '/api/v1/analytics': typeof ApiV1AnalyticsRoute
@@ -3494,6 +3503,7 @@ export interface FileRouteTypes {
     | '/api/public/tiktok-ads-webhook'
     | '/api/public/video-job-poller'
     | '/api/public/voice-webhook'
+    | '/api/public/wbah-env-check'
     | '/api/public/wbah-post-call-queue'
     | '/api/v1/agents'
     | '/api/v1/analytics'
@@ -3826,6 +3836,7 @@ export interface FileRouteTypes {
     | '/api/public/tiktok-ads-webhook'
     | '/api/public/video-job-poller'
     | '/api/public/voice-webhook'
+    | '/api/public/wbah-env-check'
     | '/api/public/wbah-post-call-queue'
     | '/api/v1/agents'
     | '/api/v1/analytics'
@@ -4167,6 +4178,7 @@ export interface FileRouteTypes {
     | '/api/public/tiktok-ads-webhook'
     | '/api/public/video-job-poller'
     | '/api/public/voice-webhook'
+    | '/api/public/wbah-env-check'
     | '/api/public/wbah-post-call-queue'
     | '/api/v1/agents'
     | '/api/v1/analytics'
@@ -4358,6 +4370,7 @@ export interface RootRouteChildren {
   ApiPublicTiktokAdsWebhookRoute: typeof ApiPublicTiktokAdsWebhookRoute
   ApiPublicVideoJobPollerRoute: typeof ApiPublicVideoJobPollerRoute
   ApiPublicVoiceWebhookRoute: typeof ApiPublicVoiceWebhookRouteWithChildren
+  ApiPublicWbahEnvCheckRoute: typeof ApiPublicWbahEnvCheckRoute
   ApiPublicWbahPostCallQueueRoute: typeof ApiPublicWbahPostCallQueueRoute
   ApiV1AgentsRoute: typeof ApiV1AgentsRouteWithChildren
   ApiV1AnalyticsRoute: typeof ApiV1AnalyticsRoute
@@ -5897,6 +5910,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/voice-webhook'
       fullPath: '/api/public/voice-webhook'
       preLoaderRoute: typeof ApiPublicVoiceWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/wbah-env-check': {
+      id: '/api/public/wbah-env-check'
+      path: '/api/public/wbah-env-check'
+      fullPath: '/api/public/wbah-env-check'
+      preLoaderRoute: typeof ApiPublicWbahEnvCheckRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/wbah-post-call-queue': {
@@ -7752,6 +7772,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicTiktokAdsWebhookRoute: ApiPublicTiktokAdsWebhookRoute,
   ApiPublicVideoJobPollerRoute: ApiPublicVideoJobPollerRoute,
   ApiPublicVoiceWebhookRoute: ApiPublicVoiceWebhookRouteWithChildren,
+  ApiPublicWbahEnvCheckRoute: ApiPublicWbahEnvCheckRoute,
   ApiPublicWbahPostCallQueueRoute: ApiPublicWbahPostCallQueueRoute,
   ApiV1AgentsRoute: ApiV1AgentsRouteWithChildren,
   ApiV1AnalyticsRoute: ApiV1AnalyticsRoute,

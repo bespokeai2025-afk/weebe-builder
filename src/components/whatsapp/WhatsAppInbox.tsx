@@ -223,7 +223,15 @@ export function WhatsAppInbox() {
   } = useQuery({
     queryKey: ["wa-threads", filters],
     queryFn: () => listFn({ data: filters }),
-    refetchInterval: 60_000,
+    // The realtime subscription below is what actually delivers a new message —
+    // this timer is a resilience fallback for the rare case it misses one, not
+    // the primary path. It used to fire every 60s on top of that subscription
+    // and two other independent pollers further down (30s WATI sync, 20s
+    // per-open-thread), so on an active inbox the full list — everyone's
+    // unread state, sort order, badges — was being re-fetched and re-rendered
+    // several times a minute regardless of whether anything actually changed,
+    // which is what made the inbox feel like it never stopped loading.
+    refetchInterval: 180_000,
     placeholderData: keepPreviousData,
     throwOnError: false,
   });
@@ -232,15 +240,26 @@ export function WhatsAppInbox() {
     qc.invalidateQueries({ queryKey: ["wa-threads"] });
   }, [qc]);
 
+  const workspaceId = meta?.workspaceId;
   useEffect(() => {
+    // Scoped to this workspace — RLS already stops another tenant's rows being
+    // delivered here at all, but the filter means the realtime server skips
+    // evaluating this subscriber for every OTHER workspace's message traffic
+    // too, rather than just silently dropping what it isn't allowed to see.
+    // Waits for workspaceId to be known rather than subscribing unfiltered in
+    // the meantime, so it's never briefly wide open.
+    if (!workspaceId) return;
+    const wsFilter = `workspace_id=eq.${workspaceId}`;
     const channel = supabase
-      .channel("buzzchat-inbox")
-      .on("postgres_changes", { event: "*", schema: "public", table: "whatsapp_messages" }, () =>
-        invalidateThreads(),
+      .channel(`buzzchat-inbox-${workspaceId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "whatsapp_messages", filter: wsFilter },
+        () => invalidateThreads(),
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "whatsapp_conversations" },
+        { event: "*", schema: "public", table: "whatsapp_conversations", filter: wsFilter },
         () => invalidateThreads(),
       )
       .subscribe();
@@ -248,7 +267,7 @@ export function WhatsAppInbox() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [invalidateThreads]);
+  }, [invalidateThreads, workspaceId]);
 
   useQuery({
     queryKey: ["wa-inbox-wati-sync"],
@@ -264,8 +283,11 @@ export function WhatsAppInbox() {
     // frequent; running it every 15s alongside a separate 10s per-thread poll
     // (further down) meant two independent WATI-pull cycles racing to
     // invalidate the same query, which is wasted load and can make updates
-    // feel slower (queued/out-of-order responses) rather than faster.
-    refetchInterval: 30_000,
+    // feel slower (queued/out-of-order responses) rather than faster. Widened
+    // again, same reasoning as the 60s→180s change on the main list query above:
+    // this is a fallback for a fallback, not something that needs to compete
+    // with realtime for freshness.
+    refetchInterval: 120_000,
     throwOnError: false,
   });
 
@@ -364,11 +386,13 @@ export function WhatsAppInbox() {
     };
 
     pullFromWati();
-    // Widened from 10s — this and the workspace-wide sync above both pull
-    // from WATI's API independently; running both on tight, overlapping
-    // schedules was redundant load, not extra responsiveness (the realtime
-    // subscription is what actually delivers new messages instantly).
-    const interval = setInterval(pullFromWati, 20_000);
+    // Widened again (10s → 20s → 60s) — this and the workspace-wide sync
+    // above both pull from WATI's API independently; running either on a
+    // tight schedule was redundant load, not extra responsiveness (the
+    // realtime subscription is what actually delivers new messages
+    // instantly). This one only needs to catch a message that reached WATI
+    // without ever triggering our webhook, which is rare.
+    const interval = setInterval(pullFromWati, 60_000);
     return () => {
       cancelled = true;
       clearInterval(interval);

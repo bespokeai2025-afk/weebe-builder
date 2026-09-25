@@ -1041,6 +1041,7 @@ export const getWhatsappInboxMeta = createServerFn({ method: "GET" })
     ].sort((a, b) => a.localeCompare(b));
 
     return {
+      workspaceId,
       members: memberRows.map((m) => ({
         userId: m.user_id,
         role: m.role ?? null,
