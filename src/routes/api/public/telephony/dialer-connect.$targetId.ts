@@ -75,8 +75,9 @@ export const Route = createFileRoute("/api/public/telephony/dialer-connect/$targ
           }
         }
 
+        // 1 route number is a plain bridge, 2 is the simul-ring race — see validateRouteNumbers.
         const routeNumbers = (session.route_numbers ?? []) as string[];
-        if (routeNumbers.length !== 2) return twimlResponse(HANGUP_TWIML);
+        if (routeNumbers.length < 1 || routeNumbers.length > 2) return twimlResponse(HANGUP_TWIML);
 
         await (supabaseAdmin as any)
           .from("dialer_targets")
@@ -85,13 +86,12 @@ export const Route = createFileRoute("/api/public/telephony/dialer-connect/$targ
 
         const publicHost = resolvePublicHost();
         const twiml = buildSimulRingTwiml({
-          routeNumbers: [routeNumbers[0], routeNumbers[1]],
+          routeNumbers,
           timeoutSecs: (session.ring_timeout_secs as number) ?? 20,
           actionUrl: `${publicHost}/api/public/telephony/dialer-result/${targetId}`,
-          legAnsweredUrls: [
-            `${publicHost}/api/public/telephony/dialer-leg-answered/${targetId}/0`,
-            `${publicHost}/api/public/telephony/dialer-leg-answered/${targetId}/1`,
-          ],
+          legAnsweredUrls: routeNumbers.map(
+            (_, i) => `${publicHost}/api/public/telephony/dialer-leg-answered/${targetId}/${i}`,
+          ),
           callerId: (session.from_number as string) ?? "",
         });
 

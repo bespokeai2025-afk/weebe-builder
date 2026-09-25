@@ -134,7 +134,7 @@ export const createDialerSession = createServerFn({ method: "POST" })
     z
       .object({
         name: z.string().trim().min(1).max(200),
-        routeNumbers: z.array(z.string().trim()).length(2),
+        routeNumbers: z.array(z.string().trim()).min(1).max(2),
         targets: z.array(targetInputSchema).min(1).max(2000),
         fromNumber: z.string().trim().optional(),
         ringTimeoutSecs: z.number().int().min(5).max(60).optional(),
@@ -160,7 +160,7 @@ export const createDialerSessionFromDataRecords = createServerFn({ method: "POST
     z
       .object({
         recordIds: z.array(z.string().uuid()).min(1).max(2000),
-        routeNumbers: z.array(z.string().trim()).length(2),
+        routeNumbers: z.array(z.string().trim()).min(1).max(2),
         name: z.string().trim().max(200).optional(),
         fromNumber: z.string().trim().optional(),
       })
@@ -215,7 +215,7 @@ export const startQuickDialerCall = createServerFn({ method: "POST" })
       .object({
         name: z.string().trim().max(200).nullable().optional(),
         phone: z.string().trim().min(6).max(20),
-        routeNumbers: z.array(z.string().trim()).length(2),
+        routeNumbers: z.array(z.string().trim()).min(1).max(2),
         fromNumber: z.string().trim().optional(),
         saveAsDefault: z.boolean().optional(),
       })
@@ -256,7 +256,7 @@ export const getDialerQuickCallDefaults = createServerFn({ method: "GET" })
       .eq("workspace_id", workspaceId)
       .maybeSingle();
     const saved = (data?.dialer_default_route_numbers ?? null) as string[] | null;
-    return { routeNumbers: saved && saved.length === 2 ? saved : null };
+    return { routeNumbers: saved && saved.length >= 1 && saved.length <= 2 ? saved : null };
   });
 
 export const listDialerSessions = createServerFn({ method: "GET" })

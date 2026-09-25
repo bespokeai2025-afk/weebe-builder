@@ -137,40 +137,54 @@ export interface RouteNumbersValidation {
   error: string | null;
 }
 
-/** Exactly two route numbers, both valid E.164, and not each other. */
+/**
+ * One or two route numbers, both valid E.164, and — when there are two —
+ * not the same number twice.
+ *
+ * One number is a plain 1-to-1 bridge: the target answers, that one phone
+ * rings, done. Two numbers is the simul-ring case (`buildSimulRingTwiml`) —
+ * both ring at once and whichever answers first is connected. Anything
+ * beyond two isn't supported: Twilio's own `<Dial>` behaviour for more than
+ * two `<Number>` nouns is the same simul-ring race, so there's no case this
+ * feature exists for that a third number would serve better than either of
+ * the two shapes above.
+ */
 export function validateRouteNumbers(numbers: string[]): RouteNumbersValidation {
-  if (numbers.length !== 2) {
-    return { ok: false, error: "Add exactly 2 numbers to route answered calls to." };
+  if (numbers.length < 1 || numbers.length > 2) {
+    return { ok: false, error: "Add 1 or 2 numbers to route answered calls to." };
   }
   for (const n of numbers) {
     if (!isValidE164(n)) {
       return { ok: false, error: `"${n}" isn't a valid phone number — include the country code.` };
     }
   }
-  if (numbers[0] === numbers[1]) {
+  if (numbers.length === 2 && numbers[0] === numbers[1]) {
     return { ok: false, error: "The 2 route numbers must be different." };
   }
   return { ok: true, error: null };
 }
 
 /**
- * TwiML executed when the dialled target answers: ring both route numbers,
- * bridge the first to answer. Each `<Number>` carries its own `answered`
- * callback so the run can report which of the two people actually took the
- * call — Twilio's `<Dial>` action alone only reports that *someone* did.
+ * TwiML executed when the dialled target answers: ring the route number(s),
+ * bridge to whichever answers first. With a single number this is a plain
+ * 1-to-1 bridge; with two, Twilio rings both simultaneously — its native
+ * behaviour for multiple `<Number>` nouns inside one `<Dial>`. Each `<Number>`
+ * carries its own `answered` callback so a two-number run can report which of
+ * the two people actually took the call — `<Dial>`'s own action callback only
+ * reports that *someone* did.
  */
 export function buildSimulRingTwiml(params: {
-  routeNumbers: [string, string];
+  routeNumbers: string[];
   timeoutSecs: number;
   actionUrl: string;
-  legAnsweredUrls: [string, string];
+  legAnsweredUrls: string[];
   callerId: string;
 }): string {
   const { routeNumbers, timeoutSecs, actionUrl, legAnsweredUrls, callerId } = params;
   const numbers = routeNumbers
     .map(
       (n, i) =>
-        `    <Number statusCallbackEvent="answered" statusCallback="${escapeXml(legAnsweredUrls[i])}" statusCallbackMethod="POST">${escapeXml(n)}</Number>`,
+        `    <Number statusCallbackEvent="answered" statusCallback="${escapeXml(legAnsweredUrls[i] ?? actionUrl)}" statusCallbackMethod="POST">${escapeXml(n)}</Number>`,
     )
     .join("\n");
   return (
