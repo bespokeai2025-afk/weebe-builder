@@ -181,7 +181,9 @@ const WORKSPACE_NAV_ITEMS: NavItem[] = [
   { title: "Contacts",  url: "/contacts",         icon: BookUser },
   { title: "Pipeline",  url: "/pipeline",         icon: Kanban },
   { title: "Calls",     url: "/calls",            icon: PhoneCall },
+  { title: "Buzzchat",  url: "/whatsapp",         icon: MessageSquare },
   { title: "Calendar",  url: "/calendar",         icon: CalendarDays },
+  { title: "Data",      url: "/data",             icon: Database },
   { title: "Knowledge", url: "/knowledge-centre", icon: BookOpen },
   { title: "Webforms",  url: "/leads/webforms",   icon: FormInput },
   { title: "Workflows", url: "/workflow-engine",  icon: GitBranch },
@@ -505,21 +507,21 @@ export function AppSidebar() {
       <SidebarContent className="px-1.5 pt-2 group-data-[collapsible=icon]:px-1.5">
         {renderNavGroup("Main", MAIN_NAV_ITEMS)}
 
-        <div className="mx-2 my-3 h-px bg-muted/40 dark:bg-white/[0.05] group-data-[collapsible=icon]:mx-1.5" />
+        <div className="mx-2 my-1.5 h-px bg-muted/40 dark:bg-white/[0.05] group-data-[collapsible=icon]:mx-1.5" />
         {renderNavGroup(
           "AI Executives",
           isAdmin ? [...AI_EXECUTIVE_ITEMS, ACCOUNTSMIND_ITEM] : AI_EXECUTIVE_ITEMS,
         )}
 
-        <div className="mx-2 my-3 h-px bg-muted/40 dark:bg-white/[0.05] group-data-[collapsible=icon]:mx-1.5" />
+        <div className="mx-2 my-1.5 h-px bg-muted/40 dark:bg-white/[0.05] group-data-[collapsible=icon]:mx-1.5" />
         {renderNavGroup("Workspace", WORKSPACE_NAV_ITEMS)}
 
-        <div className="mx-2 my-3 h-px bg-muted/40 dark:bg-white/[0.05] group-data-[collapsible=icon]:mx-1.5" />
+        <div className="mx-2 my-1.5 h-px bg-muted/40 dark:bg-white/[0.05] group-data-[collapsible=icon]:mx-1.5" />
         {renderNavGroup("Administration", ADMINISTRATION_NAV_ITEMS)}
 
         {isAdmin && (
           <>
-            <div className="mx-2 my-3 h-px bg-muted/40 dark:bg-white/[0.05] group-data-[collapsible=icon]:mx-1.5" />
+            <div className="mx-2 my-1.5 h-px bg-muted/40 dark:bg-white/[0.05] group-data-[collapsible=icon]:mx-1.5" />
             <SidebarGroup>
               {!collapsed && (
                 <SidebarGroupLabel className="px-2 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/70">
@@ -560,7 +562,7 @@ export function AppSidebar() {
               </SidebarGroupContent>
             </SidebarGroup>
 
-            <div className="mx-2 my-3 h-px bg-muted/40 dark:bg-white/[0.05] group-data-[collapsible=icon]:mx-1.5" />
+            <div className="mx-2 my-1.5 h-px bg-muted/40 dark:bg-white/[0.05] group-data-[collapsible=icon]:mx-1.5" />
             <SidebarGroup>
               {!collapsed && (
                 <SidebarGroupLabel className="px-2 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/70">
