@@ -558,12 +558,18 @@ function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack: () =>
                 <td className="px-4 py-2 font-mono text-xs">{t.phone}</td>
                 <td className="px-4 py-2">
                   <span
+                    title={t.error_message || undefined}
                     className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
                       STATUS_COLORS[t.status] ?? "bg-muted text-muted-foreground"
                     }`}
                   >
                     {statusLabel(t.status)}
                   </span>
+                  {t.status === "failed" && t.error_message && (
+                    <p className="mt-0.5 max-w-[16rem] truncate text-[10px] text-destructive" title={t.error_message}>
+                      {t.error_message}
+                    </p>
+                  )}
                 </td>
                 <td className="px-4 py-2 font-mono text-xs text-muted-foreground">
                   {t.bridged_number || "—"}

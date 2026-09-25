@@ -293,7 +293,7 @@ export const getDialerSession = createServerFn({ method: "GET" })
     const { data: targets, error: targetsErr } = await supabase
       .from("dialer_targets")
       .select(
-        "id, position, name, phone, status, call_sid, bridged_number, duration_secs, started_at, ended_at",
+        "id, position, name, phone, status, call_sid, bridged_number, duration_secs, started_at, ended_at, error_message",
       )
       .eq("session_id", data.sessionId)
       .order("position", { ascending: true })

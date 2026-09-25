@@ -87,11 +87,18 @@ export async function dialNextDialerTarget(sb: DbClient, sessionId: string): Pro
 
     await bumpStat(sb, sessionId, "dialed");
   } catch (e: any) {
-    console.error("[auto-dialer] failed to place call:", e?.message ?? e);
+    // Twilio's SDK throws a RestException with `code`/`status`/`moreInfo` for a rejected call —
+    // e.g. a destination country blocked under Voice → Geographic Permissions comes back as a 403
+    // before the call ever rings. Stored here rather than only logged: the previous version left
+    // this failure completely silent to anyone without server log access, showing only "failed"
+    // with no way to tell a geo-permission block apart from bad credentials or a malformed number.
+    const errorMessage = [e?.status, e?.code, e?.message].filter(Boolean).join(" ") || String(e);
+    console.error("[auto-dialer] failed to place call:", errorMessage, e?.moreInfo ?? "");
     await sb
       .from("dialer_targets")
       .update({
         status: "failed",
+        error_message: errorMessage.slice(0, 500),
         ended_at: new Date().toISOString(),
         advanced_at: new Date().toISOString(), // nothing will call us back for this leg — advance now
         updated_at: new Date().toISOString(),
