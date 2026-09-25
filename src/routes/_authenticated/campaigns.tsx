@@ -75,6 +75,40 @@ function fmtDate(d: string) {
   return new Date(d).toLocaleDateString();
 }
 
+const PAGE_TYPE_LABEL: Record<string, string> = {
+  leads: "leads",
+  data: "data records",
+  qualified: "qualified leads",
+};
+
+/** Human-readable summary of a telephony campaign's schedule config — never
+ * the raw `__sched_v1__{...}` blob stored in `description` (that's internal
+ * storage encoding, not user-facing text; see call-campaigns.functions.ts). */
+function formatCallCampaignConfig(config: {
+  pageType?: string;
+  leadStatusFilter?: string | null;
+  callTime?: string;
+  timezone?: string;
+  callFrequency?: string;
+  intervalDays?: number;
+  voicemailEnabled?: boolean;
+} | null | undefined): string | null {
+  if (!config) return null;
+  const target = PAGE_TYPE_LABEL[config.pageType ?? ""] ?? "leads";
+  const statusPart = config.leadStatusFilter ? ` with status "${config.leadStatusFilter}"` : "";
+  const freqPart =
+    config.callFrequency === "daily"
+      ? "daily"
+      : config.intervalDays
+        ? `every ${config.intervalDays} day${config.intervalDays === 1 ? "" : "s"}`
+        : null;
+  const timePart = config.callTime
+    ? `${freqPart ? " at " : "at "}${config.callTime}${config.timezone ? ` (${config.timezone})` : ""}`
+    : "";
+  const vmPart = config.voicemailEnabled ? " · voicemail enabled" : "";
+  return `Calls ${target}${statusPart} ${freqPart ?? ""}${timePart}${vmPart}`.replace(/\s+/g, " ").trim();
+}
+
 type CampaignsTab = "telephony" | "scheduled" | "wbah" | "reports";
 
 function CampaignsPage() {
@@ -160,7 +194,7 @@ function CampaignsPage() {
   ];
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-4 p-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">Campaigns</h1>
@@ -262,7 +296,12 @@ function CampaignsPage() {
                       <h3 className="font-semibold truncate">{c.name}</h3>
                       {statusBadge(c.status)}
                     </div>
-                    {c.description && <p className="mt-1 text-sm text-muted-foreground">{c.description}</p>}
+                    {formatCallCampaignConfig(c.config) && (
+                      <p className="mt-1 text-xs text-foreground/90 flex items-center gap-1">
+                        <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        {formatCallCampaignConfig(c.config)}
+                      </p>
+                    )}
                     <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
                       {c.agent && (<span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {c.agent.name}</span>)}
                       {c.phone_number && (<span className="flex items-center gap-1"><Phone className="h-3.5 w-3.5" /> {c.phone_number.friendly_name ?? c.phone_number.phone_number}</span>)}
