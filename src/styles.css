@@ -5,6 +5,45 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Only theme toggles crossfade; normal button and page animations stay intact. */
+html.theme-crossfade::view-transition-old(root) {
+  animation: webee-theme-out 280ms ease-in-out both;
+}
+html.theme-crossfade::view-transition-new(root) {
+  animation: webee-theme-in 280ms ease-in-out both;
+}
+html.theme-crossfade::view-transition-group(root) {
+  animation-duration: 280ms;
+}
+@keyframes webee-theme-out {
+  to { opacity: 0; }
+}
+@keyframes webee-theme-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+html.theme-color-transition,
+html.theme-color-transition *,
+html.theme-color-transition *::before,
+html.theme-color-transition *::after {
+  transition: background-color 280ms ease-in-out, color 280ms ease-in-out,
+    border-color 280ms ease-in-out, box-shadow 280ms ease-in-out,
+    fill 280ms ease-in-out, stroke 280ms ease-in-out !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  html.theme-crossfade::view-transition-old(root),
+  html.theme-crossfade::view-transition-new(root),
+  html.theme-crossfade::view-transition-group(root) {
+    animation: none !important;
+  }
+  html.theme-color-transition,
+  html.theme-color-transition *,
+  html.theme-color-transition *::before,
+  html.theme-color-transition *::after {
+    transition: none !important;
+  }
+}
+
 /*
  * Design system definition.
  *
@@ -1069,12 +1108,13 @@
 }
 
 /* ============================================================
-   Custom scrollbars — 6px, pill-shaped, persistent subtle thumb
+   Hidden scrollbars with native scrolling and reduced-motion support
    ============================================================ */
 
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 ::-webkit-scrollbar-track {
@@ -1098,10 +1138,22 @@
   background: transparent;
 }
 
-/* Firefox fallback */
+/* Hide the visual track only: overflow and native input remain unchanged. */
 * {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+  scrollbar-width: none;
+  scroll-behavior: smooth;
+}
+
+/* Radix renders its own tracks rather than native browser scrollbars. */
+[data-webee-scrollbar] {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html,
+  * {
+    scroll-behavior: auto !important;
+  }
 }
 
 /* ── HiveMind Orb animations ─────────────────────────────────────────────── */

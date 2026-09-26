@@ -3,18 +3,19 @@ import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
+import "./button-theme.css";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-medium cursor-pointer transition-all duration-200 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "webee-button inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-medium cursor-pointer transition-all duration-200 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default:
-          "bg-primary text-primary-foreground shadow-[0_1px_2px_rgba(0,0,0,0.2),0_4px_10px_-4px_rgba(79,140,255,0.35)] hover:brightness-110 hover:shadow-[0_1px_2px_rgba(0,0,0,0.2),0_6px_14px_-4px_rgba(79,140,255,0.5)] active:translate-y-px dark:shadow-[0_1px_0_rgba(255,255,255,0.12)_inset,0_1px_2px_rgba(0,0,0,0.4),0_0_0_1px_rgba(79,140,255,0.25),0_8px_24px_-8px_rgba(79,140,255,0.45)] dark:hover:shadow-[0_1px_0_rgba(255,255,255,0.16)_inset,0_1px_2px_rgba(0,0,0,0.4),0_0_0_1px_rgba(79,140,255,0.35),0_12px_28px_-8px_rgba(79,140,255,0.6)]",
+        default: "webee-button-primary",
         destructive: "bg-destructive text-destructive-foreground shadow-soft hover:brightness-110",
         outline:
           "border border-border bg-transparent hover:bg-muted dark:hover:bg-white/[0.04] hover:border-foreground/20 dark:hover:border-white/15 text-foreground",
-        secondary: "bg-transparent text-foreground hover:bg-muted dark:hover:bg-white/[0.04] border border-border",
+        secondary:
+          "bg-transparent text-foreground hover:bg-muted dark:hover:bg-white/[0.04] border border-border",
         ghost: "hover:bg-muted dark:hover:bg-white/[0.04] text-foreground/90 hover:text-foreground",
         link: "text-primary underline-offset-4 hover:underline",
       },

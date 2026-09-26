@@ -26,6 +26,7 @@ const ScrollBar = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.ScrollAreaScrollbar>
 >(({ className, orientation = "vertical", ...props }, ref) => (
   <ScrollAreaPrimitive.ScrollAreaScrollbar
+    data-webee-scrollbar=""
     ref={ref}
     orientation={orientation}
     className={cn(

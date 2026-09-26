@@ -33,6 +33,7 @@ interface Props {
   onBack: () => void;
   onRename: (name: string) => Promise<void>;
   onAssign: (agentId: string | null) => Promise<string>;
+  embedded?: boolean;
 }
 
 function CountryField({ direction }: { direction: "inbound" | "outbound" }) {
@@ -110,7 +111,14 @@ function AgentField({
   );
 }
 
-export function PhoneNumberDetail({ number, agents, onBack, onRename, onAssign }: Props) {
+export function PhoneNumberDetail({
+  number,
+  agents,
+  onBack,
+  onRename,
+  onAssign,
+  embedded = false,
+}: Props) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(number.friendly_name ?? "");
   const [busy, setBusy] = useState(false);
@@ -129,13 +137,21 @@ export function PhoneNumberDetail({ number, agents, onBack, onRename, onAssign }
     }
   }
   return (
-    <main className="mx-auto w-full max-w-5xl space-y-4 p-4 text-foreground sm:p-6 lg:p-8">
-      <Button variant="ghost" className="h-10 -ml-3" onClick={onBack}>
-        <ArrowLeft />
-        Phone numbers
-      </Button>
+    <div
+      className={
+        embedded
+          ? "min-w-0 text-foreground"
+          : "mx-auto w-full max-w-5xl space-y-4 p-4 text-foreground sm:p-6 lg:p-8"
+      }
+    >
+      {!embedded && (
+        <Button size="sm" variant="ghost" className="-ml-3" onClick={onBack}>
+          <ArrowLeft />
+          Phone numbers
+        </Button>
+      )}
       <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-        <header className="flex flex-col justify-between gap-5 border-b border-border p-5 sm:flex-row sm:items-start sm:p-6">
+        <header className="flex flex-col justify-between gap-5 border-b border-border p-5 sm:flex-row sm:flex-wrap sm:items-start sm:p-6">
           <div className="min-w-0 space-y-2">
             {editing ? (
               <form
@@ -163,19 +179,15 @@ export function PhoneNumberDetail({ number, agents, onBack, onRename, onAssign }
                     className="h-10"
                   />
                 </div>
-                <Button
-                  type="submit"
-                  disabled={busy}
-                  className="h-10 bg-yellow-400 text-neutral-950 shadow-none hover:bg-yellow-300 dark:shadow-none"
-                >
+                <Button size="sm" type="submit" disabled={busy}>
                   {busy ? "Saving…" : "Save"}
                 </Button>
                 <Button
+                  size="sm"
                   type="button"
                   variant="ghost"
                   disabled={busy}
                   onClick={() => setEditing(false)}
-                  className="h-10"
                 >
                   Cancel
                 </Button>
@@ -188,7 +200,7 @@ export function PhoneNumberDetail({ number, agents, onBack, onRename, onAssign }
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-10 w-10 shrink-0"
+                  className="shrink-0"
                   aria-label="Edit display name"
                   onClick={() => {
                     setName(number.friendly_name ?? "");
@@ -213,22 +225,13 @@ export function PhoneNumberDetail({ number, agents, onBack, onRename, onAssign }
           </div>
           <div className="space-y-2 sm:max-w-64">
             <div className="flex items-center gap-2">
-              <Button
-                disabled
-                className="h-10 flex-1 bg-yellow-400 text-neutral-950 shadow-none dark:shadow-none"
-                aria-describedby="outbound-call-help"
-              >
+              <Button size="sm" disabled className="flex-1" aria-describedby="outbound-call-help">
                 <PhoneOutgoing />
                 Make an outbound call
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-10 w-10"
-                    aria-label="Number actions"
-                  >
+                  <Button variant="outline" size="icon" aria-label="Number actions">
                     <MoreHorizontal />
                   </Button>
                 </DropdownMenuTrigger>
@@ -355,7 +358,7 @@ export function PhoneNumberDetail({ number, agents, onBack, onRename, onAssign }
                     {addon.description}
                   </p>
                 </div>
-                <Button variant="ghost" disabled className="h-10 self-start sm:self-center">
+                <Button size="sm" variant="ghost" disabled className="self-start sm:self-center">
                   {addon.action}
                   <ChevronRight />
                 </Button>
@@ -364,6 +367,6 @@ export function PhoneNumberDetail({ number, agents, onBack, onRename, onAssign }
           </div>
         </section>
       </div>
-    </main>
+    </div>
   );
 }

@@ -2,15 +2,17 @@
 
 ## Scope and entry point
 
-Implemented on `aditya/ui-light-mode`. Open **Phone Numbers**, then click an owned phone number. The detail view uses `/phone-numbers?numberId=<record UUID>`; browser history and reload preserve the selection. No raw phone number is placed in the URL. Unknown IDs, query failures and loading have explicit states. Existing purchase, import, manual-add, edit and delete flows remain on the list.
+Implemented on `aditya/ui-light-mode`. **Phone Numbers** now opens a single-page workspace: searchable directory on the left and selected number settings on the right. The first owned number is displayed by default. Selecting another number updates `/phone-numbers?numberId=<record UUID>` in place; browser history and reload preserve the selection. No raw phone number is placed in the URL. Unknown IDs, query failures and loading have explicit states. Purchase/import, manual add and selected-number edit/delete actions remain available beside the directory. On mobile, the directory stacks above the settings.
 
 The supplied written Retell reference defined the information architecture. No separate Retell screenshot was available in this attachment. This implementation uses WEBEE's actual components and existing theme surfaces.
 
 ## Files
 
 - `src/components/telephony/PhoneNumberDetail.tsx`: compact header, name editor, agent controls, country fields, fallback field, advanced add-ons and copy action.
+- `src/components/telephony/PhoneNumberWorkspace.tsx`: searchable persistent directory, selected state and responsive split view.
 - `src/routes/_authenticated/phone-numbers.tsx`: optional ID search parameter, number selection, loading/error states and existing server-function connections.
 - `tests/component/phone-number-detail.test.tsx`: unavailable-state and name-persistence success/failure tests.
+- `tests/component/phone-number-workspace.test.tsx`: search and selection while the detail remains visible.
 - `deliverables/phone-number-detail-ui.md`: this handoff.
 
 ## Existing architecture
@@ -47,7 +49,9 @@ Automated approval review rejected adding the real outbound-call flow because ca
 
 One configuration column, four sections, full-width approximately 40px controls, compact section headings and separated add-on rows. Header actions align right on desktop and stack on mobile. A/B labels wrap instead of colliding with field labels. Add-on actions stack below descriptions on narrow screens.
 
-Existing background/card/border/foreground/input tokens provide the light and dark surfaces. Yellow is limited to primary-action treatment, including the name-save action; disabled controls retain their actual disabled semantics. There are no decorative motifs, copied commercial prices or changes to global theme tokens.
+Existing background/card/border/foreground/input tokens provide the light and dark surfaces. Shared primary buttons are black with white text at rest and turn solid yellow with near-black text on hover, using a 180ms transition and no gradient or glow. Browser checks verify both themes, button sizes, disabled/destructive states and reduced motion. Phone Numbers actions use the existing small button size (32px) and standard icon size (36px), while form fields remain 40px. The directory's selected-number accent stays yellow. Disabled actions have no hover animation, and reduced motion is respected. Destructive/secondary/ghost button variants retain their semantic styling. No non-button theme tokens changed.
+
+The global primary-button theme lives in `src/components/ui/button-theme.css` and is imported by `src/components/ui/button.tsx`, including consumers of `buttonVariants`. Custom native buttons that do not use the shared primitive are not automatically restyled by this change.
 
 Existing Button, Input, Select, Switch, Checkbox and DropdownMenu primitives are reused. Labels and descriptions are linked to controls. Saving/error feedback uses status/alert roles; editable actions have accessible names and existing keyboard focus treatment. Unsupported settings cannot issue saves. Clipboard confirmation appears only after the clipboard write succeeds.
 
@@ -55,9 +59,9 @@ No new API, database persistence, schema migration, provisioning change, pricing
 
 ## Verification
 
-- Three focused component tests pass: disabled capabilities, successful name persistence, and failed persistence retaining the editor without a false success.
-- Full typecheck: 625 diagnostics before and 625 after. No diagnostics were reported for the new detail component. The route's existing `Parameters<typeof saveFn>[0]["data"]` typing error remains unchanged (now line 90). The full diagnostic-by-diagnostic comparison was stopped for excessive runtime; matching totals alone do not prove absence of every possible regression. No unrelated baseline errors were fixed.
-- Focused ESLint check passes for the new component and its tests.
+- After the split-view update, the workspace search/selection test passed in the first run and all three detail tests passed in the second run. Both combined attempts had a worker-start timeout for the other file. All four tests executed successfully across those attempts, but there is no clean combined run; the runner failure remains a verification limitation.
+- Previous detail implementation full typecheck: 625 diagnostics before and 625 after. No diagnostics were reported for the detail component. The route's existing `Parameters<typeof saveFn>[0]["data"]` typing error remains unchanged. The full diagnostic-by-diagnostic comparison was stopped for excessive runtime; matching totals alone do not prove absence of every possible regression. Full typecheck was not repeated for the subsequent layout-only split-view update. No unrelated baseline errors were fixed.
+- Focused ESLint check passes for the workspace, detail component and new workspace test after the split-view update.
 - `git diff --check` passes.
 - Four full-page rendered previews captured at 1440px and 390px, light and dark. No horizontal overflow and no browser page errors in the preview run.
 - Screenshots use a representative fixture rendered with the real component and project CSS, not an authenticated production record. Its persistence callbacks deliberately reject. The external Inter font was unavailable during capture, so the configured system fallback is used.
