@@ -27,21 +27,34 @@ import {
   searchVoiceNumbers,
 } from "@/lib/telephony/phone-provisioning.functions";
 import { supabase } from "@/integrations/supabase/client";
+import { PhoneNumberDetail } from "@/components/telephony/PhoneNumberDetail";
+import { assignVoiceNumberToAgent } from "@/lib/telephony/phone-provisioning.functions";
 
 export const Route = createFileRoute("/_authenticated/phone-numbers")({
+  validateSearch: (search: Record<string, unknown>): { numberId?: string } => ({
+    numberId: typeof search.numberId === "string" ? search.numberId : undefined,
+  }),
   head: () => ({ meta: [{ title: "Phone Numbers — Webee" }] }),
   component: PhoneNumbersPage,
 });
 
 function badge(text: string, cls: string) {
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}
+    >
       {text}
     </span>
   );
 }
 
 function PhoneNumbersPage() {
+  const { numberId } = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const assignFn = useServerFn(assignVoiceNumberToAgent);
+  const closeDetail = () => {
+    void navigate({ search: {} });
+  };
   const qc = useQueryClient();
   const listFn = useServerFn(listPhoneNumbers);
   const saveFn = useServerFn(savePhoneNumber);
@@ -51,7 +64,13 @@ function PhoneNumbersPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
 
-  const { data: numbers = [], isFetching, refetch } = useQuery({
+  const {
+    data: numbers = [],
+    isFetching,
+    isPending,
+    error: loadError,
+    refetch,
+  } = useQuery({
     queryKey: ["phone-numbers"],
     queryFn: () => listFn({}),
     throwOnError: false,
@@ -69,13 +88,75 @@ function PhoneNumbersPage() {
 
   const saveMut = useMutation({
     mutationFn: (v: Parameters<typeof saveFn>[0]["data"]) => saveFn({ data: v }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["phone-numbers"] }); setShowAdd(false); setEditId(null); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["phone-numbers"] });
+      setShowAdd(false);
+      setEditId(null);
+    },
   });
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => deleteFn({ data: { id } }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["phone-numbers"] }); setDeleting(null); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["phone-numbers"] });
+      setDeleting(null);
+    },
   });
+
+  if (numberId) {
+    const number = numbers.find((n: any) => n.id === numberId);
+    if (isPending || loadError || !number)
+      return (
+        <div className="space-y-4 p-6">
+          <Button variant="outline" onClick={closeDetail}>
+            Back to phone numbers
+          </Button>
+          <p role={loadError ? "alert" : "status"}>
+            {isPending
+              ? "Loading phone number…"
+              : loadError
+                ? "Could not load this phone number."
+                : "Phone number not found in this workspace."}
+          </p>
+          {loadError && (
+            <Button variant="outline" onClick={() => refetch()}>
+              Try again
+            </Button>
+          )}
+        </div>
+      );
+    return (
+      <PhoneNumberDetail
+        key={number.id}
+        number={number}
+        agents={agents}
+        onBack={closeDetail}
+        onRename={async (friendlyName) => {
+          const capabilities = number.capabilities;
+          if (!capabilities || typeof capabilities !== "object" || Array.isArray(capabilities) || typeof capabilities.voice !== "boolean" || typeof capabilities.sms !== "boolean") {
+            throw new Error("This number's capabilities need to be reviewed before its name can be updated.");
+          }
+          await saveFn({
+            data: {
+              id: number.id,
+              phone_number: number.phone_number,
+              friendly_name: friendlyName,
+              agent_id: number.agent_id,
+              capabilities: { voice: capabilities.voice, sms: capabilities.sms },
+            },
+          });
+          await qc.invalidateQueries({ queryKey: ["phone-numbers"] });
+        }}
+        onAssign={async (agentId) => {
+          const result = await assignFn({ data: { phoneNumberId: number.id, agentId } });
+          await qc.invalidateQueries({ queryKey: ["phone-numbers"] });
+          return result.webhooksConfigured
+            ? "Agent assignment saved and provider routing refreshed."
+            : "Agent assignment saved. Provider routing was not refreshed; check your provider configuration before relying on inbound calls.";
+        }}
+      />
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -146,7 +227,7 @@ function PhoneNumbersPage() {
             <tbody className="divide-y divide-border">
               {numbersPag.sliced.map((n: any) => (
                 <tr key={n.id} className="hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-3 font-mono">{n.phone_number}</td>
+                  <td className="px-4 py-3 font-mono"><Button variant="link" className="h-10 px-0 font-mono text-foreground underline-offset-4 hover:underline" onClick={() => void navigate({ search: { numberId: n.id } })}>{n.phone_number}</Button></td>
                   <td className="px-4 py-3 text-muted-foreground">{n.friendly_name ?? "—"}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1">
