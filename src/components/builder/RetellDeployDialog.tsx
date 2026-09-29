@@ -63,10 +63,13 @@ export function RetellDeployDialog({
   onCallActive,
   onTranscriptUpdate,
   onCallEnd,
+  onLatencyUpdate,
 }: {
   onCallActive?: (active: boolean) => void;
   onTranscriptUpdate?: (entries: TxEntry[]) => void;
   onCallEnd?: (transcript: TxEntry[], recordingBlob: Blob | null, meta?: CallEndMeta) => void;
+  /** Speech-to-first-audio ms for the turn that just started speaking — same number Retell's own test-call widget shows live. */
+  onLatencyUpdate?: (ms: number) => void;
 } = {}) {
   const {
     nodes,
@@ -152,6 +155,8 @@ export function RetellDeployDialog({
   onTranscriptUpdateRef.current = onTranscriptUpdate;
   const onCallEndRef = useRef(onCallEnd);
   onCallEndRef.current = onCallEnd;
+  const onLatencyUpdateRef = useRef(onLatencyUpdate);
+  onLatencyUpdateRef.current = onLatencyUpdate;
 
   /** Drop-in replacement for setTranscript that also propagates to parent instantly. */
   function pushTranscript(updater: TxEntry[] | ((prev: TxEntry[]) => TxEntry[])) {
@@ -2473,6 +2478,12 @@ export function RetellDeployDialog({
           console.log(`[elv-relay] response.start id=${activeResponseId}`);
           const nodeId = typeof msg.nodeId === "string" ? msg.nodeId : undefined;
           if (nodeId) emitDebug("llm", "Speech response started", { nodeId });
+          return;
+        }
+
+        if (msg.type === "turn.latency") {
+          const ms = typeof msg.ms === "number" ? msg.ms : Number(msg.ms);
+          if (Number.isFinite(ms)) onLatencyUpdateRef.current?.(ms);
           return;
         }
 

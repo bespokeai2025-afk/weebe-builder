@@ -26,7 +26,14 @@ export type CallTurnRow = {
   created_at: string;
 };
 
-export type Percentiles = { p50: number; p90: number; p95: number; max: number; count: number };
+export type Percentiles = {
+  p50: number;
+  p90: number;
+  p95: number;
+  max: number;
+  min: number;
+  count: number;
+};
 
 /**
  * Nearest-rank percentile.
@@ -39,7 +46,14 @@ export function percentiles(values: number[]): Percentiles | null {
   const xs = values.filter((v) => Number.isFinite(v)).sort((a, b) => a - b);
   if (xs.length === 0) return null;
   const at = (q: number) => xs[Math.min(xs.length - 1, Math.max(0, Math.ceil(q * xs.length) - 1))]!;
-  return { p50: at(0.5), p90: at(0.9), p95: at(0.95), max: xs[xs.length - 1]!, count: xs.length };
+  return {
+    p50: at(0.5),
+    p90: at(0.9),
+    p95: at(0.95),
+    max: xs[xs.length - 1]!,
+    min: xs[0]!,
+    count: xs.length,
+  };
 }
 
 const STAGES = [
@@ -59,6 +73,46 @@ export function stageBreakdown(rows: CallTurnRow[]): StageStat[] {
     label,
     stats: percentiles(rows.map((r) => r[key]).filter((v): v is number => typeof v === "number")),
   }));
+}
+
+export type LatencyCategory = "endToEnd" | "transcription" | "llm" | "tts";
+
+export type LatencyCategoryStat = { category: LatencyCategory; label: string; stats: Percentiles | null };
+
+/**
+ * Retell's own call-detail view shows four latency numbers — End to end, Transcription, LLM, TTS —
+ * each isolated to that one stage rather than cumulative from call start. `call_turns` only stores
+ * cumulative marks (`stt_to_first_token_ms` includes routing time before the LLM call even starts,
+ * `stt_to_first_audio_ms` includes both the LLM's thinking time and TTS), so the LLM/TTS figures
+ * here are derived by subtracting the stage before it — the same isolation Retell's own dashboard
+ * implies by showing them as separate, roughly-summing numbers.
+ *
+ * A turn missing either mark of a pair (e.g. no routing happened) is simply excluded from that
+ * category's sample rather than guessed at.
+ */
+export function retellLatencyCategories(rows: CallTurnRow[]): LatencyCategoryStat[] {
+  const diff = (a: number | null, b: number | null): number | null =>
+    typeof a === "number" && typeof b === "number" && a >= b ? a - b : null;
+
+  const transcription = rows
+    .map((r) => r.endpoint_to_stt_final_ms)
+    .filter((v): v is number => typeof v === "number");
+  const llm = rows
+    .map((r) => diff(r.stt_to_first_token_ms, r.stt_to_route_ms ?? 0))
+    .filter((v): v is number => typeof v === "number");
+  const tts = rows
+    .map((r) => diff(r.stt_to_first_audio_ms, r.stt_to_first_sentence_ms))
+    .filter((v): v is number => typeof v === "number");
+  const endToEnd = rows
+    .map((r) => r.speech_to_first_audio_ms)
+    .filter((v): v is number => typeof v === "number");
+
+  return [
+    { category: "endToEnd", label: "End to end latency", stats: percentiles(endToEnd) },
+    { category: "transcription", label: "Transcription latency", stats: percentiles(transcription) },
+    { category: "llm", label: "LLM latency", stats: percentiles(llm) },
+    { category: "tts", label: "TTS latency", stats: percentiles(tts) },
+  ];
 }
 
 export type MethodShare = { method: string; turns: number; share: number; medianMs: number | null };

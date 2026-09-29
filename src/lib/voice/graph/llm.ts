@@ -10,7 +10,13 @@
  */
 
 import { normaliseSpokenNumbers, validateExtractedValue } from "./extraction-validation.shared";
-import { gptComplete, gptStream, type ChatMsg, type VoiceLlmProvider } from "../llm/gpt";
+import {
+  gptComplete,
+  gptStream,
+  type CerebrasBreaker,
+  type ChatMsg,
+  type VoiceLlmProvider,
+} from "../llm/gpt";
 import {
   WEBEE_NATIVE_CLASSIFIER_MODEL,
   WEBEE_NATIVE_OPENAI_CLASSIFIER_MODEL,
@@ -69,12 +75,19 @@ export function createOpenAiVmLlm(options: OpenAiVmLlmOptions): VmLlm {
     options.classifierModel ||
     (provider === "openai" ? WEBEE_NATIVE_OPENAI_CLASSIFIER_MODEL : WEBEE_NATIVE_CLASSIFIER_MODEL);
 
+  // One breaker per call (per createOpenAiVmLlm instance — one is built per voice call). Once any
+  // call on this call hits a Cerebras quota/rate-limit error, every later call/classify/extract
+  // on the SAME call skips straight to OpenAI instead of paying for a second failed Cerebras
+  // attempt first — see CerebrasBreaker's doc comment for why this must not be shared across calls.
+  const breaker: CerebrasBreaker = { down: false };
+
   const complete = (messages: LlmMessage[], model: string, extra: Record<string, unknown> = {}) =>
     gptComplete(messages as ChatMsg[], {
       model,
       apiKey,
       provider,
       temperature: options.temperature ?? 0.3,
+      breaker,
       ...extra,
     });
 
@@ -91,6 +104,7 @@ export function createOpenAiVmLlm(options: OpenAiVmLlmOptions): VmLlm {
         temperature: options.temperature ?? 0.3,
         maxTokens: SPEECH_MAX_TOKENS,
         signal: opts?.signal,
+        breaker,
       });
     },
 

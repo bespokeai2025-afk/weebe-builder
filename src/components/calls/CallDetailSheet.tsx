@@ -21,10 +21,16 @@ import {
   Clock,
   Volume2,
   ClipboardCheck,
+  CheckSquare,
+  Headphones,
+  Smile,
+  PhoneOff,
+  Gauge,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { CallLatencyBreakdown } from "./CallLatencyBreakdown";
 
 export type CallDetailRow = {
   id?: string;
@@ -138,6 +144,40 @@ function fmtDuration(sec?: number | null) {
   const m = Math.floor(sec / 60);
   const s = sec % 60;
   return m ? `${m}m ${s}s` : `${s}s`;
+}
+
+/** One "label ............ value" row in the Preset Analysis list, icon on the left like Retell's. */
+function PresetRow({
+  icon: Icon,
+  label,
+  children,
+}: {
+  icon: typeof Bot;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-1.5">
+      <span className="flex items-center gap-2 text-[11.5px] text-foreground/90">
+        <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+        {label}
+      </span>
+      <span className="text-[11.5px]">{children}</span>
+    </div>
+  );
+}
+
+/** A small colored dot ahead of a preset value, matching Retell's status dots. */
+function Dot({ tone }: { tone: "success" | "danger" | "neutral" | "info" }) {
+  const color =
+    tone === "success"
+      ? "bg-emerald-400"
+      : tone === "danger"
+        ? "bg-rose-400"
+        : tone === "info"
+          ? "bg-sky-400"
+          : "bg-white/30";
+  return <span className={cn("mr-1.5 inline-block h-1.5 w-1.5 rounded-full align-middle", color)} />;
 }
 
 function Panel({
@@ -258,32 +298,51 @@ export function CallDetailSheet({
             </p>
           </Panel>
 
-          {/* Post-call data, as Retell shows it: the built-in verdicts, then every
-              field the agent defines, including the ones this call did not fill. */}
+          {/* Conversation Analysis — Preset Analysis first, the same five built-in verdicts
+              Retell always shows, End to End Latency carrying the same hover breakdown. */}
+          <Panel icon={Gauge} title="Conversation Analysis">
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Preset Analysis
+            </p>
+            <div className="divide-y divide-white/[0.05]">
+              <PresetRow icon={CheckSquare} label="Call Successful">
+                <Dot tone={call.call_successful ? "success" : "danger"} />
+                {call.call_successful ? "Successful" : "Unsuccessful"}
+              </PresetRow>
+              <PresetRow icon={Headphones} label="Call Status">
+                <Dot tone="neutral" />
+                <span className="capitalize">{call.call_status || "—"}</span>
+              </PresetRow>
+              <PresetRow icon={Smile} label="User Sentiment">
+                <Dot tone={call.sentiment?.toLowerCase() === "negative" ? "danger" : "info"} />
+                <span className="capitalize">{call.sentiment || "—"}</span>
+              </PresetRow>
+              <PresetRow icon={PhoneOff} label="Disconnection Reason">
+                <Dot tone={call.disconnection_reason === "error" ? "danger" : "success"} />
+                <span className="capitalize">
+                  {call.disconnection_reason?.replace(/_/g, " ") || "—"}
+                </span>
+              </PresetRow>
+              <PresetRow icon={Clock} label="End to End Latency">
+                {call.retell_call_id ? (
+                  <CallLatencyBreakdown retellCallId={call.retell_call_id} />
+                ) : (
+                  "—"
+                )}
+              </PresetRow>
+            </div>
+          </Panel>
+
+          {/* Post-call data, as Retell shows it: every field the agent defines,
+              including the ones this call did not fill. */}
           <Panel
             icon={ClipboardCheck}
-            title="Post-call data"
+            title="Custom Analysis"
             count={Object.keys(call.custom_analysis_data ?? {}).length}
           >
             <div className="overflow-hidden rounded border border-white/[0.06]">
               <table className="w-full text-[11px]">
                 <tbody>
-                  {(
-                    [
-                      ["call_successful", call.call_successful],
-                      ["user_sentiment", call.sentiment],
-                      ["in_voicemail", call.in_voicemail],
-                    ] as Array<[string, unknown]>
-                  ).map(([k, v], i) => (
-                    <tr key={k} className={cn(i > 0 && "border-t border-white/[0.04]")}>
-                      <td className="w-[42%] bg-white/[0.02] px-2.5 py-1.5 align-top font-mono text-[10px] text-muted-foreground">
-                        {k}
-                      </td>
-                      <td className="px-2.5 py-1.5 align-top font-medium">
-                        <PostCallValue value={v} />
-                      </td>
-                    </tr>
-                  ))}
                   {Object.entries(call.custom_analysis_data ?? {}).map(([k, v]) => (
                     <tr key={`custom-${k}`} className="border-t border-white/[0.04]">
                       <td className="w-[42%] bg-white/[0.02] px-2.5 py-1.5 align-top font-mono text-[10px] text-muted-foreground">

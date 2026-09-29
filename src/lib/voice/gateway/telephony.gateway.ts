@@ -43,11 +43,14 @@ import type { NativeCallLifecycle } from "../lifecycle/call-lifecycle";
 import type { VoiceGatewayContext, VoiceGatewayRoute } from "./types";
 import type { TwilioCredentials } from "../../telephony/twilio-env";
 import { resolveTwilioCredentialsForWorkspace } from "../../telephony/twilio-credentials.server";
+import { resolvePublicHost } from "../../telephony/twilio-env";
+import type { TransferDirective } from "../graph/types";
 
 const STREAM_PATH = /^\/api\/telephony\/stream\/([a-zA-Z0-9-]+)$/;
 const LOG = "[tel-stream]";
 const TWILIO_RATE = 8000;
 const REALTIME_RATE = 24000;
+const DEFAULT_WARM_RING_MS = 30_000;
 
 /** Twilio's inbound `start` frame, reduced to what either bridge needs. */
 function readStreamSid(msg: Record<string, unknown>): string {
@@ -142,6 +145,161 @@ async function redirectTwilioCall(
   return true;
 }
 
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * Resolved when the destination leg of a warm transfer answers or gives up —
+ * by `warmTransferStatusCallback` below, which lives in a different HTTP
+ * request from the one that created the call. Safe as an in-memory map
+ * because this gateway is one long-running process, not per-request
+ * serverless functions; a request that never gets a matching pending entry
+ * (process restarted mid-transfer) just times out instead of hanging forever.
+ */
+const pendingWarmTransfers = new Map<string, (answered: boolean) => void>();
+
+/** Twilio call-status events that mean the destination leg is settled, one way or the other. */
+const TERMINAL_CALL_STATUSES = new Set(["completed", "busy", "no-answer", "failed", "canceled"]);
+
+/** The `answered` webhook event on the destination leg's own `<Number>`-equivalent status callback. */
+export function resolveWarmTransferAnswered(callId: string): void {
+  pendingWarmTransfers.get(callId)?.(true);
+  pendingWarmTransfers.delete(callId);
+}
+
+/** The destination leg ended without ever answering. */
+export function resolveWarmTransferSettled(callId: string, status: string): void {
+  if (!TERMINAL_CALL_STATUSES.has(status)) return;
+  pendingWarmTransfers.get(callId)?.(false);
+  pendingWarmTransfers.delete(callId);
+}
+
+export interface WarmTransferParams {
+  callId: string;
+  callSid: string;
+  destination: string;
+  credentials: TwilioCredentials;
+  ownNumber: string | null;
+  callerNumber: string | null;
+  options: NonNullable<TransferDirective["warmOptions"]>;
+}
+
+/**
+ * Real warm transfer: the caller is put on hold in a conference while the
+ * destination is dialled and briefed privately, and only bridged in once the
+ * destination actually answers. Cold transfer (the plain `<Dial>` redirect
+ * above) never gave the human any context and connected the caller
+ * regardless of whether anyone was really there to take the call.
+ */
+export async function warmTransferCall(params: WarmTransferParams): Promise<boolean> {
+  const { callId, callSid, destination, credentials, ownNumber, callerNumber, options } = params;
+  const { accountSid: sid, authToken: token } = credentials;
+  if (!sid || !token || !callSid) {
+    console.warn(`${LOG} warm transfer skipped: missing Twilio credentials or call sid`);
+    return false;
+  }
+
+  let host: string;
+  try {
+    host = resolvePublicHost();
+  } catch (err) {
+    console.error(`${LOG} warm transfer needs a public URL: ${(err as Error).message}`);
+    return false;
+  }
+
+  const conferenceName = `warm-${callId}`;
+  const auth = `Basic ${Buffer.from(`${sid}:${token}`).toString("base64")}`;
+
+  // 1) Move the caller into the conference room, on hold until the destination joins.
+  //    `startConferenceOnEnter=false` is what makes this a hold, not an instant bridge.
+  const publicHandoff = options.publicHandoffText
+    ? `<Say>${escapeXml(options.publicHandoffText)}</Say>`
+    : "";
+  const holdTwiml =
+    `<?xml version="1.0" encoding="UTF-8"?><Response>${publicHandoff}` +
+    `<Dial><Conference startConferenceOnEnter="false" endConferenceOnExit="true">` +
+    `${escapeXml(conferenceName)}</Conference></Dial></Response>`;
+
+  const holdRes = await fetch(
+    `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(sid)}/Calls/${encodeURIComponent(callSid)}.json`,
+    {
+      method: "POST",
+      headers: { Authorization: auth, "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ Twiml: holdTwiml }).toString(),
+    },
+  ).catch((err: Error) => {
+    console.error(`${LOG} warm transfer hold failed: ${err.message}`);
+    return null;
+  });
+  if (!holdRes?.ok) {
+    console.error(`${LOG} warm transfer hold rejected by Twilio: ${holdRes?.status ?? "no response"}`);
+    return false;
+  }
+
+  // 2) Dial the destination. Its own TwiML (warm-transfer-brief route) speaks the
+  //    private whisper, then joins the same conference with startConferenceOnEnter
+  //    = true — that is what actually starts it and bridges the two legs.
+  const ringMs = options.ringTimeoutMs ?? DEFAULT_WARM_RING_MS;
+  const ringSecs = Math.max(5, Math.min(120, Math.round(ringMs / 1000)));
+  // Conference name and the private whisper travel as query params rather than server-side
+  // state: this route is hit by a fresh HTTP request from Twilio, and the two are short, non-
+  // secret text that only ever describes this one call's own transfer.
+  const briefQuery = new URLSearchParams({ conference: conferenceName });
+  if (options.privateHandoffText) briefQuery.set("say", options.privateHandoffText);
+  const briefUrl = `${host}/api/public/telephony/warm-transfer-brief/${encodeURIComponent(callId)}?${briefQuery.toString()}`;
+  const statusUrl = `${host}/api/public/telephony/warm-transfer-status/${encodeURIComponent(callId)}`;
+  const outboundParams = new URLSearchParams({
+    To: destination,
+    From: (options.showTransfereeAsCaller ? callerNumber : ownNumber) || ownNumber || destination,
+    Url: briefUrl,
+    Method: "POST",
+    Timeout: String(ringSecs),
+    StatusCallback: statusUrl,
+    StatusCallbackMethod: "POST",
+  });
+  outboundParams.append("StatusCallbackEvent", "answered");
+  outboundParams.append("StatusCallbackEvent", "completed");
+
+  const dialRes = await fetch(
+    `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(sid)}/Calls.json`,
+    {
+      method: "POST",
+      headers: { Authorization: auth, "Content-Type": "application/x-www-form-urlencoded" },
+      body: outboundParams.toString(),
+    },
+  ).catch((err: Error) => {
+    console.error(`${LOG} warm transfer dial-out failed: ${err.message}`);
+    return null;
+  });
+  if (!dialRes?.ok) {
+    console.error(`${LOG} warm transfer dial-out rejected by Twilio: ${dialRes?.status ?? "no response"}`);
+    // The caller is already parked in an empty conference — end that leg's wait
+    // rather than leaving them on hold forever for a transfer that never dialled.
+    pendingWarmTransfers.delete(callId);
+    return false;
+  }
+
+  // 3) Wait for the destination to actually answer (or give up), bounded by the
+  //    same ring duration Twilio was told to use for the call itself, plus a
+  //    margin for the brief message to finish before the join is reported.
+  return new Promise<boolean>((resolve) => {
+    let settled = false;
+    const finish = (answered: boolean) => {
+      if (settled) return;
+      settled = true;
+      pendingWarmTransfers.delete(callId);
+      resolve(answered);
+    };
+    pendingWarmTransfers.set(callId, finish);
+    setTimeout(() => finish(false), ringMs + 15_000);
+  });
+}
+
 /**
  * WEBEE native engine over Twilio.
  *
@@ -209,9 +367,21 @@ async function runCascadeBridge(
       setTimeout(() => ws.close(1000, "call ended"), 4000);
     },
     onError: (message) => console.error(`${LOG} cascade error call=${callId}: ${message}`),
-    transferCall: (destination) => {
+    transferCall: (options) => {
       if (!twilioCredentials) return Promise.resolve(false);
-      return redirectTwilioCall(callSid, destination, twilioCredentials);
+      if (options.transferType === "warm_transfer" || options.transferType === "agentic_warm_transfer") {
+        const inbound = config.direction === "inbound";
+        return warmTransferCall({
+          callId,
+          callSid,
+          destination: options.destination,
+          credentials: twilioCredentials,
+          ownNumber: inbound ? config.toNumber : config.fromNumber,
+          callerNumber: inbound ? config.fromNumber : config.toNumber,
+          options: options.warmOptions ?? {},
+        });
+      }
+      return redirectTwilioCall(callSid, options.destination, twilioCredentials);
     },
   };
 

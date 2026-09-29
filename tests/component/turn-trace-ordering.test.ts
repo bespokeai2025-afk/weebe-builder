@@ -5,28 +5,33 @@ import { CallTurnTrace } from "@/lib/voice/graph/latency-trace";
  * Reproduces the real per-turn ordering: the caller starts speaking and the
  * adaptive hangover is decided from partials, both *before* the turn and its
  * trace exist. Writing those straight to the current turn put them on the
- * previous turn, which is why speech_to_first_audio_ms came back null (or
- * nonsensically smaller than stt_to_first_audio_ms) and hangover_ms was null
- * on every row.
+ * previous turn, which is why hangover_ms was null on every row — covered by
+ * the endpointing tests below.
  */
 describe("marks gathered before the trace exists", () => {
-  it("records speech→audio relative to when the caller actually started", () => {
-    const speechStart = 1_000;
-    const sttFinal = 1_400;
+  it("measures speech_to_first_audio_ms from the VAD endpoint (turnOrigin), not from when the caller started talking", () => {
+    // `speechToFirstAudioMs` is documented (see the call_turns migration) as "caller stopped
+    // talking → caller hears audio" — Retell's own definition of end-to-end latency. It used to
+    // be measured from `userSpeechStartAt` (speech START) instead, which silently folded the
+    // caller's own talking time into the number: a caller who spoke for two seconds made the
+    // reported latency look two seconds worse than the system actually was, with no way to tell
+    // the difference from a real regression.
+    const turnOrigin = 1_400; // the VAD endpoint — caller just stopped talking
+    const speechStart = 1_000; // caller had been talking since before the turn origin
     const firstAudio = 2_100;
 
-    // Trace is constructed at STT time, after the speech already began.
-    const trace = new CallTurnTrace(1, sttFinal, "[test]");
+    const trace = new CallTurnTrace(1, turnOrigin, "[test]");
     trace.setUserSpeechStart(speechStart);
-    trace.setSttFinal(sttFinal);
+    trace.setSttFinal(turnOrigin);
     trace.mark("tts_first_audio", firstAudio);
 
     const rec = trace.toRecord();
-    expect(rec.speechToFirstAudioMs).toBe(firstAudio - speechStart); // 1100
-    expect(rec.sttToFirstAudioMs).toBe(firstAudio - sttFinal); // 700
-    // The headline number must never come out smaller than the STT-anchored
-    // one — that inversion was the tell that the mark was on the wrong turn.
-    expect(rec.speechToFirstAudioMs!).toBeGreaterThan(rec.sttToFirstAudioMs!);
+    expect(rec.speechToFirstAudioMs).toBe(firstAudio - turnOrigin); // 700, not 1100
+    expect(rec.sttToFirstAudioMs).toBe(firstAudio - turnOrigin); // 700
+    // turnOrigin is always <= sttFinalAt by causality (the endpoint fires before STT can finish
+    // transcribing it), so the headline number can never legitimately come out smaller than the
+    // STT-anchored one.
+    expect(rec.speechToFirstAudioMs!).toBeGreaterThanOrEqual(rec.sttToFirstAudioMs!);
   });
 
   it("carries the endpointing decision onto the turn it applied to", () => {

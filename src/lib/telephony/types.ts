@@ -23,6 +23,8 @@ export interface OutboundCallParams {
   streamUrl: string;
   agentId?: string;
   callId?: string;
+  /** How long to let the destination ring before giving up (builder's `ringDurationMs`, in seconds). */
+  ringSeconds?: number;
 }
 
 export interface InboundCallParams {

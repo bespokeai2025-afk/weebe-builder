@@ -88,6 +88,7 @@ export const resolveEffectiveSttProvider = resolveWebeeSttPreference;
 export function createSttProvider(
   preferred: SttProviderName | null | undefined,
   keys: SttProviderKeys = {},
+  deepgramModel?: string,
 ): SttProvider {
   if (preferred === "deepgram") {
     const key = deepgramKeyOf(keys);
@@ -96,7 +97,7 @@ export function createSttProvider(
         "Deepgram ASR requires DEEPGRAM_API_KEY. Add it under Settings → Integrations → Voice Engines.",
       );
     }
-    return new DeepgramSttProvider(key);
+    return deepgramModel ? new DeepgramSttProvider(key, deepgramModel) : new DeepgramSttProvider(key);
   }
   if (preferred === "openai") {
     const key = openaiKeyOf(keys);

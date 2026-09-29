@@ -168,6 +168,36 @@ describe("validateExtractedValue — the test-call failure", () => {
     expect(validateExtractedValue(mobile, null)).toBeNull();
     expect(validateExtractedValue(mobile, "   ")).toBeNull();
   });
+
+  it("rejects a name that is entirely function/filler words — real STT garbage, not a real answer", () => {
+    // Observed on a live call: the caller's actual name got transcribed as "Our job." and stored
+    // verbatim, with nothing catching it before it reached custom_analysis_data.
+    const name = { name: "first_name", type: "string" };
+    expect(validateExtractedValue(name, "Our job.")).toBeNull();
+    expect(validateExtractedValue(name, "the")).toBeNull();
+    expect(validateExtractedValue(name, "okay thanks")).toBeNull();
+  });
+
+  it("still accepts a real name sharing a word with the non-name list, and single-word names", () => {
+    const name = { name: "first_name", type: "string" };
+    expect(validateExtractedValue(name, "Sam")).toBe("Sam");
+    expect(validateExtractedValue(name, "Arjo Virani")).toBe("Arjo Virani");
+  });
+});
+
+describe("stripFillerWords", () => {
+  it("removes stray interjections a caller's speech carries, wherever they land", async () => {
+    const { stripFillerWords } = await import("../../src/lib/voice/graph/extraction-validation.shared");
+    // Observed on a live call: this got stored verbatim as the contact address.
+    expect(stripFillerWords("Ah, it's ah one two three Manhattan Street, Manchester.")).toBe(
+      "it's one two three Manhattan Street, Manchester.",
+    );
+  });
+
+  it("leaves ordinary text with no fillers unchanged", async () => {
+    const { stripFillerWords } = await import("../../src/lib/voice/graph/extraction-validation.shared");
+    expect(stripFillerWords("Four bedrooms")).toBe("Four bedrooms");
+  });
 });
 
 /**

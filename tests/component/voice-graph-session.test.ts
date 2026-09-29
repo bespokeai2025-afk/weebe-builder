@@ -141,7 +141,7 @@ describe("GraphSession", () => {
 
     await new GraphSession(vm, {
       ...callbacks,
-      onTransfer: async (destination) => {
+      onTransfer: async ({ destination }) => {
         events.push(`transfer:${destination}`);
         return false;
       },

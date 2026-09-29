@@ -12,6 +12,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
   percentiles,
+  retellLatencyCategories,
   routeMethodShare,
   speculationStat,
   stageBreakdown,
@@ -114,6 +115,7 @@ export const getCallLatencyDetail = createServerFn({ method: "GET" })
       callId: data.callId,
       turns,
       stages: stageBreakdown(turns),
+      categories: retellLatencyCategories(turns),
       budget: withinBudget(turns),
       edgeRoutes: routeMethodShare(turns, "edge"),
       speculation: speculationStat(turns),

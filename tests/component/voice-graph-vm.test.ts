@@ -222,6 +222,35 @@ describe("selectEdge", () => {
     expect(llm.calls.classify).toHaveLength(0);
   });
 
+  it("collapses several blank-condition edges into the same destination without a classifier call", async () => {
+    const llm = fakeLlm();
+    // A duplicate connection drawn 2-3 times on the builder canvas — same destination, no
+    // condition on any of them. Nothing for a classifier to decide between identical options.
+    const chosen = await selectEdge(
+      [edge("e1", "next", ""), edge("e2", "next", ""), edge("e3", "next", "")],
+      ctx,
+      llm,
+    );
+
+    expect(chosen.edge?.destination_node_id).toBe("next");
+    expect(chosen.method).toBe("unconditional");
+    expect(llm.calls.classify).toHaveLength(0);
+  });
+
+  it("still asks the classifier when blank-condition edges point at genuinely different destinations", async () => {
+    const llm = fakeLlm({ classify: () => 0 });
+    // A real, unresolved ambiguity — the flow author never added a condition to tell these
+    // apart, so guessing one over the other would be a routing decision no one authored.
+    const chosen = await selectEdge(
+      [edge("e1", "a", ""), edge("e2", "b", "")],
+      { history: [{ role: "user" as const, content: "something" }], variables: {}, globalPrompt: "" },
+      llm,
+    );
+
+    expect(llm.calls.classify).toHaveLength(1);
+    expect(chosen.edge?.destination_node_id).toBe("a");
+  });
+
   it("ignores edges with no destination", async () => {
     const llm = fakeLlm();
     const stub = { id: "e1", transition_condition: { type: "prompt" as const, prompt: "failed" } };
@@ -1231,6 +1260,45 @@ describe("ConversationVm terminal and logic nodes", () => {
 
     expect(speech(await drain(vm.run({ type: "begin" })))).toEqual(["Carrying on"]);
   });
+
+  it("still advances when no declared edge condition matches — extraction is a capture step, not a branch", async () => {
+    const llm = fakeLlm({ extract: () => ({ postcode: "SW1A 1AA" }), classify: () => -1 });
+    const vm = new ConversationVm({
+      flow: flowOf([
+        {
+          id: "grab",
+          type: "extract_dynamic_variables",
+          instruction: { type: "prompt", text: "Extract the postcode" },
+          variables: [{ name: "postcode", description: "the caller's postcode", type: "string" }],
+          // A real condition that won't match anything the fake LLM's classify(-1) picks —
+          // this used to dead-end the call right after extraction.
+          edges: [edge("e1", "confirm", "caller wants to proceed")],
+        },
+        say("confirm", "Got it: {{postcode}}"),
+      ]),
+      llm,
+    });
+    expect(speech(await drain(vm.run({ type: "begin" })))).toEqual(["Got it: SW1A 1AA"]);
+  });
+
+  it("prefers an explicit else_edge over the last-edge default when nothing else matches", async () => {
+    const llm = fakeLlm({ extract: () => ({ postcode: "SW1A 1AA" }), classify: () => -1 });
+    const vm = new ConversationVm({
+      flow: flowOf([
+        {
+          id: "grab",
+          type: "extract_dynamic_variables",
+          variables: [{ name: "postcode", description: "the caller's postcode", type: "string" }],
+          edges: [edge("e1", "wrong", "some condition that never matches")],
+          else_edge: edge("else", "fallback", "Else"),
+        } as FlowNode,
+        say("wrong", "Should not reach here"),
+        say("fallback", "Fallback reached"),
+      ]),
+      llm,
+    });
+    expect(speech(await drain(vm.run({ type: "begin" })))).toEqual(["Fallback reached"]);
+  });
 });
 
 // ─── Function nodes ───────────────────────────────────────────────────────────
@@ -1667,6 +1735,65 @@ describe("ConversationVm transfer and agent swap", () => {
     expect(speech(out)).toEqual(["Cannot transfer"]);
   });
 
+  it("carries warm-transfer briefing, timeout and caller-ID settings through to the directive", async () => {
+    const vm = new ConversationVm({
+      flow: flowOf([
+        transferNode(
+          { type: "predefined", number: "+447412345678" },
+          {
+            transfer_option: {
+              type: "warm_transfer",
+              public_handoff_option: { type: "prompt", prompt: "Transferring you now." },
+              private_handoff_option: { type: "static_message", message: "Caller wants a refund." },
+              agent_detection_timeout_ms: 45000,
+              show_transferee_as_caller: true,
+              on_hold_music: "ringtone",
+            },
+          },
+        ),
+      ]),
+      llm: fakeLlm(),
+    });
+    const out = await drain(vm.run({ type: "begin" }));
+
+    expect(out[0]).toMatchObject({
+      type: "transfer_call",
+      transferType: "warm_transfer",
+      warmOptions: {
+        publicHandoffText: "Transferring you now.",
+        privateHandoffText: "Caller wants a refund.",
+        ringTimeoutMs: 45000,
+        showTransfereeAsCaller: true,
+        onHoldMusic: "ringtone",
+      },
+    });
+  });
+
+  it("does not attach warmOptions to a cold transfer", async () => {
+    const vm = new ConversationVm({
+      flow: flowOf([transferNode({ type: "predefined", number: "+447412345678" })]),
+      llm: fakeLlm(),
+    });
+    const out = await drain(vm.run({ type: "begin" }));
+
+    expect((out[0] as { warmOptions?: unknown }).warmOptions).toBeUndefined();
+  });
+
+  it("falls back to the plain ring-duration field when there's no agent_detection_timeout_ms", async () => {
+    const vm = new ConversationVm({
+      flow: flowOf([
+        transferNode(
+          { type: "predefined", number: "+447412345678" },
+          { transfer_option: { type: "warm_transfer", transfer_ring_duration_ms: 20000 } },
+        ),
+      ]),
+      llm: fakeLlm(),
+    });
+    const out = await drain(vm.run({ type: "begin" }));
+
+    expect(out[0]).toMatchObject({ warmOptions: { ringTimeoutMs: 20000 } });
+  });
+
   it("hands off on agent_swap and stops driving the call", async () => {
     const vm = new ConversationVm({
       flow: flowOf([{ id: "swap", type: "agent_swap", agent_id: "agent_123", agent_version: 4 }]),
@@ -1806,6 +1933,51 @@ describe("ConversationVm safety rails", () => {
     expect(vm.getVariables().title).toBe("Mrs");
   });
 
+  it("normalises a spoken email through the same validator the collect answer path bypassed", async () => {
+    const vm = new ConversationVm({
+      flow: flowOf([
+        {
+          id: "ask",
+          type: "conversation",
+          instruction: { type: "static_text", text: "Ask for the caller's email address" },
+          edges: [edge("e1", "next", "got an answer")],
+        },
+        say("next", "Thanks"),
+      ]),
+      llm: fakeLlm({ classify: () => 0 }),
+      variableNames: ["email_address"],
+    });
+
+    await drain(vm.run({ type: "begin" }));
+    const out = await drain(vm.run({ type: "user_utterance", text: "jane at acme dot com" }));
+    expect(out.find((d) => d.type === "variables")).toMatchObject({
+      type: "variables",
+      values: { email_address: "jane@acme.com" },
+    });
+  });
+
+  it("does not store a malformed email as a raw string — leaves it uncaptured instead", async () => {
+    const vm = new ConversationVm({
+      flow: flowOf([
+        {
+          id: "ask",
+          type: "conversation",
+          instruction: { type: "static_text", text: "Ask for the caller's email address" },
+          edges: [edge("e1", "next", "got an answer")],
+        },
+        say("next", "Thanks"),
+      ]),
+      llm: fakeLlm({ classify: () => 0 }),
+      variableNames: ["email_address"],
+    });
+
+    await drain(vm.run({ type: "begin" }));
+    // Real STT failure mode: the caller said "at" but the transcript dropped it entirely.
+    const out = await drain(vm.run({ type: "user_utterance", text: "Arjavirani123 Gmail. Dot com." }));
+    expect(out.find((d) => d.type === "variables")).toBeUndefined();
+    expect(vm.getVariables().email_address).toBeUndefined();
+  });
+
   it("sends identity only from the global prompt, not a leftover script", async () => {
     const llm = fakeLlm({ generate: () => "Would you like to rebook your consultation?" });
     const vm = new ConversationVm({
@@ -1923,6 +2095,57 @@ describe("wait / begin silence and flex routing", () => {
 
     const after = await drain(vm.run({ type: "silence_timeout" }));
     expect(speech(after)).toEqual(["Still there?"]);
+  });
+
+  it("speaks a reminder and keeps waiting, without touching flow position", async () => {
+    const vm = new ConversationVm({
+      flow: flowOf([
+        {
+          id: "wait",
+          type: "conversation",
+          start_speaker: "user",
+          silence_timeout_ms: 8000,
+          retry_count: 0,
+          instruction: { type: "static_text", text: "" },
+          edges: [edge("e1", "next", "timeout")],
+        },
+        say("next", "Still there?"),
+      ]),
+      llm: fakeLlm(),
+    });
+    const begin = await drain(vm.run({ type: "begin" }));
+    expect(begin.at(-1)).not.toMatchObject({ isReminderReaffirmation: true });
+
+    const out = await drain(vm.run({ type: "reminder", text: "Are you still there?" }));
+    expect(speech(out)).toEqual(["Are you still there?"]);
+    expect(kinds(out)).toEqual(["speak", "await_user"]);
+    // Still parked on the wait node — a reminder must not have advanced the flow.
+    expect(out.at(-1)).toMatchObject({ type: "await_user", nodeId: "wait", silenceTimeoutMs: 8000 });
+    // Marked as a re-affirmation, not a fresh wait — the transport must not reset the reminder
+    // count or the silence-timeout clock off the back of this directive (this used to let
+    // reminders re-arm themselves forever, since every nudge looked like a brand-new wait).
+    expect(out.at(-1)).toMatchObject({ isReminderReaffirmation: true });
+  });
+
+  it("a stale reminder does nothing once the call has already moved past waiting on the caller", async () => {
+    const vm = new ConversationVm({
+      flow: flowOf([
+        {
+          id: "wait",
+          type: "conversation",
+          instruction: { type: "static_text", text: "Transferring you now." },
+          edges: [{ id: "e1", destination_node_id: "wait", transition_condition: { type: "prompt", prompt: "n/a" } }],
+        } as FlowNode,
+      ]),
+      llm: fakeLlm(),
+    });
+    await drain(vm.run({ type: "begin" }));
+    // Simulate the call having been handed off to a transfer — the VM stops awaiting the caller.
+    await drain(vm.run({ type: "transfer_result", ok: true }));
+
+    // The reminder timer's tick lands after the call already left the awaiting-caller state.
+    const stale = await drain(vm.run({ type: "reminder", text: "Are you still there?" }));
+    expect(stale).toEqual([]);
   });
 
   it("retries a wait node before taking the timeout edge", async () => {

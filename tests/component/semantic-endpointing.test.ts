@@ -33,6 +33,7 @@ describe("looksLikeIncompletePartial — holds the window open mid-thought", () 
     expect(looksLikeIncompletePartial("079")).toBe(true);
     expect(looksLikeIncompletePartial("07902407048")).toBe(false);
   });
+
 });
 
 describe("looksLikeIncompletePartial — false positives are the dangerous direction", () => {

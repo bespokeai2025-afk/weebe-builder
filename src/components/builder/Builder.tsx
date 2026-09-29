@@ -125,6 +125,8 @@ import {
 } from "@/lib/voice/fish-voice-label.shared";
 import { extractPostCallVariables, type PostCallExtracted } from "@/lib/builder/post-call-extract.functions";
 import { saveHyperStreamTestCall, updateCallSentiment } from "@/lib/builder/save-hyperstream-call.functions";
+import { LATENCY_BUDGET_MS } from "@/lib/voice/call-latency-stats.shared";
+import { CallLatencyBreakdown } from "@/components/calls/CallLatencyBreakdown";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
@@ -534,6 +536,8 @@ export function Builder({
   const [callActive, setCallActive] = useState(false);
   const [rightPanelMode, setRightPanelMode] = useState<"settings" | "transcript">("settings");
   const [liveTranscript, setLiveTranscript] = useState<TxEntry[]>([]);
+  /** Speech-to-first-audio ms for the most recent agent turn — Retell-style live latency badge. */
+  const [liveLatencyMs, setLiveLatencyMs] = useState<number | null>(null);
   const [postCallData, setPostCallData] = useState<PostCallExtracted | null>(null);
   const [postCallLoading, setPostCallLoading] = useState(false);
   const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
@@ -679,6 +683,7 @@ export function Builder({
       setPostCallData(null);
       setPostCallLoading(false);
       setLastCallMeta(null);
+      setLiveLatencyMs(null);
       if (recordingUrlRef.current) {
         URL.revokeObjectURL(recordingUrlRef.current);
         recordingUrlRef.current = null;
@@ -1165,6 +1170,7 @@ export function Builder({
                 onCallActive={setCallActive}
                 onTranscriptUpdate={setLiveTranscript}
                 onCallEnd={handleCallEnd}
+                onLatencyUpdate={setLiveLatencyMs}
               />
             )}
             {settings.channelType === "whatsapp" && (
@@ -1409,6 +1415,21 @@ export function Builder({
                     <span className="text-[11px] font-semibold tracking-tight text-foreground">Live Transcript</span>
                     {callActive && <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse ml-0.5" />}
                     {!callActive && <span className="text-[10px] text-muted-foreground ml-1">· ended</span>}
+                    {liveLatencyMs !== null && (
+                      <span
+                        className={cn(
+                          "ml-1.5 rounded px-1.5 py-0.5 text-[10px] font-medium tabular-nums",
+                          liveLatencyMs <= LATENCY_BUDGET_MS
+                            ? "bg-emerald-500/10 text-emerald-300"
+                            : liveLatencyMs <= LATENCY_BUDGET_MS * 1.5
+                              ? "bg-amber-500/10 text-amber-300"
+                              : "bg-red-500/10 text-red-300",
+                        )}
+                        title="Speech-to-first-audio latency for the last agent turn"
+                      >
+                        {liveLatencyMs}ms
+                      </span>
+                    )}
                   </div>
                   {!callActive && (
                     <button
@@ -1478,6 +1499,12 @@ export function Builder({
                               <span className="text-muted-foreground">
                                 Cost{" "}
                                 <span className="text-foreground/80 tabular-nums">${lastCallMeta.costUsd.toFixed(4)}</span>
+                              </span>
+                            )}
+                            {lastCallMeta.sessionId && (
+                              <span className="text-muted-foreground">
+                                Latency{" "}
+                                <CallLatencyBreakdown retellCallId={lastCallMeta.sessionId} />
                               </span>
                             )}
                             {lastCallMeta.sessionId && (

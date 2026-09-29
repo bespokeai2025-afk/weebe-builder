@@ -105,6 +105,21 @@ export async function selectEdge(
     return { edge: usable[0]!, method: "unconditional" };
   }
 
+  // 2b. Several edges, all with a blank condition, all pointing at the SAME destination — a
+  // duplicate draw in the builder canvas (the same connection made 2-3 times), not a real branch.
+  // There is nothing for a classifier to decide between identical blank options pointing at the
+  // same place, so this used to pay for a full LLM round trip to "choose" among copies of the
+  // same answer. Collapse it the same way a lone unconditional edge already is. Edges with
+  // genuinely different blank-condition destinations are left alone — that IS an unresolved
+  // ambiguity (the flow author needs a real condition to tell them apart), and guessing one over
+  // the other would silently make a routing decision no one actually authored.
+  if (usable.length > 1 && conditions.every((c) => !c)) {
+    const destinations = new Set(usable.map((e) => e.destination_node_id));
+    if (destinations.size === 1) {
+      return { edge: usable[0]!, method: "unconditional" };
+    }
+  }
+
   // 3. Equation conditions (Retell logic-split style) — deterministic, zero LLM cost.
   const equationHit = tryEquationEdge(usable, ctx.variables);
   if (equationHit) return { edge: equationHit, method: "equation" };

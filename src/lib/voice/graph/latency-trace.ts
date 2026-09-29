@@ -128,6 +128,11 @@ export class CallTurnTrace {
     return at === undefined ? null : Math.round(at - this.userSpeechStartAt);
   }
 
+  msSinceTurnOrigin(name: LatencyMark): number | null {
+    const at = this.marks.get(name);
+    return at === undefined ? null : Math.round(at - this.turnOrigin);
+  }
+
   /**
    * The same numbers `flushSummary` prints, as data.
    *
@@ -138,7 +143,13 @@ export class CallTurnTrace {
   toRecord(): TurnLatencyRecord {
     return {
       turnIndex: this.turnId,
-      speechToFirstAudioMs: this.msSinceUserSpeech("tts_first_audio"),
+      // "Speech" here means speech END (the VAD endpoint the caller's turn started at,
+      // `turnOrigin`) → first audio — the same thing Retell calls end-to-end latency. This used
+      // to be measured from `userSpeechStartAt` (speech START) instead, which silently folded the
+      // caller's own talking time into what was supposed to be a pure system-latency number —
+      // inflating every reported figure by however long that utterance took to say, and making
+      // this number look far worse than Retell's than the system actually was.
+      speechToFirstAudioMs: this.msSinceTurnOrigin("tts_first_audio"),
       // Endpoint→STT is the one span measured from turn origin rather than
       // from STT final, since it is what STT itself costs.
       endpointToSttFinalMs:

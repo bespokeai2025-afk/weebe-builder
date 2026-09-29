@@ -85,11 +85,23 @@ export const WBAH_RETELL_AGENT_MAP: Record<string, WbahRetellAgentMapping> = {
     agentName: "WBAH Rebooking Agent",
     role: "rebooking",
   },
+  // TTC and DQ moved into the same Retell workspace as New Leads + Rebooking — same rule:
+  // add IDs only, keep the earlier ones so in-flight/historical calls still resolve.
+  agent_10f279d81aca877e9eb2bceedb: {
+    workspaceId: WBAH_WORKSPACE_ID,
+    agentName: "WBAH Tried to contact agent",
+    role: "tried_to_contact",
+  },
+  agent_92ee5a075a43f617270e49394c: {
+    workspaceId: WBAH_WORKSPACE_ID,
+    agentName: "WBAH Client qualification agent",
+    role: "qualification",
+  },
 };
 
 /**
- * Extra Retell API key for the new WBAH workspace (New Leads + Rebooking).
- * Leave Settings → Providers on the existing key — TTC/DQ stay on the old account.
+ * Extra Retell API key for the new WBAH workspace (New Leads + Rebooking, and now TTC + DQ).
+ * Leave Settings → Providers on the existing key.
  */
 export function getWbahAdditionalRetellApiKeys(): string[] {
   const raw =
