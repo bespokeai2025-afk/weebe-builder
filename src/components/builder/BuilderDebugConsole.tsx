@@ -1,8 +1,12 @@
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { ChevronDown, ChevronUp, CircleDot, Eraser } from "lucide-react";
 import { useBuilderStore } from "@/lib/builder/store";
 import { validateFlow } from "@/lib/builder/validate";
 import { TestCallLatencyPanel } from "./TestCallLatencyPanel";
+import { TestCallCostPanel } from "./TestCallCostPanel";
+import { checkCanSeeCallCost } from "@/lib/voice/call-cost.functions";
 import { cn } from "@/lib/utils";
 
 const TYPE_TONE: Record<string, string> = {
@@ -27,8 +31,17 @@ export function BuilderDebugConsole() {
   const nodes = useBuilderStore((s) => s.nodes);
   const edges = useBuilderStore((s) => s.edges);
   const variables = useBuilderStore((s) => s.variables);
-  const [tab, setTab] = useState<"timeline" | "validation" | "latency">("timeline");
+  const [tab, setTab] = useState<"timeline" | "validation" | "latency" | "cost">("timeline");
   const issues = useMemo(() => validateFlow(nodes, edges, variables), [nodes, edges, variables]);
+
+  const canSeeCostFn = useServerFn(checkCanSeeCallCost);
+  const { data: costAccess } = useQuery({
+    queryKey: ["can-see-call-cost"],
+    queryFn: () => canSeeCostFn(),
+    staleTime: 5 * 60_000,
+    throwOnError: false,
+  });
+  const canSeeCost = Boolean(costAccess?.canSee);
 
   return (
     <div className="shrink-0 border-t border-border dark:border-white/[0.06] bg-background/80">
@@ -80,6 +93,22 @@ export function BuilderDebugConsole() {
         >
           Latency
         </button>
+        {canSeeCost && (
+          <button
+            type="button"
+            onClick={() => {
+              setTab("cost");
+              setOpen(true);
+            }}
+            className={cn(
+              "rounded px-1.5 py-0.5 text-[10px]",
+              tab === "cost" && open ? "bg-white/[0.06] text-foreground" : "text-muted-foreground",
+            )}
+            title="Admin only — not visible to workspace users"
+          >
+            Cost
+          </button>
+        )}
         <span className="ml-auto" />
         {tab === "timeline" && events.length > 0 && (
           <button
@@ -97,7 +126,12 @@ export function BuilderDebugConsole() {
           <TestCallLatencyPanel />
         </div>
       )}
-      {open && tab !== "latency" && (
+      {open && tab === "cost" && canSeeCost && (
+        <div className="h-64 overflow-hidden border-t border-white/[0.06]">
+          <TestCallCostPanel />
+        </div>
+      )}
+      {open && tab !== "latency" && tab !== "cost" && (
         <div className="max-h-48 overflow-y-auto px-2 pb-2">
           {tab === "timeline" ? (
             events.length === 0 ? (

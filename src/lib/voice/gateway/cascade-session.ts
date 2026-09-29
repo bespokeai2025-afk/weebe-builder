@@ -25,7 +25,7 @@ import { pcm16View } from "./audio";
 import { GraphSession } from "./graph-session";
 import { buildGraphRuntime, type GraphRuntime } from "./graph-agent";
 import { transcriptCaughtUpToAudio } from "../graph/spoken-transcript.shared";
-import type { VmLatencyHooks, VariableValue } from "../graph/types";
+import type { TransferDirective, VmLatencyHooks, VariableValue } from "../graph/types";
 import { type ChatMsg, gptStream } from "../llm/gpt";
 import { applyKeywordBoost } from "../stt/keyword-boost.shared";
 import {
@@ -64,6 +64,14 @@ import {
 } from "../call-voice-profile.shared";
 import { WEBEE_NATIVE_SPEECH_MODEL, resolveWebeeLlmProvider } from "../webee-native.shared";
 import { looksLikePlaybackEcho } from "../graph/speech-guard.shared";
+import { resolveEndCallAfterSilenceMs, resolveMaxCallDurationMs } from "../lifecycle/call-safety-limits.shared";
+import { DEFAULT_REMINDER_TEXT, resolveReminderSettings } from "../lifecycle/reminder-settings.shared";
+import { shouldAcceptDtmf } from "../lifecycle/dtmf-policy.shared";
+import { resolveDynamicSilenceTimeoutMs } from "../lifecycle/dynamic-responsiveness.shared";
+import { normalizeForSpeech } from "../tts/speech-normalization.shared";
+import { applyPronunciationDictionary } from "../tts/pronunciation-dictionary.shared";
+import { resolveDynamicSpeed } from "../tts/dynamic-voice-speed.shared";
+import { resolveDeepgramModel } from "../stt/stt-tuning.shared";
 import { CallTurnTrace } from "../graph/latency-trace";
 import { ResponseLifecycle } from "../response-lifecycle.shared";
 import {
@@ -114,10 +122,17 @@ export interface CascadeTransport {
   onEnd?(reason: string): void;
   onError?(message: string): void;
   /** Bridge the call. Resolve true once connected, false if it could not be. */
-  transferCall?(destination: string, transferType: string): Promise<boolean>;
+  transferCall?(options: TransferDirective): Promise<boolean>;
   /** Graph VM entered a node — used to highlight the active step in the Builder. */
   onNodeActive?(nodeId: string): void;
   onToolCall?(toolId: string, result: string, ok: boolean): void;
+  /**
+   * Speech-to-first-audio latency for the turn that just started speaking — the same
+   * end-to-end number persisted to `call_turns.speech_to_first_audio_ms`, surfaced live so a
+   * test-call UI can show a running latency badge the way Retell's own test-call widget does,
+   * without needing to wait for the call to end and the debugger's Latency tab to poll for it.
+   */
+  onTurnLatency?(ms: number): void;
 }
 
 export interface CascadeSessionConfig {
@@ -223,6 +238,13 @@ export class CascadeSession {
   private playbackTimer: ReturnType<typeof setTimeout> | null = null;
   private closed = false;
   private silenceTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Hard cap on total call length — `settings.maxCallDurationMs`, armed once at start. */
+  private maxDurationTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Whole-call dead-air watchdog — `settings.endCallAfterSilenceMs`, reset on every caller turn. */
+  private deadAirTimer: ReturnType<typeof setTimeout> | null = null;
+  /** `settings.reminderTriggerMs` / `reminderMaxCount` — proactive "are you still there?" nudges. */
+  private reminderTimer: ReturnType<typeof setTimeout> | null = null;
+  private reminderCount = 0;
   private readonly runtime: VoiceRuntimeConfig;
   private readonly languageLock: string;
   private readonly sttLanguage?: string;
@@ -268,6 +290,12 @@ export class CascadeSession {
   /** Dedupe rapid identical caller utterances (echo / double endpoint). */
   private lastAcceptedUserText = "";
   private lastAcceptedUserAt = 0;
+  /** Rolling agent-line-end -> caller-response gaps, for `enableDynamicResponsiveness`. */
+  private recentResponseGapsMs: number[] = [];
+  /** The effective silence-timeout for the current wait, cached so a false-start (VAD `discarded`) can re-arm it. */
+  private currentSilenceTimeoutMs: number | undefined;
+  /** Set when `onAwaitUser` fires while the agent's own line is still draining — armed for real once `endPlayback` confirms playback actually finished. */
+  private pendingWaitArm: { silenceTimeoutMs: number | undefined } | null = null;
   /** Last spoken agent line — used to ignore speaker-echo STT. */
   private lastAgentText = "";
   /** Full agent line waiting to be revealed as audio plays. */
@@ -409,7 +437,11 @@ export class CascadeSession {
       resolveWebeeSttPreference(this.config.settings, sttKeys) ??
       parseSttProviderName(this.config.settings?.webeeSttProvider) ??
       "fish";
-    const sttProvider = createSttProvider(sttName, sttKeys);
+    const sttProvider = createSttProvider(
+      sttName,
+      sttKeys,
+      sttName === "deepgram" ? resolveDeepgramModel(this.config.settings) : undefined,
+    );
     this.sttName = sttProvider.name;
     this.stt = await sttProvider.open({
       sampleRate: this.sampleRate,
@@ -522,6 +554,8 @@ export class CascadeSession {
   /** Telephony: prepare + greet in one step (caller is already on the line). */
   async start(): Promise<CascadeSessionBanner> {
     const banner = await this.prepare();
+    this.armMaxDurationTimer();
+    this.armDeadAirTimer();
     await this.beginConversation();
     return banner;
   }
@@ -557,6 +591,13 @@ export class CascadeSession {
   submitDigit(digit: string): void {
     const trimmed = digit.trim();
     if (!this.graph || !trimmed) return;
+    if (!shouldAcceptDtmf(this.config.settings, this.agentSpeaking)) {
+      console.log(`${this.log} DTMF "${trimmed}" ignored — allowUserDtmf/allowDtmfInterruption policy`);
+      return;
+    }
+    // A keypress is a real response — the wait it answers is over, same as speech ending it.
+    this.clearSilenceTimer();
+    this.clearReminderTimer();
     this.graph.submitDigit(trimmed).catch((err: Error) => {
       this.transport.onError?.(err.message);
     });
@@ -575,6 +616,15 @@ export class CascadeSession {
     }
   }
 
+  /** Tracks the last few agent-line-end -> caller-response gaps, feeding `enableDynamicResponsiveness`. */
+  private recordResponseGap(): void {
+    if (!this.ttsStreamEndedAt) return;
+    const gap = Date.now() - this.ttsStreamEndedAt;
+    if (gap < 0) return;
+    this.recentResponseGapsMs.push(gap);
+    if (this.recentResponseGapsMs.length > 5) this.recentResponseGapsMs.shift();
+  }
+
   private armSilenceTimer(ms?: number): void {
     this.clearSilenceTimer();
     if (!ms || ms <= 0) return;
@@ -583,10 +633,79 @@ export class CascadeSession {
       if (this.closed || !this.awaitingCallerInput || !this.graph) return;
       console.log(`${this.log} silence timeout ${ms}ms — routing wait/timeout edge`);
       this.awaitingCallerInput = false;
+      // This wait cycle is over — the flow is moving on regardless of the caller now, most
+      // commonly to speak its own next line. A reminder still scheduled from THIS wait must not
+      // survive into whatever comes next: it fires a plain "are you still there?" mid-way through
+      // that next line, because the VM's own staleness check (`vm.ts`'s "reminder" case) only
+      // knows "are we waiting on the caller" in general, not which specific wait a reminder was
+      // scheduled for — and the new line's own await_user re-affirms that same general state
+      // almost immediately, well before its audio has finished playing.
+      this.clearReminderTimer();
       this.graph.submitSilenceTimeout().catch((err: Error) => {
         this.transport.onError?.(err.message);
       });
     }, ms);
+  }
+
+  /**
+   * A hard stop the graph itself has no say in — distinct from the per-node
+   * `armSilenceTimer` above, which routes to a wait/timeout *edge* the flow
+   * author placed. These two exist regardless of what the flow does: Retell
+   * enforces both as agent-level policy, and the native engine previously had
+   * no equivalent, so a stuck or abandoned call could run (and bill) forever.
+   */
+  private forceEnd(reason: "max_duration_reached" | "inactivity"): void {
+    if (this.closed) return;
+    console.log(`${this.log} ${reason} — ending call`);
+    void this.lifecycleRef?.ended(reason);
+    this.transport.onEnd?.(reason);
+    this.close();
+  }
+
+  private armMaxDurationTimer(): void {
+    const ms = resolveMaxCallDurationMs(this.config.settings);
+    if (ms == null) return;
+    this.maxDurationTimer = setTimeout(() => this.forceEnd("max_duration_reached"), ms);
+  }
+
+  private clearDeadAirTimer(): void {
+    if (this.deadAirTimer) {
+      clearTimeout(this.deadAirTimer);
+      this.deadAirTimer = null;
+    }
+  }
+
+  private clearReminderTimer(): void {
+    if (this.reminderTimer) {
+      clearTimeout(this.reminderTimer);
+      this.reminderTimer = null;
+    }
+  }
+
+  /**
+   * Schedule the next "are you still there?" nudge, if reminders are configured and there are
+   * any left for this wait cycle. Re-arms itself after each one fires, so `reminderMaxCount`
+   * nudges are spaced `reminderTriggerMs` apart rather than all firing at once.
+   */
+  private armReminderTimer(): void {
+    this.clearReminderTimer();
+    const reminders = resolveReminderSettings(this.config.settings);
+    if (!reminders || this.reminderCount >= reminders.maxCount) return;
+    this.reminderTimer = setTimeout(() => {
+      this.reminderCount++;
+      this.graph?.submitReminder(DEFAULT_REMINDER_TEXT).catch((err: Error) => {
+        this.transport.onError?.(err.message);
+      });
+      this.armReminderTimer();
+    }, reminders.triggerMs);
+  }
+
+  /** (Re)start the whole-call silence watchdog. Called once at start, then on every caller turn. */
+  private armDeadAirTimer(): void {
+    this.clearDeadAirTimer();
+    const ms = resolveEndCallAfterSilenceMs(this.config.settings);
+    if (ms == null) return;
+    this.deadAirTimer = setTimeout(() => this.forceEnd("inactivity"), ms);
   }
 
   /** Tear down. Idempotent; safe to call from a socket close handler. */
@@ -598,6 +717,12 @@ export class CascadeSession {
     }
     this.clearUtteranceCoalesce();
     this.clearSilenceTimer();
+    this.clearDeadAirTimer();
+    this.clearReminderTimer();
+    if (this.maxDurationTimer) {
+      clearTimeout(this.maxDurationTimer);
+      this.maxDurationTimer = null;
+    }
     this.endPlayback();
     this.turn?.ctrl.abort();
     this.stt?.close();
@@ -786,10 +911,10 @@ export class CascadeSession {
         });
         this.transport.onToolCall?.(toolId, result, ok);
       },
-      onTransfer: async (destination, transferType) => {
+      onTransfer: async (options) => {
         if (!this.transport.transferCall) return false;
-        const ok = await this.transport.transferCall(destination, transferType).catch(() => false);
-        if (ok) this.lifecycleRef?.transferred(destination);
+        const ok = await this.transport.transferCall(options).catch(() => false);
+        if (ok) this.lifecycleRef?.transferred(options.destination);
         return ok;
       },
       onAwaitUser: (options) => {
@@ -800,7 +925,32 @@ export class CascadeSession {
         this.responses.markListening();
         this.vad?.reset();
         this.stt?.clearInputBuffer?.();
-        this.armSilenceTimer(options?.silenceTimeoutMs);
+        // A reminder nudge re-affirms the *same* wait it interrupted, not a new one — restarting
+        // the silence-timeout clock and the reminder count here would let a silent caller be
+        // "still there?"-ed forever and would defeat the node's own timeout edge (the bug this
+        // guard fixes: reminders used to reset themselves indefinitely instead of respecting
+        // reminderMaxCount and letting the flow's own timeout ever fire).
+        if (options?.isReminderReaffirmation) return;
+        this.currentSilenceTimeoutMs = resolveDynamicSilenceTimeoutMs(
+          options?.silenceTimeoutMs,
+          this.recentResponseGapsMs,
+          this.config.settings,
+        );
+        // A fresh wait cycle — someone who answered the last question and then goes quiet on
+        // this one deserves the full set of nudges again, not whatever was left over from before.
+        this.reminderCount = 0;
+        // `speak` resolves once the line has been fully SENT, not once the caller has actually
+        // heard it — a long line can still be draining through Twilio/the browser's playback
+        // buffer for several more seconds after that. Starting the silence/reminder clock here
+        // for a long line meant "are you still there?" could fire while the agent was still
+        // mid-sentence. Wait for the real playback-done signal (`endPlayback`) before starting
+        // either clock; only start immediately when the agent has nothing left to finish playing.
+        if (this.agentSpeaking) {
+          this.pendingWaitArm = { silenceTimeoutMs: this.currentSilenceTimeoutMs };
+          return;
+        }
+        this.armSilenceTimer(this.currentSilenceTimeoutMs);
+        this.armReminderTimer();
       },
       onNodeActive: (nodeId) => this.transport.onNodeActive?.(nodeId),
       onAwaitDigit: () => {
@@ -1018,6 +1168,8 @@ export class CascadeSession {
 
     this.lifecycleRef?.addTurn("user", userText);
     this.transport.onTranscript?.("user", userText);
+    this.armDeadAirTimer(); // the caller just spoke — the whole-call silence clock restarts
+    this.clearReminderTimer(); // they responded — no stale nudge should fire mid-turn
     console.log(`${this.log} turn ${t.id} user: ${userText.slice(0, 120)}`);
 
     const normalizedUser = userText.trim().toLowerCase();
@@ -1030,6 +1182,7 @@ export class CascadeSession {
       return;
     }
     this.lastAcceptedUserText = normalizedUser;
+    this.recordResponseGap();
     this.lastAcceptedUserAt = Date.now();
 
     if (this.graph) {
@@ -1079,7 +1232,17 @@ export class CascadeSession {
     this.agentPcmBytesThisUtterance = 0;
     this.agentAudioStartedAt = 0;
     const normalized =
-      typeof source === "string" ? normalizeSpeechText(source) : source;
+      typeof source === "string"
+        ? applyPronunciationDictionary(
+            normalizeForSpeech(normalizeSpeechText(source), this.config.settings),
+            this.config.settings?.pronunciationDictionary as
+              | { word: string; alphabet: "ipa" | "cmu"; phoneme: string }[]
+              | undefined,
+          )
+        : source;
+    if (typeof normalized === "string") {
+      req.speed = resolveDynamicSpeed(req.speed, normalized, this.config.settings);
+    }
 
     const openAudio = () =>
       typeof normalized === "string"
@@ -1305,6 +1468,17 @@ export class CascadeSession {
       this.pendingDuplexUserText = null;
       void this.submitBufferedUserText(pending);
     }
+
+    // The agent's line has now actually finished playing — start the clock a wait node armed
+    // earlier was deferring, if the caller hasn't already answered in the meantime.
+    if (this.pendingWaitArm && this.awaitingCallerInput) {
+      const arm = this.pendingWaitArm;
+      this.pendingWaitArm = null;
+      this.armSilenceTimer(arm.silenceTimeoutMs);
+      this.armReminderTimer();
+    } else {
+      this.pendingWaitArm = null;
+    }
   }
 
   /** Process a caller reply held during duplex playback (no STT pass). */
@@ -1327,6 +1501,8 @@ export class CascadeSession {
 
     this.lifecycleRef?.addTurn("user", userText);
     this.transport.onTranscript?.("user", userText);
+    this.armDeadAirTimer(); // the caller just spoke — the whole-call silence clock restarts
+    this.clearReminderTimer(); // they responded — no stale nudge should fire mid-turn
     console.log(`${this.log} turn ${t.id} user (buffered): ${userText.slice(0, 120)}`);
 
     const normalizedUser = userText.trim().toLowerCase();
@@ -1339,6 +1515,7 @@ export class CascadeSession {
       return;
     }
     this.lastAcceptedUserText = normalizedUser;
+    this.recordResponseGap();
     this.lastAcceptedUserAt = Date.now();
     this.awaitingCallerInput = false;
 
@@ -1450,6 +1627,10 @@ export class CascadeSession {
     t.ctrl.abort();
     if (this.turn === t) this.turn = null;
     if (this.activeSpeak?.turn === t) this.activeSpeak = null;
+    // The playback this was waiting to confirm is never completing now — whatever silence/
+    // reminder timer would have started belongs to a wait the caller has already resolved by
+    // barging in, so a later, unrelated endPlayback must not arm it against the wrong turn.
+    this.pendingWaitArm = null;
     this.abortSpeculativeFlat("cancelled");
     this.speculativeGraphKey = "";
     this.speculativeGraphDestKey = "";
@@ -1501,6 +1682,7 @@ export class CascadeSession {
         ` total=${total !== null ? `${total}ms` : "n/a"}` +
         `${total !== null && total > LATENCY_BUDGET_MS ? " OVER BUDGET" : ""}`,
     );
+    if (total !== null) this.transport.onTurnLatency?.(total);
     this.persistTurnLatency(t);
   }
 
@@ -1553,6 +1735,16 @@ export class CascadeSession {
         // Belongs to the turn this speech will produce, not the one just finished.
         this.pendingUserSpeechStartAt = Date.now();
         this.turn?.trace?.mark("turn_detected");
+        // The caller has started talking — stop counting toward "still there?" and the node's
+        // own silence-timeout edge right now, not only once STT finalises. Finalisation (plus
+        // utterance coalescing for a paused, multi-clause answer like a spelled-out email) can
+        // take several seconds after speech actually starts, and both timers used to keep
+        // running through that gap — firing "are you still there?" over the caller's own answer,
+        // or worse, routing the timeout edge while they were still mid-sentence.
+        if (this.awaitingCallerInput) {
+          this.clearSilenceTimer();
+          this.clearReminderTimer();
+        }
         if (this.bargeInActive && event.rms < this.runtime.interruption.bargeInMinRms) {
           this.speechFrames = 0;
         }
@@ -1579,6 +1771,13 @@ export class CascadeSession {
         this.partialStableSince = 0;
         this.restoreHangover();
         console.log(`${this.log} utterance too short (${event.frameCount} frames)`);
+        // A false start (noise, breath, a stray click) — speech_start paused both timers above,
+        // but nothing was actually said, so if a node is still waiting, resume the clock rather
+        // than leaving the caller with no timeout and no reminder for the rest of the wait.
+        if (this.awaitingCallerInput) {
+          this.armSilenceTimer(this.currentSilenceTimeoutMs);
+          this.armReminderTimer();
+        }
         return;
       case "utterance_end":
         console.log(

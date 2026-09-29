@@ -27,6 +27,7 @@ export class TwilioProvider implements TelephonyProvider {
       statusCallback: params.statusCallbackUrl,
       statusCallbackEvent: ["initiated", "ringing", "answered", "completed"],
       statusCallbackMethod: "POST",
+      ...(params.ringSeconds ? { timeout: params.ringSeconds } : {}),
     });
     return { callSid: call.sid, status: this.mapStatus(call.status) };
   }

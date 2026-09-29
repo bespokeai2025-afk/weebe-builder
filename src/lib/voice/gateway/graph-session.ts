@@ -14,7 +14,7 @@
  */
 
 import type { ConversationVm } from "../graph/vm";
-import type { EndReason, VariableValue, VmDirective, VmInput } from "../graph/types";
+import type { EndReason, TransferDirective, VariableValue, VmDirective, VmInput } from "../graph/types";
 import { normalizeSpeechText } from "../tts/types";
 
 export interface GraphSessionCallbacks {
@@ -29,10 +29,10 @@ export interface GraphSessionCallbacks {
   /** Builder canvas highlight — fire on every node the VM is currently in. */
   onNodeActive?(nodeId: string): void;
   /** Bridge the call. Resolve true once connected, false if it could not be. */
-  onTransfer?(destination: string, transferType: string): Promise<boolean>;
+  onTransfer?(options: TransferDirective): Promise<boolean>;
   onAgentSwap?(agentId: string, agentVersion?: number | string): void;
   /** Caller is expected to speak next; used to open the mic gate. */
-  onAwaitUser?(options?: { silenceTimeoutMs?: number }): void;
+  onAwaitUser?(options?: { silenceTimeoutMs?: number; isReminderReaffirmation?: boolean }): void;
   onAwaitDigit?(pauseDetectionMs: number, options?: { digitTimeoutMs?: number; retryCount?: number }): void;
   onEnd?(reason: EndReason): void;
   onError?(message: string): void;
@@ -67,6 +67,10 @@ export class GraphSession {
 
   submitSilenceTimeout(): Promise<void> {
     return this.enqueue({ type: "silence_timeout" });
+  }
+
+  submitReminder(text: string): Promise<void> {
+    return this.enqueue({ type: "reminder", text });
   }
 
   private enqueue(input: VmInput): Promise<void> {
@@ -131,8 +135,10 @@ export class GraphSession {
       case "await_user":
         this.cb.onAwaitUser?.(
           directive.silenceTimeoutMs && directive.silenceTimeoutMs > 0
-            ? { silenceTimeoutMs: directive.silenceTimeoutMs }
-            : undefined,
+            ? { silenceTimeoutMs: directive.silenceTimeoutMs, isReminderReaffirmation: directive.isReminderReaffirmation }
+            : directive.isReminderReaffirmation
+              ? { isReminderReaffirmation: true }
+              : undefined,
         );
         return null;
 
@@ -158,9 +164,7 @@ export class GraphSession {
         // Without a bridge implementation the transfer cannot have succeeded, so
         // report failure and let the flow take its transfer-failed edge.
         const ok = this.cb.onTransfer
-          ? await this.cb
-              .onTransfer(directive.destination, directive.transferType)
-              .catch(() => false)
+          ? await this.cb.onTransfer(directive).catch(() => false)
           : false;
         return { type: "transfer_result", ok };
       }

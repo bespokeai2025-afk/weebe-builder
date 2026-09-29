@@ -100,8 +100,12 @@ describe("dedupeDialerTargets", () => {
 });
 
 describe("validateRouteNumbers", () => {
-  it("requires exactly 2 numbers", () => {
-    expect(validateRouteNumbers(["+971501234567"]).ok).toBe(false);
+  it("accepts a single number — a plain 1-to-1 bridge, no simul-ring needed", () => {
+    expect(validateRouteNumbers(["+971501234567"])).toEqual({ ok: true, error: null });
+  });
+
+  it("rejects zero numbers and more than two", () => {
+    expect(validateRouteNumbers([]).ok).toBe(false);
     expect(validateRouteNumbers(["+971501234567", "+971509876543", "+971501111111"]).ok).toBe(false);
   });
 
@@ -109,6 +113,10 @@ describe("validateRouteNumbers", () => {
     const r = validateRouteNumbers(["+971501234567", "0501234567"]);
     expect(r.ok).toBe(false);
     expect(r.error).toMatch(/0501234567/);
+  });
+
+  it("rejects a single malformed number too", () => {
+    expect(validateRouteNumbers(["0501234567"]).ok).toBe(false);
   });
 
   it("rejects the same number twice", () => {
@@ -172,6 +180,19 @@ describe("buildSimulRingTwiml", () => {
     });
     expect(t).toContain("&amp;");
     expect(t).not.toContain("?a=1&b=2");
+  });
+
+  it("builds a plain 1-to-1 bridge with a single route number — no race, one <Number>", () => {
+    const single = buildSimulRingTwiml({
+      routeNumbers: ["+971501234567"],
+      timeoutSecs: 20,
+      actionUrl: "https://x/action",
+      legAnsweredUrls: ["https://x/0"],
+      callerId: "+971500000000",
+    });
+    expect((single.match(/<Number/g) ?? []).length).toBe(1);
+    expect((single.match(/<Dial/g) ?? []).length).toBe(1);
+    expect(single).toContain("+971501234567");
   });
 });
 

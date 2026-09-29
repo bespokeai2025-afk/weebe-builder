@@ -89,6 +89,22 @@ export async function placeNativeOutboundCall(
   const host = resolvePublicHost();
   const credentials = await resolveTwilioCredentialsForWorkspace(sb, workspaceId);
 
+  // `ringDurationMs` is agent-level builder policy (matches Retell's own field of the same
+  // purpose) — how long to let an outbound call ring before giving up. Previously stored and
+  // never read, so every native outbound call rang for however long Twilio's own default allows.
+  let ringSeconds: number | undefined;
+  try {
+    const { data: agentRow } = await sb
+      .from("agents")
+      .select("settings")
+      .eq("id", agentId)
+      .maybeSingle();
+    const ms = Number((agentRow?.settings as Record<string, unknown> | null)?.ringDurationMs);
+    if (Number.isFinite(ms) && ms > 0) ringSeconds = Math.max(5, Math.min(120, Math.round(ms / 1000)));
+  } catch {
+    // Ring duration is a nicety, not a call blocker — fall back to Twilio's own default.
+  }
+
   const { data: callRow, error: insertErr } = await sb
     .from("telephony_calls")
     .insert({
@@ -116,6 +132,7 @@ export async function placeNativeOutboundCall(
     from: from.number,
     statusCallbackUrl: `${host}/api/public/telephony/status`,
     streamUrl: `wss://${new URL(host).host}/api/telephony/stream/${callRow.id}`,
+    ringSeconds,
   });
 
   await sb

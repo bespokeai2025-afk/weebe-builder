@@ -33,6 +33,11 @@ import {
 } from "./flow";
 import { historyIndicatesStandaloneHouse, clarificationForNode } from "./stt-clarification.shared";
 import { inferCollectVariableName, shouldCaptureCollectAnswer } from "./collect-variable.shared";
+import {
+  normaliseSpokenNumbers,
+  stripFillerWords,
+  validateExtractedValue,
+} from "./extraction-validation.shared";
 import { guardPrematureWrapUpStream, replacePrematureWrapUp } from "./speech-guard.shared";
 import {
   leadFieldsForTurn,
@@ -589,6 +594,17 @@ export class ConversationVm {
         yield { type: "end_call", nodeId: node?.id ?? "", reason: "dead_end" };
         return;
       }
+
+      case "reminder": {
+        // The wait may have already resolved by the time this tick lands (the caller spoke,
+        // or the node advanced) — a stale reminder must not speak over whatever is happening
+        // now, and must not re-affirm an await state nothing is actually waiting on any more.
+        if (this.awaiting !== "user" && this.awaiting !== "begin_silence") return;
+        const node = this.currentNode();
+        yield { type: "speak", nodeId: node?.id ?? "", text: input.text, interruptible: true };
+        yield { ...this.awaitUserDirective(node?.id ?? this.currentNodeId), isReminderReaffirmation: true };
+        return;
+      }
     }
   }
 
@@ -602,9 +618,22 @@ export class ConversationVm {
     if (!name) return;
     const current = this.variables[name];
     if (current !== undefined && current !== null && String(current).trim()) return;
-    this.rememberVariables({ [name]: userText.trim() });
-    this.log(`collected ${name}=${userText.trim().slice(0, 80)}`);
-    yield { type: "variables", nodeId: node.id, values: { [name]: userText.trim() } };
+
+    // This capture bypasses the LLM-based extraction pipeline (`execExtract`/`llm.ts`) entirely —
+    // it binds the caller's raw next reply straight to whatever variable the instruction seems to
+    // be asking for. Without the same kind inference + normalisation that pipeline applies, an
+    // email got stored as "arjavirani123 gmail. dot com." and a postcode as "three nine five zero",
+    // verbatim, with no chance for the flow to notice and ask again. Route it through the same
+    // Retell-parity validator: wrong-kind or malformed input is not captured, not stored raw.
+    const candidate = normaliseSpokenNumbers(stripFillerWords(userText.trim()));
+    const value = validateExtractedValue({ name }, candidate);
+    if (value === null) {
+      this.log(`collect answer rejected for ${name}: "${userText.trim().slice(0, 80)}" is not a valid value`);
+      return;
+    }
+    this.rememberVariables({ [name]: value });
+    this.log(`collected ${name}=${String(value).slice(0, 80)}`);
+    yield { type: "variables", nodeId: node.id, values: { [name]: value } };
   }
 
   private rememberVariables(values: Record<string, VariableValue>): void {
@@ -990,8 +1019,15 @@ export class ConversationVm {
       }
     }
 
+    // Retell's extract-variable node is a capture step, not a branch point — it always advances
+    // once the value is fetched. A condition that fails to match must not dead-end the call, so
+    // fall back to an explicit else_edge (round-tripped from Retell-imported flows) and, failing
+    // that, the node's own last declared edge — the conventional single "continue" path when the
+    // author added just one, exactly the common case for this node type.
+    const elseEdge = (node as { else_edge?: FlowEdge }).else_edge;
     const edgeRoute = await selectEdge(node.edges ?? [], this.routeContext(node), this.llm);
-    return this.follow(edgeRoute.edge, node);
+    const chosen = edgeRoute.edge ?? elseEdge ?? node.edges?.[node.edges.length - 1];
+    return this.follow(chosen, node);
   }
 
   private async *execFunction(node: FunctionNode): AsyncGenerator<VmDirective, StepResult> {
@@ -1185,12 +1221,41 @@ export class ConversationVm {
       return { kind: "end", reason: "error" };
     }
 
+    const transferType = String(option.type ?? "cold_transfer");
+    const handoffText = (value: unknown): string | undefined => {
+      if (!value || typeof value !== "object") return undefined;
+      const opt = value as Record<string, unknown>;
+      if (opt.type === "static_message" && typeof opt.message === "string") return opt.message.trim() || undefined;
+      // A "prompt" handoff is meant to brief an LLM on what to say; the native
+      // transport has no briefing LLM in the transfer path, so the author's own
+      // text is spoken verbatim — the common case (a plain sentence) works
+      // identically either way, and this stays generic rather than inventing wording.
+      if (typeof opt.prompt === "string") return opt.prompt.trim() || undefined;
+      return undefined;
+    };
+    const ringMs =
+      typeof option.agent_detection_timeout_ms === "number"
+        ? option.agent_detection_timeout_ms
+        : typeof option.transfer_ring_duration_ms === "number"
+          ? option.transfer_ring_duration_ms
+          : undefined;
+
     yield {
       type: "transfer_call",
       nodeId: node.id,
       destination,
-      transferType: String(option.type ?? "cold_transfer"),
+      transferType,
       sipHeaders: (node as { custom_sip_headers?: Record<string, string> }).custom_sip_headers,
+      warmOptions:
+        transferType === "warm_transfer" || transferType === "agentic_warm_transfer"
+          ? {
+              publicHandoffText: handoffText(option.public_handoff_option),
+              privateHandoffText: handoffText(option.private_handoff_option),
+              ringTimeoutMs: ringMs,
+              showTransfereeAsCaller: Boolean(option.show_transferee_as_caller),
+              onHoldMusic: typeof option.on_hold_music === "string" ? option.on_hold_music : undefined,
+            }
+          : undefined,
     };
     // The host reports the outcome so the transfer-failed edge stays reachable.
     return { kind: "await", what: "transfer" };

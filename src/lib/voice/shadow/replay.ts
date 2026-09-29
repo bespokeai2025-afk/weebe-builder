@@ -69,7 +69,7 @@ export async function replayThroughVm(
       variables = { ...variables, ...values };
     },
     onToolCall: (toolId, _result, ok) => toolCalls.push({ toolId, ok }),
-    onTransfer: async (destination) => {
+    onTransfer: async ({ destination }) => {
       transferredTo = destination;
       return options.transferSucceeds !== false;
     },

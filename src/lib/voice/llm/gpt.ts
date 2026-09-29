@@ -98,6 +98,21 @@ export function resolveTextModel(modelId: string, provider?: VoiceLlmProvider): 
   return OPENAI_TEXT_MAP[raw] ?? raw;
 }
 
+/**
+ * Shared, call-scoped flag: once Cerebras has failed with a quota/rate-limit error once on a
+ * call, every subsequent request on that same call skips straight to OpenAI instead of trying
+ * Cerebras and waiting for it to fail again first. Without this, a single call could pay for a
+ * failed Cerebras attempt on *every* LLM call it makes — classify and generate each retry
+ * independently — turning one provider incident into a chain of doubled round-trips for the rest
+ * of the call. One `{ down: false }` object should be created per call and passed to every
+ * `gptStream`/`gptComplete` call that call makes; it is never meant to be shared across calls,
+ * since it doesn't expire and a real Cerebras recovery mid-outage would otherwise never be
+ * retried until the next call starts fresh.
+ */
+export interface CerebrasBreaker {
+  down: boolean;
+}
+
 export interface GptStreamOptions {
   model: string;
   apiKey: string;
@@ -111,6 +126,8 @@ export interface GptStreamOptions {
   provider?: VoiceLlmProvider;
   /** Constrain output to a JSON object, for extraction and analysis passes. */
   responseFormat?: "json_object";
+  /** See `CerebrasBreaker` — pass the same object for every call within one voice call. */
+  breaker?: CerebrasBreaker;
 }
 
 /**
@@ -129,35 +146,33 @@ export async function* gptStream(
     throw new Error("Voice LLM key missing — set OPENAI_API_KEY or CEREBRAS_API_KEY");
   }
 
+  // Already know Cerebras is down for this call — don't pay for a second failed attempt.
+  if (auth.provider === "cerebras" && options.breaker?.down) {
+    const fallback = resolveVoiceLlmAuth(options.apiKey, "openai");
+    if (fallback.apiKey) auth = fallback;
+  }
+
   try {
     yield* streamChat(messages, options, auth);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    const quota =
-      auth.provider === "cerebras" &&
-      (/\b402\b/.test(message) || /payment_required|quota|429/.test(message));
-    if (!quota) throw err;
+    if (!isCerebrasQuotaError(auth.provider, message)) throw err;
     const fallback = resolveVoiceLlmAuth(options.apiKey, "openai");
     if (!fallback.apiKey || fallback.provider === auth.provider) throw err;
     console.warn(`[voice-llm] Cerebras unavailable (${message.slice(0, 120)}) — falling back to OpenAI`);
+    if (options.breaker) options.breaker.down = true;
     yield* streamChat(messages, { ...options, provider: "openai" }, fallback);
   }
 }
 
-async function* streamChat(
+function buildChatBody(
   messages: ChatMsg[],
   options: GptStreamOptions,
   auth: VoiceLlmAuth,
-): AsyncGenerator<string> {
+  stream: boolean,
+): Record<string, unknown> {
   const textModel = resolveTextModel(options.model, auth.provider);
-  const timeoutMs = options.timeoutMs ?? 25_000;
-  const timeoutSignal = AbortSignal.timeout(timeoutMs);
-  const signal = options.signal ? AbortSignal.any([options.signal, timeoutSignal]) : timeoutSignal;
-  const body: Record<string, unknown> = {
-    model: textModel,
-    messages,
-    stream: true,
-  };
+  const body: Record<string, unknown> = { model: textModel, messages, stream };
   if (typeof options.temperature === "number") body.temperature = options.temperature;
   if (typeof options.maxTokens === "number") body.max_tokens = options.maxTokens;
   if (options.responseFormat) body.response_format = { type: options.responseFormat };
@@ -165,7 +180,20 @@ async function* streamChat(
   if (auth.provider === "cerebras" && textModel.startsWith("gpt-oss-")) {
     body.reasoning_effort = "low";
   }
+  return body;
+}
 
+function buildRequestSignal(options: GptStreamOptions): AbortSignal {
+  const timeoutSignal = AbortSignal.timeout(options.timeoutMs ?? 25_000);
+  return options.signal ? AbortSignal.any([options.signal, timeoutSignal]) : timeoutSignal;
+}
+
+async function* streamChat(
+  messages: ChatMsg[],
+  options: GptStreamOptions,
+  auth: VoiceLlmAuth,
+): AsyncGenerator<string> {
+  const body = buildChatBody(messages, options, auth, true);
   const res = await fetch(auth.url, {
     method: "POST",
     headers: {
@@ -173,7 +201,7 @@ async function* streamChat(
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
-    signal,
+    signal: buildRequestSignal(options),
   });
   if (!res.ok) {
     const text = await res.text().catch(() => String(res.status));
@@ -207,9 +235,67 @@ async function* streamChat(
   }
 }
 
-/** Collect a full completion. Used for classification and analysis passes. */
-export async function gptComplete(messages: ChatMsg[], options: GptStreamOptions): Promise<string> {
-  let out = "";
-  for await (const delta of gptStream(messages, options)) out += delta;
-  return out.trim();
+/** True for a Cerebras response that signals it's out of quota / rate-limited. */
+function isCerebrasQuotaError(provider: VoiceLlmProvider, message: string): boolean {
+  return provider === "cerebras" && (/\b402\b/.test(message) || /payment_required|quota|429/.test(message));
+}
+
+async function completeOnce(
+  messages: ChatMsg[],
+  options: GptStreamOptions,
+  auth: VoiceLlmAuth,
+): Promise<string> {
+  const body = buildChatBody(messages, options, auth, false);
+  const res = await fetch(auth.url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${auth.apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+    signal: buildRequestSignal(options),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => String(res.status));
+    throw new Error(`Voice LLM ${auth.provider} ${res.status}: ${text}`);
+  }
+  const json = (await res.json()) as { choices?: Array<{ message?: { content?: string | null } }> };
+  return (json.choices?.[0]?.message?.content ?? "").trim();
+}
+
+/**
+ * Collect a full completion — classification, extraction, and post-call analysis, none of which
+ * ever read the response incrementally (each one awaits the full text before doing anything with
+ * it). This used to be built on the streaming (`gptStream`) path for no benefit: `response_format:
+ * json_object` forces the server to finish composing the whole JSON body before it's valid to send
+ * at all, so token-by-token delivery buys nothing there — it only adds SSE framing and several
+ * small reads on top of the same round trip. Measured on real classify calls: ~1.6s median through
+ * the streaming path for a ~128-token JSON reply, far more than a plain request/response should
+ * cost. `generate`/`generateStream` (the actual spoken response) stay on the streaming path in
+ * `graph/llm.ts`, since TTS genuinely needs to start on the first token there.
+ */
+export async function gptComplete(
+  messages: ChatMsg[],
+  options: GptStreamOptions,
+): Promise<string> {
+  let auth = resolveVoiceLlmAuth(options.apiKey, options.provider);
+  if (!auth.apiKey) {
+    throw new Error("Voice LLM key missing — set OPENAI_API_KEY or CEREBRAS_API_KEY");
+  }
+  if (auth.provider === "cerebras" && options.breaker?.down) {
+    const fallback = resolveVoiceLlmAuth(options.apiKey, "openai");
+    if (fallback.apiKey) auth = fallback;
+  }
+
+  try {
+    return await completeOnce(messages, options, auth);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (!isCerebrasQuotaError(auth.provider, message)) throw err;
+    const fallback = resolveVoiceLlmAuth(options.apiKey, "openai");
+    if (!fallback.apiKey || fallback.provider === auth.provider) throw err;
+    console.warn(`[voice-llm] Cerebras unavailable (${message.slice(0, 120)}) — falling back to OpenAI`);
+    if (options.breaker) options.breaker.down = true;
+    return await completeOnce(messages, { ...options, provider: "openai" }, fallback);
+  }
 }

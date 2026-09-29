@@ -69,6 +69,9 @@ type RetellCall = {
   disconnection_reason?: string;
   transcript?: string;
   recording_url?: string;
+  /** Sent by real Retell calls and synthesised the same way by the native lifecycle
+   * (see `NativeCallLifecycle.buildCall`) — in USD cents either way. */
+  call_cost?: { combined_cost: number; total_duration_seconds?: number };
   call_analysis?: {
     call_summary?: string;
     user_sentiment?: string;
@@ -925,6 +928,13 @@ export async function processRetellWebhook(
     sentiment: mapSentiment(call.call_analysis?.user_sentiment),
     call_successful: call.call_analysis?.call_successful ?? null,
     in_voicemail: call.call_analysis?.in_voicemail ?? null,
+    // Computed correctly for a long time (the native engine's own rate engine, real Retell's own
+    // reported figure) but never actually read here, so `calls.cost_cents` was null for every
+    // call regardless of provider — this is the only place that persists it.
+    cost_cents:
+      typeof call.call_cost?.combined_cost === "number"
+        ? Math.round(call.call_cost.combined_cost)
+        : null,
     // The agent's own post-call fields, kept on the call the way Retell keeps
     // them. Previously only workflow-specific handlers read these — bookings,
     // lead intelligence, qualification — so a test call showed the three

@@ -1461,7 +1461,7 @@ function DataPage() {
       ? (dialerDefaultsData.routeNumbers as [string, string])
       : null;
 
-  async function handleAutoDial(routeNumbers: [string, string]) {
+  async function handleAutoDial(routeNumbers: string[]) {
     try {
       const result = await createAutoDialFn({
         data: {
@@ -4223,7 +4223,7 @@ function AutoDialSetupDialog({
   onOpenChange: (v: boolean) => void;
   recordCount: number;
   defaultRouteNumbers: [string, string] | null;
-  onStart: (routeNumbers: [string, string]) => Promise<void>;
+  onStart: (routeNumbers: string[]) => Promise<void>;
 }) {
   const [route1, setRoute1] = useState("");
   const [route2, setRoute2] = useState("");
@@ -4238,9 +4238,11 @@ function AutoDialSetupDialog({
   }, [open, defaultRouteNumbers]);
 
   async function handleStart() {
+    const route2Trimmed = route2.trim();
+    const routeNumbers = route2Trimmed ? [route1.trim(), route2Trimmed] : [route1.trim()];
     setLoading(true);
     try {
-      await onStart([route1.trim(), route2.trim()]);
+      await onStart(routeNumbers);
       onOpenChange(false);
     } finally {
       setLoading(false);
@@ -4254,13 +4256,13 @@ function AutoDialSetupDialog({
           <DialogTitle>Auto Dial</DialogTitle>
           <DialogDescription>
             Dials the {recordCount} selected record{recordCount !== 1 ? "s" : ""} one at a time.
-            When one answers, both numbers below ring at once and the call connects to whichever
-            picks up first.
+            When one answers, the call connects to the number below — add a second to ring both at
+            once and connect whichever picks up first.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="autodial-route1">Route number 1</Label>
+            <Label htmlFor="autodial-route1">Connect to</Label>
             <Input
               id="autodial-route1"
               placeholder="+971585248237"
@@ -4269,7 +4271,7 @@ function AutoDialSetupDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="autodial-route2">Route number 2</Label>
+            <Label htmlFor="autodial-route2">Also ring (optional)</Label>
             <Input
               id="autodial-route2"
               placeholder="+971501234567"
@@ -4282,7 +4284,7 @@ function AutoDialSetupDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             Cancel
           </Button>
-          <Button onClick={handleStart} disabled={loading}>
+          <Button onClick={handleStart} disabled={loading || !route1.trim()}>
             {loading ? "Starting…" : `Dial ${recordCount} record${recordCount !== 1 ? "s" : ""}`}
           </Button>
         </DialogFooter>

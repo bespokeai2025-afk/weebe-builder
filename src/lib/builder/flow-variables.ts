@@ -318,7 +318,12 @@ export function suggestTestCallValue(name: string, now: Date = new Date()): stri
       return now.toLocaleString("en-GB");
     }
   }
-  if (name === "user_number") return "web:test";
+  // A literal debug string here isn't just a UI placeholder — it's the actual `user_number` value
+  // sent into the live test call when the tester leaves the field as-is, and a flow that
+  // interpolates {{user_number}}/{{caller_number}} into speech (e.g. confirming "your mobile
+  // number") reads it back verbatim: "w, e, b, colon, t, e, s, t." A realistic-looking fake number
+  // reads sensibly instead, while still being obviously not a real caller's number if inspected.
+  if (name === "user_number") return "+447700900123";
   return "";
 }
 

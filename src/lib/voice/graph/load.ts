@@ -11,6 +11,7 @@
  */
 
 import { exportAgentJson } from "../../builder/export-conversation-flow";
+import { appendHandbookInstructions } from "./handbook-instructions.shared";
 import type { ConversationFlow, VariableValue } from "./types";
 
 export interface LoadedFlow {
@@ -85,6 +86,12 @@ export function loadFlowFromAgent(
   if (!Array.isArray(flow.nodes) || flow.nodes.length === 0) {
     warnings.push("agent has no conversation-flow nodes to execute");
   }
+
+  // Retell's own platform applies handbook_config internally for a Retell-deployed agent, so the
+  // exported flow above is left exactly as Retell expects it. The native engine has no such
+  // built-in behaviour — only whatever text the LLM actually sees — so the equivalent instructions
+  // are appended here, for this compiled-for-native-execution copy only.
+  flow.global_prompt = appendHandbookInstructions(flow.global_prompt ?? "", cfg);
 
   return {
     flow,

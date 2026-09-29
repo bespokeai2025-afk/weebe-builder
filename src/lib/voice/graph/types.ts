@@ -102,6 +102,8 @@ export interface BranchNode extends FlowNodeBase {
 export interface ExtractVariablesNode extends FlowNodeBase {
   type: "extract_dynamic_variables";
   variables?: Array<{ name?: string; description?: string; type?: string; choices?: string[] }>;
+  /** Guaranteed continue path once the variable is fetched — see execExtract in vm.ts. */
+  else_edge?: FlowEdge;
 }
 
 export interface PressDigitNode extends FlowNodeBase {
@@ -199,6 +201,13 @@ export interface AwaitUserDirective {
   nodeId: string;
   /** When set, the transport must submit `silence_timeout` if the caller stays quiet. */
   silenceTimeoutMs?: number;
+  /**
+   * True when this directive re-affirms an *existing* wait after a reminder nudge spoke,
+   * rather than starting a new one. The transport must not treat it like a fresh wait —
+   * resetting the reminder count or the silence-timeout clock on every nudge would let a
+   * silent caller be "still there?"-ed forever and would defeat the node's own timeout edge.
+   */
+  isReminderReaffirmation?: boolean;
 }
 
 export interface AwaitDigitDirective {
@@ -238,6 +247,23 @@ export interface TransferDirective {
   /** `cold_transfer`, `warm_transfer` or `agentic_warm_transfer`. */
   transferType: string;
   sipHeaders?: Record<string, string>;
+  /**
+   * Everything beyond destination/type that a warm transfer needs to behave like Retell's —
+   * carried through from the compiled node's `transfer_option` (already Retell-shaped; see
+   * `export-conversation-flow.ts`) rather than re-derived here. Undefined fields fall back to
+   * sane defaults at the transport, same as an unset field does on Retell.
+   */
+  warmOptions?: {
+    /** Spoken to the caller before they're put on hold, e.g. "Transferring you now." */
+    publicHandoffText?: string;
+    /** Spoken to the human being transferred to, before the caller is bridged in — the "whisper". */
+    privateHandoffText?: string;
+    /** How long to ring the destination before giving up and taking the failed edge. */
+    ringTimeoutMs?: number;
+    /** Caller ID the destination sees: the agent's own number, or pass through the caller's. */
+    showTransfereeAsCaller?: boolean;
+    onHoldMusic?: string;
+  };
 }
 
 export interface AgentSwapDirective {
@@ -288,7 +314,13 @@ export type VmInput =
   /** Transport fired the current node's silence / wait timer with no caller speech. */
   | { type: "silence_timeout" }
   /** Host-reported outcome of a transfer, so the VM can take the failed edge. */
-  | { type: "transfer_result"; ok: boolean };
+  | { type: "transfer_result"; ok: boolean }
+  /**
+   * Transport fired a reminder tick while awaiting the caller — `reminderTriggerMs`/
+   * `reminderMaxCount`. Speaks the nudge and re-affirms the same await state, without
+   * touching flow position; the existing silence-timeout edge above still owns "give up".
+   */
+  | { type: "reminder"; text: string };
 
 // ─── Host-provided capabilities ───────────────────────────────────────────────
 

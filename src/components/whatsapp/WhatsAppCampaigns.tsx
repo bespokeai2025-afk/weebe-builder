@@ -323,10 +323,13 @@ export function WhatsAppCampaigns() {
 
   const [skipAlreadySent, setSkipAlreadySent] = useState(true);
 
+  // Deliberately not gated on `watiConnected`: the contact list is WeBee's own imported data,
+  // not a WATI read, so it doesn't need to wait for that separate connection check to resolve
+  // first. Gating it here meant opening the campaign composer paid for the wati-connection round
+  // trip before the contacts fetch even started, one avoidable wait stacked in front of another.
   const { data: waContactsPayload } = useQuery({
     queryKey: ["wa-contacts"],
     queryFn: () => listContactsFn(),
-    enabled: watiConnected,
     throwOnError: false,
   });
   const waContacts = waContactsPayload?.contacts ?? [];

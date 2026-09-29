@@ -75,6 +75,31 @@ describe("loadFlowFromAgent", () => {
     expect(compiled.warnings).toEqual([]);
   });
 
+  it("appends enabled handbook toggles to the global prompt for the native call", () => {
+    const flowData = {
+      nodes: [builderNode("greet", "conversation", { isStart: true, dialogue: "Hi" })],
+      edges: [],
+    };
+    const loaded = loadFlowFromAgent(flowData, {
+      globalPrompt: "Be brief.",
+      handbookHighEmpathy: true,
+      handbookAiDisclosure: true,
+    });
+
+    expect(loaded.flow.global_prompt).toContain("Be brief.");
+    expect(loaded.flow.global_prompt).toMatch(/empathy/i);
+    expect(loaded.flow.global_prompt).toMatch(/AI assistant/i);
+  });
+
+  it("leaves the global prompt exactly as authored when no handbook toggle is set", () => {
+    const flowData = {
+      nodes: [builderNode("greet", "conversation", { isStart: true, dialogue: "Hi" })],
+      edges: [],
+    };
+    const loaded = loadFlowFromAgent(flowData, { globalPrompt: "Be brief." });
+    expect(loaded.flow.global_prompt).toBe("Be brief.");
+  });
+
   it("uses the published snapshot for live calls instead of the draft graph", () => {
     const draft = {
       nodes: [

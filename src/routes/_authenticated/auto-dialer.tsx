@@ -288,16 +288,18 @@ function CreateSessionForm({
     if (errors.length > 0) {
       return toast.error(`${errors.length} line(s) aren't valid numbers — fix them before starting`);
     }
-    if (!route1.trim() || !route2.trim()) {
-      return toast.error("Add both of the 2 numbers to route answered calls to");
+    if (!route1.trim()) {
+      return toast.error("Add a number to route answered calls to");
     }
+    const route2Trimmed = route2.trim();
+    const routeNumbers = route2Trimmed ? [route1.trim(), route2Trimmed] : [route1.trim()];
 
     setSubmitting(true);
     try {
       const result = await createFn({
         data: {
           name: name.trim(),
-          routeNumbers: [route1.trim(), route2.trim()],
+          routeNumbers,
           targets: deduped,
           fromNumber: fromNumber || undefined,
         },
@@ -378,14 +380,18 @@ function CreateSessionForm({
       </div>
 
       <div className="space-y-1.5">
-        <Label>Route answered calls to these 2 numbers</Label>
+        <Label>Route answered calls to</Label>
         <p className="text-xs text-muted-foreground">
-          When someone on the list picks up, both of these ring at once — whichever answers first
-          gets connected.
+          When someone on the list picks up, the call connects here. Add a second number to ring
+          both at once — whichever answers first gets connected.
         </p>
         <div className="grid grid-cols-2 gap-3">
           <Input value={route1} onChange={(e) => setRoute1(e.target.value)} placeholder="+971585248237" />
-          <Input value={route2} onChange={(e) => setRoute2(e.target.value)} placeholder="+971501234567" />
+          <Input
+            value={route2}
+            onChange={(e) => setRoute2(e.target.value)}
+            placeholder="+971501234567 (optional)"
+          />
         </div>
       </div>
 
@@ -552,12 +558,18 @@ function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack: () =>
                 <td className="px-4 py-2 font-mono text-xs">{t.phone}</td>
                 <td className="px-4 py-2">
                   <span
+                    title={t.error_message || undefined}
                     className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
                       STATUS_COLORS[t.status] ?? "bg-muted text-muted-foreground"
                     }`}
                   >
                     {statusLabel(t.status)}
                   </span>
+                  {t.status === "failed" && t.error_message && (
+                    <p className="mt-0.5 max-w-[16rem] truncate text-[10px] text-destructive" title={t.error_message}>
+                      {t.error_message}
+                    </p>
+                  )}
                 </td>
                 <td className="px-4 py-2 font-mono text-xs text-muted-foreground">
                   {t.bridged_number || "—"}

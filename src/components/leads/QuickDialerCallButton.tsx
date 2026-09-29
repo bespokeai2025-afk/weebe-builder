@@ -2,8 +2,9 @@
  * Phone icon beside a lead — call this one person right now.
  *
  * Places a single-target Auto Dialer run: dials the lead, and when they
- * answer, rings the 2 route numbers below simultaneously and bridges the
- * call to whichever picks up first. No dial list, no separate "Start" step.
+ * answer, connects them to whoever you route the call to. One route number
+ * is a plain 1-to-1 bridge; adding a second rings both at once and connects
+ * whichever picks up first. No dial list, no separate "Start" step.
  */
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -48,7 +49,7 @@ export function QuickDialerCallButton({
       const d = await defaultsFn();
       if (d.routeNumbers) {
         setRoute1((cur) => cur || d.routeNumbers![0]);
-        setRoute2((cur) => cur || d.routeNumbers![1]);
+        setRoute2((cur) => cur || d.routeNumbers![1] || "");
       }
       return d;
     },
@@ -63,14 +64,20 @@ export function QuickDialerCallButton({
       toast.error("This lead's number isn't a valid, dialable phone number");
       return;
     }
-    if (!isValidE164(route1) || !isValidE164(route2)) {
-      toast.error("Enter both route numbers with a country code, e.g. +9715...");
+    if (!isValidE164(route1)) {
+      toast.error("Enter a route number with a country code, e.g. +9715...");
       return;
     }
-    if (route1 === route2) {
+    const route2Trimmed = route2.trim();
+    if (route2Trimmed && !isValidE164(route2Trimmed)) {
+      toast.error("Route number 2 needs a country code too, e.g. +9715..., or leave it blank");
+      return;
+    }
+    if (route2Trimmed && route1 === route2Trimmed) {
       toast.error("The 2 route numbers must be different");
       return;
     }
+    const routeNumbers = route2Trimmed ? [route1.trim(), route2Trimmed] : [route1.trim()];
 
     setCalling(true);
     try {
@@ -78,7 +85,7 @@ export function QuickDialerCallButton({
         data: {
           phone: phone as string,
           name: name ?? null,
-          routeNumbers: [route1.trim(), route2.trim()],
+          routeNumbers,
           saveAsDefault: remember,
         },
       });
@@ -114,15 +121,16 @@ export function QuickDialerCallButton({
         <div>
           <p className="text-sm font-medium">Call {name || phone}</p>
           <p className="text-xs text-muted-foreground">
-            Rings both numbers below at once — whichever answers first is connected.
+            Connects to the number below once they answer. Add a second to ring both at once and
+            connect whichever picks up first.
           </p>
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">Route number 1</Label>
+          <Label className="text-xs">Connect to</Label>
           <Input value={route1} onChange={(e) => setRoute1(e.target.value)} placeholder="+971585248237" />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">Route number 2</Label>
+          <Label className="text-xs">Also ring (optional)</Label>
           <Input value={route2} onChange={(e) => setRoute2(e.target.value)} placeholder="+971501234567" />
         </div>
         <label className="flex items-center gap-2 text-xs text-muted-foreground">

@@ -50,6 +50,46 @@ function digitsOnly(value: string): string {
   return value.replace(/\D/g, "");
 }
 
+const FILLER_WORD_RE = /\b(um+|uh+|erm+|hmm+|ahh*)\b[,]?\s*/gi;
+
+/**
+ * Strip stray filler interjections ("um", "ah", "erm"...) a caller's speech often carries. Left
+ * in, they show up verbatim in stored answers — "Ah, it's ah one two three Manhattan Street"
+ * instead of "it's one two three Manhattan Street" — because the raw-capture path (`vm.ts`'s
+ * `captureCollectAnswer`) binds whatever the caller said next straight to a variable, with no LLM
+ * pass to clean it up the way the extraction pipeline's own prompt implicitly does.
+ */
+export function stripFillerWords(text: string): string {
+  return text
+    .replace(FILLER_WORD_RE, "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/^[,\s]+/, "")
+    .trim();
+}
+
+/**
+ * Common words that essentially never make up someone's actual first/last name on their own. A
+ * "name" consisting entirely of these is very likely a misheard/garbled STT result that landed in
+ * the name field rather than a real answer — e.g. a caller saying their name got transcribed as
+ * "our job" instead. This is a plausibility check, not a name dictionary: it only rejects text
+ * that is ALL function/filler words, never a name it merely doesn't recognise.
+ */
+const NON_NAME_WORDS = new Set([
+  "the", "a", "an", "is", "are", "was", "were", "and", "or", "but", "so", "well",
+  "um", "uh", "erm", "hmm", "here", "there", "this", "that", "it", "its",
+  "our", "my", "your", "his", "her", "their", "job", "work", "yes", "no",
+  "okay", "ok", "sure", "fine", "thanks", "thank", "you",
+]);
+
+function looksLikeNonName(text: string): boolean {
+  const words = text
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, "")
+    .split(/\s+/)
+    .filter(Boolean);
+  return words.length > 0 && words.every((w) => NON_NAME_WORDS.has(w));
+}
+
 /**
  * The value to store, or null when it is the wrong kind for the field.
  *
@@ -94,6 +134,7 @@ export function validateExtractedValue(field: ExtractField, value: VariableValue
       if (text.includes("@")) return null;
       // Mostly digits is a number that landed in the wrong field, not a name.
       if (digitsOnly(text).length >= Math.max(4, text.replace(/\s/g, "").length / 2)) return null;
+      if (looksLikeNonName(text)) return null;
       return text;
     }
     case "postcode": {
