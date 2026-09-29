@@ -9,6 +9,7 @@ interface Props {
   onSelect: (id: string) => void;
   actions: ReactNode;
   management?: ReactNode;
+  connections?: ReactNode;
   loading?: boolean;
   error?: boolean;
   children: ReactNode;
@@ -20,6 +21,7 @@ export function PhoneNumberWorkspace({
   onSelect,
   actions,
   management,
+  connections,
   loading,
   error,
   children,
@@ -103,6 +105,7 @@ export function PhoneNumberWorkspace({
         {management && (
           <div className="mt-4 space-y-2 border-t border-border pt-4">{management}</div>
         )}
+        {connections && <div className="mt-4 border-t border-border pt-4">{connections}</div>}
       </aside>
       <div className="min-w-0">{children}</div>
     </main>

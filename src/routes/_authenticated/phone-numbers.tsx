@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PhoneNumberWorkspace } from "@/components/telephony/PhoneNumberWorkspace";
+import { SipNumberForm } from "@/components/telephony/SipNumberForm";
+import { connectWorkspaceSipNumber, listSipAgents } from "@/lib/telephony/sip.functions";
 import {
   listPhoneNumbers,
   savePhoneNumber,
@@ -53,6 +55,14 @@ function PhoneNumbersPage() {
   const [showBuy, setShowBuy] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [showSip, setShowSip] = useState(false);
+  const [sipBusy, setSipBusy] = useState(false);
+  const [sipNotice, setSipNotice] = useState("");
+  const connectSipFn = useServerFn(connectWorkspaceSipNumber);
+  const listSipAgentsFn = useServerFn(listSipAgents);
+  const sipAgents = useQuery({
+    queryKey: ["sip-agents"], queryFn: () => listSipAgentsFn({}), enabled: showSip,
+  });
 
   const {
     data: numbers = [],
@@ -96,6 +106,22 @@ function PhoneNumbersPage() {
   const number = numberId ? numbers.find((n) => n.id === numberId) : numbers[0];
 
   function renderDetail() {
+    if (showSip) return <SipNumberForm
+      agents={sipAgents.data ?? []} loading={sipAgents.isPending} loadError={!!sipAgents.error}
+      onRetry={() => { void sipAgents.refetch(); }} onCancel={() => setShowSip(false)}
+      onBusyChange={setSipBusy}
+      onSubmit={async input => {
+        const result = await connectSipFn({ data: input });
+        if (result.id) {
+          setSipNotice(result.warning ?? "Number imported. Carrier routing and live connectivity have not been verified.");
+          await qc.invalidateQueries({ queryKey: ["phone-numbers"] });
+          await qc.invalidateQueries({ queryKey: ["retell-numbers"] });
+          await navigate({ search: { numberId: result.id } });
+          setShowSip(false);
+        }
+        return result;
+      }}
+    />;
     if (isPending || loadError || !number)
       return (
         <div className="space-y-4 p-6">
@@ -118,6 +144,16 @@ function PhoneNumbersPage() {
           )}
         </div>
       );
+    if (number.provider === "retell_sip") return (
+      <section className="space-y-4 rounded-xl border border-border bg-card p-6">
+        <h2 className="text-lg font-semibold">{number.friendly_name || number.phone_number}</h2>
+        <p className="text-sm text-muted-foreground">{number.phone_number} · SIP via OmniVoice / Retell</p>
+        {sipNotice && <p role="status" className="rounded-lg bg-muted p-3 text-sm">{sipNotice}</p>}
+        <dl className="space-y-3 text-sm"><div><dt className="text-muted-foreground">Assigned agent</dt><dd>{agents.find(a => a.id === number.agent_id)?.name ?? "Agent unavailable"}</dd></div>
+          <div><dt className="text-muted-foreground">Connection status</dt><dd>Imported — live connectivity unverified</dd></div></dl>
+        <p className="max-w-2xl text-sm text-muted-foreground">Manage carrier routing in your carrier console. To change the agent binding, use the agent deployment settings. Twilio webhook controls do not apply to this SIP import.</p>
+      </section>
+    );
     return (
       <PhoneNumberDetail
         embedded
@@ -164,8 +200,11 @@ function PhoneNumbersPage() {
     <>
       <PhoneNumberWorkspace
         numbers={numbers}
-        selectedId={number?.id}
+        selectedId={showSip ? undefined : number?.id}
         onSelect={(id) => {
+          if (sipBusy) return;
+          setShowSip(false);
+          setSipNotice("");
           void navigate({ search: { numberId: id } });
         }}
         loading={isPending}
@@ -190,8 +229,9 @@ function PhoneNumbersPage() {
             </Button>
           </>
         }
+        connections={<Button size="sm" variant={showSip ? "default" : "outline"} className="w-full" disabled={sipBusy} aria-pressed={showSip} onClick={() => { setShowSip(true); setDeleting(null); }}>Connect SIP trunk</Button>}
         management={
-          number ? (
+          number && !showSip && number.provider !== "retell_sip" ? (
             <>
               <p className="text-xs text-muted-foreground">Selected number</p>
               <div className="flex flex-wrap gap-2">
