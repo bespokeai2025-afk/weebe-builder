@@ -61,7 +61,7 @@ function PhoneNumbersPage() {
   const connectSipFn = useServerFn(connectWorkspaceSipNumber);
   const listSipAgentsFn = useServerFn(listSipAgents);
   const sipAgents = useQuery({
-    queryKey: ["sip-agents"], queryFn: () => listSipAgentsFn({}), enabled: showSip,
+    queryKey: ["sip-agents"], queryFn: () => listSipAgentsFn(), enabled: showSip,
   });
 
   const {
