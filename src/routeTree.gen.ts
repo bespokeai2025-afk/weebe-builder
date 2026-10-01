@@ -13,10 +13,12 @@ import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SecurityRouteImport } from './routes/security'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as PartnersRouteImport } from './routes/partners'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as DocsRouteImport } from './routes/docs'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as ComplianceRouteImport } from './routes/compliance'
@@ -373,6 +375,11 @@ const SecurityRoute = SecurityRouteImport.update({
   path: '/security',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PrivacyRoute = PrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
@@ -391,6 +398,11 @@ const PartnersRoute = PartnersRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DocsRoute = DocsRouteImport.update({
@@ -2305,10 +2317,12 @@ export interface FileRoutesByFullPath {
   '/compliance': typeof ComplianceRoute
   '/contact': typeof ContactRoute
   '/docs': typeof DocsRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/partners': typeof PartnersRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/security': typeof SecurityRoute
   '/signup': typeof SignupRoute
   '/terms': typeof TermsRoute
@@ -2649,10 +2663,12 @@ export interface FileRoutesByTo {
   '/compliance': typeof ComplianceRoute
   '/contact': typeof ContactRoute
   '/docs': typeof DocsRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/partners': typeof PartnersRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/security': typeof SecurityRoute
   '/signup': typeof SignupRoute
   '/terms': typeof TermsRoute
@@ -2985,10 +3001,12 @@ export interface FileRoutesById {
   '/compliance': typeof ComplianceRoute
   '/contact': typeof ContactRoute
   '/docs': typeof DocsRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/partners': typeof PartnersRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/security': typeof SecurityRoute
   '/signup': typeof SignupRoute
   '/terms': typeof TermsRoute
@@ -3331,10 +3349,12 @@ export interface FileRouteTypes {
     | '/compliance'
     | '/contact'
     | '/docs'
+    | '/forgot-password'
     | '/login'
     | '/partners'
     | '/pricing'
     | '/privacy'
+    | '/reset-password'
     | '/security'
     | '/signup'
     | '/terms'
@@ -3675,10 +3695,12 @@ export interface FileRouteTypes {
     | '/compliance'
     | '/contact'
     | '/docs'
+    | '/forgot-password'
     | '/login'
     | '/partners'
     | '/pricing'
     | '/privacy'
+    | '/reset-password'
     | '/security'
     | '/signup'
     | '/terms'
@@ -4010,10 +4032,12 @@ export interface FileRouteTypes {
     | '/compliance'
     | '/contact'
     | '/docs'
+    | '/forgot-password'
     | '/login'
     | '/partners'
     | '/pricing'
     | '/privacy'
+    | '/reset-password'
     | '/security'
     | '/signup'
     | '/terms'
@@ -4356,10 +4380,12 @@ export interface RootRouteChildren {
   ComplianceRoute: typeof ComplianceRoute
   ContactRoute: typeof ContactRoute
   DocsRoute: typeof DocsRoute
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
   PartnersRoute: typeof PartnersRoute
   PricingRoute: typeof PricingRoute
   PrivacyRoute: typeof PrivacyRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   SecurityRoute: typeof SecurityRoute
   SignupRoute: typeof SignupRoute
   TermsRoute: typeof TermsRoute
@@ -4519,6 +4545,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SecurityRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/privacy': {
       id: '/privacy'
       path: '/privacy'
@@ -4545,6 +4578,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/docs': {
@@ -7774,10 +7814,12 @@ const rootRouteChildren: RootRouteChildren = {
   ComplianceRoute: ComplianceRoute,
   ContactRoute: ContactRoute,
   DocsRoute: DocsRoute,
+  ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
   PartnersRoute: PartnersRoute,
   PricingRoute: PricingRoute,
   PrivacyRoute: PrivacyRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   SecurityRoute: SecurityRoute,
   SignupRoute: SignupRoute,
   TermsRoute: TermsRoute,
