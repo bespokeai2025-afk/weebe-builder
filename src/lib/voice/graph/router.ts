@@ -151,11 +151,23 @@ export async function selectEdge(
   }
 
   // 5. Heuristic text matching (yes/no, phrase overlap, interrupt, …).
-  const choices = conditions.map((c, i) => c || `Continue (option ${i + 1})`);
   const heuristic = tryHeuristicEdgeIndex(conditions, userText, lastAgentText);
   if (heuristic !== null) return { edge: usable[heuristic]!, method: "heuristic" };
 
   // 6. Ambiguous prompt conditions only — compact context, per-node classifier.
+  //
+  // A genuine "neither of these" is a real, common outcome here — a caller cut off mid-sentence
+  // ("and you know what…"), a non-answer, a stray remark — and belongs as its own choice, not
+  // something the model has to force onto whichever of the real options looks least wrong.
+  // Without it, a 2-option yes/no confirmation node has no way to say "that wasn't actually an
+  // answer", so the model reliably picks a side on input that resembles neither, and the flow
+  // transitions as if the caller had actually confirmed something they never addressed.
+  // `selectGlobalNode` already does this (its `NONE` choice below); edges never had the same
+  // escape hatch.
+  const NONE_OF_THESE = "None of these — the caller hasn't actually answered any of them yet";
+  const choices = [...conditions.map((c, i) => c || `Continue (option ${i + 1})`), NONE_OF_THESE];
+  const noneIndex = choices.length - 1;
+
   let index: number;
   try {
     index = await llm.classify(buildTransitionState(ctx), choices, {
@@ -168,6 +180,10 @@ export async function selectEdge(
       method: unconditional >= 0 ? "unconditional" : "none",
     };
   }
+
+  // A deliberate "none of these" is a real decision, not a malformed response — stay on the node
+  // rather than falling back to a scored guess the model already declined to make.
+  if (index === noneIndex) return { edge: null, method: "none" };
 
   if (!Number.isInteger(index) || index < 0 || index >= usable.length) {
     if (ctx.flex === false) return { edge: null, method: "none" };

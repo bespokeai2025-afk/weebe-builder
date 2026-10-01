@@ -51,6 +51,17 @@ const CLASSIFY_SYSTEM = [
 const SPEECH_MAX_TOKENS = 512;
 const CLASSIFY_MAX_TOKENS = 128;
 const EXTRACT_MAX_TOKENS = 256;
+/**
+ * classify()/extract()'s own timeout, far below gpt.ts's 25s default. Both run on the critical
+ * path of a turn (before the agent can speak or route), and both already have a graceful fallback
+ * for failure — `selectEdge` falls back to an unconditional edge or "none", extraction is
+ * documented best-effort and simply skips the turn's variables — so a slow response should fail
+ * fast into that fallback, not hold the whole turn hostage. Observed on a real call: a single
+ * classify request took 12.3s (well under the old 25s ceiling, so it never errored — it just made
+ * the caller wait 12+ seconds mid-turn, in dead air, right as they were confirming their email). A
+ * caller getting a slightly-worse routing/extraction outcome after 4s beats 12+ seconds of silence.
+ */
+const BACKGROUND_LLM_TIMEOUT_MS = 4_000;
 
 const EXTRACT_SYSTEM = [
   "You extract structured data from a voice conversation.",
@@ -126,6 +137,7 @@ export function createOpenAiVmLlm(options: OpenAiVmLlmOptions): VmLlm {
         temperature: 0,
         maxTokens: CLASSIFY_MAX_TOKENS,
         responseFormat: "json_object",
+        timeoutMs: BACKGROUND_LLM_TIMEOUT_MS,
       });
 
       return parseTransitionIndex(raw, choices);
@@ -163,6 +175,7 @@ export function createOpenAiVmLlm(options: OpenAiVmLlmOptions): VmLlm {
         temperature: 0,
         maxTokens: EXTRACT_MAX_TOKENS,
         responseFormat: "json_object",
+        timeoutMs: BACKGROUND_LLM_TIMEOUT_MS,
       });
 
       let parsed: unknown;

@@ -264,6 +264,29 @@ describe("selectEdge", () => {
     expect((await selectEdge([edge("e1", "a", "yes"), edge("e2", "b", "no")], ctx, llm)).edge).toBeNull();
   });
 
+  it("lets the classifier say \"none of these\" instead of forcing a pick between two wrong options", async () => {
+    // Real bug: a caller cut off mid-sentence ("and you know what…") on a plain yes/no
+    // confirmation node. With only "Yes its correct" / "no thats not correct" to choose from and
+    // no escape hatch, the classifier used to have to pick a side on input that answers neither —
+    // silently confirming something the caller never addressed.
+    const llm = fakeLlm({
+      classify: (_m, choices) => choices.findIndex((c) => c.startsWith("None of these")),
+    });
+    const confusedCtx = {
+      history: [{ role: "user" as const, content: "and you know what" }],
+      variables: {},
+      globalPrompt: "",
+    };
+    const chosen = await selectEdge(
+      [edge("e1", "a", "Yes its correct"), edge("e2", "b", "no thats not correct")],
+      confusedCtx,
+      llm,
+    );
+
+    expect(chosen.edge).toBeNull();
+    expect(chosen.method).toBe("none");
+  });
+
   it("keeps the call moving when the classifier itself fails", async () => {
     const llm: VmLlm = {
       generate: async () => "",
@@ -398,6 +421,96 @@ describe("selectGlobalNode fast path", () => {
 // ─── Conversation nodes and turn-taking ───────────────────────────────────────
 
 describe("ConversationVm conversation flow", () => {
+  it("repeats the missing-variable rule right after the script, not just once near the top", async () => {
+    // Real failure on a live call (Cerebras/gpt-oss-120b as the speech model): the rule sat
+    // several lines above a broken-looking "Script:\nI have your last name as , is that
+    // correct?" line, and the model said "I have your last name as ___, is that correct?"
+    // instead of asking. Repeating the rule as the very last system line — right after the
+    // model reads the script — gives a smaller/faster model one more, more recent chance to
+    // catch it.
+    const llm = fakeLlm();
+    const vm = new ConversationVm({
+      flow: flowOf([
+        {
+          id: "ask",
+          type: "conversation",
+          instruction: {
+            type: "prompt",
+            text: "I have your last name as {{last_name}} is that correct?",
+          },
+        },
+      ]),
+      llm,
+      variableNames: ["last_name"],
+    });
+
+    await drain(vm.run({ type: "begin" }));
+    const system = String(llm.calls.generate[0]?.[0]?.content ?? "");
+    const firstIdx = system.indexOf("Never say a placeholder");
+    const lastIdx = system.lastIndexOf("Never say a placeholder");
+    expect(firstIdx).toBeGreaterThanOrEqual(0);
+    // Appears twice: once in place, and once repeated as the trailing "Reminder:" line.
+    expect(lastIdx).toBeGreaterThan(firstIdx);
+    expect(system).toContain("Reminder: Not provided yet");
+    // The repeated reminder is the very last line of the system message.
+    const lines = system.trim().split("\n");
+    expect(lines.at(-1)).toMatch(/^Reminder: Not provided yet/);
+  });
+
+  it("keeps the call-wide-constant part of the system prompt as a stable, shared prefix across turns", async () => {
+    // Provider-side prompt caching (OpenAI, Anthropic, etc.) only helps time-to-first-token if the
+    // LEADING bytes of the prompt are byte-identical across requests. The turn-varying content
+    // (per-node instructions, captured variables so far) used to come FIRST, which meant no two
+    // turns of a call ever shared a matching prefix at all — every single request looked entirely
+    // novel to the provider's cache, even turn 2 right after turn 1. Identity/language-lock content
+    // that's genuinely constant for the whole call now leads instead, so it matches verbatim
+    // regardless of which node is active or what's been captured so far.
+    const llm = fakeLlm({ classify: () => 0 });
+    const vm = new ConversationVm({
+      flow: flowOf(
+        [
+          {
+            id: "a",
+            type: "conversation",
+            instruction: { type: "prompt", text: "Ask for the caller's first name" },
+            edges: [edge("e1", "b", "got a name")],
+          },
+          {
+            id: "b",
+            type: "conversation",
+            instruction: { type: "prompt", text: "Ask for the caller's postcode" },
+          },
+        ],
+        { global_prompt: "Sound like Clare, a warm and professional UK property consultant." },
+      ),
+      llm,
+      variableNames: ["first_name"],
+    });
+
+    await drain(vm.run({ type: "begin" }));
+    await drain(vm.run({ type: "user_utterance", text: "Arjo" }));
+
+    // Two different nodes, with different captured variables in between — the worst case for
+    // sharing a prefix — yet the opening identity block must still match verbatim.
+    const systemA = String(llm.calls.generate[0]?.[0]?.content ?? "");
+    const systemB = String(llm.calls.generate[1]?.[0]?.content ?? "");
+    expect(systemA.startsWith("Identity")).toBe(true);
+    expect(systemB.startsWith("Identity")).toBe(true);
+
+    let sharedPrefixLen = 0;
+    while (
+      sharedPrefixLen < systemA.length &&
+      sharedPrefixLen < systemB.length &&
+      systemA[sharedPrefixLen] === systemB[sharedPrefixLen]
+    ) {
+      sharedPrefixLen++;
+    }
+    expect(systemA.slice(0, sharedPrefixLen)).toContain("Sound like Clare");
+    // The shared prefix must extend past the identity block into the call-wide-constant content —
+    // not just match on the word "Identity" and diverge immediately after.
+    expect(sharedPrefixLen).toBeGreaterThan(40);
+  });
+
   it("speaks the start node and hands the floor to the caller", async () => {
     const vm = new ConversationVm({ flow: flowOf([say("greet", "Hello there")]), llm: fakeLlm() });
     const out = await drain(vm.run({ type: "begin" }));
@@ -1023,6 +1136,75 @@ describe("ConversationVm conversation flow", () => {
     expect(streamCalls).toBeGreaterThanOrEqual(1);
   });
 
+  it("fans out speculative generation across every plausible destination when heuristic routing can't predict one", async () => {
+    // Real latency bug: when no heuristic can predict the destination, routing falls through to
+    // the LLM classifier — the slowest single step in a turn (1-2.3s observed). Response
+    // generation for the chosen destination used to only start AFTER that classifier resolved,
+    // stacking both. It should instead speculatively generate for every plausible destination
+    // concurrently with the classifier call, then just reuse whichever one wins.
+    let blueCalls = 0;
+    let redCalls = 0;
+    const llm: VmLlm = {
+      async generate() {
+        return "";
+      },
+      async *generateStream(messages) {
+        const text = messages.map((m) => m.content).join(" ");
+        if (text.includes("warmer")) {
+          blueCalls++;
+          yield "Noted, going warmer.";
+        } else if (text.includes("cooler")) {
+          redCalls++;
+          yield "Noted, going cooler.";
+        } else {
+          yield "fallback";
+        }
+      },
+      async classify() {
+        return 1; // the classifier resolves ambiguity in favour of the second edge
+      },
+      async extract() {
+        return {};
+      },
+    };
+    const vm = new ConversationVm({
+      flow: flowOf([
+        {
+          id: "ask",
+          type: "conversation",
+          instruction: { type: "prompt", text: "Ask whether they prefer blue or red." },
+          edges: [
+            edge("e1", "blue_node", "the caller prefers blue"),
+            edge("e2", "red_node", "the caller prefers red"),
+          ],
+        },
+        {
+          id: "blue_node",
+          type: "conversation",
+          instruction: { type: "prompt", text: "Say we're going warmer with the palette." },
+        },
+        {
+          id: "red_node",
+          type: "conversation",
+          instruction: { type: "prompt", text: "Say we're going cooler with the palette." },
+        },
+      ]),
+      llm,
+    });
+    await drainWithSpeech(vm.run({ type: "begin" }));
+    // Nonsense input that no heuristic category (yes/no, property type, tenure, title, …) can
+    // match — forces the real routing decision through `selectEdge`'s LLM classifier, same as
+    // `predictedAdvanceNodeId`'s identical heuristic failing to predict a speculative target.
+    const out = await drainWithSpeech(vm.run({ type: "user_utterance", text: "banana sandwich" }));
+
+    // Both candidates were speculatively generated concurrently with the classifier call...
+    expect(blueCalls).toBe(1);
+    expect(redCalls).toBe(1);
+    // ...but only the one the classifier actually picked is spoken — and reused, not regenerated.
+    expect(out.speeches.join(" ")).toContain("cooler");
+    expect(vm.nodeId).toBe("red_node");
+  });
+
   it("reuses speculative speech started before the final transcript", async () => {
     let streamCalls = 0;
     const llm: VmLlm = {
@@ -1157,6 +1339,47 @@ describe("ConversationVm conversation flow", () => {
       "user:hi there",
       "assistant:Hello",
     ]);
+  });
+});
+
+describe("ConversationVm.isLikelyStillSpeaking", () => {
+  it("returns true when the classifier judges the partial mid-sentence", async () => {
+    const llm = fakeLlm({ classify: () => 1 });
+    const vm = new ConversationVm({ flow: flowOf([say("greet", "Hi")]), llm });
+    await drain(vm.run({ type: "begin" }));
+
+    await expect(vm.isLikelyStillSpeaking("my postcode is P R five")).resolves.toBe(true);
+  });
+
+  it("returns false when the classifier judges the thought finished", async () => {
+    const llm = fakeLlm({ classify: () => 0 });
+    const vm = new ConversationVm({ flow: flowOf([say("greet", "Hi")]), llm });
+    await drain(vm.run({ type: "begin" }));
+
+    await expect(vm.isLikelyStillSpeaking("it's a house")).resolves.toBe(false);
+  });
+
+  it("never blocks or throws on classifier failure — no signal, not an error", async () => {
+    const llm: VmLlm = {
+      generate: async () => "",
+      classify: async () => {
+        throw new Error("classifier down");
+      },
+      extract: async () => ({}),
+    };
+    const vm = new ConversationVm({ flow: flowOf([say("greet", "Hi")]), llm });
+    await drain(vm.run({ type: "begin" }));
+
+    await expect(vm.isLikelyStillSpeaking("something")).resolves.toBe(false);
+  });
+
+  it("skips the classifier entirely for empty text", async () => {
+    const llm = fakeLlm();
+    const vm = new ConversationVm({ flow: flowOf([say("greet", "Hi")]), llm });
+    await drain(vm.run({ type: "begin" }));
+
+    await expect(vm.isLikelyStillSpeaking("   ")).resolves.toBe(false);
+    expect(llm.calls.classify).toHaveLength(0);
   });
 });
 
@@ -1909,7 +2132,11 @@ describe("ConversationVm safety rails", () => {
     expect(await drain(vm.run({ type: "begin" }))).toEqual([]);
   });
 
-  it("captures a collect answer into the matching declared variable", async () => {
+  it("captures a collect answer via real extraction, into the matching declared variable", async () => {
+    // Understanding "which field does this answer" is now genuine LLM extraction — no more regex
+    // guessing from the node's instruction text — so the fake LLM's `extract` decides the mapping,
+    // the same way it would for a real `execExtract` call.
+    const llm = fakeLlm({ classify: () => 0, extract: () => ({ title: "Mrs" }) });
     const vm = new ConversationVm({
       flow: flowOf([
         {
@@ -1920,7 +2147,7 @@ describe("ConversationVm safety rails", () => {
         },
         say("next", "Thanks {{title}}"),
       ]),
-      llm: fakeLlm({ classify: () => 0 }),
+      llm,
       variableNames: ["title"],
     });
 
@@ -1933,30 +2160,134 @@ describe("ConversationVm safety rails", () => {
     expect(vm.getVariables().title).toBe("Mrs");
   });
 
-  it("normalises a spoken email through the same validator the collect answer path bypassed", async () => {
+  it("lets a live correction overwrite a value captured earlier in the same call", async () => {
+    // Real bug: caller says "Adios" for their name, then later corrects "no, it's actually Arjo" —
+    // the agent's NEXT line reads the correction back fine (straight off conversation history),
+    // but the stored variable — the one CRM/post-call data actually reads — kept "Adios" forever.
+    let answer = "Adios";
+    const llm = fakeLlm({ classify: () => 0, extract: () => ({ first_name: answer }) });
     const vm = new ConversationVm({
       flow: flowOf([
         {
           id: "ask",
           type: "conversation",
-          instruction: { type: "static_text", text: "Ask for the caller's email address" },
-          edges: [edge("e1", "next", "got an answer")],
+          instruction: { type: "static_text", text: "Ask the caller's first name" },
+          edges: [edge("e1", "ask", "")], // stays put — models the caller re-answering on the same node
         },
-        say("next", "Thanks"),
       ]),
-      llm: fakeLlm({ classify: () => 0 }),
-      variableNames: ["email_address"],
+      llm,
+      variableNames: ["first_name"],
     });
 
     await drain(vm.run({ type: "begin" }));
-    const out = await drain(vm.run({ type: "user_utterance", text: "jane at acme dot com" }));
-    expect(out.find((d) => d.type === "variables")).toMatchObject({
-      type: "variables",
-      values: { email_address: "jane@acme.com" },
+    await drain(vm.run({ type: "user_utterance", text: "Adios" }));
+    expect(vm.getVariables().first_name).toBe("Adios");
+
+    answer = "Arjo";
+    const corrected = await drain(vm.run({ type: "user_utterance", text: "No, it's Arjo" }));
+    expect(corrected.find((d) => d.type === "variables")).toMatchObject({
+      values: { first_name: "Arjo" },
     });
+    expect(vm.getVariables().first_name).toBe("Arjo");
   });
 
-  it("does not store a malformed email as a raw string — leaves it uncaptured instead", async () => {
+  it("splits a multi-field correction across the fields it actually mentions, instead of dumping the whole sentence into one", async () => {
+    // Real bug: this exact sentence, said as a correction, got stored verbatim as `first_name`
+    // ("My email address is arjavirani123 at the rate gmail.com and my name is Arju.") — the
+    // node only ever asked about one field, but the reply answered two. Real LLM extraction (not
+    // a single-field regex guess) is what makes this work at all: one call, both facts understood.
+    const llm = fakeLlm({
+      classify: () => 0,
+      extract: () => ({
+        email_address: "arjavirani123@gmail.com",
+        first_name: "Arju",
+      }),
+    });
+    const vm = new ConversationVm({
+      flow: flowOf([
+        {
+          id: "confirm",
+          type: "conversation",
+          instruction: { type: "static_text", text: "Confirm the caller's email address" },
+          edges: [edge("e1", "confirm", "")],
+        },
+      ]),
+      llm,
+      variableNames: ["first_name", "email_address"],
+    });
+
+    await drain(vm.run({ type: "begin" }));
+    const out = await drain(
+      vm.run({
+        type: "user_utterance",
+        text: "My email address is arjavirani123 at the rate gmail.com and my name is Arju.",
+      }),
+    );
+
+    expect(out.find((d) => d.type === "variables")).toMatchObject({
+      values: { email_address: "arjavirani123@gmail.com", first_name: "Arju" },
+    });
+    expect(vm.getVariables().first_name).toBe("Arju");
+    expect(vm.getVariables().email_address).toBe("arjavirani123@gmail.com");
+    // The whole sentence must not also land verbatim in either field.
+    expect(vm.getVariables().first_name).not.toContain("email address");
+  });
+
+  it("captures nothing when extraction finds nothing usable, rather than storing raw text as a guess", async () => {
+    const llm = fakeLlm({ classify: () => 0, extract: () => ({}) });
+    const vm = new ConversationVm({
+      flow: flowOf([
+        {
+          id: "ask",
+          type: "conversation",
+          instruction: { type: "static_text", text: "Ask the caller's first name" },
+          edges: [edge("e1", "ask", "")],
+        },
+      ]),
+      llm,
+      variableNames: ["first_name"],
+    });
+
+    await drain(vm.run({ type: "begin" }));
+    const text = "my email and phone number are both wrong, please skip that for now";
+    const out = await drain(vm.run({ type: "user_utterance", text }));
+    expect(out.find((d) => d.type === "variables")).toBeUndefined();
+    expect(vm.getVariables().first_name).toBeUndefined();
+  });
+
+  it("still protects a value seeded before the call (CRM/lead data) from being overwritten", async () => {
+    const llm = fakeLlm({ classify: () => 0, extract: () => ({ first_name: "Someone Else" }) });
+    const vm = new ConversationVm({
+      flow: flowOf([
+        {
+          id: "ask",
+          type: "conversation",
+          instruction: { type: "static_text", text: "Ask the caller's first name" },
+          edges: [edge("e1", "next", "got an answer")],
+        },
+        say("next", "Thanks"),
+      ]),
+      llm,
+      variables: { first_name: "Sarah" },
+      variableNames: ["first_name"],
+    });
+
+    await drain(vm.run({ type: "begin" }));
+    await drain(vm.run({ type: "user_utterance", text: "Unrelated substantive reply" }));
+    // Never captured live during this call — the seed stands, even though extraction returned
+    // something for it (a value seeded before the call, never touched by `rememberVariables`
+    // during the call, is protected regardless of what extraction thinks it heard).
+    expect(vm.getVariables().first_name).toBe("Sarah");
+  });
+
+  it("does not store a malformed email — the same kind-validator extraction already went through still applies", async () => {
+    // Extraction itself can still hand back something that doesn't look right for the field
+    // (model noise, a misheard fragment) — `validateExtractedValue` is a safety net on the
+    // UNDERSTOOD value, not a guess about which field it belongs to, so it stays.
+    const llm = fakeLlm({
+      classify: () => 0,
+      extract: () => ({ email_address: "not an email at all" }),
+    });
     const vm = new ConversationVm({
       flow: flowOf([
         {
@@ -1967,13 +2298,12 @@ describe("ConversationVm safety rails", () => {
         },
         say("next", "Thanks"),
       ]),
-      llm: fakeLlm({ classify: () => 0 }),
+      llm,
       variableNames: ["email_address"],
     });
 
     await drain(vm.run({ type: "begin" }));
-    // Real STT failure mode: the caller said "at" but the transcript dropped it entirely.
-    const out = await drain(vm.run({ type: "user_utterance", text: "Arjavirani123 Gmail. Dot com." }));
+    const out = await drain(vm.run({ type: "user_utterance", text: "it's broken somehow" }));
     expect(out.find((d) => d.type === "variables")).toBeUndefined();
     expect(vm.getVariables().email_address).toBeUndefined();
   });

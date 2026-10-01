@@ -100,4 +100,52 @@ describe("resolveEndpointHangoverMs", () => {
     // Ordering matters: commit-ready checks must win over the extend branch.
     expect(resolveEndpointHangoverMs("okay", base)).toBeLessThanOrEqual(250);
   });
+
+  describe("street-only fragment, gated on the node actually asking for a full address", () => {
+    const fullAddressPrompt =
+      "Could you please confirm the full property address for me, including the street address, city, and postcode?";
+    const streetOnlyPrompt = "What's your street name?";
+
+    it("extends when the node explicitly wants street + city/postcode and the caller has only given a street", () => {
+      expect(resolveEndpointHangoverMs("123 Main Street", base, fullAddressPrompt)).toBe(
+        INCOMPLETE_PARTIAL_HANGOVER_MS,
+      );
+      expect(resolveEndpointHangoverMs("it's 45 Kingston Road", base, fullAddressPrompt)).toBe(
+        INCOMPLETE_PARTIAL_HANGOVER_MS,
+      );
+    });
+
+    it("does not extend once the city or postcode has followed the street", () => {
+      expect(
+        resolveEndpointHangoverMs("123 Main Street, Manchester", base, fullAddressPrompt),
+      ).toBe(base);
+      expect(resolveEndpointHangoverMs("45 Kingston Road PR5 6XQ", base, fullAddressPrompt)).toBe(
+        base,
+      );
+    });
+
+    it("leaves a street-only answer alone when the node only ever asked for the street name", () => {
+      // The exact case that broke a blind version of this heuristic: "fourteen Bluebell Way" must
+      // stay a complete answer when nothing about the question implies more is coming.
+      expect(resolveEndpointHangoverMs("fourteen Bluebell Way", base, streetOnlyPrompt)).toBe(base);
+      expect(resolveEndpointHangoverMs("123 Main Street", base)).toBe(base);
+    });
+  });
+});
+
+describe("looksLikeAskingForFullAddress", () => {
+  it("recognises a node that explicitly wants a full address", async () => {
+    const { looksLikeAskingForFullAddress } = await import("@/lib/voice/turn-commit.shared");
+    expect(
+      looksLikeAskingForFullAddress(
+        "Could you please confirm the full property address for me, including the street address, city, and postcode?",
+      ),
+    ).toBe(true);
+  });
+
+  it("leaves a plain street-name question alone", async () => {
+    const { looksLikeAskingForFullAddress } = await import("@/lib/voice/turn-commit.shared");
+    expect(looksLikeAskingForFullAddress("What's your street name?")).toBe(false);
+    expect(looksLikeAskingForFullAddress(undefined)).toBe(false);
+  });
 });

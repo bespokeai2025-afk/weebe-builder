@@ -25,6 +25,7 @@ import { pcm16View } from "./audio";
 import { GraphSession } from "./graph-session";
 import { buildGraphRuntime, type GraphRuntime } from "./graph-agent";
 import { transcriptCaughtUpToAudio } from "../graph/spoken-transcript.shared";
+import type { ConversationVm } from "../graph/vm";
 import type { TransferDirective, VmLatencyHooks, VariableValue } from "../graph/types";
 import { type ChatMsg, gptStream } from "../llm/gpt";
 import { applyKeywordBoost } from "../stt/keyword-boost.shared";
@@ -56,6 +57,7 @@ import {
   resolveEndpointHangoverMs,
   isIdleCallerTurn,
   shouldSkipSttFinal,
+  INCOMPLETE_PARTIAL_HANGOVER_MS,
 } from "../turn-commit.shared";
 import {
   lockCallVoiceProfile,
@@ -278,6 +280,10 @@ export class CascadeSession {
    */
   private pendingUserSpeechStartAt: number | null = null;
   private pendingEndpointing: { hangoverMs: number; heldForIncomplete: boolean } | null = null;
+  /** At most one LLM-assisted turn-completion check per utterance — see `applyAdaptiveHangover`. */
+  private turnCheckFired = false;
+  /** Bumped on every new utterance so a late-arriving check from an earlier one is a no-op. */
+  private turnCheckGeneration = 0;
   private partialNormalized = "";
   private partialStableSince = 0;
   private speculativeFlat: SpeculativeFlatRun | null = null;
@@ -363,14 +369,14 @@ export class CascadeSession {
 
   private async resolveSttKeys(): Promise<SttProviderKeys> {
     const workspaceId = await this.resolveCallWorkspaceId();
-    const deepgramWorkspace = await lookupWorkspaceVoiceApiKey(
-      this.config.supabase,
-      workspaceId,
-      "deepgram",
-    );
+    const [deepgramWorkspace, assemblyaiWorkspace] = await Promise.all([
+      lookupWorkspaceVoiceApiKey(this.config.supabase, workspaceId, "deepgram"),
+      lookupWorkspaceVoiceApiKey(this.config.supabase, workspaceId, "assemblyai"),
+    ]);
     return {
       fishApiKey: process.env.FISH_API_KEY,
       deepgramApiKey: deepgramWorkspace || process.env.DEEPGRAM_API_KEY,
+      assemblyaiApiKey: assemblyaiWorkspace || process.env.ASSEMBLYAI_API_KEY,
     };
   }
 
@@ -401,7 +407,13 @@ export class CascadeSession {
       sessionVoiceId: this.config.voiceId,
       settings: this.config.settings,
       sampleRate: this.sampleRate,
-      model: this.fishTtsModel,
+      model:
+        ttsChoice === "openai"
+          ? ((this.config.settings as Record<string, unknown> | null)?.webeeTtsModel as
+              | string
+              | undefined)
+          : this.fishTtsModel,
+      ttsProvider: ttsChoice,
     });
     if (this.tts.name === "fish") {
       (this.tts as FishAudioTtsProvider).bindCall(this.voiceProfile);
@@ -1549,17 +1561,54 @@ export class CascadeSession {
 
   private applyAdaptiveHangover(partial: string): void {
     const baseMs = this.runtime.endpointing.silenceDurationMs;
-    const hangoverMs = resolveEndpointHangoverMs(partial, baseMs);
+    const hangoverMs = resolveEndpointHangoverMs(partial, baseMs, this.graphVm?.currentInstructionText);
     const frames = Math.max(3, Math.round(hangoverMs / BROWSER_VAD_FRAME_MS));
     this.vad?.setSilenceFramesTrigger(frames);
     // Buffered, not written to this.turn: partials arrive before beginTurn
     // creates the turn this window applies to. Recorded so the adaptive window
     // can be judged from data rather than by ear.
     this.pendingEndpointing = { hangoverMs, heldForIncomplete: hangoverMs > baseMs };
+
+    // Text-only heuristic was genuinely unsure (neither the "definitely complete" nor the
+    // "definitely incomplete" fast path fired) — ask the classifier once per utterance whether
+    // this reads as a finished thought, the same principle Retell's own turn-detection model
+    // applies (judge from content, not just silence duration), at a scale that's actually
+    // buildable here. Fire-and-forget: can only extend the wait, never shorten it, and a stale
+    // response from an utterance that has since ended or been superseded is a no-op.
+    //
+    // No minimum word count: a name/title answer is often just one word, and a caller who
+    // trails off mid-word on exactly that kind of answer ("Ar" — pausing before finishing
+    // "Arjav") is precisely the case with nothing else to catch it. A short partial costs the
+    // classifier nothing extra to reason about; gating it out only meant single-word answers
+    // got no safety net at all.
+    const wordCount = partial.trim().split(/\s+/).filter(Boolean).length;
+    if (hangoverMs === baseMs && wordCount >= 1 && !this.turnCheckFired && this.graphVm) {
+      this.turnCheckFired = true;
+      const generation = this.turnCheckGeneration;
+      this.graphVm
+        .isLikelyStillSpeaking(partial)
+        .then((stillSpeaking) => {
+          if (!stillSpeaking || this.closed || generation !== this.turnCheckGeneration || !this.vad) {
+            return;
+          }
+          const extendedFrames = Math.max(
+            frames,
+            Math.round(INCOMPLETE_PARTIAL_HANGOVER_MS / BROWSER_VAD_FRAME_MS),
+          );
+          this.vad.setSilenceFramesTrigger(extendedFrames);
+          this.pendingEndpointing = { hangoverMs: INCOMPLETE_PARTIAL_HANGOVER_MS, heldForIncomplete: true };
+        })
+        .catch(() => {
+          /* no signal — the heuristic's own decision stands */
+        });
+    }
   }
 
   private restoreHangover(): void {
     this.vad?.setSilenceFramesTrigger(this.defaultSilenceFrames);
+    // Whatever utterance a pending completion check was reasoning about is over — a late answer
+    // must not reach back and extend a window that no longer applies to anything live.
+    this.turnCheckGeneration++;
   }
 
   private clearUtteranceCoalesce(): void {
@@ -1732,6 +1781,11 @@ export class CascadeSession {
         this.callerSpeaking = true;
         this.speechFrames = 1;
         this.lastSpeechRms = event.rms;
+        // New speech burst — allow one more LLM-assisted completion check for it, and make sure a
+        // check still in flight from before this burst started can no longer act (they resuming
+        // is itself evidence they weren't done, so that check's answer is moot either way).
+        this.turnCheckFired = false;
+        this.turnCheckGeneration++;
         // Belongs to the turn this speech will produce, not the one just finished.
         this.pendingUserSpeechStartAt = Date.now();
         this.turn?.trace?.mark("turn_detected");

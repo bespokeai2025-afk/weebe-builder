@@ -239,8 +239,8 @@ function GetNumberDialog({
   });
 
   const buyMut = useMutation({
-    mutationFn: (phoneNumber: string) =>
-      buyFn({ data: { phoneNumber, agentId: agentId || null } }),
+    mutationFn: ({ phoneNumber, isoCountry }: { phoneNumber: string; isoCountry?: string }) =>
+      buyFn({ data: { phoneNumber, isoCountry, agentId: agentId || null } }),
     onError: (e: Error) => setError(e.message),
     onSuccess: onDone,
   });
@@ -354,10 +354,12 @@ function GetNumberDialog({
                         <td className="px-3 py-2 text-right">
                           <Button
                             size="sm"
-                            onClick={() => buyMut.mutate(n.phoneNumber)}
+                            onClick={() => buyMut.mutate({ phoneNumber: n.phoneNumber, isoCountry: n.isoCountry })}
                             disabled={buyMut.isPending}
                           >
-                            {buyMut.isPending && buyMut.variables === n.phoneNumber ? "Buying…" : "Buy"}
+                            {buyMut.isPending && buyMut.variables?.phoneNumber === n.phoneNumber
+                              ? "Buying…"
+                              : "Buy"}
                           </Button>
                         </td>
                       </tr>

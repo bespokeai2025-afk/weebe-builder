@@ -430,8 +430,30 @@ export interface BuilderSettings {
    * Stored so subsequent saves update the same agent instead of creating a new one.
    */
   deployedElevenLabsAgentId?: string;
-  /** OpenAI Realtime voice profile (only used when deploymentMode === "OPENAI_NATIVE" and voiceOutputProvider === "openai") */
-  openaiVoice?: "alloy" | "ash" | "ballad" | "coral" | "echo" | "shimmer" | "sage" | "verse" | "marine";
+  /**
+   * OpenAI voice choice — used in two places with two DIFFERENT real OpenAI voice catalogs, since
+   * an agent is only ever in one of these modes at a time and both read/write this one field:
+   *   - OpenAI Realtime (deploymentMode === "OPENAI_NATIVE" && voiceOutputProvider === "openai"):
+   *     alloy/ash/ballad/coral/echo/shimmer/sage/verse/marine.
+   *   - WEBEE Native cascade engine, webeeTtsProvider === "openai" (`lockCallVoiceProfile` in
+   *     call-voice-profile.shared.ts, validated against `OPENAI_TTS_VOICES`): alloy/ash/ballad/
+   *     coral/echo/fable/onyx/nova/sage/shimmer/verse (no "marine" — /v1/audio/speech doesn't
+   *     offer it). The type below is the union of both catalogs, not a claim that either mode
+   *     accepts all of them.
+   */
+  openaiVoice?:
+    | "alloy"
+    | "ash"
+    | "ballad"
+    | "coral"
+    | "echo"
+    | "shimmer"
+    | "sage"
+    | "verse"
+    | "marine"
+    | "fable"
+    | "onyx"
+    | "nova";
   /** OpenAI Realtime reasoning effort level (only used when deploymentMode === "OPENAI_NATIVE") */
   openaiReasoningEffort?: "minimal" | "low" | "medium" | "high" | "xhigh";
   /**
@@ -464,7 +486,7 @@ export interface BuilderSettings {
    * "openai"   — Whisper. Batch, not streaming: the transcription lands after end-of-speech, so it
    *              costs more turn latency than the other two.
    */
-  webeeSttProvider?: "fish" | "deepgram" | "openai";
+  webeeSttProvider?: "fish" | "deepgram" | "assemblyai" | "openai";
   /**
    * TTS for WEBEE_NATIVE.
    * "fish"   — Fish Audio (default; native sample rate and input streaming)

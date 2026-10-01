@@ -59,24 +59,30 @@ describe("percentiles", () => {
 describe("retellLatencyCategories", () => {
   it("isolates LLM and TTS from the cumulative marks, rather than double-counting routing/LLM time", () => {
     // stt_to_route_ms=40, stt_to_first_token_ms=180 -> LLM-only = 140
-    // stt_to_first_sentence_ms=260, stt_to_first_audio_ms=420 -> TTS-only = 160
+    // stt_to_first_token_ms=180, stt_to_first_audio_ms=420 -> TTS-only = 240
     const cats = retellLatencyCategories([turn(1)]);
     const byCategory = Object.fromEntries(cats.map((c) => [c.category, c.stats]));
     expect(byCategory.endToEnd?.p50).toBe(700);
     expect(byCategory.transcription?.p50).toBe(120);
     expect(byCategory.llm?.p50).toBe(140);
-    expect(byCategory.tts?.p50).toBe(160);
+    expect(byCategory.tts?.p50).toBe(240);
   });
 
   it("excludes a turn from a category rather than guessing when a needed mark is missing", () => {
     const cats = retellLatencyCategories([
       turn(1, { stt_to_route_ms: null }),
-      turn(2, { stt_to_first_sentence_ms: null }),
+      turn(2, { stt_to_first_audio_ms: null }),
     ]);
     const byCategory = Object.fromEntries(cats.map((c) => [c.category, c.stats]));
     // turn 1 has no route mark -> LLM falls back to route=0, still counts
     expect(byCategory.llm?.count).toBe(2);
-    // turn 2 has no first-sentence mark -> TTS can't be isolated for that turn
+    // turn 2 has no first-audio mark -> TTS can't be isolated for that turn
+    expect(byCategory.tts?.count).toBe(1);
+  });
+
+  it("still measures TTS for Fish's native token-streaming path, which never sets a first-sentence mark", () => {
+    const cats = retellLatencyCategories([turn(1, { stt_to_first_sentence_ms: null })]);
+    const byCategory = Object.fromEntries(cats.map((c) => [c.category, c.stats]));
     expect(byCategory.tts?.count).toBe(1);
   });
 

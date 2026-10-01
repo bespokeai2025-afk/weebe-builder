@@ -55,6 +55,7 @@ export const purchaseVoiceNumber = createServerFn({ method: "POST" })
     z
       .object({
         phoneNumber: z.string().regex(E164, "Expected E.164, e.g. +14155552671"),
+        isoCountry: z.string().length(2).optional(),
         friendlyName: z.string().max(64).optional(),
         agentId: z.string().uuid().nullable().optional(),
         capabilities: z
@@ -70,6 +71,7 @@ export const purchaseVoiceNumber = createServerFn({ method: "POST" })
     const purchased = await purchaseNumber({
       phoneNumber: data.phoneNumber,
       friendlyName: data.friendlyName,
+      isoCountry: data.isoCountry,
       workspaceId,
     });
     const id = await savePhoneNumberRow({

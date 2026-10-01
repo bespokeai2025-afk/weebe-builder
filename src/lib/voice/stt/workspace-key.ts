@@ -9,7 +9,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export async function lookupWorkspaceVoiceApiKey(
   sb: SupabaseClient | null | undefined,
   workspaceId: string | null | undefined,
-  providerName: "fish" | "deepgram",
+  providerName: "fish" | "deepgram" | "assemblyai",
 ): Promise<string | null> {
   if (!sb || !workspaceId) return null;
   try {

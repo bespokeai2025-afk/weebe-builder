@@ -7,6 +7,7 @@
  */
 
 import { resolveFishTtsVoiceRequest } from "./fish-tts-prosody.shared";
+import { resolveOpenAiTtsVoice, resolveOpenAiTtsModel } from "./tts/openai.provider";
 import type { TtsVoiceRequest } from "./tts/types";
 
 export interface CallVoiceProfile extends TtsVoiceRequest {
@@ -53,13 +54,32 @@ export function resolveCallVoiceId(input: {
 /**
  * Resolve and lock the voice used for every TTS utterance in a call.
  * Prosody (speed, temperature, volume) is frozen here — never re-read from settings mid-call.
+ *
+ * `ttsProvider` matters here: this used to always resolve a Fish `reference_id`, regardless of
+ * which TTS provider the call was actually going to use. `createTtsProvider` in `prepare()`
+ * correctly built an OpenAI provider instance when `webeeTtsProvider` was "openai" — but the
+ * locked voice profile still carried the agent's Fish voice hash as `voiceId`, which OpenAI's API
+ * doesn't recognise. `resolveOpenAiTtsVoice` falls back to a default voice rather than erroring, so
+ * this failed silently: every call ignored the OpenAI voice picked in the builder (`settings.
+ * openaiVoice`) and spoke in the same default voice regardless of selection.
  */
 export function lockCallVoiceProfile(input: {
   sessionVoiceId?: string;
   settings?: Record<string, unknown> | null;
   sampleRate: number;
   model?: string;
+  ttsProvider?: "fish" | "openai";
 }): CallVoiceProfile {
+  if (input.ttsProvider === "openai") {
+    const voiceId = resolveOpenAiTtsVoice(String(input.settings?.openaiVoice ?? ""));
+    const req: TtsVoiceRequest = {
+      voiceId,
+      sampleRate: input.sampleRate,
+      model: resolveOpenAiTtsModel(input.model),
+    };
+    return { ...req, lockedAt: Date.now() };
+  }
+
   const voiceId = resolveCallVoiceId(input);
 
   if (!voiceId) {

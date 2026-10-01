@@ -1914,7 +1914,9 @@ export function Builder({
                       <Select
                         value={settings.webeeSttProvider ?? "fish"}
                         onValueChange={(v) =>
-                          setSettings({ webeeSttProvider: v as "fish" | "deepgram" | "openai" })
+                          setSettings({
+                            webeeSttProvider: v as "fish" | "deepgram" | "assemblyai" | "openai",
+                          })
                         }
                       >
                         <SelectTrigger className="h-8 text-[11px]">
@@ -1923,6 +1925,7 @@ export function Builder({
                         <SelectContent>
                           <SelectItem value="fish">Fish Audio ASR</SelectItem>
                           <SelectItem value="deepgram">Deepgram Nova-2</SelectItem>
+                          <SelectItem value="assemblyai">AssemblyAI Universal-Streaming</SelectItem>
                           <SelectItem value="openai">OpenAI Whisper</SelectItem>
                         </SelectContent>
                       </Select>
@@ -1955,8 +1958,10 @@ export function Builder({
                         <div className="space-y-1.5">
                           <Label className="text-[10px] text-muted-foreground">OpenAI voice</Label>
                           <Select
-                            value={settings.voiceId ?? "alloy"}
-                            onValueChange={(v) => setSettings({ voiceId: v })}
+                            value={settings.openaiVoice ?? "alloy"}
+                            onValueChange={(v) =>
+                              setSettings({ openaiVoice: v as BuilderSettings["openaiVoice"] })
+                            }
                           >
                             <SelectTrigger className="h-8 text-[11px]">
                               <SelectValue />
@@ -2045,7 +2050,11 @@ export function Builder({
                         clone button, preview text and the scrolling library
                         needed far more room than the settings rail affords —
                         inline it squeezed every control into a few pixels. The
-                        rail now shows the chosen voice and opens this. */}
+                        rail now shows the chosen voice and opens this.
+                        Fish-only: this browses Fish's clone/library voices, so it's
+                        meaningless (and was confusingly shown alongside the OpenAI
+                        voice dropdown above) once OpenAI is the selected TTS provider. */}
+                    {settings.webeeTtsProvider !== "openai" && (
                     <div className="space-y-1.5">
                       <Label className="text-[10px] text-muted-foreground">Voice</Label>
                       <button
@@ -2065,6 +2074,7 @@ export function Builder({
                         <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                       </button>
                     </div>
+                    )}
 
                     <Dialog open={voicePickerOpen} onOpenChange={setVoicePickerOpen}>
                       <DialogContent className="max-w-2xl gap-0 p-0">

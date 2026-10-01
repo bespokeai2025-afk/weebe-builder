@@ -71,4 +71,38 @@ describe("call-voice-profile", () => {
     expect(voiceIdDiffersFromProfile(profile, "fish-b")).toBe(true);
     expect(voiceIdDiffersFromProfile(profile, "11labs-Adrian")).toBe(false);
   });
+
+  describe("openai tts provider", () => {
+    // Real bug: switching an agent to OpenAI TTS silently kept using the agent's Fish voice
+    // hash as `voiceId` — OpenAI's provider falls back to a default voice rather than erroring
+    // on an unrecognised one, so every call quietly ignored the OpenAI voice picked in the
+    // builder (`settings.openaiVoice`) and always spoke in the same default voice instead.
+    it("locks the agent's chosen OpenAI voice, not the Fish voice id", () => {
+      const profile = lockCallVoiceProfile({
+        settings: { webeeVoiceId: "164a9e442b984c3aa3fa8a21fd29a10c", openaiVoice: "nova" },
+        sampleRate: 24000,
+        ttsProvider: "openai",
+      });
+      expect(profile.voiceId).toBe("nova");
+    });
+
+    it("falls back to the default OpenAI voice rather than a Fish hash when none is set", () => {
+      const profile = lockCallVoiceProfile({
+        settings: { webeeVoiceId: "164a9e442b984c3aa3fa8a21fd29a10c" },
+        sampleRate: 24000,
+        ttsProvider: "openai",
+      });
+      expect(profile.voiceId).not.toBe("164a9e442b984c3aa3fa8a21fd29a10c");
+      expect(profile.voiceId).toBeTruthy();
+    });
+
+    it("does not carry Fish-only prosody fields into an OpenAI profile", () => {
+      const profile = lockCallVoiceProfile({
+        settings: { openaiVoice: "alloy", webeeVoiceOwned: true },
+        sampleRate: 24000,
+        ttsProvider: "openai",
+      });
+      expect(profile.cloneVoice).toBeUndefined();
+    });
+  });
 });

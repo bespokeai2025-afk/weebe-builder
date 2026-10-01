@@ -205,6 +205,78 @@ export const resetDataRecord = createServerFn({ method: "POST" })
  * a hard DELETE. A wrong selection here is common (the toolbar's own "select all" spans the whole
  * filtered list), and a mistaken delete should be recoverable by support, not gone outright.
  */
+/**
+ * Copy one data_record into the leads table (dialer/CRM pipeline), individually — the record
+ * itself is left as-is in Data → Records, this just also makes it callable from Leads. Every
+ * field on the record (including whatever ended up in its own `meta`) is kept verbatim in the
+ * new lead's `meta`, the same "never drop a column" pattern CSV lead imports already use
+ * elsewhere, so nothing from the original upload is lost even though only a handful of fields
+ * have dedicated lead columns.
+ */
+export const addDataRecordToLead = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) => z.object({ recordId: z.string().uuid() }).parse(input))
+  .handler(async ({ context, data }) => {
+    const { supabase } = context;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No active workspace");
+    const sb = supabase as any;
+
+    const { data: record, error: readErr } = await sb
+      .from("data_records")
+      .select("*")
+      .eq("id", data.recordId)
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+    if (readErr) throw new Error(readErr.message);
+    if (!record) throw new Error("Record not found");
+
+    const phone = String(record.mobile_number ?? "").trim();
+    if (!phone) throw new Error("This record has no phone number to lead with");
+
+    const { data: existing, error: dupErr } = await sb
+      .from("leads")
+      .select("id")
+      .eq("workspace_id", workspaceId)
+      .eq("phone", phone)
+      .maybeSingle();
+    if (dupErr) throw new Error(dupErr.message);
+    if (existing) return { alreadyLead: true, leadId: existing.id as string };
+
+    const addressParts = [record.address_line1, record.address_line2, record.city, record.state, record.postal_code]
+      .map((v) => (v ? String(v).trim() : ""))
+      .filter(Boolean);
+
+    const meta: Record<string, unknown> = { ...(record.meta ?? {}) };
+    for (const [key, value] of Object.entries(record)) {
+      if (key === "meta" || value == null || value === "") continue;
+      if (!(key in meta)) meta[key] = value;
+    }
+    meta.added_from_data_record_id = record.id;
+
+    const { data: inserted, error: insertErr } = await sb
+      .from("leads")
+      .insert({
+        workspace_id: workspaceId,
+        full_name: record.name || null,
+        phone,
+        email: record.email || null,
+        company_name: record.client_name || null,
+        business_address: addressParts.length ? addressParts.join(", ") : null,
+        state_name: record.state || null,
+        business_type: record.title || null,
+        source: "import",
+        source_detail: "data_records",
+        status: "need_to_call",
+        meta,
+      })
+      .select("id")
+      .single();
+    if (insertErr) throw new Error(insertErr.message);
+
+    return { alreadyLead: false, leadId: inserted.id as string };
+  });
+
 export const deleteDataRecords = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input) => RecordIdsSchema.parse(input))
