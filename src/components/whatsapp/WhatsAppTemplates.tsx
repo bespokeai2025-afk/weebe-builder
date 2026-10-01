@@ -51,7 +51,13 @@ import {
   updateWATemplate,
   deleteWATemplate,
 } from "@/lib/dashboard/whatsapp.functions";
-import { getWatiConnection, listWatiTemplates, syncWatiTemplates, createWatiTemplate } from "@/lib/whatsapp/wati.functions";
+import {
+  getWatiConnection,
+  listWatiTemplates,
+  syncWatiTemplates,
+  createWatiTemplate,
+  deleteWatiTemplate,
+} from "@/lib/whatsapp/wati.functions";
 import { extractWatiTemplateParamSlots } from "@/lib/whatsapp/wati-template-params.shared";
 import {
   defaultParamSample,
@@ -129,6 +135,7 @@ export function WhatsAppTemplates() {
   const watiListFn = useServerFn(listWatiTemplates);
   const watiSyncFn = useServerFn(syncWatiTemplates);
   const watiCreateFn = useServerFn(createWatiTemplate);
+  const watiDeleteFn = useServerFn(deleteWatiTemplate);
 
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ["wa-templates"],
@@ -183,9 +190,20 @@ export function WhatsAppTemplates() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [watiCreateOpen, setWatiCreateOpen] = useState(false);
   const [watiForm, setWatiForm] = useState(emptyWatiForm());
+  const [watiDeleteId, setWatiDeleteId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [editRow, setEditRow] = useState<{ id: string } | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  const deleteWati = useMutation({
+    mutationFn: () => watiDeleteFn({ data: { id: watiDeleteId! } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["wati-templates"] });
+      setWatiDeleteId(null);
+      toast.success("Template deleted from WATI and WhatsApp");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
   const [form, setForm] = useState(emptyForm());
 
   const detectedVars = extractVars(form.body);
@@ -410,6 +428,15 @@ export function WhatsAppTemplates() {
                           )}
                         </div>
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0 text-destructive hover:text-destructive"
+                        onClick={() => setWatiDeleteId(t.id)}
+                        title="Delete template"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
                     </div>
 
                     {body && (
@@ -756,6 +783,30 @@ export function WhatsAppTemplates() {
         </AlertDialogContent>
       </AlertDialog>
       )}
+
+      <AlertDialog open={!!watiDeleteId} onOpenChange={(o) => !o && setWatiDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this template from WhatsApp?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the template from WATI and Meta/WhatsApp, not just this list — it
+              can no longer be used to send messages, and re-adding it means resubmitting for
+              Meta approval from scratch (typically 30 min – 24 hours). Any campaign still
+              referencing this template by name will fail to send with it afterwards.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteWati.mutate()}
+              disabled={deleteWati.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteWati.isPending ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

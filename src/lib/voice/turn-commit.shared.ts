@@ -122,7 +122,34 @@ export function looksLikeIncompletePartial(text: string): boolean {
 /** Longest we will wait on an unfinished-sounding partial. */
 export const INCOMPLETE_PARTIAL_HANGOVER_MS = 900;
 
-export function resolveEndpointHangoverMs(partialText: string | undefined, baseMs: number): number {
+/**
+ * A street name with nothing after it yet — "123 Main Street". Deliberately NOT part of
+ * `looksLikeIncompletePartial` itself: applied blindly, this clashed with genuinely finished
+ * answers to a plain "what's your street name" question ("fourteen Bluebell Way" must stay
+ * complete — see `semantic-endpointing.test.ts`). The two cases are textually identical; the only
+ * real difference is what the flow actually asked for, which is exactly what
+ * `looksLikeAskingForFullAddress` below checks before this pattern is allowed to extend anything.
+ */
+const STREET_CUE =
+  /\b(street|st|road|rd|avenue|ave|lane|ln|drive|dr|court|ct|way|place|pl|boulevard|blvd|close|crescent|terrace|gardens?)$/i;
+
+/**
+ * True when the node currently asking clearly wants a full address (street + city/postcode) in
+ * one answer, not just a street name — e.g. "...the full property address... including the
+ * street address, city, and postcode". Only nodes matching this get the street-fragment patience
+ * extension below; a node that only ever asks for a street name is unaffected.
+ */
+export function looksLikeAskingForFullAddress(instructionText: string | undefined): boolean {
+  const t = (instructionText ?? "").toLowerCase();
+  if (!t.includes("address")) return false;
+  return /\b(full|complete|whole)\b/.test(t) || /\b(street|road|city|town|postcode|post code)\b.*\b(and|,)\b/.test(t);
+}
+
+export function resolveEndpointHangoverMs(
+  partialText: string | undefined,
+  baseMs: number,
+  nodeInstructionText?: string,
+): number {
   const t = partialText?.trim() ?? "";
   if (!t) return baseMs;
   if (looksLikeCompleteShortReply(t) || looksLikeTitleAnswer(t)) {
@@ -134,6 +161,18 @@ export function resolveEndpointHangoverMs(partialText: string | undefined, baseM
   // Mid-thought: hold the window open rather than clipping the caller. Only
   // ever extends, never shortens, so a deliberately long base is respected.
   if (looksLikeIncompletePartial(t)) {
+    return Math.max(baseMs, INCOMPLETE_PARTIAL_HANGOVER_MS);
+  }
+  // A street-only fragment ("123 Main Street") reads as grammatically complete, so nothing above
+  // catches it — but if THIS node explicitly asked for a full address, the caller giving it in two
+  // beats (street, then a pause, then city/postcode) is the normal, expected shape of the answer.
+  const lower = t.toLowerCase().replace(/[,;:\-]+$/g, "");
+  if (
+    STREET_CUE.test(lower) &&
+    !t.includes(",") &&
+    !looksLikeUkPostcode(t) &&
+    looksLikeAskingForFullAddress(nodeInstructionText)
+  ) {
     return Math.max(baseMs, INCOMPLETE_PARTIAL_HANGOVER_MS);
   }
   return baseMs;

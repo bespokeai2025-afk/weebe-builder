@@ -53,11 +53,9 @@ function digitsOnly(value: string): string {
 const FILLER_WORD_RE = /\b(um+|uh+|erm+|hmm+|ahh*)\b[,]?\s*/gi;
 
 /**
- * Strip stray filler interjections ("um", "ah", "erm"...) a caller's speech often carries. Left
- * in, they show up verbatim in stored answers — "Ah, it's ah one two three Manhattan Street"
- * instead of "it's one two three Manhattan Street" — because the raw-capture path (`vm.ts`'s
- * `captureCollectAnswer`) binds whatever the caller said next straight to a variable, with no LLM
- * pass to clean it up the way the extraction pipeline's own prompt implicitly does.
+ * Strip stray filler interjections ("um", "ah", "erm"...) a caller's speech often carries, for
+ * call sites that display or store a value close to verbatim rather than through LLM extraction
+ * (which already absorbs filler as part of understanding the sentence).
  */
 export function stripFillerWords(text: string): string {
   return text

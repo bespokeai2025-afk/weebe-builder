@@ -113,16 +113,38 @@ export async function findOwnedNumber(
   };
 }
 
+/**
+ * Twilio requires a registered Address on file for certain countries' local numbers (the UK among
+ * them) and rejects the purchase with "Phone Number Requires an Address but the 'AddressSid'
+ * parameter was empty" otherwise. Rather than make the user go create one and paste a SID back,
+ * reuse whichever address the account already has on file for that country — accounts buying
+ * numbers there almost always have one already (e.g. from an earlier manual purchase in the Twilio
+ * console), and `validated` (not necessarily `verified`) is all a number purchase requires.
+ */
+async function findAddressSidForCountry(
+  twilioClient: Twilio,
+  isoCountry: string,
+): Promise<string | undefined> {
+  const addresses = await twilioClient.addresses.list({ isoCountry, limit: 5 });
+  return addresses.find((a) => a.validated)?.sid ?? addresses[0]?.sid;
+}
+
 /** Buy a number and point it at our endpoints in one call. */
 export async function purchaseNumber(args: {
   phoneNumber: string;
   friendlyName?: string;
   workspaceId?: string;
+  /** ISO country of the number, from the search result — enables the address lookup above. */
+  isoCountry?: string;
 }): Promise<OwnedNumber> {
   const twilioClient = await client(args.workspaceId);
+  const addressSid = args.isoCountry
+    ? await findAddressSidForCountry(twilioClient, args.isoCountry)
+    : undefined;
   const created = await twilioClient.incomingPhoneNumbers.create({
     phoneNumber: args.phoneNumber,
     friendlyName: args.friendlyName,
+    ...(addressSid ? { addressSid } : {}),
     ...buildNumberWebhooks(),
   });
   return {

@@ -82,6 +82,29 @@ async function watiPost(
   return { ok: res.ok, status: res.status, data, text };
 }
 
+async function watiDelete(
+  tenantId: string,
+  apiKey: string,
+  path: string,
+  apiHost?: string | null,
+): Promise<{ ok: boolean; status: number; data: Record<string, unknown>; text: string }> {
+  const res = await fetch(`${watiApiV1Base(tenantId, apiHost)}${path}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${apiKey.replace(/^Bearer\s+/i, "")}`,
+      "Content-Type": "application/json",
+    },
+  });
+  const text = await res.text();
+  let data: Record<string, unknown> = {};
+  try {
+    data = JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    /* non-json */
+  }
+  return { ok: res.ok, status: res.status, data, text };
+}
+
 export const getWatiConnection = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -464,6 +487,81 @@ export const createWatiTemplate = createServerFn({ method: "POST" })
           ? "Template created in WATI as draft — submit for Meta review in WATI if it stays in Draft."
           : "Template submitted to WATI for Meta review (typically 30 min – 24 hours).",
     };
+  });
+
+/**
+ * Delete a Meta-approved template — on WATI/Meta's side, not just locally.
+ *
+ * `wati_templates` rows are a synced mirror, not the source of truth; deleting only the local row
+ * would leave the template still live (and sendable) on WATI/WhatsApp, with the UI now lying about
+ * it being gone. So this calls WATI's own delete endpoint first (`elementName` is the template's
+ * programmatic name, stored as `name` — see `watiTemplateRowFromCreateResult`), and only removes
+ * the local row once WATI confirms. WATI's delete API is `DELETE .../whatsApp/templates/{wabaId}/
+ * {name}/{language}` (per docs.wati.io) — scoped by WhatsApp Business Account id, which nothing in
+ * this codebase stores yet, so it's looked up fresh via `/whatsApp/businessAccounts` each call
+ * rather than guessed or hardcoded. A campaign that still references this template by name (see
+ * `wati_campaigns.template_name` — a plain string, not a foreign key) will fail to send with it
+ * afterwards; that risk is surfaced in the confirmation dialog, not silently avoided here.
+ */
+export const deleteWatiTemplate = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .handler(async ({ context, data }) => {
+    const { workspaceId } = context;
+    if (!workspaceId) throw new Error("No workspace");
+    const sb = adminClient() as any;
+
+    const { data: row } = await sb
+      .from("wati_templates")
+      .select("id, name, language")
+      .eq("id", data.id)
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+    if (!row) throw new Error("Template not found");
+
+    const { data: conn } = await sb
+      .from("wati_connections")
+      .select("api_key, tenant_id, api_host")
+      .eq("workspace_id", workspaceId)
+      .eq("status", "connected")
+      .maybeSingle();
+    if (!conn?.api_key) throw new Error("WATI not connected");
+
+    // WATI's delete endpoint is scoped by WhatsApp Business Account, not just tenant — a value
+    // nothing in this codebase stores yet (`wati_connections` only has tenant/api key). Almost
+    // every WATI workspace has exactly one connected business account, so the first one returned
+    // is used; a tenant with more than one would need to pick explicitly, which this doesn't
+    // attempt to guess.
+    const accountsRes = await watiGet(conn.tenant_id, conn.api_key, "/whatsApp/businessAccounts", conn.api_host);
+    const accounts = Array.isArray((accountsRes as { result?: unknown }).result)
+      ? ((accountsRes as { result: Array<{ id?: string }> }).result)
+      : [];
+    const wabaId = accounts[0]?.id;
+    if (!wabaId) {
+      throw new Error("Could not find a WhatsApp Business Account for this WATI connection");
+    }
+
+    const language = row.language?.trim() || "en";
+    const { ok, status, data: json, text } = await watiDelete(
+      conn.tenant_id,
+      conn.api_key,
+      `/whatsApp/templates/${encodeURIComponent(wabaId)}/${encodeURIComponent(row.name)}/${encodeURIComponent(language)}`,
+      conn.api_host,
+    );
+
+    if (!ok || json.ok === false) {
+      const msg = String(json.message ?? json.error ?? json.result ?? text).slice(0, 400);
+      throw new Error(msg || `WATI delete template failed (HTTP ${status})`);
+    }
+
+    const { error: delErr } = await sb
+      .from("wati_templates")
+      .delete()
+      .eq("id", data.id)
+      .eq("workspace_id", workspaceId);
+    if (delErr) throw new Error(delErr.message);
+
+    return { ok: true };
   });
 
 export const syncWatiCampaigns = createServerFn({ method: "POST" })

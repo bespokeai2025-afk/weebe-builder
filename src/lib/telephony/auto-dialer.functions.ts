@@ -42,9 +42,10 @@ async function resolveWorkspaceFromNumber(
       .eq("workspace_id", workspaceId)
       .eq("phone_number", requested)
       .eq("is_active", true)
+      .eq("provider", "twilio")
       .maybeSingle();
     if (data?.phone_number) return data.phone_number as string;
-    throw new Error(`"${requested}" isn't an active number on this workspace.`);
+    throw new Error(`"${requested}" isn't an active Twilio number on this workspace.`);
   }
 
   const { data } = await sb
@@ -52,6 +53,9 @@ async function resolveWorkspaceFromNumber(
     .select("phone_number")
     .eq("workspace_id", workspaceId)
     .eq("is_active", true)
+    // Calls go out through the Twilio REST API — a Retell SIP number in this same table
+    // (added for an agent's inbound line) can never be a valid Twilio "from".
+    .eq("provider", "twilio")
     .limit(1)
     .maybeSingle();
   if (!data?.phone_number) {
@@ -396,6 +400,9 @@ export const listWorkspacePhoneNumbers = createServerFn({ method: "GET" })
       .select("id, phone_number, friendly_name")
       .eq("workspace_id", workspaceId)
       .eq("is_active", true)
+      // The dialer places calls through the Twilio REST API, so only a number Twilio itself owns
+      // can be a "from" — a Retell SIP number in this same table would always fail the call.
+      .eq("provider", "twilio")
       .order("created_at", { ascending: true });
     if (error) throw new Error(error.message);
     return { numbers: data ?? [] };

@@ -100,8 +100,14 @@ export function retellLatencyCategories(rows: CallTurnRow[]): LatencyCategorySta
   const llm = rows
     .map((r) => diff(r.stt_to_first_token_ms, r.stt_to_route_ms ?? 0))
     .filter((v): v is number => typeof v === "number");
+  // `stt_to_first_sentence_ms` (llm_speech_first_sentence) is only ever marked for a
+  // batch-into-sentences TTS path — Fish, the default/production provider, streams tokens to
+  // synthesis continuously with no "complete sentence" checkpoint at all, so that mark is never
+  // set for real calls and every TTS row would starve to "not enough turns to measure". First
+  // token to first audio is the isolation that actually applies to a real streaming pipeline: the
+  // time from the LLM starting to speak to the caller actually hearing something.
   const tts = rows
-    .map((r) => diff(r.stt_to_first_audio_ms, r.stt_to_first_sentence_ms))
+    .map((r) => diff(r.stt_to_first_audio_ms, r.stt_to_first_token_ms))
     .filter((v): v is number => typeof v === "number");
   const endToEnd = rows
     .map((r) => r.speech_to_first_audio_ms)

@@ -267,7 +267,9 @@ function WebeeNativeTranscriptionSettings() {
           description={
             settings.webeeSttProvider === "deepgram"
               ? "Sent to Deepgram as keywords and corrected after transcription."
-              : "Sent to Fish ASR as a prompt and corrected after transcription."
+              : settings.webeeSttProvider === "assemblyai"
+                ? "Sent to AssemblyAI as key terms and corrected after transcription."
+                : "Sent to Fish ASR as a prompt and corrected after transcription."
           }
         />
         <input

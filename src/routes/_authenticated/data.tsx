@@ -87,6 +87,7 @@ import {
   startCallingRecords,
   resetDataRecord,
   deleteDataRecords,
+  addDataRecordToLead,
   fetchCrmPeople,
   fetchQualifiedLeads,
   setRecordCallStatus,
@@ -811,6 +812,7 @@ function DynamicDataTable({
   toggleOne,
   onReset,
   onDelete,
+  onAddToLead,
   onGenerate,
   canGenerate,
 }: {
@@ -822,6 +824,7 @@ function DynamicDataTable({
   toggleOne: (id: string) => void;
   onReset: (id: string) => void;
   onDelete: (id: string) => void;
+  onAddToLead: (id: string) => void;
   onGenerate: (record: any) => void;
   canGenerate: boolean;
 }) {
@@ -918,6 +921,13 @@ function DynamicDataTable({
                   >
                     {(r.call_status ?? "").replace(/_/g, " ") || "—"}
                   </span>
+                  <button
+                    title="Add to Leads"
+                    onClick={() => onAddToLead(r.id)}
+                    className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-primary group-hover:opacity-100 focus:opacity-100"
+                  >
+                    <UserPlus className="h-3 w-3" />
+                  </button>
                   <button
                     title="Reset — mark as needs to call again"
                     onClick={() => onReset(r.id)}
@@ -1059,6 +1069,7 @@ function DataPage() {
   const navigate = useNavigate();
   const resetFn = useServerFn(resetDataRecord);
   const deleteRecordsFn = useServerFn(deleteDataRecords);
+  const addToLeadFn = useServerFn(addDataRecordToLead);
   const getScheduleFn = useServerFn(getCallSchedule);
   const setScheduleFn = useServerFn(setCallSchedule);
   const listAgentsFn = useServerFn(listLiveAgents);
@@ -1448,6 +1459,21 @@ function DataPage() {
       qc.invalidateQueries({ queryKey: ["data-records"] });
     } catch (err) {
       toast.error("Reset failed", { description: (err as Error).message });
+    }
+  }
+
+  async function handleAddToLead(recordId: string) {
+    try {
+      const result = await addToLeadFn({ data: { recordId } });
+      if (result.alreadyLead) {
+        toast.message("Already a lead", {
+          description: "This phone number is already in Leads.",
+        });
+      } else {
+        toast.success("Added to Leads");
+      }
+    } catch (err) {
+      toast.error("Could not add to Leads", { description: (err as Error).message });
     }
   }
 
@@ -2546,6 +2572,7 @@ function DataPage() {
                   toggleOne={toggleOne}
                   onReset={handleReset}
                   onDelete={(id: string) => handleDeleteRecords([id])}
+                  onAddToLead={handleAddToLead}
                   canGenerate={canUseAssistant}
                   onGenerate={(r: any) =>
                     setAssistantTarget({

@@ -32,12 +32,8 @@ import {
   type CompiledFlow,
 } from "./flow";
 import { historyIndicatesStandaloneHouse, clarificationForNode } from "./stt-clarification.shared";
-import { inferCollectVariableName, shouldCaptureCollectAnswer } from "./collect-variable.shared";
-import {
-  normaliseSpokenNumbers,
-  stripFillerWords,
-  validateExtractedValue,
-} from "./extraction-validation.shared";
+import { shouldCaptureCollectAnswer } from "./collect-variable.shared";
+import { validateExtractedValue } from "./extraction-validation.shared";
 import { guardPrematureWrapUpStream, replacePrematureWrapUp } from "./speech-guard.shared";
 import {
   leadFieldsForTurn,
@@ -48,6 +44,7 @@ import {
 import { constrainGeneratedSpeech, personaFromGlobalPrompt } from "./speech-isolate.shared";
 import { responseModeFromInstruction } from "./speech-mode.shared";
 import {
+  humaniseVariableName,
   lookupRuntimeValue,
   missingVariableNames,
   missingVariablesRule,
@@ -206,6 +203,14 @@ function looksLikeUserQuestion(text: string): boolean {
   return /\?/.test(t) || /^(who|what|why|how|when|where|which|huh)\b/i.test(t);
 }
 
+/**
+ * Cap on concurrent speculative generation runs per turn when heuristic prediction can't narrow
+ * routing to one likely destination (see `beginRouteRaceSpeech`). Most nodes needing the LLM
+ * classifier have 2-3 edges; this bounds the (mostly-discarded) extra LLM calls on a node with
+ * unusually many.
+ */
+const MAX_SPECULATIVE_FANOUT = 3;
+
 export type SpeechWarmTarget =
   | { kind: "static"; text: string }
   | { kind: "prompt"; nodeId: string; messages: LlmMessage[]; model: string };
@@ -221,6 +226,8 @@ export class ConversationVm {
   private readonly languageLock: string;
   private readonly declaredVariableNames: string[];
   private readonly capturedNames = new Set<string>();
+  /** In-flight `extractTurnVariables` call for the current user turn, consumed once in `advance`. */
+  private pendingExtraction: Promise<Record<string, VariableValue>> | null = null;
 
   private variables: Record<string, VariableValue>;
   private history: LlmMessage[] = [];
@@ -276,9 +283,65 @@ export class ConversationVm {
     return this.previousNodeId;
   }
 
+  /**
+   * The current node's own instruction/dialogue text, for signals that need to know what the
+   * flow author is actually asking for — e.g. whether the caller is expected to give a multi-part
+   * answer (a full address in one go) rather than judging patience purely from the partial text.
+   */
+  get currentInstructionText(): string {
+    return this.currentNode()?.instruction?.text ?? "";
+  }
+
   /** Snapshot of collected variables, for post-call analysis and webhooks. */
   getVariables(): Record<string, VariableValue> {
     return { ...this.variables };
+  }
+
+  /**
+   * A step toward Retell's approach to turn-taking: they use a dedicated trained model scoring
+   * completion probability from audio + transcript + context, dozens of times a second — not
+   * buildable here (no training data/model-serving infra for that). This is the closer, honest
+   * approximation available with what already exists: when the text-only endpointing heuristic
+   * (`resolveEndpointHangoverMs` in `turn-commit.shared.ts`) is genuinely unsure whether a partial
+   * is finished, ask the same fast classifier already used for routing to judge from conversation
+   * *content*, not just silence duration — the same principle Retell's model applies, at a much
+   * smaller scale.
+   *
+   * Deliberately narrow: only ever called for the ambiguous case (the caller isn't asked about on
+   * every partial — see the call site in `cascade-session.ts`), and its result only ever EXTENDS
+   * patience, never shortens it, matching `resolveEndpointHangoverMs`'s own safety rule. If this
+   * call fails or times out, the caller must treat that as "no signal" and keep the heuristic's
+   * own decision — never block or degrade the turn on it.
+   */
+  async isLikelyStillSpeaking(partialText: string): Promise<boolean> {
+    const text = partialText.trim();
+    if (!text) return false;
+    const node = this.currentNode();
+    const askedFor = node?.instruction?.text ? `The agent just asked: "${node.instruction.text.slice(0, 200)}"` : "";
+    const messages: LlmMessage[] = [
+      ...this.history,
+      {
+        role: "system",
+        content: [
+          askedFor,
+          `The caller's reply so far, still being transcribed: "${text}"`,
+          "Judge only from whether this reads as a finished thought — not whether it fully answers the question.",
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      },
+    ];
+    try {
+      const index = await this.llm.classify(
+        messages,
+        ["the caller has finished this thought", "the caller is mid-sentence, more is coming"],
+        { model: this.classifierModel },
+      );
+      return index === 1;
+    } catch {
+      // No signal — the caller (cascade-session.ts) keeps the heuristic's own decision.
+      return false;
+    }
   }
 
   /**
@@ -432,36 +495,71 @@ export class ConversationVm {
     const node = this.currentNode();
     if (!node) return;
 
-    let target = this.peekSpeechWarmTarget(userText);
-    if (!target) {
-      const elseDest = (node as { else_edge?: FlowEdge }).else_edge?.destination_node_id;
-      if (
-        elseDest &&
-        isSubstantiveAnswer(userText) &&
-        !isFillerUtterance(userText) &&
-        !isHedgingUtterance(userText)
-      ) {
-        target = this.speechWarmForNode(elseDest);
+    const target = this.peekSpeechWarmTarget(userText);
+    if (target) {
+      // Heuristic already predicts the destination with confidence — `selectEdge`'s own step 5
+      // uses the same heuristic, so real routing for this turn will almost always resolve the
+      // same way without ever reaching the classifier. One speculative run covers it.
+      if (target.kind === "static") {
+        this.latencyHooks.onSpeculativeTts?.(target.text);
+      } else {
+        this.startSpeculativeRun(target, userText);
       }
+      return;
+    }
+
+    // No confident heuristic prediction — this is exactly the case where real routing is about
+    // to fall through to `selectEdge`'s LLM classifier, measured as the single slowest step in a
+    // turn (1-2.3s). Waiting for that and only THEN starting response generation stacks both
+    // instead of overlapping them. So fan out speculative generation across every plausible
+    // destination of this node concurrently with the classifier call instead of guessing one —
+    // `keepSpeculativeFor` (called once routing actually resolves, in `afterUserTurn`) aborts and
+    // discards whichever runs lose. Cost: extra, mostly-discarded LLM calls, but only on turns
+    // that needed a classifier call anyway — traded for cutting those two steps from serial to
+    // parallel.
+    const candidates = new Set<string>();
+    for (const e of node.edges ?? []) {
+      if (e.destination_node_id) candidates.add(e.destination_node_id);
+    }
+    const elseDest = (node as { else_edge?: FlowEdge }).else_edge?.destination_node_id;
+    if (
+      elseDest &&
+      isSubstantiveAnswer(userText) &&
+      !isFillerUtterance(userText) &&
+      !isHedgingUtterance(userText)
+    ) {
+      candidates.add(elseDest);
     }
     if (
-      !target &&
       (node.type === "conversation" || node.type === "end") &&
       node.instruction?.type === "prompt"
     ) {
-      target = this.speechWarmForNode(node.id);
+      candidates.add(node.id);
     }
-    if (!target) return;
 
-    if (target.kind === "static") {
-      this.latencyHooks.onSpeculativeTts?.(target.text);
-      return;
+    let started = 0;
+    for (const destId of candidates) {
+      if (started >= MAX_SPECULATIVE_FANOUT) break;
+      const warm = this.speechWarmForNode(destId);
+      if (!warm) continue;
+      if (warm.kind === "static") {
+        this.latencyHooks.onSpeculativeTts?.(warm.text);
+        continue;
+      }
+      if (this.startSpeculativeRun(warm, userText)) started++;
     }
-    if (this.speculativeSpeech.has(target.nodeId)) return;
+  }
+
+  /** Start one speculative generation run; false if one is already in flight for this node. */
+  private startSpeculativeRun(
+    target: Extract<SpeechWarmTarget, { kind: "prompt" }>,
+    userText: string,
+  ): boolean {
+    if (this.speculativeSpeech.has(target.nodeId)) return false;
 
     const ctrl = new AbortController();
     const tokens: string[] = [];
-    const started = this.llm.generateStream(target.messages, {
+    const started = this.llm.generateStream!(target.messages, {
       model: target.model,
       signal: ctrl.signal,
     });
@@ -484,6 +582,7 @@ export class ConversationVm {
       tokens,
       done,
     });
+    return true;
   }
 
   private keepSpeculativeFor(nodeId: string): void {
@@ -549,8 +648,26 @@ export class ConversationVm {
         const text = input.text.trim();
         if (!text) return;
         this.history.push({ role: "user", content: text });
-        yield* this.captureCollectAnswer(text);
+        // Fired, not awaited — runs concurrently with edge routing inside `afterUserTurn`, and is
+        // primarily consumed in `advance` (before the next node speaks, so a node confirming what
+        // was just said sees the real value). Some replies don't advance at all — a repair
+        // ("what?"), or routing simply finding no matching edge and re-prompting the same node —
+        // and `advance` is never called for those, so it never gets consumed there. This is the
+        // fallback for exactly that: if it's still pending once the turn is otherwise done, apply
+        // it now. Safe to apply after the fact here specifically because a no-advance turn's own
+        // speech is a re-ask/clarification, never a confirmation of what the caller just said, so
+        // there's nothing in this turn's own speech that needed the value a moment earlier.
+        this.pendingExtraction = this.extractTurnVariables(text);
         yield* this.afterUserTurn();
+        if (this.pendingExtraction) {
+          const pending = this.pendingExtraction;
+          this.pendingExtraction = null;
+          const captured = await pending;
+          if (Object.keys(captured).length > 0) {
+            this.rememberVariables(captured);
+            yield { type: "variables", nodeId: this.currentNodeId ?? "", values: captured };
+          }
+        }
         return;
       }
 
@@ -608,32 +725,56 @@ export class ConversationVm {
     }
   }
 
-  private async *captureCollectAnswer(userText: string): AsyncGenerator<VmDirective> {
+  /**
+   * Understand what the caller just said against every variable the flow knows about — genuinely,
+   * via the same LLM extraction `execExtract`/`llm.ts` uses, not by guessing which single field a
+   * reply belongs to from regex keyword matches against the node's instruction text. The regex
+   * version (`inferCollectVariableName` + `FIELD_HINTS`) is what stored a multi-fact correction
+   * verbatim into one field, and what kept failing to "catch properly" no matter how many more
+   * keyword patterns got added to it — a fundamentally different problem (guessing intent from
+   * wording) than validation (checking a value already understood to belong to a field makes
+   * sense for it, which `validateExtractedValue` below still does — that's a legitimate safety
+   * net, not intent-guessing, and stays).
+   *
+   * Started concurrently with edge routing (see the "user_utterance" case and `advance`, which
+   * consumes this) rather than awaited here, so understanding every turn properly doesn't add
+   * serial latency on top of routing — by the time routing resolves, this has usually been running
+   * in the background for the same stretch of time already.
+   */
+  private async extractTurnVariables(userText: string): Promise<Record<string, VariableValue>> {
     const node = this.currentNode();
-    if (!node || node.type !== "conversation") return;
-    if (!shouldCaptureCollectAnswer(userText)) return;
-    const instruction = String(node.instruction?.text ?? "");
-    const names = [...this.declaredVariableNames, ...Object.keys(this.variables)];
-    const name = inferCollectVariableName(instruction, names);
-    if (!name) return;
-    const current = this.variables[name];
-    if (current !== undefined && current !== null && String(current).trim()) return;
+    if (!node || node.type !== "conversation") return {};
+    if (!shouldCaptureCollectAnswer(userText)) return {};
+    const names = [...new Set([...this.declaredVariableNames, ...Object.keys(this.variables)])];
+    if (names.length === 0) return {};
 
-    // This capture bypasses the LLM-based extraction pipeline (`execExtract`/`llm.ts`) entirely —
-    // it binds the caller's raw next reply straight to whatever variable the instruction seems to
-    // be asking for. Without the same kind inference + normalisation that pipeline applies, an
-    // email got stored as "arjavirani123 gmail. dot com." and a postcode as "three nine five zero",
-    // verbatim, with no chance for the flow to notice and ask again. Route it through the same
-    // Retell-parity validator: wrong-kind or malformed input is not captured, not stored raw.
-    const candidate = normaliseSpokenNumbers(stripFillerWords(userText.trim()));
-    const value = validateExtractedValue({ name }, candidate);
-    if (value === null) {
-      this.log(`collect answer rejected for ${name}: "${userText.trim().slice(0, 80)}" is not a valid value`);
-      return;
+    const fields = names.map((n) => ({
+      name: n,
+      description: humaniseVariableName(n),
+      type: "string",
+    }));
+    try {
+      const extracted = await this.llm.extract(this.history, fields, {
+        model: nodeModel(node, this.compiled, this.fallbackModel),
+      });
+      const valid: Record<string, VariableValue> = {};
+      for (const [key, value] of Object.entries(extracted)) {
+        const current = this.variables[key];
+        const hasValue = current !== undefined && current !== null && String(current).trim() !== "";
+        // Only block capture for a value SEEDED before the call (CRM/lead data, never touched by
+        // `rememberVariables`) — a value captured live during this call stays overwritable, or a
+        // caller correcting themselves never gets applied to the variable CRM/post-call data
+        // actually reads, even though the agent's next line already reads the correction back
+        // correctly off conversation history.
+        if (hasValue && !this.capturedNames.has(key)) continue;
+        const checked = validateExtractedValue({ name: key }, value);
+        if (checked !== null) valid[key] = checked;
+      }
+      return valid;
+    } catch (err) {
+      this.log(`turn extraction failed on node "${node.id}": ${errMessage(err)}`);
+      return {};
     }
-    this.rememberVariables({ [name]: value });
-    this.log(`collected ${name}=${String(value).slice(0, 80)}`);
-    yield { type: "variables", nodeId: node.id, values: { [name]: value } };
   }
 
   private rememberVariables(values: Record<string, VariableValue>): void {
@@ -845,6 +986,20 @@ export class ConversationVm {
 
   /** Execute nodes until the flow blocks or ends. */
   private async *advance(startNodeId: string): AsyncGenerator<VmDirective> {
+    // A turn-extraction call started concurrently with edge routing (see the "user_utterance"
+    // case) — by now routing has already resolved, so this has been running in the background for
+    // that whole time and typically needs little to no extra wait. Resolved here, before anything
+    // in this turn speaks, so a node that immediately confirms what the caller just said sees the
+    // real value, not a stale or missing one.
+    if (this.pendingExtraction) {
+      const pending = this.pendingExtraction;
+      this.pendingExtraction = null;
+      const captured = await pending;
+      if (Object.keys(captured).length > 0) {
+        this.rememberVariables(captured);
+        yield { type: "variables", nodeId: startNodeId, values: captured };
+      }
+    }
     this.turnTrace?.mark("graph_advance_start");
     let nodeId: string | null = startNodeId;
     let steps = 0;
@@ -1468,9 +1623,21 @@ export class ConversationVm {
   private buildSpeechMessages(node: FlowNode, raw: string): LlmMessage[] {
     const interpolated = interpolateForSpeech(raw, this.variables);
     const { script, directions, task } = splitPromptScript(interpolated);
-    const system: string[] = [
-      buildTurnRules(interpolate(raw, this.variables), node.type === "end"),
-    ];
+    // Ordered so the longest possible PREFIX of this message is byte-identical across turns —
+    // not just within a node, but across the whole call. Providers that cache repeated prompt
+    // prefixes (OpenAI, Anthropic, and others) only get the win if the leading bytes actually
+    // match; putting call-wide-constant content (identity, language lock) first and per-node/
+    // per-turn content (turn rules, node name, known variables, script) after it means every
+    // single turn of a call shares that opening block verbatim, instead of the previous order,
+    // which put the most-variable content (turn rules, interpolated per node and per turn) first
+    // and defeated any caching before the first line even finished.
+    const system: string[] = [];
+    const persona = personaFromGlobalPrompt(this.compiled.globalPrompt);
+    if (persona) {
+      system.push(`Identity (not a script — do not ask questions from this block):\n${persona}`);
+    }
+    if (this.languageLock) system.push(this.languageLock);
+    system.push(buildTurnRules(interpolate(raw, this.variables), node.type === "end"));
     if (node.name) {
       system.push(`Current node: ${node.name}. Stay on this node only.`);
     }
@@ -1484,10 +1651,6 @@ export class ConversationVm {
     );
     if (spokenPrefix) {
       system.push(`Already spoken this turn (do not repeat):\n${spokenPrefix}`);
-    }
-    const persona = personaFromGlobalPrompt(this.compiled.globalPrompt);
-    if (persona) {
-      system.push(`Identity (not a script — do not ask questions from this block):\n${persona}`);
     }
     const extra = node as unknown as { subagent_tools?: unknown; knowledge_base_ids?: unknown };
     const subTools = Array.isArray(extra.subagent_tools)
@@ -1504,7 +1667,6 @@ export class ConversationVm {
         `Knowledge bases in scope: ${kbIds.join(", ")}. Do not invent facts outside these.`,
       );
     }
-    if (this.languageLock) system.push(this.languageLock);
     const known = [...this.capturedNames]
       .map((key) => {
         const value = this.variables[key];
@@ -1539,6 +1701,12 @@ export class ConversationVm {
     if (!script.trim() && !task.trim()) {
       system.push(`Task: ${interpolated}`);
     }
+    // Repeated as the very last instruction, after the script itself: a smaller/faster model
+    // (e.g. Cerebras) gives more weight to what it read most recently, and this rule sitting
+    // several lines above a broken-looking "Script:" line ("...as, is that correct?") wasn't
+    // enough to stop the model literally saying a placeholder to patch the gap it saw. Real
+    // failure on a live call: "I have your last name as ___, is that correct?"
+    if (missingRule) system.push(`Reminder: ${missingRule}`);
     const lastUser = this.history.filter((m) => m.role === "user").at(-1);
     return [{ role: "system", content: system.join("\n") }, ...(lastUser ? [lastUser] : [])];
   }

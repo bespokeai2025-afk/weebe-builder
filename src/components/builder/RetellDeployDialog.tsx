@@ -2370,7 +2370,12 @@ export function RetellDeployDialog({
           responsiveness: settings.responsiveness,
           interruptionSensitivity: settings.interruptionSensitivity,
           boostedKeywords: settings.boostedKeywords,
-          ttsProvider: isWebeeNative ? "fish" : undefined,
+          // Was hardcoded to "fish" here regardless of the builder's TTS provider setting —
+          // cascade-session.ts's `parseTtsProviderName(config.ttsProvider) ?? ...settings.webeeTtsProvider`
+          // chain short-circuits on the FIRST truthy value, so a literal "fish" always won, even
+          // when the agent was set to OpenAI. `settings` (sent below) already carries the real
+          // choice; this just needs to stop overriding it with a hardcoded default.
+          ttsProvider: isWebeeNative ? (settings.webeeTtsProvider ?? "fish") : undefined,
           sttProvider: isWebeeNative ? (settings.webeeSttProvider ?? "fish") : undefined,
           variables: testCallPrepRef.current.variables,
           startSpeaker: testCallPrepRef.current.startSpeaker,
@@ -2415,7 +2420,13 @@ export function RetellDeployDialog({
           if (isWebeeNative) {
             const lockedVoice = typeof msg.voiceId === "string" ? msg.voiceId : "";
           const sttLabel =
-            stt === "fish" ? "Fish ASR" : stt === "deepgram" ? "Deepgram" : stt;
+            stt === "fish"
+              ? "Fish ASR"
+              : stt === "deepgram"
+                ? "Deepgram"
+                : stt === "assemblyai"
+                  ? "AssemblyAI"
+                  : stt;
             toast.message("WEBEE Native call live", {
               description: `${tts === "fish" ? "Fish Audio" : tts} TTS · ${sttLabel} STT · ${vad} VAD${lockedVoice ? ` · voice ${lockedVoice.slice(0, 8)}…` : ""}`,
               duration: 4000,

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
+  AssemblyAiSttProvider,
   DeepgramSttProvider,
   FishSttProvider,
   availableSttProviders,
@@ -15,6 +16,7 @@ const ORIGINAL = { ...process.env };
 beforeEach(() => {
   delete process.env.FISH_API_KEY;
   delete process.env.DEEPGRAM_API_KEY;
+  delete process.env.ASSEMBLYAI_API_KEY;
 });
 afterEach(() => {
   process.env = { ...ORIGINAL };
@@ -57,6 +59,21 @@ describe("createSttProvider", () => {
     expect(() => createSttProvider("deepgram")).toThrow(/DEEPGRAM_API_KEY/);
   });
 
+  it("uses AssemblyAI when preferred and ASSEMBLYAI_API_KEY is set", () => {
+    process.env.ASSEMBLYAI_API_KEY = "aai";
+    process.env.FISH_API_KEY = "fish";
+
+    const provider = createSttProvider("assemblyai");
+    expect(provider).toBeInstanceOf(AssemblyAiSttProvider);
+    expect(provider.name).toBe("assemblyai");
+    expect(provider.streaming).toBe(true);
+  });
+
+  it("throws when AssemblyAI is selected without ASSEMBLYAI_API_KEY", () => {
+    process.env.FISH_API_KEY = "fish";
+    expect(() => createSttProvider("assemblyai")).toThrow(/ASSEMBLYAI_API_KEY/);
+  });
+
   // Asserted per provider rather than as a whole list: OpenAI is now a third engine and whether it
   // appears depends on OPENAI_API_KEY being present in the environment running the tests.
   it("reports availability without constructing anything", () => {
@@ -66,6 +83,7 @@ describe("createSttProvider", () => {
     expect(availableSttProviders()).toContain("fish");
     process.env.DEEPGRAM_API_KEY = "dg";
     expect(availableSttProviders()).toContain("deepgram");
+    expect(availableSttProviders({ assemblyaiApiKey: "aai" })).toContain("assemblyai");
     expect(availableSttProviders({ openaiApiKey: "sk-test" })).toContain("openai");
   });
 });
@@ -78,6 +96,10 @@ describe("resolveWebeeSttPreference", () => {
 
   it("honours an explicit Deepgram selection", () => {
     expect(resolveWebeeSttPreference({ webeeSttProvider: "deepgram" })).toBe("deepgram");
+  });
+
+  it("honours an explicit AssemblyAI selection", () => {
+    expect(resolveWebeeSttPreference({ webeeSttProvider: "assemblyai" })).toBe("assemblyai");
   });
 
   it("honours an explicit Fish selection", () => {
@@ -94,12 +116,16 @@ describe("resolveWebeeSttPreference", () => {
 });
 
 describe("parseSttProviderName", () => {
-  it("accepts fish, deepgram and openai", () => {
+  it("accepts fish, deepgram, assemblyai and openai", () => {
     expect(parseSttProviderName("fish")).toBe("fish");
     expect(parseSttProviderName("Deepgram")).toBe("deepgram");
     expect(parseSttProviderName("openai")).toBe("openai");
+    expect(parseSttProviderName("AssemblyAI")).toBe("assemblyai");
     // The provider calls itself "whisper"; accepted as an alias for the same engine.
     expect(parseSttProviderName("whisper")).toBe("openai");
+    // Vendor spelling/spacing variants for AssemblyAI.
+    expect(parseSttProviderName("assembly-ai")).toBe("assemblyai");
+    expect(parseSttProviderName("assembly ai")).toBe("assemblyai");
     expect(parseSttProviderName("")).toBeNull();
   });
 });
@@ -152,5 +178,29 @@ describe("Deepgram live listen", () => {
     expect(url).toContain("model=nova-2");
     expect(url).toContain("keywords=Jumeirah");
     expect(DEEPGRAM_KEEPALIVE_MS).toBeLessThan(10_000);
+  });
+});
+
+describe("AssemblyAI live listen", () => {
+  it("builds a pcm_s16le URL at the cascade sample rate with key terms", async () => {
+    const { buildAssemblyAiListenUrl, ASSEMBLYAI_KEEPALIVE_MS } = await import(
+      "@/lib/voice/stt/assemblyai"
+    );
+    const url = buildAssemblyAiListenUrl({
+      sampleRate: 24_000,
+      keywords: ["Jumeirah", ""],
+    });
+    expect(url).toContain("wss://streaming.assemblyai.com/v3/ws");
+    expect(url).toContain("encoding=pcm_s16le");
+    expect(url).toContain("sample_rate=24000");
+    expect(url).toContain("speech_model=universal-streaming-english");
+    expect(url).toContain(encodeURIComponent(JSON.stringify(["Jumeirah"])));
+    expect(ASSEMBLYAI_KEEPALIVE_MS).toBeLessThan(10_000);
+  });
+
+  it("omits keyterms_prompt when there are no keywords", async () => {
+    const { buildAssemblyAiListenUrl } = await import("@/lib/voice/stt/assemblyai");
+    const url = buildAssemblyAiListenUrl({ sampleRate: 16_000 });
+    expect(url).not.toContain("keyterms_prompt");
   });
 });

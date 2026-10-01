@@ -1,29 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  inferCollectVariableName,
-  shouldCaptureCollectAnswer,
-} from "@/lib/voice/graph/collect-variable.shared";
+import { shouldCaptureCollectAnswer } from "@/lib/voice/graph/collect-variable.shared";
 import {
   splitSpokenSentences,
   transcriptCaughtUpToAudio,
 } from "@/lib/voice/graph/spoken-transcript.shared";
 import { findRegisteredTool } from "@/lib/runtime/tool-executor";
 
-describe("collect variable binding", () => {
-  const names = ["title", "first_name", "postcode", "email"];
-
-  it("maps a title question onto the title variable", () => {
-    expect(inferCollectVariableName("Ask the preferred title", names)).toBe("title");
-  });
-
-  it("maps a postcode question onto postcode", () => {
-    expect(inferCollectVariableName("Can I take your postcode?", names)).toBe("postcode");
-  });
-
-  it("skips greetings and yes/no so they are not stored as names", () => {
+describe("shouldCaptureCollectAnswer", () => {
+  it("skips greetings, yes/no and questions — not worth an extraction call", () => {
     expect(shouldCaptureCollectAnswer("hello")).toBe(false);
     expect(shouldCaptureCollectAnswer("oke")).toBe(false);
+    expect(shouldCaptureCollectAnswer("what?")).toBe(false);
     expect(shouldCaptureCollectAnswer("Mrs")).toBe(true);
     expect(shouldCaptureCollectAnswer("SW1A 1AA")).toBe(true);
   });
