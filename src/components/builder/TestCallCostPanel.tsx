@@ -20,14 +20,23 @@ function cents(v: number | null | undefined): string {
   return `$${(v / 100).toFixed(4)}`;
 }
 
-const BREAKDOWN_ROWS: Array<{ key: "ttsCents" | "sttCents" | "llmCents" | "routerCents" | "analysisCents" | "concurrencyCents"; label: string }> = [
+const BREAKDOWN_ROWS: Array<{ key: "llmCents" | "routerCents" | "analysisCents" | "concurrencyCents"; label: string }> = [
   { key: "llmCents", label: "LLM" },
-  { key: "ttsCents", label: "TTS" },
-  { key: "sttCents", label: "STT" },
   { key: "routerCents", label: "Router" },
   { key: "analysisCents", label: "Analysis" },
   { key: "concurrencyCents", label: "Concurrency" },
 ];
+
+const TELEPHONY_BASIS_LABEL: Record<string, string> = {
+  twilio_outbound_us: "Twilio, outbound US",
+  twilio_inbound_us: "Twilio, inbound US",
+  web_estimate: "estimated — browser test call",
+};
+
+function providerLabel(provider: string | null, rateMissing: boolean): string | null {
+  if (!provider) return null;
+  return rateMissing ? `${provider} — no rate, using blended avg` : provider;
+}
 
 export function TestCallCostPanel() {
   const listFn = useServerFn(listLatencyCalls);
@@ -125,6 +134,30 @@ export function TestCallCostPanel() {
                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
                   Native engine breakdown
                 </p>
+                {/* STT/TTS are provider-specific — each call is costed against whichever engine
+                    it actually used, not one blended average. */}
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-muted-foreground">
+                    STT
+                    {providerLabel(cost.breakdown.sttProvider, cost.breakdown.sttRateMissing) && (
+                      <span className="ml-1 text-[9px] text-muted-foreground/70">
+                        ({providerLabel(cost.breakdown.sttProvider, cost.breakdown.sttRateMissing)})
+                      </span>
+                    )}
+                  </span>
+                  <span className="tabular-nums text-foreground">{cents(cost.breakdown.sttCents)}</span>
+                </div>
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-muted-foreground">
+                    TTS
+                    {providerLabel(cost.breakdown.ttsProvider, cost.breakdown.ttsRateMissing) && (
+                      <span className="ml-1 text-[9px] text-muted-foreground/70">
+                        ({providerLabel(cost.breakdown.ttsProvider, cost.breakdown.ttsRateMissing)})
+                      </span>
+                    )}
+                  </span>
+                  <span className="tabular-nums text-foreground">{cents(cost.breakdown.ttsCents)}</span>
+                </div>
                 {BREAKDOWN_ROWS.map((row) => (
                   <div key={row.key} className="flex items-center justify-between text-[11px]">
                     <span className="text-muted-foreground">{row.label}</span>
@@ -135,6 +168,32 @@ export function TestCallCostPanel() {
                   <span>Total</span>
                   <span className="tabular-nums">{cents(cost.breakdown.totalCents)}</span>
                 </div>
+
+                {/* Telephony is shown separately from the total above: a real phone call's
+                    carrier minutes are reconciled from Twilio's own invoice (adding them here
+                    would double-count), while a web test call has no carrier at all, so its
+                    estimate is folded into its own "estimated total" instead. */}
+                <div className="flex items-center justify-between pt-1 text-[11px]">
+                  <span className="text-muted-foreground">
+                    Telephony
+                    <span className="ml-1 text-[9px] text-muted-foreground/70">
+                      ({TELEPHONY_BASIS_LABEL[cost.breakdown.telephonyBasis] ?? cost.breakdown.telephonyBasis})
+                    </span>
+                  </span>
+                  <span className="tabular-nums text-foreground">{cents(cost.breakdown.telephonyCents)}</span>
+                </div>
+                {cost.breakdown.telephonyIncludedInTotal ? (
+                  <div className="flex items-center justify-between text-[11px] font-medium">
+                    <span>Estimated total (incl. telephony)</span>
+                    <span className="tabular-nums">{cents(cost.breakdown.estimatedTotalCents)}</span>
+                  </div>
+                ) : (
+                  <p className="text-[9px] text-muted-foreground">
+                    Telephony is reconciled from the carrier's own invoice — shown for reference,
+                    not included in the total above.
+                  </p>
+                )}
+
                 <p className="pt-1 text-[9px] text-muted-foreground">
                   Rates as of {new Date(cost.breakdown.ratesAsOf).toLocaleDateString()} — edit in
                   the admin cost-engine dashboard.

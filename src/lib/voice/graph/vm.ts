@@ -211,6 +211,14 @@ function looksLikeUserQuestion(text: string): boolean {
  */
 const MAX_SPECULATIVE_FANOUT = 3;
 
+/**
+ * How long `advance` will wait on a still-in-flight turn-variable extraction before giving up and
+ * moving on (see `advance`'s own comment for why this exists at all). Short on purpose: this is
+ * only meant to catch the call finishing just slightly after routing did, not to give it real
+ * working time — that's what running concurrently with routing was supposed to provide already.
+ */
+const EXTRACTION_WAIT_BUDGET_MS = 400;
+
 export type SpeechWarmTarget =
   | { kind: "static"; text: string }
   | { kind: "prompt"; nodeId: string; messages: LlmMessage[]; model: string };
@@ -754,8 +762,18 @@ export class ConversationVm {
       type: "string",
     }));
     try {
+      // The strong classifier model when one is configured, falling back to the fast classifier,
+      // then the node's own full response model — this is a structured pull-these-fields-out-of-text
+      // task, the same shape as routing's own classify() call, not a conversational generation one,
+      // so it never needs the full node model. But unlike routing (usually choosing among a handful
+      // of edges), extraction has to pick correctly among every declared variable on the flow (can be
+      // 20+) from a single short reply, every turn — a mistake here silently drops or misattributes a
+      // field rather than just picking a slightly worse edge, so it's worth the strong classifier's
+      // extra bit of latency over the plain fast one. Still far cheaper than the full node model,
+      // which was the actual latency bug (see `advance`'s bounded wait on `pendingExtraction`).
       const extracted = await this.llm.extract(this.history, fields, {
-        model: nodeModel(node, this.compiled, this.fallbackModel),
+        model:
+          this.strongClassifierModel ?? this.classifierModel ?? nodeModel(node, this.compiled, this.fallbackModel),
       });
       const valid: Record<string, VariableValue> = {};
       for (const [key, value] of Object.entries(extracted)) {
@@ -987,17 +1005,33 @@ export class ConversationVm {
   /** Execute nodes until the flow blocks or ends. */
   private async *advance(startNodeId: string): AsyncGenerator<VmDirective> {
     // A turn-extraction call started concurrently with edge routing (see the "user_utterance"
-    // case) — by now routing has already resolved, so this has been running in the background for
-    // that whole time and typically needs little to no extra wait. Resolved here, before anything
-    // in this turn speaks, so a node that immediately confirms what the caller just said sees the
-    // real value, not a stale or missing one.
+    // case) — the idea was that by now routing has already resolved, so this has been running in
+    // the background for that whole time and needs little to no extra wait. Measured against real
+    // calls, that assumption only holds when routing itself was slow (an LLM classify() call);
+    // when routing resolved via a near-instant heuristic match, extraction had no time to run
+    // concurrently with anything, and awaiting it here unconditionally added its full 1-4s model
+    // latency directly onto `stt_to_node_loaded_ms` — on every single turn with a collectible
+    // reply, heuristic-routed or not. Bounded to a short budget instead: long enough to catch the
+    // common case where it really did finish concurrently, short enough that a genuinely slow
+    // call can't stall the node from loading. A still-pending extraction is deliberately left on
+    // `this.pendingExtraction` rather than cancelled — the `user_utterance` case's own fallback
+    // consumption point (after this turn's `afterUserTurn()` returns) picks it up from there.
     if (this.pendingExtraction) {
       const pending = this.pendingExtraction;
-      this.pendingExtraction = null;
-      const captured = await pending;
-      if (Object.keys(captured).length > 0) {
-        this.rememberVariables(captured);
-        yield { type: "variables", nodeId: startNodeId, values: captured };
+      const timedOut = Symbol("extraction-wait-timeout");
+      const race = await Promise.race([
+        pending,
+        new Promise<typeof timedOut>((resolve) =>
+          setTimeout(() => resolve(timedOut), EXTRACTION_WAIT_BUDGET_MS),
+        ),
+      ]);
+      if (race !== timedOut) {
+        this.pendingExtraction = null;
+        const captured = race;
+        if (Object.keys(captured).length > 0) {
+          this.rememberVariables(captured);
+          yield { type: "variables", nodeId: startNodeId, values: captured };
+        }
       }
     }
     this.turnTrace?.mark("graph_advance_start");

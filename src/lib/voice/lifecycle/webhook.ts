@@ -28,11 +28,27 @@ const RETRY_DELAYS_MS = [250, 1_000];
  */
 let localBaseUrl: string | null = null;
 
+/**
+ * Mirrors `localBaseUrl` onto `process.env`, which survives a dev-server HMR
+ * reload that this module's own top-level state does not. A live call's
+ * `call_ended`/`call_analyzed` webhook — the two events that write the terminal
+ * `calls` row and can never be replayed afterwards, since no transcript text is
+ * persisted anywhere else — was found silently failing all three delivery
+ * attempts after exactly this: editing an unrelated file mid-call caused Vite to
+ * re-evaluate this module, resetting `localBaseUrl` to null and sending
+ * `resolveWebhookUrl()` down its public-hostname fallback, which does not
+ * resolve inside this sandbox. `process.env` is a process-global, not
+ * module-scoped, so it keeps the port across that reload.
+ */
+const PORT_ENV_KEY = "__WEBEE_VOICE_INTERNAL_PORT";
+
 export function registerLocalHttpServer(server: HttpServer): void {
   const read = () => {
     const address = server.address();
     if (address && typeof address === "object") {
-      localBaseUrl = `http://127.0.0.1:${(address as AddressInfo).port}`;
+      const port = (address as AddressInfo).port;
+      localBaseUrl = `http://127.0.0.1:${port}`;
+      process.env[PORT_ENV_KEY] = String(port);
     }
   };
   if (server.listening) read();
@@ -48,6 +64,8 @@ export function resolveWebhookUrl(): string {
   const explicit = process.env.WEBEE_VOICE_WEBHOOK_URL?.trim();
   if (explicit) return explicit;
   if (localBaseUrl) return `${localBaseUrl}${WEBHOOK_PATH}`;
+  const rememberedPort = process.env[PORT_ENV_KEY]?.trim();
+  if (rememberedPort) return `http://127.0.0.1:${rememberedPort}${WEBHOOK_PATH}`;
 
   const host =
     process.env.PUBLIC_BASE_URL?.trim() ||

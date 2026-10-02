@@ -1,15 +1,17 @@
 /**
  * TTS provider resolution for the WEBEE native voice engine.
  *
- * Fish Audio (FISH_API_KEY) or OpenAI (OPENAI_API_KEY). Fish stays the default because it accepts
- * the output sample rate natively and streams input tokens; OpenAI returns a fixed 24 kHz and has
- * no input streaming, so its provider resamples and batches by clause.
+ * Fish Audio (FISH_API_KEY), OpenAI (OPENAI_API_KEY) or Cartesia (CARTESIA_API_KEY). Fish stays
+ * the default because it accepts the output sample rate natively and streams input tokens;
+ * OpenAI returns a fixed 24 kHz and has no input streaming, so its provider resamples and batches
+ * by clause; Cartesia streams input tokens natively too (via `context_id`), closer to Fish.
  */
+import { CartesiaTtsProvider } from "./cartesia.provider";
 import { FishAudioTtsProvider } from "./fish.provider";
 import { OpenAiTtsProvider } from "./openai.provider";
 import type { TtsProvider } from "./types";
 
-export type TtsProviderName = "fish" | "openai";
+export type TtsProviderName = "fish" | "openai" | "cartesia";
 
 export {
   alignPcm16,
@@ -36,6 +38,12 @@ export {
   resolveOpenAiTtsModel,
   resolveOpenAiTtsVoice,
 } from "./openai.provider";
+export {
+  CartesiaTtsProvider,
+  CARTESIA_TTS_DEFAULT_MODEL,
+  CARTESIA_TTS_DEFAULT_VOICE,
+  resolveCartesiaTtsModel,
+} from "./cartesia.provider";
 
 export interface TtsProviderKeys {
   fishApiKey?: string | null;
@@ -46,11 +54,14 @@ export interface TtsProviderKeys {
   openaiTtsModel?: string | null;
   /** Delivery direction for gpt-4o-*-tts, e.g. "Warm, unhurried, British English." */
   openaiTtsInstructions?: string | null;
+  cartesiaApiKey?: string | null;
+  /** Cartesia TTS model (defaults to sonic-2). */
+  cartesiaTtsModel?: string | null;
 }
 
 export function parseTtsProviderName(value: unknown): TtsProviderName | null {
   const raw = String(value ?? "").trim().toLowerCase();
-  if (raw === "openai" || raw === "fish") return raw;
+  if (raw === "openai" || raw === "fish" || raw === "cartesia") return raw;
   return null;
 }
 
@@ -62,11 +73,16 @@ function openaiKeyOf(keys: TtsProviderKeys): string {
   return String(keys.openaiApiKey ?? process.env.OPENAI_API_KEY ?? "").trim();
 }
 
+function cartesiaKeyOf(keys: TtsProviderKeys): string {
+  return String(keys.cartesiaApiKey ?? process.env.CARTESIA_API_KEY ?? "").trim();
+}
+
 /** Providers that have a key right now. */
 export function availableTtsProviders(keys: TtsProviderKeys = {}): TtsProviderName[] {
   const out: TtsProviderName[] = [];
   if (fishKeyOf(keys)) out.push("fish");
   if (openaiKeyOf(keys)) out.push("openai");
+  if (cartesiaKeyOf(keys)) out.push("cartesia");
   return out;
 }
 
@@ -87,6 +103,11 @@ export function createTtsProvider(
       model: keys.openaiTtsModel,
       instructions: keys.openaiTtsInstructions,
     });
+  }
+  if (preferred === "cartesia") {
+    const key = cartesiaKeyOf(keys);
+    if (!key) throw new Error("Cartesia TTS requires CARTESIA_API_KEY");
+    return new CartesiaTtsProvider(key, { model: keys.cartesiaTtsModel });
   }
   const fishKey = fishKeyOf(keys);
   if (!fishKey) throw new Error("Fish TTS requires FISH_API_KEY");

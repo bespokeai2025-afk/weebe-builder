@@ -17,6 +17,7 @@ import { voiceGatewayPlugin } from "./voice-gateway.plugin";
 import { campaignSchedulerPlugin } from "./campaign-scheduler.plugin";
 import { videoJobPollerPlugin } from "./video-job-poller.plugin";
 import { providerHealthSweepPlugin } from "./provider-health-sweep.plugin";
+import { staleCallSweepPlugin } from "./stale-call-sweep.plugin";
 import { adsSyncPlugin } from "./ads-sync.plugin";
 import { trendScoutPlugin } from "./trend-scout.plugin";
 import { accountsMindSchedulerPlugin } from "./accountsmind-scheduler.plugin";
@@ -109,7 +110,7 @@ export default defineConfig({
         ],
       },
     },
-    plugins: [voiceGatewayPlugin(), campaignSchedulerPlugin(), videoJobPollerPlugin(), providerHealthSweepPlugin(), adsSyncPlugin(), trendScoutPlugin(), accountsMindSchedulerPlugin()],
+    plugins: [voiceGatewayPlugin(), campaignSchedulerPlugin(), videoJobPollerPlugin(), providerHealthSweepPlugin(), staleCallSweepPlugin(), adsSyncPlugin(), trendScoutPlugin(), accountsMindSchedulerPlugin()],
     resolve: {
       alias: {
         "entities/lib/decode.js": entitiesDecodePath,

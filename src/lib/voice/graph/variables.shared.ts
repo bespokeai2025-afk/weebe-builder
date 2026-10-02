@@ -320,13 +320,34 @@ function lookupNested(
   return renderVariableValue(current, format);
 }
 
+/**
+ * Real bug: neither call below named a `timeZone`, so both silently used the server process's own
+ * local clock — whatever timezone the box the gateway happens to be deployed in runs on. A caller
+ * hearing "the time is 3 PM" when it was actually 8 PM their time (or `current_date` landing on the
+ * wrong calendar day entirely near midnight) is indistinguishable from the variable just being
+ * wrong, which is exactly what got reported. Every flow seen in this codebase is UK business
+ * hours/UK postcodes/UK phone formats — there is no per-agent timezone setting to read instead
+ * (`lookupRuntimeValue` has no settings in scope at all, only the variable map), so this is the
+ * same "assume UK" default already made elsewhere (`wbahDateTimeOptions`), not a new one.
+ */
+const SYSTEM_VARIABLE_TIMEZONE = "Europe/London";
+
 function systemVariable(name: string): string | undefined {
   const now = new Date();
   if (name === "current_date") {
-    return now.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+    return now.toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      timeZone: SYSTEM_VARIABLE_TIMEZONE,
+    });
   }
   if (name === "current_time") {
-    return now.toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit" });
+    return now.toLocaleTimeString("en-GB", {
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: SYSTEM_VARIABLE_TIMEZONE,
+    });
   }
   return undefined;
 }

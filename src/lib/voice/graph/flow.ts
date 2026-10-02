@@ -335,6 +335,17 @@ export function nodeClassifierModel(
   return fast ?? "";
 }
 
+/**
+ * Thresholds raised from 4 edges/300 chars (and the old blanket "conversation or branch node
+ * with 3+ edges" rule, dropped entirely) after a real call's latency trace showed 18 of 86 nodes
+ * in one flow escalating to the strong classifier (gpt-4.1-mini, ~1.3-1.8s per routing call)
+ * purely for having an ordinary 3-way yes/no/other branch with a short instruction — nothing
+ * about those nodes was actually hard to route. That rule alone accounted for every escalation
+ * in that flow; the edge-count and text-length checks below never fired once at the old
+ * thresholds. Raised to only catch genuinely broad fan-outs or long, detailed instructions,
+ * which cut that flow's strong-classifier nodes from 18 to 5 — the ones with real ambiguity
+ * (6-7 similar-sounding options, or a 2000+ character instruction) still get it.
+ */
 function needsStrongClassifier(node: FlowNode, edges: FlowEdge[]): boolean {
   const promptEdges = edges.filter(
     (e) =>
@@ -342,14 +353,15 @@ function needsStrongClassifier(node: FlowNode, edges: FlowEdge[]): boolean {
       e.transition_condition.type === "prompt" &&
       e.transition_condition.prompt.trim(),
   );
-  if (promptEdges.length >= 4) return true;
+  if (promptEdges.length >= 6) return true;
 
   const text = String(node.instruction?.text ?? node.name ?? "");
-  if (text.length > 300) return true;
-  if (/\b(qualif|assess|evaluate|determine which|figure out which|complex)\b/i.test(text)) {
-    return true;
-  }
-  if ((node.type === "branch" || node.type === "conversation") && promptEdges.length >= 3) {
+  if (text.length > 500) return true;
+  // `qualif\w*` (not `qualif\b`): a trailing word boundary right after "qualif" only matches
+  // that exact fragment as its own word, which is not an English word — "qualify"/"qualifying"/
+  // "qualification" all have a letter immediately after "qualif", so none of them satisfied \b
+  // there. This never matched anything real until now.
+  if (/\b(qualif\w*|assess|evaluate|determine which|figure out which|complex)\b/i.test(text)) {
     return true;
   }
   return false;

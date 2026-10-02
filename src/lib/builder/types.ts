@@ -486,14 +486,17 @@ export interface BuilderSettings {
    * "openai"   — Whisper. Batch, not streaming: the transcription lands after end-of-speech, so it
    *              costs more turn latency than the other two.
    */
-  webeeSttProvider?: "fish" | "deepgram" | "assemblyai" | "openai";
+  webeeSttProvider?: "fish" | "deepgram" | "assemblyai" | "cartesia" | "openai";
   /**
    * TTS for WEBEE_NATIVE.
-   * "fish"   — Fish Audio (default; native sample rate and input streaming)
-   * "openai" — OpenAI speech. Fixed 24 kHz, resampled for telephony, and synthesised clause by
-   *            clause because the endpoint needs complete text.
+   * "fish"     — Fish Audio (default; native sample rate and input streaming)
+   * "openai"   — OpenAI speech. Fixed 24 kHz, resampled for telephony, and synthesised clause by
+   *              clause because the endpoint needs complete text.
+   * "cartesia" — Cartesia Sonic. Native sample rate and input streaming via `context_id`.
    */
-  webeeTtsProvider?: "fish" | "openai";
+  webeeTtsProvider?: "fish" | "openai" | "cartesia";
+  /** Cartesia voice id (a UUID from the Cartesia voice library), used when webeeTtsProvider === "cartesia". */
+  cartesiaVoice?: string;
   /** OpenAI speech model (defaults to gpt-4o-mini-tts). */
   webeeTtsModel?: string;
   /** Delivery direction for the gpt-4o voices, e.g. "Warm, unhurried, British English." */
