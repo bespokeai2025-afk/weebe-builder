@@ -2426,7 +2426,9 @@ export function RetellDeployDialog({
                 ? "Deepgram"
                 : stt === "assemblyai"
                   ? "AssemblyAI"
-                  : stt;
+                  : stt === "cartesia"
+                    ? "Cartesia"
+                    : stt;
             toast.message("WEBEE Native call live", {
               description: `${tts === "fish" ? "Fish Audio" : tts} TTS · ${sttLabel} STT · ${vad} VAD${lockedVoice ? ` · voice ${lockedVoice.slice(0, 8)}…` : ""}`,
               duration: 4000,

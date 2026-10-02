@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -2192,6 +2192,84 @@ export type Database = {
         }
         Relationships: []
       }
+      call_turns: {
+        Row: {
+          agent_id: string | null
+          call_id: string
+          created_at: string
+          edge_route_method: string | null
+          endpoint_to_stt_final_ms: number | null
+          engine: string | null
+          global_route_method: string | null
+          hangover_ms: number | null
+          held_for_incomplete: boolean | null
+          id: string
+          interrupted: boolean | null
+          is_test_call: boolean
+          node_id: string | null
+          partial_commit: boolean | null
+          speculative_hit: boolean | null
+          speech_to_first_audio_ms: number | null
+          stt_to_first_audio_ms: number | null
+          stt_to_first_sentence_ms: number | null
+          stt_to_first_token_ms: number | null
+          stt_to_node_loaded_ms: number | null
+          stt_to_route_ms: number | null
+          turn_index: number
+          workspace_id: string
+        }
+        Insert: {
+          agent_id?: string | null
+          call_id: string
+          created_at?: string
+          edge_route_method?: string | null
+          endpoint_to_stt_final_ms?: number | null
+          engine?: string | null
+          global_route_method?: string | null
+          hangover_ms?: number | null
+          held_for_incomplete?: boolean | null
+          id?: string
+          interrupted?: boolean | null
+          is_test_call?: boolean
+          node_id?: string | null
+          partial_commit?: boolean | null
+          speculative_hit?: boolean | null
+          speech_to_first_audio_ms?: number | null
+          stt_to_first_audio_ms?: number | null
+          stt_to_first_sentence_ms?: number | null
+          stt_to_first_token_ms?: number | null
+          stt_to_node_loaded_ms?: number | null
+          stt_to_route_ms?: number | null
+          turn_index: number
+          workspace_id: string
+        }
+        Update: {
+          agent_id?: string | null
+          call_id?: string
+          created_at?: string
+          edge_route_method?: string | null
+          endpoint_to_stt_final_ms?: number | null
+          engine?: string | null
+          global_route_method?: string | null
+          hangover_ms?: number | null
+          held_for_incomplete?: boolean | null
+          id?: string
+          interrupted?: boolean | null
+          is_test_call?: boolean
+          node_id?: string | null
+          partial_commit?: boolean | null
+          speculative_hit?: boolean | null
+          speech_to_first_audio_ms?: number | null
+          stt_to_first_audio_ms?: number | null
+          stt_to_first_sentence_ms?: number | null
+          stt_to_first_token_ms?: number | null
+          stt_to_node_loaded_ms?: number | null
+          stt_to_route_ms?: number | null
+          turn_index?: number
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       calls: {
         Row: {
           agent_id: string | null
@@ -2203,14 +2281,17 @@ export type Database = {
           call_type: Database["public"]["Enums"]["call_type"]
           campaign_id: string | null
           channel_type: string | null
+          collected_variables: Json | null
           cost_cents: number | null
           created_at: string
+          custom_analysis_data: Json | null
           disconnection_reason: string | null
           duration_seconds: number | null
           ended_at: string | null
           from_number: string | null
           id: string
           in_voicemail: boolean | null
+          is_test_call: boolean
           is_voicemail: boolean
           lead_id: string | null
           provider: string | null
@@ -2218,8 +2299,11 @@ export type Database = {
           retell_call_id: string | null
           sentiment: Database["public"]["Enums"]["sentiment_kind"] | null
           started_at: string | null
+          stt_provider: string | null
           to_number: string
+          tool_calls: Json | null
           transcript: string | null
+          tts_provider: string | null
           updated_at: string
           workspace_id: string
         }
@@ -2233,14 +2317,17 @@ export type Database = {
           call_type?: Database["public"]["Enums"]["call_type"]
           campaign_id?: string | null
           channel_type?: string | null
+          collected_variables?: Json | null
           cost_cents?: number | null
           created_at?: string
+          custom_analysis_data?: Json | null
           disconnection_reason?: string | null
           duration_seconds?: number | null
           ended_at?: string | null
           from_number?: string | null
           id?: string
           in_voicemail?: boolean | null
+          is_test_call?: boolean
           is_voicemail?: boolean
           lead_id?: string | null
           provider?: string | null
@@ -2248,8 +2335,11 @@ export type Database = {
           retell_call_id?: string | null
           sentiment?: Database["public"]["Enums"]["sentiment_kind"] | null
           started_at?: string | null
+          stt_provider?: string | null
           to_number: string
+          tool_calls?: Json | null
           transcript?: string | null
+          tts_provider?: string | null
           updated_at?: string
           workspace_id: string
         }
@@ -2263,14 +2353,17 @@ export type Database = {
           call_type?: Database["public"]["Enums"]["call_type"]
           campaign_id?: string | null
           channel_type?: string | null
+          collected_variables?: Json | null
           cost_cents?: number | null
           created_at?: string
+          custom_analysis_data?: Json | null
           disconnection_reason?: string | null
           duration_seconds?: number | null
           ended_at?: string | null
           from_number?: string | null
           id?: string
           in_voicemail?: boolean | null
+          is_test_call?: boolean
           is_voicemail?: boolean
           lead_id?: string | null
           provider?: string | null
@@ -2278,8 +2371,11 @@ export type Database = {
           retell_call_id?: string | null
           sentiment?: Database["public"]["Enums"]["sentiment_kind"] | null
           started_at?: string | null
+          stt_provider?: string | null
           to_number?: string
+          tool_calls?: Json | null
           transcript?: string | null
+          tts_provider?: string | null
           updated_at?: string
           workspace_id?: string
         }
@@ -3677,6 +3773,131 @@ export type Database = {
           },
           {
             foreignKeyName: "deployments_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dialer_sessions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          from_number: string
+          id: string
+          name: string
+          ring_timeout_secs: number
+          route_numbers: Json
+          stats: Json
+          status: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          from_number: string
+          id?: string
+          name: string
+          ring_timeout_secs?: number
+          route_numbers?: Json
+          stats?: Json
+          status?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          from_number?: string
+          id?: string
+          name?: string
+          ring_timeout_secs?: number
+          route_numbers?: Json
+          stats?: Json
+          status?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dialer_sessions_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dialer_targets: {
+        Row: {
+          advanced_at: string | null
+          attempt_count: number
+          bridged_number: string | null
+          call_sid: string | null
+          created_at: string
+          duration_secs: number | null
+          ended_at: string | null
+          error_message: string | null
+          id: string
+          name: string | null
+          phone: string
+          position: number
+          session_id: string
+          started_at: string | null
+          status: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          advanced_at?: string | null
+          attempt_count?: number
+          bridged_number?: string | null
+          call_sid?: string | null
+          created_at?: string
+          duration_secs?: number | null
+          ended_at?: string | null
+          error_message?: string | null
+          id?: string
+          name?: string | null
+          phone: string
+          position: number
+          session_id: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          advanced_at?: string | null
+          attempt_count?: number
+          bridged_number?: string | null
+          call_sid?: string | null
+          created_at?: string
+          duration_secs?: number | null
+          ended_at?: string | null
+          error_message?: string | null
+          id?: string
+          name?: string | null
+          phone?: string
+          position?: number
+          session_id?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dialer_targets_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "dialer_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dialer_targets_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
@@ -17433,6 +17654,7 @@ export type Database = {
       whatsapp_campaigns: {
         Row: {
           audience_filter: Json | null
+          campaign_type: string
           created_at: string | null
           id: string
           name: string
@@ -17444,6 +17666,7 @@ export type Database = {
           template_id: string | null
           template_params: Json | null
           type: string
+          type_fields: Json
           updated_at: string | null
           wati_broadcast_name: string | null
           wati_template_name: string | null
@@ -17451,6 +17674,7 @@ export type Database = {
         }
         Insert: {
           audience_filter?: Json | null
+          campaign_type?: string
           created_at?: string | null
           id?: string
           name: string
@@ -17462,6 +17686,7 @@ export type Database = {
           template_id?: string | null
           template_params?: Json | null
           type?: string
+          type_fields?: Json
           updated_at?: string | null
           wati_broadcast_name?: string | null
           wati_template_name?: string | null
@@ -17469,6 +17694,7 @@ export type Database = {
         }
         Update: {
           audience_filter?: Json | null
+          campaign_type?: string
           created_at?: string | null
           id?: string
           name?: string
@@ -17480,6 +17706,7 @@ export type Database = {
           template_id?: string | null
           template_params?: Json | null
           type?: string
+          type_fields?: Json
           updated_at?: string | null
           wati_broadcast_name?: string | null
           wati_template_name?: string | null
@@ -19539,6 +19766,8 @@ export type Database = {
           call_schedule: Json
           created_at: string
           default_event_type_id: number | null
+          dialer_default_from_number: string | null
+          dialer_default_route_numbers: Json | null
           elevenlabs_api_key: string | null
           generation_limits: Json
           ghl_api_key: string | null
@@ -19634,6 +19863,8 @@ export type Database = {
           call_schedule?: Json
           created_at?: string
           default_event_type_id?: number | null
+          dialer_default_from_number?: string | null
+          dialer_default_route_numbers?: Json | null
           elevenlabs_api_key?: string | null
           generation_limits?: Json
           ghl_api_key?: string | null
@@ -19729,6 +19960,8 @@ export type Database = {
           call_schedule?: Json
           created_at?: string
           default_event_type_id?: number | null
+          dialer_default_from_number?: string | null
+          dialer_default_route_numbers?: Json | null
           elevenlabs_api_key?: string | null
           generation_limits?: Json
           ghl_api_key?: string | null
@@ -20428,6 +20661,7 @@ export type Database = {
         | "webee_website_form"
         | "api"
         | "whatsapp"
+        | "manual"
       lead_status:
         | "need_to_call"
         | "calling"
@@ -20457,12 +20691,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -20486,11 +20720,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -20511,11 +20745,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -20536,11 +20770,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -20553,11 +20787,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -20616,6 +20850,7 @@ export const Constants = {
         "webee_website_form",
         "api",
         "whatsapp",
+        "manual",
       ],
       lead_status: [
         "need_to_call",

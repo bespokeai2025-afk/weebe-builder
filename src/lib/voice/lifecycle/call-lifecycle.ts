@@ -70,6 +70,9 @@ export class NativeCallLifecycle {
   private endedAt: number | null = null;
   /** Mutable because rates are loaded asynchronously, after the call is up. */
   private costCentsPerMinute: number | null;
+  /** Set once STT/TTS providers actually resolve — see `setProviderInfo`. */
+  private sttProviderName: string | null = null;
+  private ttsProviderName: string | null = null;
   /** Null until the first live transcript event has gone out. */
   private lastTranscriptEmit: number | null = null;
   private lastTranscriptText = "";
@@ -96,6 +99,19 @@ export class NativeCallLifecycle {
    */
   setCostCentsPerMinute(cents: number | null): void {
     this.costCentsPerMinute = cents;
+  }
+
+  /**
+   * Record which STT/TTS providers this call actually used, once they resolve.
+   *
+   * Carried in `call.metadata` (not a dedicated field on `RetellShapedCall` — that type mirrors
+   * what Retell itself sends, and Retell has no such concept) so the webhook processor can persist
+   * it onto `calls.stt_provider`/`calls.tts_provider` for a provider-accurate cost breakdown,
+   * instead of every native call being costed against one blended, provider-agnostic rate.
+   */
+  setProviderInfo(info: { sttProvider?: string | null; ttsProvider?: string | null }): void {
+    if (info.sttProvider) this.sttProviderName = info.sttProvider;
+    if (info.ttsProvider) this.ttsProviderName = info.ttsProvider;
   }
 
   get recorder(): CallRecorder | null {
@@ -280,6 +296,8 @@ export class NativeCallLifecycle {
       // Tells the processor and analytics which engine produced the call.
       engine: "webee_native",
       workspace_id: this.identity.workspaceId ?? undefined,
+      stt_provider: this.sttProviderName ?? undefined,
+      tts_provider: this.ttsProviderName ?? undefined,
       ...(this.identity.metadata ?? {}),
     };
   }

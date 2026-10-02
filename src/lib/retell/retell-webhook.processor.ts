@@ -33,6 +33,56 @@ const SUPPORTED_RETELL_EVENTS = new Set([
 const RETELL_SIGNATURE_VERIFICATION_DISABLED =
   process.env.RETELL_SIGNATURE_VERIFICATION_ENABLED !== "true";
 
+/**
+ * Forward this event to the agent's own `settings.webhookUrl`, the WEBEE Native equivalent of
+ * what Retell's own platform already does for a Retell-deployed agent (Retell posts to that URL
+ * directly — see `agent.webhook_url` in `export-conversation-flow.ts`). A native call has no such
+ * external platform in front of it; we ARE the thing that would otherwise be Retell here, so
+ * without this a native agent's "Webhook URL" setting would silently do nothing.
+ *
+ * Scoped to `metadata.engine === "webee_native"` specifically so a Retell-deployed agent never
+ * gets double-delivery (once from Retell directly, once from us relaying our own copy of the same
+ * event). Fire-and-forget: a customer endpoint that is down, slow or wrong must never affect this
+ * request's own response or delay/break the call's own processing.
+ */
+function forwardToCustomerWebhook(call: RetellCall, event: string, rawBody: string): void {
+  const engine = (call as { metadata?: { engine?: string } })?.metadata?.engine;
+  if (engine !== "webee_native") return;
+  const agentId = call.agent_id ? stripPrefix(call.agent_id) : "";
+  if (!agentId) return;
+
+  void (async () => {
+    try {
+      const { data: agent } = await supabaseAdmin
+        .from("agents")
+        .select("settings")
+        .eq("id", agentId)
+        .maybeSingle();
+      const webhookUrl = String(
+        (agent?.settings as Record<string, unknown> | null)?.webhookUrl ?? "",
+      ).trim();
+      if (!webhookUrl) return;
+
+      const res = await fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "User-Agent": "webee-native-voice/1.0" },
+        body: rawBody,
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!res.ok) {
+        console.warn(
+          `[RETELL WEBHOOK] customer webhook ${event} delivery failed: HTTP ${res.status}`,
+        );
+      }
+    } catch (err) {
+      console.warn(
+        `[RETELL WEBHOOK] customer webhook ${event} delivery threw:`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+  })();
+}
+
 export const RETELL_CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -658,6 +708,8 @@ export async function processRetellWebhook(
     return { ok: true, status: 200, message: "ignored", event, callId };
   }
 
+  forwardToCustomerWebhook(call, event, rawBody);
+
   // Ignore test/builder calls (web_call type) except DNR receptionist — those are
   // stored so the /receptionist dashboard shows Retell web-test activity.
   const isWebCall = call.call_type === "web_call" || call.call_type === "webcall";
@@ -946,6 +998,15 @@ export async function processRetellWebhook(
     collected_variables: collectedVariablesForRow(call),
     tool_calls: Array.isArray((call as Record<string, unknown>).tool_calls)
       ? ((call as Record<string, unknown>).tool_calls as unknown[])
+      : null,
+    // Only ever set by the native engine (`NativeCallLifecycle.setProviderInfo`) — a
+    // Retell-deployed agent has no such concept, so these stay null there, which is correct: the
+    // cost breakdown falls back to Retell's own reported `call_cost` for those.
+    stt_provider: typeof (call as any)?.metadata?.stt_provider === "string"
+      ? (call as any).metadata.stt_provider
+      : null,
+    tts_provider: typeof (call as any)?.metadata?.tts_provider === "string"
+      ? (call as any).metadata.tts_provider
       : null,
   } as Record<string, unknown>;
 

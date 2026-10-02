@@ -2,13 +2,14 @@
  * Speech-to-text provider selection for WEBEE Native.
  *
  * TTS stays Fish Audio. STT is Fish realtime ASR by default, or Deepgram
- * Nova-2 / AssemblyAI Universal-Streaming when the agent sets
- * `webeeSttProvider: "deepgram"` / `"assemblyai"`.
+ * Nova-2 / AssemblyAI Universal-Streaming / Cartesia Ink-Whisper when the agent sets
+ * `webeeSttProvider: "deepgram"` / `"assemblyai"` / `"cartesia"`.
  *
  * Relative imports only — this module is reachable from vite.config.ts.
  */
 
 import { AssemblyAiSttProvider } from "./assemblyai";
+import { CartesiaSttProvider } from "./cartesia";
 import { DeepgramSttProvider } from "./deepgram";
 import { FishSttProvider } from "./fish";
 import { WhisperSttProvider } from "./whisper-batch";
@@ -17,24 +18,28 @@ import type { SttProvider } from "./types";
 export { FishSttProvider, fishTranscribe, type FishAsrResponse } from "./fish";
 export { DeepgramSttProvider } from "./deepgram";
 export { AssemblyAiSttProvider } from "./assemblyai";
+export { CartesiaSttProvider } from "./cartesia";
 export { WhisperSttProvider } from "./whisper-batch";
 export { applyKeywordBoost, keywordBoostPrompt } from "./keyword-boost.shared";
 export { lookupWorkspaceVoiceApiKey } from "./workspace-key";
 export { CASCADE_SAMPLE_RATE, buildWav } from "./whisper";
 export type { SttOpenOptions, SttProvider, SttSession } from "./types";
 
-export type SttProviderName = "fish" | "deepgram" | "assemblyai" | "openai";
+export type SttProviderName = "fish" | "deepgram" | "assemblyai" | "cartesia" | "openai";
 
 export interface SttProviderKeys {
   fishApiKey?: string;
   deepgramApiKey?: string;
   assemblyaiApiKey?: string;
+  cartesiaApiKey?: string;
   openaiApiKey?: string;
 }
 
 export function parseSttProviderName(value: unknown): SttProviderName | null {
   const raw = String(value ?? "").trim().toLowerCase();
-  if (raw === "deepgram" || raw === "fish" || raw === "openai" || raw === "assemblyai") return raw;
+  if (raw === "deepgram" || raw === "fish" || raw === "openai" || raw === "assemblyai" || raw === "cartesia") {
+    return raw;
+  }
   // "whisper" is what the provider calls itself; accept it as an alias.
   if (raw === "whisper") return "openai";
   // Accept the vendor's own spelling/spacing as aliases for the same engine.
@@ -54,6 +59,10 @@ function assemblyaiKeyOf(keys: SttProviderKeys = {}): string {
   return String(keys.assemblyaiApiKey ?? process.env.ASSEMBLYAI_API_KEY ?? "").trim();
 }
 
+function cartesiaKeyOf(keys: SttProviderKeys = {}): string {
+  return String(keys.cartesiaApiKey ?? process.env.CARTESIA_API_KEY ?? "").trim();
+}
+
 function openaiKeyOf(keys: SttProviderKeys = {}): string {
   return String(keys.openaiApiKey ?? process.env.OPENAI_API_KEY ?? "").trim();
 }
@@ -64,6 +73,7 @@ export function availableSttProviders(keys: SttProviderKeys = {}): SttProviderNa
   if (fishKeyOf(keys)) out.push("fish");
   if (deepgramKeyOf(keys)) out.push("deepgram");
   if (assemblyaiKeyOf(keys)) out.push("assemblyai");
+  if (cartesiaKeyOf(keys)) out.push("cartesia");
   if (openaiKeyOf(keys)) out.push("openai");
   return out;
 }
@@ -82,6 +92,7 @@ export function resolveWebeeSttPreference(
   // the agent asked for rather than quietly transcribing with a different one.
   if (requested === "deepgram") return "deepgram";
   if (requested === "assemblyai") return "assemblyai";
+  if (requested === "cartesia") return "cartesia";
   if (requested === "openai") return "openai";
   if (requested === "fish") return fishKeyOf(keys) ? "fish" : null;
   return fishKeyOf(keys)
@@ -90,9 +101,11 @@ export function resolveWebeeSttPreference(
       ? "deepgram"
       : assemblyaiKeyOf(keys)
         ? "assemblyai"
-        : openaiKeyOf(keys)
-          ? "openai"
-          : null;
+        : cartesiaKeyOf(keys)
+          ? "cartesia"
+          : openaiKeyOf(keys)
+            ? "openai"
+            : null;
 }
 
 /** @deprecated Alias for resolveWebeeSttPreference. */
@@ -121,6 +134,15 @@ export function createSttProvider(
       );
     }
     return new AssemblyAiSttProvider(key);
+  }
+  if (preferred === "cartesia") {
+    const key = cartesiaKeyOf(keys);
+    if (!key) {
+      throw new Error(
+        "Cartesia ASR requires CARTESIA_API_KEY. Add it under Settings → Integrations → Voice Engines.",
+      );
+    }
+    return new CartesiaSttProvider(key);
   }
   if (preferred === "openai") {
     const key = openaiKeyOf(keys);

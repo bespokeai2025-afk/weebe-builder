@@ -99,6 +99,9 @@ const COMMIT_READY_STABLE_MS = 100;
 const PARTIAL_MIN_CHARS = 4;
 /** Turnaround target from the plan; exceeding it is logged, not enforced. */
 const LATENCY_BUDGET_MS = 800;
+/** Nudge this many times before giving up on real speech that STT keeps returning empty for. */
+const MAX_STT_MISS_NUDGES = 2;
+const STT_MISS_NUDGE_TEXT = "Sorry, I didn't catch that — could you say that again?";
 
 export type PlaybackTracking = "reported" | "estimated";
 
@@ -247,6 +250,8 @@ export class CascadeSession {
   /** `settings.reminderTriggerMs` / `reminderMaxCount` — proactive "are you still there?" nudges. */
   private reminderTimer: ReturnType<typeof setTimeout> | null = null;
   private reminderCount = 0;
+  /** Consecutive turns where VAD caught real speech but STT came back with nothing at all. */
+  private sttMissCount = 0;
   private readonly runtime: VoiceRuntimeConfig;
   private readonly languageLock: string;
   private readonly sttLanguage?: string;
@@ -369,14 +374,16 @@ export class CascadeSession {
 
   private async resolveSttKeys(): Promise<SttProviderKeys> {
     const workspaceId = await this.resolveCallWorkspaceId();
-    const [deepgramWorkspace, assemblyaiWorkspace] = await Promise.all([
+    const [deepgramWorkspace, assemblyaiWorkspace, cartesiaWorkspace] = await Promise.all([
       lookupWorkspaceVoiceApiKey(this.config.supabase, workspaceId, "deepgram"),
       lookupWorkspaceVoiceApiKey(this.config.supabase, workspaceId, "assemblyai"),
+      lookupWorkspaceVoiceApiKey(this.config.supabase, workspaceId, "cartesia"),
     ]);
     return {
       fishApiKey: process.env.FISH_API_KEY,
       deepgramApiKey: deepgramWorkspace || process.env.DEEPGRAM_API_KEY,
       assemblyaiApiKey: assemblyaiWorkspace || process.env.ASSEMBLYAI_API_KEY,
+      cartesiaApiKey: cartesiaWorkspace || process.env.CARTESIA_API_KEY,
     };
   }
 
@@ -400,6 +407,10 @@ export class CascadeSession {
         | undefined,
       openaiTtsInstructions: (this.config.settings as Record<string, unknown> | null)
         ?.webeeTtsInstructions as string | undefined,
+      cartesiaApiKey: process.env.CARTESIA_API_KEY,
+      cartesiaTtsModel: (this.config.settings as Record<string, unknown> | null)?.webeeTtsModel as
+        | string
+        | undefined,
     });
 
     // Lock voice before graph load — Retell agent-level voice, never re-resolved mid-call.
@@ -408,7 +419,7 @@ export class CascadeSession {
       settings: this.config.settings,
       sampleRate: this.sampleRate,
       model:
-        ttsChoice === "openai"
+        ttsChoice === "openai" || ttsChoice === "cartesia"
           ? ((this.config.settings as Record<string, unknown> | null)?.webeeTtsModel as
               | string
               | undefined)
@@ -482,6 +493,13 @@ export class CascadeSession {
     }
 
     this.lifecycleRef = this.config.resolveLifecycle?.(runtime) ?? null;
+    // Only known once providers actually resolve (above) — too late to pass through the
+    // `resolveLifecycle` factory's own construction. Read back at call end, for the cost
+    // breakdown to charge the rate the call actually used instead of a blended guess.
+    this.lifecycleRef?.setProviderInfo({
+      sttProvider: this.sttName,
+      ttsProvider: this.tts?.name ?? null,
+    });
 
     const banner: CascadeSessionBanner = {
       mode: runtime ? "graph" : "flat",
@@ -1125,14 +1143,35 @@ export class CascadeSession {
         this.callerBargeIn = false;
         return;
       } else {
+        // Real speech reached STT (VAD endpointed a genuine utterance — this is not the silence
+        // case above) and it still came back empty. The caller said something and heard nothing
+        // back: previously this just called `endPlayback()` and returned, re-arming the mic with
+        // zero acknowledgement — indistinguishable, from their side, from the call being frozen,
+        // which is exactly the "it got stuck" symptom this exists to fix. Whatever the underlying
+        // cause (a provider hiccup, a dropped few hundred ms of audio, a bad connection) the right
+        // behaviour is the same one a human agent falls back to: say so, and ask them to repeat —
+        // not silently keep listening as if nothing happened.
         console.warn(
-          `${this.log} empty STT after caller utterance — graph not advanced stt=${this.sttName} frames=${frames.length}`,
+          `${this.log} empty STT after caller utterance — stt=${this.sttName} frames=${frames.length} misses=${this.sttMissCount + 1}`,
         );
-        this.endPlayback();
+        this.sttMissCount++;
+        if (this.sttMissCount <= MAX_STT_MISS_NUDGES) {
+          this.graph
+            ?.submitReminder(STT_MISS_NUDGE_TEXT)
+            .catch((err: Error) => this.transport.onError?.(err.message));
+        } else {
+          // Nudged enough times with no real reply getting through — this is no longer "say that
+          // again", it's "something is actually broken for this caller". Defer to the flow's own
+          // configured wait/timeout edge, the same graceful give-up a genuine silence timeout
+          // already uses, rather than nudging forever.
+          this.sttMissCount = 0;
+          this.graph?.submitSilenceTimeout().catch((err: Error) => this.transport.onError?.(err.message));
+        }
         return;
       }
     }
 
+    this.sttMissCount = 0;
     userText = applyKeywordBoost(userText, this.config.boostedKeywords);
 
     const agentStillPlaying = this.agentSpeaking || this.activeSpeak !== null;

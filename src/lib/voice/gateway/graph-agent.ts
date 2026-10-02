@@ -65,13 +65,22 @@ function applyStartSpeaker(flow: ConversationFlow, speaker?: "agent" | "user"): 
   if (speaker !== "agent" && speaker !== "user") return flow;
   const startId = String(flow.start_node_id ?? "").trim();
   const nodes = Array.isArray(flow.nodes) ? flow.nodes : [];
+  // Forcing "agent" here exists for exactly one reason — instant feedback on a web test call. A
+  // separate `begin_after_user_silence_ms` (flow- or start-node-level) is an unrelated setting
+  // that still applies whenever the flow isn't user-first, so leaving it in place meant the
+  // override successfully made the agent speak first, then still sat through the full configured
+  // delay (3.2s on at least one real agent) before actually doing so — indistinguishable from a
+  // stuck call to whoever is testing. Clearing it only for this forced-agent override keeps a real
+  // inbound call's own configured delay untouched.
+  const clearBeginSilence = speaker === "agent" ? { begin_after_user_silence_ms: undefined } : {};
   return {
     ...flow,
     start_speaker: speaker,
+    ...clearBeginSilence,
     nodes: nodes.map((node, index) => {
       const id = String((node as { id?: string }).id ?? "");
       const isStart = (startId && id === startId) || (!startId && index === 0);
-      return isStart ? { ...node, start_speaker: speaker } : node;
+      return isStart ? { ...node, start_speaker: speaker, ...clearBeginSilence } : node;
     }),
   };
 }

@@ -269,7 +269,9 @@ function WebeeNativeTranscriptionSettings() {
               ? "Sent to Deepgram as keywords and corrected after transcription."
               : settings.webeeSttProvider === "assemblyai"
                 ? "Sent to AssemblyAI as key terms and corrected after transcription."
-                : "Sent to Fish ASR as a prompt and corrected after transcription."
+                : settings.webeeSttProvider === "cartesia"
+                  ? "Cartesia's ink-whisper model has no keyword-boost input — corrected after transcription only."
+                  : "Sent to Fish ASR as a prompt and corrected after transcription."
           }
         />
         <input

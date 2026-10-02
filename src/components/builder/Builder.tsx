@@ -1915,7 +1915,12 @@ export function Builder({
                         value={settings.webeeSttProvider ?? "fish"}
                         onValueChange={(v) =>
                           setSettings({
-                            webeeSttProvider: v as "fish" | "deepgram" | "assemblyai" | "openai",
+                            webeeSttProvider: v as
+                              | "fish"
+                              | "deepgram"
+                              | "assemblyai"
+                              | "cartesia"
+                              | "openai",
                           })
                         }
                       >
@@ -1926,6 +1931,7 @@ export function Builder({
                           <SelectItem value="fish">Fish Audio ASR</SelectItem>
                           <SelectItem value="deepgram">Deepgram Nova-2</SelectItem>
                           <SelectItem value="assemblyai">AssemblyAI Universal-Streaming</SelectItem>
+                          <SelectItem value="cartesia">Cartesia Ink-Whisper</SelectItem>
                           <SelectItem value="openai">OpenAI Whisper</SelectItem>
                         </SelectContent>
                       </Select>
@@ -1941,7 +1947,7 @@ export function Builder({
                       <Select
                         value={settings.webeeTtsProvider ?? "fish"}
                         onValueChange={(v) =>
-                          setSettings({ webeeTtsProvider: v as "fish" | "openai" })
+                          setSettings({ webeeTtsProvider: v as "fish" | "openai" | "cartesia" })
                         }
                       >
                         <SelectTrigger className="h-8 text-[11px]">
@@ -1950,9 +1956,25 @@ export function Builder({
                         <SelectContent>
                           <SelectItem value="fish">Fish Audio</SelectItem>
                           <SelectItem value="openai">OpenAI</SelectItem>
+                          <SelectItem value="cartesia">Cartesia</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
+                    {settings.webeeTtsProvider === "cartesia" && (
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] text-muted-foreground">Cartesia voice ID</Label>
+                        <Input
+                          className="h-8 text-[11px]"
+                          placeholder="694f9389-aac1-45b6-b726-9d9369183238"
+                          value={settings.cartesiaVoice ?? ""}
+                          onChange={(e) => setSettings({ cartesiaVoice: e.target.value })}
+                        />
+                        <p className="text-[10px] text-muted-foreground">
+                          A voice id from your Cartesia voice library. Leave blank to use Cartesia's
+                          default sample voice.
+                        </p>
+                      </div>
+                    )}
                     {settings.webeeTtsProvider === "openai" && (
                       <>
                         <div className="space-y-1.5">
@@ -2742,10 +2764,16 @@ export function Builder({
                 <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-1.5 px-2.5 pb-2.5">
-                {isRetell && (
+                {(isRetell || isWebeeNative) && (
                   <div>
                     <Label className="text-[9px]">Webhook URL</Label>
                     <Input value={settings.webhookUrl ?? ""} onChange={(e) => setSettings({ webhookUrl: e.target.value })} className="h-6 text-[10px]" placeholder="https://…" />
+                    {isWebeeNative && (
+                      <p className="mt-1 text-[9px] text-muted-foreground">
+                        Call lifecycle events (started, ended, analyzed) are POSTed here the same
+                        shape Retell itself sends.
+                      </p>
+                    )}
                   </div>
                 )}
                 {settings.channelType !== "whatsapp" && (

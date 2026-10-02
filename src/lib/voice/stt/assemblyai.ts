@@ -26,8 +26,15 @@ const DEFAULT_MODEL = "universal-streaming-english";
  * Give up waiting for a flush rather than leaving the caller in silence. Longer than Deepgram's
  * equivalent: that one forces a flush on demand, this one waits out AssemblyAI's own natural
  * end-of-turn (see `finalizeUtterance`), so it needs enough slack for that to actually land.
+ *
+ * 2.5s was measured against clean, local, low-latency conditions (loopback network, no jitter) and
+ * reliably caught the natural end-of-turn there. A real production call hit this timeout on a
+ * connection the heartbeat confirmed was still alive (a pong had arrived well inside its window) —
+ * so the 2.5s budget itself, not a dead socket, was the failure this time. Bumped to give
+ * AssemblyAI's own endpointing realistic headroom under real network conditions; the cost of
+ * waiting a little longer is strictly better than silently losing the turn.
  */
-const FINALIZE_TIMEOUT_MS = 2_500;
+const FINALIZE_TIMEOUT_MS = 4_000;
 const CONNECT_TIMEOUT_MS = 5_000;
 /** No documented idle-close window as tight as Deepgram's ~10s, but ping well inside any of them. */
 export const ASSEMBLYAI_KEEPALIVE_MS = 5_000;

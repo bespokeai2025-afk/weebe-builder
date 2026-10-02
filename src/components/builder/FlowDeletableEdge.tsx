@@ -46,7 +46,13 @@ export function retellEdgePath(
   if (backward && Math.abs(dy) < 24) {
     params.centerY = sourceY + Math.max(72, Math.abs(dx) * 0.12);
   } else if (!backward && Math.abs(dy) >= 12) {
-    const stagger = (Math.round(sourceY / 18) % 6) * 10;
+    // Seeded from sourceY AND targetY, not sourceY alone: sibling edges fanning out of the same
+    // hub handle share one sourceY, so a stagger keyed on sourceY only gave every one of them the
+    // identical centerX — their paths ran perfectly coincident for this whole stretch, and since
+    // only one stacked hit-path can ever win a hover, that shared run was a dead zone no matter
+    // which sibling you meant to point at. Target also varies per sibling, so folding it in gives
+    // each edge its own corridor right from the source instead of only after they diverge.
+    const stagger = (Math.round((sourceY + targetY) / 18) % 6) * 10;
     const centerX = sourceX + FIRST_BEND + stagger;
     if (centerX < targetX - 28) params.centerX = centerX;
   }
@@ -78,19 +84,35 @@ function FlowDeletableEdgeInner({
     targetPosition,
   );
   const showRemove = hovered || selected;
+  const emphasized = hovered || selected;
+
+  // Hover/selection emphasis: thicken the line and brighten its glow so the
+  // connected branch is obvious at a glance, on top of whatever base style
+  // (color, existing drop-shadow) the flow's defaultEdgeOptions set.
+  const emphasizedStyle = emphasized
+    ? {
+        ...style,
+        strokeWidth: 4,
+        stroke: "var(--flow-edge-active, #7dd3fc)",
+        filter: "drop-shadow(0 0 10px rgba(125, 211, 252, 0.95))",
+      }
+    : style;
 
   return (
     <>
+      {/* Invisible hit area, much wider than the visible line itself (1.35px by default) —
+          without this the hoverable region would be pixel-thin and nearly impossible to land
+          the cursor on. */}
       <path
         d={path}
         fill="none"
         stroke="transparent"
-        strokeWidth={22}
+        strokeWidth={48}
         className="react-flow__edge-interaction"
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
       />
-      <BaseEdge id={id} path={path} style={style} markerEnd={markerEnd} />
+      <BaseEdge id={id} path={path} style={emphasizedStyle} markerEnd={markerEnd} />
       <EdgeLabelRenderer>
         <div
           className="nodrag nopan pointer-events-auto absolute"

@@ -5,6 +5,7 @@ import {
   availableTtsProviders,
   batchIntoSentences,
   createTtsProvider,
+  parseTtsProviderName,
 } from "@/lib/voice/tts";
 
 /** Collect an async generator into an array. */
@@ -138,10 +139,13 @@ describe("Fish TTS model", () => {
 
 describe("createTtsProvider", () => {
   const originalFish = process.env.FISH_API_KEY;
+  const originalCartesia = process.env.CARTESIA_API_KEY;
 
   afterEach(() => {
     if (originalFish === undefined) delete process.env.FISH_API_KEY;
     else process.env.FISH_API_KEY = originalFish;
+    if (originalCartesia === undefined) delete process.env.CARTESIA_API_KEY;
+    else process.env.CARTESIA_API_KEY = originalCartesia;
   });
 
   it("creates Fish Audio TTS when a key is present", () => {
@@ -178,5 +182,46 @@ describe("createTtsProvider", () => {
     delete process.env.OPENAI_API_KEY;
     expect(() => createTtsProvider("openai", { fishApiKey: "k" })).toThrow(/OPENAI_API_KEY/);
     if (savedOpenAi) process.env.OPENAI_API_KEY = savedOpenAi;
+  });
+
+  it("builds the Cartesia provider when it is the one asked for", () => {
+    const provider = createTtsProvider("cartesia", { cartesiaApiKey: "car-test" });
+    expect(provider.name).toBe("cartesia");
+  });
+
+  it("fails naming Cartesia rather than silently speaking in a Fish voice", () => {
+    delete process.env.CARTESIA_API_KEY;
+    expect(() => createTtsProvider("cartesia", { fishApiKey: "k" })).toThrow(/CARTESIA_API_KEY/);
+  });
+
+  it("reports Cartesia availability only once a key is present", () => {
+    delete process.env.CARTESIA_API_KEY;
+    expect(availableTtsProviders({})).not.toContain("cartesia");
+    expect(availableTtsProviders({ cartesiaApiKey: "k" })).toContain("cartesia");
+  });
+});
+
+describe("parseTtsProviderName", () => {
+  it("accepts fish, openai and cartesia", () => {
+    expect(parseTtsProviderName("fish")).toBe("fish");
+    expect(parseTtsProviderName("OpenAI")).toBe("openai");
+    expect(parseTtsProviderName("Cartesia")).toBe("cartesia");
+    expect(parseTtsProviderName("")).toBeNull();
+    expect(parseTtsProviderName("elevenlabs")).toBeNull();
+  });
+});
+
+describe("Cartesia TTS model", () => {
+  it("defaults to sonic-2", async () => {
+    const { CARTESIA_TTS_DEFAULT_MODEL, resolveCartesiaTtsModel } = await import(
+      "@/lib/voice/tts/cartesia.provider"
+    );
+    expect(CARTESIA_TTS_DEFAULT_MODEL).toBe("sonic-2");
+    expect(resolveCartesiaTtsModel()).toBe("sonic-2");
+  });
+
+  it("honours an explicit model override", async () => {
+    const { resolveCartesiaTtsModel } = await import("@/lib/voice/tts/cartesia.provider");
+    expect(resolveCartesiaTtsModel("sonic-turbo")).toBe("sonic-turbo");
   });
 });

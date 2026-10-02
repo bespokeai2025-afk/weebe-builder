@@ -8,6 +8,7 @@
 
 import { resolveFishTtsVoiceRequest } from "./fish-tts-prosody.shared";
 import { resolveOpenAiTtsVoice, resolveOpenAiTtsModel } from "./tts/openai.provider";
+import { CARTESIA_TTS_DEFAULT_VOICE, resolveCartesiaTtsModel } from "./tts/cartesia.provider";
 import type { TtsVoiceRequest } from "./tts/types";
 
 export interface CallVoiceProfile extends TtsVoiceRequest {
@@ -68,7 +69,7 @@ export function lockCallVoiceProfile(input: {
   settings?: Record<string, unknown> | null;
   sampleRate: number;
   model?: string;
-  ttsProvider?: "fish" | "openai";
+  ttsProvider?: "fish" | "openai" | "cartesia";
 }): CallVoiceProfile {
   if (input.ttsProvider === "openai") {
     const voiceId = resolveOpenAiTtsVoice(String(input.settings?.openaiVoice ?? ""));
@@ -76,6 +77,16 @@ export function lockCallVoiceProfile(input: {
       voiceId,
       sampleRate: input.sampleRate,
       model: resolveOpenAiTtsModel(input.model),
+    };
+    return { ...req, lockedAt: Date.now() };
+  }
+
+  if (input.ttsProvider === "cartesia") {
+    const voiceId = String(input.settings?.cartesiaVoice ?? "").trim() || CARTESIA_TTS_DEFAULT_VOICE;
+    const req: TtsVoiceRequest = {
+      voiceId,
+      sampleRate: input.sampleRate,
+      model: resolveCartesiaTtsModel(input.model),
     };
     return { ...req, lockedAt: Date.now() };
   }

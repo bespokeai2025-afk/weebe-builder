@@ -12,6 +12,8 @@
  * nested inside it.
  */
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import {
   Bot,
   User,
@@ -26,11 +28,14 @@ import {
   Smile,
   PhoneOff,
   Gauge,
+  DollarSign,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { CallLatencyBreakdown } from "./CallLatencyBreakdown";
+import { CallCostBreakdown } from "./CallCostBreakdown";
+import { checkCanSeeCallCost } from "@/lib/voice/call-cost.functions";
 
 export type CallDetailRow = {
   id?: string;
@@ -228,6 +233,17 @@ export function CallDetailSheet({
   }, [call?.collected_variables]);
   const tools = Array.isArray(call?.tool_calls) ? call!.tool_calls! : [];
 
+  // Real COGS/margin data — hidden entirely for a workspace user, same gate the
+  // Builder's own Cost tab uses (checkCanSeeCallCost mirrors requirePlatformAdmin).
+  const canSeeCostFn = useServerFn(checkCanSeeCallCost);
+  const { data: costAccess } = useQuery({
+    queryKey: ["can-see-call-cost"],
+    queryFn: () => canSeeCostFn(),
+    staleTime: 5 * 60_000,
+    throwOnError: false,
+  });
+  const canSeeCost = Boolean(costAccess?.canSee);
+
   if (!call) return null;
   const contact =
     call.to_number && call.to_number !== "web:test" ? call.to_number : call.from_number;
@@ -330,6 +346,15 @@ export function CallDetailSheet({
                   "—"
                 )}
               </PresetRow>
+              {canSeeCost && (
+                <PresetRow icon={DollarSign} label="Total Cost">
+                  {call.retell_call_id ? (
+                    <CallCostBreakdown retellCallId={call.retell_call_id} />
+                  ) : (
+                    "—"
+                  )}
+                </PresetRow>
+              )}
             </div>
           </Panel>
 
