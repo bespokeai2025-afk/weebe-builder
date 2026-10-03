@@ -100,12 +100,16 @@ export function retellLatencyCategories(rows: CallTurnRow[]): LatencyCategorySta
   const llm = rows
     .map((r) => diff(r.stt_to_first_token_ms, r.stt_to_route_ms ?? 0))
     .filter((v): v is number => typeof v === "number");
-  // `stt_to_first_sentence_ms` (llm_speech_first_sentence) is only ever marked for a
-  // batch-into-sentences TTS path — Fish, the default/production provider, streams tokens to
-  // synthesis continuously with no "complete sentence" checkpoint at all, so that mark is never
-  // set for real calls and every TTS row would starve to "not enough turns to measure". First
-  // token to first audio is the isolation that actually applies to a real streaming pipeline: the
-  // time from the LLM starting to speak to the caller actually hearing something.
+  // This bucket is first token -> first audio, which is NOT synthesis time alone.
+  // `guardPrematureWrapUpStream` withholds every chunk until the LLM completes a first
+  // sentence (or hits 120 chars), and `llm_speech_first_token` is marked upstream of that
+  // guard — so the LLM finishing its sentence is billed here too.
+  //
+  // `stt_to_first_sentence_ms` (llm_speech_first_sentence) splits the two. It was long dead
+  // on the assumption that only a batch-into-sentences TTS path could mark it and Fish, the
+  // default provider, streams continuously with no sentence checkpoint. That was wrong: the
+  // guard is a real checkpoint on every prompt node regardless of provider, and the mark now
+  // fires there. Rows written before that change still have it null.
   const tts = rows
     .map((r) => diff(r.stt_to_first_audio_ms, r.stt_to_first_token_ms))
     .filter((v): v is number => typeof v === "number");

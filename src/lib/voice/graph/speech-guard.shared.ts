@@ -60,14 +60,30 @@ function firstSpeakableBoundary(buf: string): boolean {
   return /[.!?][\s"'”’]/.test(buf) || /[.!?]$/.test(buf);
 }
 
-/** Drop wrap-up speech on non-end nodes, swapping in the node's script. */
+/**
+ * Drop wrap-up speech on non-end nodes, swapping in the node's script.
+ *
+ * `onFirstRelease` fires the instant the first chunk is allowed downstream. Until
+ * then nothing reaches TTS at all, so that wait lands inside the measured
+ * first-token-to-first-audio window and used to be indistinguishable from synthesis
+ * time. Callers pass it to mark `llm_speech_first_sentence`; it is a callback rather
+ * than a trace object so this stays free of server-only imports.
+ */
 export async function* guardPrematureWrapUpStream(
   stream: AsyncIterable<string>,
   fallback: string,
   isEndNode: boolean,
+  onFirstRelease?: () => void,
 ): AsyncGenerator<string> {
   if (isEndNode) {
-    for await (const delta of stream) yield delta;
+    let first = true;
+    for await (const delta of stream) {
+      if (first && delta) {
+        onFirstRelease?.();
+        first = false;
+      }
+      yield delta;
+    }
     return;
   }
 
@@ -83,6 +99,7 @@ export async function* guardPrematureWrapUpStream(
     if (!firstSpeakableBoundary(buf)) continue;
     const replacement = replacePrematureWrapUp(buf, fallback);
     released = true;
+    onFirstRelease?.();
     if (replacement !== buf) {
       if (replacement) yield replacement;
       return;
@@ -91,6 +108,9 @@ export async function* guardPrematureWrapUpStream(
   }
   if (!released) {
     const replacement = replacePrematureWrapUp(buf, fallback);
-    if (replacement) yield replacement;
+    if (replacement) {
+      onFirstRelease?.();
+      yield replacement;
+    }
   }
 }
