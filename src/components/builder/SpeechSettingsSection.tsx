@@ -275,13 +275,17 @@ export function SpeechSettingsSection({ isRetell }: { isRetell: boolean }) {
               </span>
             </div>
             <p className="text-[10px] text-muted-foreground leading-relaxed -mt-1">
-              How quickly the agent starts responding after the user finishes.
+              How quickly the agent starts responding after the user finishes. 1.2+ uses the
+              shortest silence window (400ms); 0.8–1.19 uses 500ms; below 0.8 uses 700ms.
             </p>
+            {/* Range is 0–2, matching resolveCascadeTuning()'s own clamp and its documented
+                scale. It was capped at 1 here, which made the fastest tier (>= 1.2 -> 400ms
+                silence window) unreachable from the builder entirely. */}
             <SpeechSlider
               value={settings.responsiveness ?? 1}
               min={0}
-              max={1}
-              step={0.01}
+              max={2}
+              step={0.05}
               onChange={(v) => set({ responsiveness: v })}
             />
             <div className="flex items-center gap-2 pt-0.5">
