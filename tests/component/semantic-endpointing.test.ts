@@ -34,6 +34,30 @@ describe("looksLikeIncompletePartial — holds the window open mid-thought", () 
     expect(looksLikeIncompletePartial("07902407048")).toBe(false);
   });
 
+  // Regression: a real call ended in a hang-up here. Asked for the full address, the
+  // caller started "Yeah. It's", paused to recall it, and was clipped. DANGLING_WORDS
+  // carries the bare "its" and "were", but the apostrophe in the caller's actual speech
+  // meant the trailing word never matched and the window stayed at its 500ms base.
+  it.each([
+    "Yeah. It's",
+    "It's",
+    "the address is it's",
+    "We're",
+    "my postcode, it's",
+  ])("waits on the contraction %j", (text) => {
+    expect(looksLikeIncompletePartial(text)).toBe(true);
+  });
+
+  it("treats the curly apostrophe the same as the straight one", () => {
+    // Some speech-to-text providers emit U+2019.
+    expect(looksLikeIncompletePartial("Yeah. It’s")).toBe(true);
+    expect(looksLikeIncompletePartial("We’re")).toBe(true);
+  });
+
+  it("extends the hangover for a clipped contraction rather than leaving the base", () => {
+    // The behaviour that actually saves the turn: 500ms base -> 900ms.
+    expect(resolveEndpointHangoverMs("Yeah. It's", 500)).toBe(INCOMPLETE_PARTIAL_HANGOVER_MS);
+  });
 });
 
 describe("looksLikeIncompletePartial — false positives are the dangerous direction", () => {
@@ -41,6 +65,11 @@ describe("looksLikeIncompletePartial — false positives are the dangerous direc
     "yes",
     "no",
     "yeah that's right",
+    // Contractions only hold the window when they are the LAST word; stripping the
+    // apostrophe must not make an otherwise finished answer look unfinished.
+    "it's a freehold house",
+    "we're the owners",
+    "that's correct",
     "not interested",
     "I own it outright",
     "about six months",

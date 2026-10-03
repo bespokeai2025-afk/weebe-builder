@@ -93,7 +93,15 @@ const PARTIAL_POSTCODE_TAIL = /\b[a-z]{1,2}\d{1,2}[a-z]?$/i;
  * patience be spent only where it is actually needed.
  */
 export function looksLikeIncompletePartial(text: string): boolean {
-  const t = text.trim().toLowerCase().replace(/[,;:\-]+$/g, "");
+  // Apostrophes are dropped so the contraction a caller actually says matches the
+  // bare spellings already in DANGLING_WORDS: "it's" -> "its", "we're" -> "were",
+  // both of which are deliberate entries below. Without this a caller trailing off
+  // on "Yeah. It's" read as a finished turn and got clipped mid-address.
+  const t = text
+    .trim()
+    .toLowerCase()
+    .replace(/['’ʼ]/g, "")
+    .replace(/[,;:\-]+$/g, "");
   if (!t) return false;
   // Terminal punctuation is the caller's own signal that they are done.
   if (/[.!?]$/.test(text.trim())) return false;
