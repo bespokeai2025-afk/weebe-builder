@@ -1008,8 +1008,17 @@ function Footer() {
 
 /* ─── Page assembly ─────────────────────────────────────────────── */
 function Index() {
+  // Deliberately NOT `platform-nebula-page`. That class carries
+  // `background-color: transparent !important`, which beats the inline background
+  // below and stripped it from this element and every direct child <section>.
+  // That was invisible while the app was dark-only — the page just showed the dark
+  // root through. Once the app gained a light theme the root went near-white, and
+  // this page's hardcoded #fff text was left sitting on white.
+  //
+  // This is a marketing page with its own dark palette and its own ambient glows
+  // (see HeroSection), so it owns its background instead of inheriting the app theme.
   return (
-    <main className="platform-nebula-page" style={{ background: "#050e1e", color: "#fff", fontFamily: "'Inter', system-ui, -apple-system, sans-serif", WebkitFontSmoothing: "antialiased", MozOsxFontSmoothing: "grayscale" }}>
+    <main style={{ background: "#050e1e", color: "#fff", fontFamily: "'Inter', system-ui, -apple-system, sans-serif", WebkitFontSmoothing: "antialiased", MozOsxFontSmoothing: "grayscale" }}>
       <GlobalStyles />
       <Nav />
       <HeroSection />
