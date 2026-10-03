@@ -907,7 +907,10 @@ export function Builder({
       )}
     >
       {/* Canvas toolbar */}
-      <div className="flex flex-nowrap items-center gap-1.5 border-b border-border/60 dark:border-white/[0.04] bg-background/60 px-2 py-1 backdrop-blur-sm [&_button]:h-7 [&_button]:px-2 [&_button]:text-[11px] [&_button]:gap-1 [&_button_svg]:h-3.5 [&_button_svg]:w-3.5">
+      {/* Scrolls rather than crushing its children. Without overflow-x-auto the
+          flex items shrank past their text and visually overlapped each other
+          on narrow viewports. */}
+      <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto border-b border-border/60 dark:border-white/[0.04] bg-background/60 px-2 py-1 backdrop-blur-sm [&_button]:h-7 [&_button]:px-2 [&_button]:text-[11px] [&_button]:gap-1 [&_button_svg]:h-3.5 [&_button_svg]:w-3.5">
         {/* Left: panel toggle + agent name + status */}
         <div className="flex flex-1 items-center gap-1 min-w-0">
           {toolbarStart}
@@ -938,7 +941,7 @@ export function Builder({
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <Phone className="h-3 w-3" /> Voice
+              <Phone className="h-3 w-3" /> <span className="hidden lg:inline">Voice</span>
             </button>
             <button
               onClick={() => setSettings({ channelType: "whatsapp" })}
@@ -949,14 +952,14 @@ export function Builder({
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <MsgSq className="h-3 w-3" /> WhatsApp
+              <MsgSq className="h-3 w-3" /> <span className="hidden lg:inline">WhatsApp</span>
             </button>
           </div>
           {toolbarLeading}
         </div>
 
         {/* Right: canvas utilities + primary actions */}
-        <div className="flex flex-nowrap items-center gap-1.5">
+        <div className="flex flex-nowrap items-center gap-1.5 shrink-0">
           {/* Canvas utility cluster */}
           <div className="flex items-center gap-0.5 rounded-md border border-border dark:border-white/[0.05] bg-muted/40 dark:bg-white/[0.02] px-1 py-0.5">
             <Button
@@ -990,7 +993,7 @@ export function Builder({
               className="h-7 gap-1 px-1.5 text-[10px] font-medium text-muted-foreground/80 hover:text-foreground"
             >
               <LayoutGrid className="h-3 w-3" />
-              Layout
+              <span className="hidden xl:inline">Layout</span>
             </Button>
             <Button
               size="sm"
@@ -1462,8 +1465,8 @@ export function Builder({
                           className={`max-w-[90%] rounded-lg px-2.5 py-1.5 text-[11px] leading-relaxed ${
                             entry.role === "user"
                               ? entry.partial
-                                ? "bg-violet-500/10 text-violet-300/60 italic"
-                                : "bg-violet-500/15 text-violet-200"
+                                ? "bg-violet-500/10 text-violet-800/80 dark:text-violet-300/60 italic"
+                                : "bg-violet-500/15 text-violet-900 dark:text-violet-200"
                               : "bg-muted dark:bg-white/[0.06] text-foreground/80"
                           }`}
                         >
