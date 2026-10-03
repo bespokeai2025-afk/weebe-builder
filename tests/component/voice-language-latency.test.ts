@@ -328,6 +328,51 @@ describe("routing heuristics", () => {
       ),
     ).toBe(0);
   });
+
+  // The three groups below all target confirmation replies that used to reach no
+  // heuristic at all and so paid for a full LLM classifier round-trip — 31% of
+  // turns on the measured agent, at a ~3300ms median.
+
+  it("accepts a bare mhm as an affirmative", async () => {
+    const { tryHeuristicEdgeIndex } = await import("@/lib/voice/graph/router");
+    // "mmhm" and "mm hm" already worked; the single-m spelling did not.
+    expect(tryHeuristicEdgeIndex(["caller says yes", "caller says no"], "mhm")).toBe(0);
+    expect(tryHeuristicEdgeIndex(["caller says yes", "caller says no"], "Mhm.")).toBe(0);
+    expect(tryHeuristicEdgeIndex(["caller says yes", "caller says no"], "mmhm")).toBe(0);
+    // The mandatory "hm" suffix keeps this from matching a bare filler.
+    expect(tryHeuristicEdgeIndex(["caller says yes", "caller says no"], "mm")).not.toBe(0);
+  });
+
+  it("matches apostrophe and bare spellings of the same word", async () => {
+    const { tryHeuristicEdgeIndex } = await import("@/lib/voice/graph/router");
+    // Caller uses the apostrophe, the flow author typed it without.
+    expect(
+      tryHeuristicEdgeIndex(
+        ["user confirms the name is correct", "no thats not correct"],
+        "That's not correct",
+      ),
+    ).toBe(1);
+    // And the reverse: condition has the apostrophe, caller's transcript does not.
+    expect(
+      tryHeuristicEdgeIndex(
+        ["user says that's not the right address", "user gives a new address"],
+        "thats not the right address",
+      ),
+    ).toBe(0);
+  });
+
+  it("routes confirmations that lead with no affirmative word", async () => {
+    const { tryHeuristicEdgeIndex } = await import("@/lib/voice/graph/router");
+    // Worded the way the real flows are: the negative edge carries a negation
+    // word, which the NO branch requires before it will take an edge.
+    const edges = ["user confirms it is correct", "no thats not correct"];
+    for (const reply of ["It's right", "sounds right", "I guess so", "I think so", "spot on"]) {
+      expect(tryHeuristicEdgeIndex(edges, reply), reply).toBe(0);
+    }
+    for (const reply of ["That's wrong", "thats wrong", "not quite", "I don't think so"]) {
+      expect(tryHeuristicEdgeIndex(edges, reply), reply).toBe(1);
+    }
+  });
 });
 
 describe("speech interpolation", () => {

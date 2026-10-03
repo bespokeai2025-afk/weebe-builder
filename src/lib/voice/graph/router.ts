@@ -372,7 +372,7 @@ export function looksLikeAddressAnswer(userText: string): boolean {
 }
 
 function startsWithAffirmative(t: string): boolean {
-  return /^(yes|yeah|yep|yup|yea|sim|si|sí|sure|ok|okay|correct|right|absolutely|definitely|of course|please|go ahead|sounds good|that works|mm[\s-]?hm|uh[\s-]?huh|y)\b/i.test(
+  return /^(yes|yeah|yep|yup|yea|sim|si|sí|sure|ok|okay|correct|right|absolutely|definitely|of course|please|go ahead|sounds good|that works|mm?[\s-]?hm|uh[\s-]?huh|y)\b/i.test(
     t,
   );
 }
@@ -380,6 +380,45 @@ function startsWithAffirmative(t: string): boolean {
 function startsWithNegative(t: string): boolean {
   return /^(no|nope|nah|not really|negative|pass)\b/i.test(t);
 }
+
+/**
+ * Whole-utterance confirmations that lead with no affirmative word, so neither
+ * `startsWithAffirmative` nor token overlap with a "correct"-style condition can
+ * catch them — they fell through to the LLM classifier every time. Both the
+ * apostrophe and bare spellings are listed because speech-to-text output varies.
+ */
+const AFFIRMATIVE_PHRASES = new Set([
+  "it's right",
+  "its right",
+  "it's correct",
+  "its correct",
+  // Deliberately absent: "that's it" / "that's all". After "Is that correct?"
+  // they mean yes, but after "Anything else?" they mean no — context-free
+  // matching gets it wrong half the time, so these stay with the classifier.
+  "sounds right",
+  "looks right",
+  "i think so",
+  "i guess so",
+  "i believe so",
+  "spot on",
+  "exactly right",
+]);
+
+/** Negative twins of {@link AFFIRMATIVE_PHRASES}. */
+const NEGATIVE_PHRASES = new Set([
+  "it's wrong",
+  "its wrong",
+  "that's wrong",
+  "thats wrong",
+  "it's not right",
+  "its not right",
+  "that's not right",
+  "thats not right",
+  "i don't think so",
+  "i dont think so",
+  "not quite",
+  "not exactly",
+]);
 
 /** Edge condition that ends the call or opts the caller out — must not match on generic data answers. */
 export function edgeIsTerminalOrOptOutCondition(condition: string): boolean {
@@ -566,7 +605,7 @@ function edgeExpectsFloor(condition: string): boolean {
 }
 
 function isShortAcknowledgement(t: string): boolean {
-  return /^(yes|yeah|yep|yup|yea|sim|si|sí|sure|ok|okay|correct|right|absolutely|definitely|of course|please|go ahead|sounds good|that works|mm[\s-]?hm|uh[\s-]?huh|y)$/i.test(
+  return /^(yes|yeah|yep|yup|yea|sim|si|sí|sure|ok|okay|correct|right|absolutely|definitely|of course|please|go ahead|sounds good|that works|mm?[\s-]?hm|uh[\s-]?huh|y)$/i.test(
     t,
   );
 }
@@ -741,12 +780,12 @@ export function tryHeuristicEdgeIndex(
   if (!t || looksLikeRepairRequest(userText)) return null;
 
   const YES =
-    /^(yes|yeah|yep|yup|yea|sim|si|sí|sure|ok|okay|correct|right|absolutely|definitely|of course|please|go ahead|sounds good|that works|mm[\s-]?hm|uh[\s-]?huh|y)$/i;
+    /^(yes|yeah|yep|yup|yea|sim|si|sí|sure|ok|okay|correct|right|absolutely|definitely|of course|please|go ahead|sounds good|that works|mm?[\s-]?hm|uh[\s-]?huh|y)$/i;
   const NO = /^(no|nope|nah|not really|negative|pass)$/i;
   const CONTINUE =
     /^(continue|proceed|next|go on|keep going|sure thing|that's fine|fine|alright|all right)$/i;
 
-  if (YES.test(t) || startsWithAffirmative(t)) {
+  if (YES.test(t) || startsWithAffirmative(t) || AFFIRMATIVE_PHRASES.has(t)) {
     const yesHit = pickYesEdge(conditions, userText, lastAgentText);
     if (yesHit !== null) return yesHit;
     // Do not score the agent's monologue against sibling edges ("how long will
@@ -772,7 +811,10 @@ export function tryHeuristicEdgeIndex(
   for (let i = 0; i < conditions.length; i++) {
     const c = conditions[i]?.toLowerCase() ?? "";
     if (!c) continue;
-    if ((NO.test(t) || startsWithNegative(t)) && /\b(no|negative|declin|reject|not|unavailable|refus)\b/.test(c)) {
+    if (
+      (NO.test(t) || startsWithNegative(t) || NEGATIVE_PHRASES.has(t)) &&
+      /\b(no|negative|declin|reject|not|unavailable|refus)\b/.test(c)
+    ) {
       return i;
     }
     if (CONTINUE.test(t) && /\b(continue|proceed|next|move on|go ahead)\b/.test(c)) {
@@ -1007,7 +1049,12 @@ function tokenizePhrase(text: string): string[] {
   return text
     .toLowerCase()
     .replace(/\{\{[^}]+\}\}/g, " ")
-    .replace(/[^a-z0-9'\s]/g, " ")
+    // Collapse apostrophes rather than keeping them, so a caller's "that's"
+    // and a condition written "thats" produce the same token. Keeping them
+    // meant the two forms scored zero overlap and fell through to the LLM.
+    // Covers the curly apostrophe some speech-to-text providers emit.
+    .replace(/['’ʼ]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
     .split(/\s+/)
     .filter((w) => w.length > 1 && !PHRASE_STOP.has(w));
 }
