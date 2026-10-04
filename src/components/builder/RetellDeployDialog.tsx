@@ -2343,7 +2343,11 @@ export function RetellDeployDialog({
         wsConnectTimeoutRef.current = null;
         if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
           toast.error("Voice relay timed out", {
-            description: "Session setup took too long. Check FISH_API_KEY and refresh the page.",
+            // Deliberately does not name a provider. This fires only when the server said
+            // nothing at all within 25s, so which key is missing is exactly what we do not
+            // know here — a specific guess sends people to the wrong place.
+            description:
+              "Session setup took too long and the server did not report a reason. Check the agent's Voice Engine settings and refresh the page.",
           });
           cleanupElVoice();
           setCalling(false);
@@ -2550,6 +2554,14 @@ export function RetellDeployDialog({
         }
 
         if (msg.type === "relay.error") {
+          // Cancel the blind connect timeout first. The server has told us exactly what
+          // went wrong (e.g. "Cartesia ASR requires CARTESIA_API_KEY"); leaving the timer
+          // armed meant that 25s later it fired its generic "Check FISH_API_KEY" toast on
+          // top of the real reason, sending people to look at the wrong provider.
+          if (wsConnectTimeoutRef.current) {
+            clearTimeout(wsConnectTimeoutRef.current);
+            wsConnectTimeoutRef.current = null;
+          }
           emitDebug("error", String(msg.message ?? "EL Voice error"));
           toast.error("EL Voice error", { description: String(msg.message ?? "") });
           return;
