@@ -171,35 +171,37 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
+      // These are the defaults every route inherits, and what the browser tab shows while a
+      // route's own head is still loading. They were the untouched Lovable scaffold —
+      // "Lovable App", author "Lovable", @Lovable, and a social image hosted on Lovable's own
+      // gpt-engineer storage bucket — so every shared WEBEE link previewed as someone else's
+      // product, and every page load flashed their name in the tab.
+      { title: "WEBEE Builder — Webespoke AI" },
       {
         name: "description",
-        content: "Export conversation flows as dashboard-compatible JSON for agent creation.",
+        content:
+          "WEBEE Builder is the no-code platform for designing, training and deploying your own autonomous AI workforce.",
       },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
+      { name: "author", content: "Webespoke AI" },
+      { property: "og:title", content: "WEBEE Builder — Webespoke AI" },
       {
         property: "og:description",
-        content: "Export conversation flows as dashboard-compatible JSON for agent creation.",
+        content:
+          "Design, train and deploy your own autonomous AI workforce. No engineers. No agencies.",
       },
       { property: "og:type", content: "website" },
+      { property: "og:site_name", content: "WEBEE Builder" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
-      { name: "twitter:title", content: "Lovable App" },
+      { name: "twitter:title", content: "WEBEE Builder — Webespoke AI" },
       {
         name: "twitter:description",
-        content: "Export conversation flows as dashboard-compatible JSON for agent creation.",
-      },
-      {
-        property: "og:image",
         content:
-          "https://storage.googleapis.com/gpt-engineer-file-uploads/gR69ROSIkVYK3qlYWX1VlaPJwNc2/social-images/social-1779544291750-Gemini_Generated_Image_f5vae4f5vae4f5va_(2).webp",
+          "Design, train and deploy your own autonomous AI workforce. No engineers. No agencies.",
       },
-      {
-        name: "twitter:image",
-        content:
-          "https://storage.googleapis.com/gpt-engineer-file-uploads/gR69ROSIkVYK3qlYWX1VlaPJwNc2/social-images/social-1779544291750-Gemini_Generated_Image_f5vae4f5vae4f5va_(2).webp",
-      },
+      // Served from `public/`, so this resolves on the live domain. Deliberately not a
+      // third-party CDN again.
+      { property: "og:image", content: "https://webeesmartdash.com/webee-logo-yellow.png" },
+      { name: "twitter:image", content: "https://webeesmartdash.com/webee-logo-yellow.png" },
     ],
     links: [
       { rel: "icon", type: "image/x-icon", href: "/favicon.ico?v=2" },
