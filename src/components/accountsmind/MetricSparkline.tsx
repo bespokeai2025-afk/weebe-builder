@@ -32,7 +32,7 @@ export function MetricSparkline({
             </linearGradient>
           </defs>
           <Tooltip
-            cursor={{ stroke: "rgba(255,255,255,0.15)", strokeWidth: 1 }}
+            cursor={{ stroke: "rgb(var(--chart-ink) / 0.15)", strokeWidth: 1 }}
             content={({ active, payload }) => {
               if (!active || !payload?.length) return null;
               const p = payload[0].payload as SparkPoint;

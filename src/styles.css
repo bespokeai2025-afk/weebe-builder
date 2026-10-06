@@ -140,6 +140,9 @@ html.theme-color-transition *::after {
   --highlight: #0a0f1c;
 
   --border: rgba(10, 15, 28, 0.06);
+  /* Ink channels for chart lines, ticks and legend text. Used as rgb(var(--chart-ink) / a)
+     so every site keeps its own alpha. Dark values reproduce the previous hardcoded white. */
+  --chart-ink: 10 15 28;
   --input: rgba(10, 15, 28, 0.08);
   --ring: #0a0f1c;
 
@@ -194,6 +197,7 @@ html.theme-color-transition *::after {
   --highlight: #4f8cff;
 
   --border: rgba(255, 255, 255, 0.06);
+  --chart-ink: 255 255 255;
   --input: rgba(255, 255, 255, 0.06);
   --ring: rgba(79, 140, 255, 0.55);
 

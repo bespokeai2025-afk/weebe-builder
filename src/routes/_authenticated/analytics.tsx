@@ -156,8 +156,8 @@ const CHART = {
   neutral:     "#64748B",
   pink:        "#EC4899",
   orange:      "#F97316",
-  grid:        "rgba(255,255,255,0.06)",
-  axis:        "rgba(255,255,255,0.40)",
+  grid:        "rgb(var(--chart-ink) / 0.06)",
+  axis:        "rgb(var(--chart-ink) / 0.40)",
 };
 
 const SENTIMENT_COLORS  = [CHART.success, CHART.warning, CHART.danger, CHART.neutral];
@@ -1540,7 +1540,7 @@ function AdsTab({ data }: { data: AdsData }) {
       <MktPanel title="Spend by platform (30 days)">
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={barData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--chart-ink) / 0.06)" />
             <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#94a3b8" }} />
             <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => `£${v}`} />
             <Tooltip contentStyle={{ background: "#1e293b", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8 }} formatter={(v: number) => fmtCurrency(v)} />
@@ -1670,7 +1670,7 @@ function WhatsAppTab({ data }: { data: WhatsAppData }) {
         <MktPanel title="Campaign funnel (all time)">
           <ResponsiveContainer width="100%" height={200}>
             <BarChart layout="vertical" data={[{ stage: "Sent", count: data.totalSent, fill: "#7c3aed" }, { stage: "Delivered", count: data.totalDelivered, fill: "#22c55e" }, { stage: "Read", count: data.totalRead, fill: "#3b82f6" }, { stage: "Replied", count: data.totalReplied, fill: "#f59e0b" }]} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--chart-ink) / 0.06)" />
               <XAxis type="number" tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={fmtNum} />
               <YAxis type="category" dataKey="stage" tick={{ fontSize: 11, fill: "#94a3b8" }} width={68} />
               <Tooltip contentStyle={{ background: "#1e293b", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8 }} formatter={(v: number) => fmtNum(v)} />

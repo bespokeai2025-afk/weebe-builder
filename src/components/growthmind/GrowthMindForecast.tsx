@@ -448,15 +448,15 @@ export function GrowthMindForecast() {
               ) : (
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={chartData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--chart-ink) / 0.05)" />
                     <XAxis
                       dataKey="label"
-                      tick={{ fontSize: 9, fill: "rgba(255,255,255,0.4)" }}
+                      tick={{ fontSize: 9, fill: "rgb(var(--chart-ink) / 0.4)" }}
                       tickLine={false}
                       interval={Math.floor(chartData.length / 8)}
                     />
                     <YAxis
-                      tick={{ fontSize: 10, fill: "rgba(255,255,255,0.4)" }}
+                      tick={{ fontSize: 10, fill: "rgb(var(--chart-ink) / 0.4)" }}
                       tickLine={false}
                       axisLine={false}
                       allowDecimals={false}
@@ -465,15 +465,15 @@ export function GrowthMindForecast() {
                     <Legend
                       wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
                       formatter={(value: string) => (
-                        <span style={{ color: "rgba(255,255,255,0.6)" }}>{value}</span>
+                        <span style={{ color: "rgb(var(--chart-ink) / 0.6)" }}>{value}</span>
                       )}
                     />
                     {splitLabel && (
                       <ReferenceLine
                         x={splitLabel}
-                        stroke="rgba(255,255,255,0.15)"
+                        stroke="rgb(var(--chart-ink) / 0.15)"
                         strokeDasharray="4 2"
-                        label={{ value: "Today", position: "top", fontSize: 9, fill: "rgba(255,255,255,0.4)" }}
+                        label={{ value: "Today", position: "top", fontSize: 9, fill: "rgb(var(--chart-ink) / 0.4)" }}
                       />
                     )}
 

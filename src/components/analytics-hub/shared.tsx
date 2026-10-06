@@ -28,8 +28,8 @@ export const CHART = {
   neutral:     "#64748B",
   pink:        "#EC4899",
   orange:      "#F97316",
-  grid:        "rgba(255,255,255,0.06)",
-  axis:        "rgba(255,255,255,0.40)",
+  grid:        "rgb(var(--chart-ink) / 0.06)",
+  axis:        "rgb(var(--chart-ink) / 0.40)",
 };
 
 export const DONUT_COLORS = [CHART.primary, CHART.accent, CHART.success, CHART.warning, CHART.danger, CHART.pink, CHART.orange, CHART.neutral];

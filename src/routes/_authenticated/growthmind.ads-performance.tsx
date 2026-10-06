@@ -1140,16 +1140,16 @@ function AdsTrendCharts() {
                         <stop offset="95%" stopColor="#e879f9" stopOpacity={0}    />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--chart-ink) / 0.04)" />
                     <XAxis
                       dataKey="date"
-                      tick={{ fontSize: 9, fill: "rgba(255,255,255,0.35)" }}
+                      tick={{ fontSize: 9, fill: "rgb(var(--chart-ink) / 0.35)" }}
                       tickLine={false}
                       axisLine={false}
                       interval="preserveStartEnd"
                     />
                     <YAxis
-                      tick={{ fontSize: 9, fill: "rgba(255,255,255,0.35)" }}
+                      tick={{ fontSize: 9, fill: "rgb(var(--chart-ink) / 0.35)" }}
                       tickLine={false}
                       axisLine={false}
                       tickFormatter={panel.yFmt}
@@ -1208,7 +1208,7 @@ function AdsTrendCharts() {
                         iconSize={6}
                         wrapperStyle={{ fontSize: 10, paddingTop: 4 }}
                         formatter={(value) => (
-                          <span style={{ color: "rgba(255,255,255,0.55)" }}>{value}</span>
+                          <span style={{ color: "rgb(var(--chart-ink) / 0.55)" }}>{value}</span>
                         )}
                       />
                     )}

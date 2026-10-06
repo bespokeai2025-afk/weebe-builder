@@ -222,9 +222,9 @@ export function CampaignUsageSection({ filter }: { filter: AnalyticsFilterState 
                     <stop offset="100%" stopColor={CHART.primary} stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
-                <XAxis dataKey="bucket" tick={{ fontSize: 11, fill: "rgba(255,255,255,0.45)" }} tickLine={false} axisLine={false} minTickGap={24} />
-                <YAxis tick={{ fontSize: 11, fill: "rgba(255,255,255,0.45)" }} tickLine={false} axisLine={false} width={44} />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--chart-ink) / 0.06)" vertical={false} />
+                <XAxis dataKey="bucket" tick={{ fontSize: 11, fill: "rgb(var(--chart-ink) / 0.45)" }} tickLine={false} axisLine={false} minTickGap={24} />
+                <YAxis tick={{ fontSize: 11, fill: "rgb(var(--chart-ink) / 0.45)" }} tickLine={false} axisLine={false} width={44} />
                 <Tooltip content={<ChartTooltip />} />
                 <Area type="monotone" dataKey="minutesUsed" name="Minutes used" stroke={CHART.primary} strokeWidth={2} fill="url(#cuMinutes)" />
                 <Area type="monotone" dataKey="connectedMinutes" name="Connected minutes" stroke={CHART.success} strokeWidth={1.5} fillOpacity={0} />

@@ -16,7 +16,7 @@ function GradeRing({ score, grade }: { score: number; grade: string }) {
   return (
     <div className="relative flex items-center justify-center w-28 h-28">
       <svg className="absolute inset-0 -rotate-90" viewBox="0 0 100 100">
-        <circle cx="50" cy="50" r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="8" />
+        <circle cx="50" cy="50" r={r} fill="none" stroke="rgb(var(--chart-ink) / 0.06)" strokeWidth="8" />
         <circle cx="50" cy="50" r={r} fill="none" stroke={color} strokeWidth="8"
           strokeDasharray={`${pct * circ} ${circ}`} strokeLinecap="round"
           style={{ transition: "stroke-dasharray 0.8s ease" }} />

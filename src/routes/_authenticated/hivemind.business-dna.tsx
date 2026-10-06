@@ -170,7 +170,7 @@ function CompletenessRing({ pct, grade }: { pct: number; grade: string }) {
   return (
     <div className="relative flex items-center justify-center" style={{ width: 88, height: 88 }}>
       <svg width="88" height="88" viewBox="0 0 88 88" className="-rotate-90">
-        <circle cx="44" cy="44" r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="6" />
+        <circle cx="44" cy="44" r={r} fill="none" stroke="rgb(var(--chart-ink) / 0.06)" strokeWidth="6" />
         <circle
           cx="44" cy="44" r={r} fill="none"
           stroke={color} strokeWidth="6"
