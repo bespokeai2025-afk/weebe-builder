@@ -196,7 +196,6 @@ const ADMINISTRATION_NAV_ITEMS: NavItem[] = [
   { title: "Team",         url: "/settings/account",      icon: Users },
   { title: "Integrations", url: "/settings/integrations", icon: Plug },
   { title: "Billing",      url: "/billing",               icon: CreditCard },
-  { title: "Settings",     url: "/settings/integrations", icon: Settings },
 ];
 
 // ── Nav item (fixed order — no drag-to-reorder) ─────────────────────────────
@@ -587,6 +586,25 @@ export function AppSidebar() {
                           )}
                         />
                         <span className="truncate group-data-[collapsible=icon]:hidden">Admin</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem className="group-data-[collapsible=icon]:w-auto">
+                    <SidebarMenuButton
+                      asChild
+                      tooltip="Costing Studio"
+                      className={navButtonClasses(isActive("/admin/cost-engine"))}
+                    >
+                      <Link to="/admin/cost-engine" className="flex items-center gap-3">
+                        <Calculator
+                          className={cn(
+                            "h-[18px] w-[18px] shrink-0",
+                            isActive("/admin/cost-engine")
+                              ? "text-primary"
+                              : "text-muted-foreground group-hover/nav:text-foreground",
+                          )}
+                        />
+                        <span className="truncate group-data-[collapsible=icon]:hidden">Costing Studio</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
