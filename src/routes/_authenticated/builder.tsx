@@ -72,7 +72,7 @@ function BuilderPage() {
       setSaving(true);
       const revisionAtStart = s.editRevision;
       try {
-        s.recordFlowVersion(opts?.silent ? "Autosave" : "Saved");
+        await s.recordFlowVersion(opts?.silent ? "Autosave" : "Saved");
         const snap = useBuilderStore.getState();
         const { id } = await saveAgent({
           data: {

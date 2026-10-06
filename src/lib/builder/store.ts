@@ -22,7 +22,14 @@ import {
   type GraphSlice,
 } from "./graph-ops";
 import { flowComponentSlice } from "./flow-components";
-import { appendFlowVersion, makePublishedSnapshot, nextVersionNumber } from "./flow-history";
+import {
+  appendFlowVersion,
+  compactFlowHistory,
+  expandFlowVersion,
+  historyNeedsCompaction,
+  makePublishedSnapshot,
+  nextVersionNumber,
+} from "./flow-history";
 import { validateComponentSlice } from "./validate";
 
 export type { FlowNode };
@@ -62,9 +69,11 @@ interface State {
   enterComponentEditor: (id: string) => boolean;
   exitComponentEditor: (save: boolean) => void;
   editingComponentId: string | null;
-  recordFlowVersion: (label: string) => number | null;
-  publishFlow: () => number;
-  restoreFlowVersion: (version: number) => boolean;
+  recordFlowVersion: (label: string) => Promise<number | null>;
+  publishFlow: () => Promise<number>;
+  restoreFlowVersion: (version: number) => Promise<boolean>;
+  /** Compress any legacy (uncompressed) history so saves stay small. */
+  compactHistory: () => Promise<void>;
   unpublishFlow: () => void;
   debugEvents: BuilderDebugEvent[];
   debugOpen: boolean;
@@ -585,19 +594,29 @@ export const useBuilderStore = create<State>()(
         });
         componentBackup = null;
       },
-      recordFlowVersion: (label) => {
+      recordFlowVersion: async (label) => {
+        await get().compactHistory();
         const version = nextVersionNumber(get().settings.flowHistory);
-        const history = appendFlowVersion(get().settings, {
+        const history = await appendFlowVersion(get().settings, {
           label,
           flowData: cloneSlice(get().nodes, get().edges),
           variables: structuredClone(get().variables),
         });
-        if (history === get().settings.flowHistory) return null;
+        if (!history) return null;
         set({ settings: { ...get().settings, flowHistory: history } });
         return history[history.length - 1]?.version ?? version;
       },
-      publishFlow: () => {
-        const version = get().recordFlowVersion("Published") ?? nextVersionNumber(get().settings.flowHistory);
+      compactHistory: async () => {
+        const current = get().settings.flowHistory;
+        if (!historyNeedsCompaction(current)) return;
+        const compacted = await compactFlowHistory(current);
+        // Only replace what we compacted — a version recorded meanwhile wins.
+        if (get().settings.flowHistory !== current) return;
+        set({ settings: { ...get().settings, flowHistory: compacted } });
+      },
+      publishFlow: async () => {
+        const version =
+          (await get().recordFlowVersion("Published")) ?? nextVersionNumber(get().settings.flowHistory);
         const published = makePublishedSnapshot(
           version,
           get().nodes,
@@ -610,9 +629,10 @@ export const useBuilderStore = create<State>()(
         });
         return version;
       },
-      restoreFlowVersion: (version) => {
-        const snap = (get().settings.flowHistory ?? []).find((v) => v.version === version);
-        if (!snap) return false;
+      restoreFlowVersion: async (version) => {
+        const entry = (get().settings.flowHistory ?? []).find((v) => v.version === version);
+        if (!entry) return false;
+        const snap = await expandFlowVersion(entry);
         pushHistory(get().nodes, get().edges);
         set({
           nodes: structuredClone(snap.flowData.nodes),
@@ -775,6 +795,8 @@ export const useBuilderStore = create<State>()(
           canUndo: false,
           canRedo: false,
         });
+        // Agents saved before history compression carry megabytes of snapshots.
+        void get().compactHistory();
       },
       setCurrentAgentRowId: (id) => set({ currentAgentRowId: id }),
       bumpSaveVersion: () => set({ saveVersion: get().saveVersion + 1, isDirty: false }),

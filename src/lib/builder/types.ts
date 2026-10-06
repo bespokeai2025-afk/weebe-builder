@@ -666,8 +666,16 @@ export interface FlowVersionSnapshot {
   version: number;
   label: string;
   createdAt: string;
-  flowData: { nodes: FlowNode[]; edges: import("@xyflow/react").Edge[] };
-  variables: BuilderVariable[];
+  /**
+   * Graph + variables, gzip-compressed and base64-encoded (see flow-history.ts). History is sent
+   * with every save, and uncompressed it grew past the server's request limit (HTTP 413).
+   */
+  gz?: string;
+  /** Short hash of the graph, used to skip saving an identical version twice. */
+  fingerprint?: string;
+  /** Legacy uncompressed form — compacted into `gz` on load and before every save. */
+  flowData?: { nodes: FlowNode[]; edges: import("@xyflow/react").Edge[] };
+  variables?: BuilderVariable[];
 }
 
 export interface PublishedSnapshot {

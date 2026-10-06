@@ -101,7 +101,10 @@ export function resolveFishTtsVoiceRequest(input: {
   const req: TtsVoiceRequest = {
     voiceId: input.voiceId,
     sampleRate: input.sampleRate,
-    latency: "low",
+    // Measured on s2.1-pro-free with streamed replies: balanced reached first audio as fast as
+    // low (588 vs 629ms median) with fewer mid-line pauses. Fish documents low as the
+    // lowest-latency, lowest-quality mode.
+    latency: "balanced",
     model: input.model,
     cloneVoice,
   };

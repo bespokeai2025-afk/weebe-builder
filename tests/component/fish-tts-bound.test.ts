@@ -187,16 +187,23 @@ describe("Fish bound call: one session per line on a reused socket", () => {
 });
 
 describe("Fish live first-audio flush", () => {
-  it("flushes the first phrase well before a full sentence", () => {
-    expect(shouldFlushFishLiveBuffer("Thank you, ", false)).toBe(true);
-    expect(shouldFlushFishLiveBuffer("Hi there friend", false)).toBe(true);
-    expect(shouldFlushFishLiveBuffer("Yes.", false)).toBe(false);
+  it("flushes the first piece at a clause boundary, where a speaker pauses anyway", () => {
+    expect(shouldFlushFishLiveBuffer("Thank you,", false)).toBe(true);
     expect(shouldFlushFishLiveBuffer("Great, ok.", false)).toBe(true);
+    expect(shouldFlushFishLiveBuffer("Perfect,", false)).toBe(true);
   });
 
-  it("does not wait for a 40-character sentence before first audio", () => {
-    expect(shouldFlushFishLiveBuffer("Can I take your", false)).toBe(true);
+  it("never cuts the first phrase mid-way, which put an audible break inside the sentence", () => {
+    expect(shouldFlushFishLiveBuffer("Perfect, and is the", false)).toBe(false);
+    expect(shouldFlushFishLiveBuffer("Can I take your ", false)).toBe(false);
+    expect(shouldFlushFishLiveBuffer("Yes.", false)).toBe(false);
     expect(shouldFlushFishLiveBuffer("Th", false)).toBe(false);
+  });
+
+  it("still starts a long unpunctuated opening at a word boundary", () => {
+    const long = "So what I would like to do now is go through a few quick details with you ";
+    expect(shouldFlushFishLiveBuffer(long, false)).toBe(true);
+    expect(shouldFlushFishLiveBuffer(long.trimEnd() + "x", false)).toBe(false);
   });
 
   it("after the first flush, waits for a real sentence", () => {

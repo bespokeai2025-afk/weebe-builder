@@ -346,6 +346,8 @@ export function RetellDeployDialog({
     setOpenaiDeploying(true);
     try {
       const { nodes: n, edges: e, settings: s, variables: v } = useBuilderStore.getState();
+      // History snapshots ride along in settings; keep them compressed (HTTP 413 otherwise).
+      await useBuilderStore.getState().compactHistory();
       const result = await upsertAgent({
         data: {
           id: currentAgentRowId ?? undefined,
@@ -432,6 +434,8 @@ export function RetellDeployDialog({
           deployedAgentName: s.agentName,
         };
         setSettings({ agentId: localId, deployedAgentName: s.agentName });
+        // History snapshots ride along in settings; keep them compressed (HTTP 413 otherwise).
+        await useBuilderStore.getState().compactHistory();
         const { id: rowId } = await upsertAgent({
           data: {
             id: useBuilderStore.getState().currentAgentRowId ?? undefined,
@@ -469,6 +473,8 @@ export function RetellDeployDialog({
       try {
         const { nodes: n, edges: e, settings: s, variables: v } =
           useBuilderStore.getState();
+        // History snapshots ride along in settings; keep them compressed (HTTP 413 otherwise).
+        await useBuilderStore.getState().compactHistory();
         const { id: rowId } = await upsertAgent({
           data: {
             id: useBuilderStore.getState().currentAgentRowId ?? undefined,
@@ -544,6 +550,8 @@ export function RetellDeployDialog({
           deployedElevenLabsAgentId: result.agentId as never,
           deployedAgentName: s.agentName,
         });
+        // History snapshots ride along in settings; keep them compressed (HTTP 413 otherwise).
+        await useBuilderStore.getState().compactHistory();
         const { id: rowId } = await upsertAgent({
           data: {
             id: useBuilderStore.getState().currentAgentRowId ?? undefined,
@@ -2894,6 +2902,8 @@ export function RetellDeployDialog({
     try {
       const { nodes: n, edges: e, settings: s, variables: v } = useBuilderStore.getState();
       const existing = await getAgentByRetellId({ data: { retellAgentId } });
+      // History snapshots ride along in settings; keep them compressed (HTTP 413 otherwise).
+      await useBuilderStore.getState().compactHistory();
       const saved = await upsertAgent({
         data: {
           id: existing?.id,

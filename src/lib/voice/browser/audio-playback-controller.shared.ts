@@ -54,9 +54,17 @@ export class AudioPlaybackController {
     return this.nextPlayTime;
   }
 
+  /**
+   * A new agent response is starting. Its audio queues after whatever is still playing.
+   *
+   * This used to cancel the playing audio. But the server sends a line's audio faster than real
+   * time, so when one turn speaks twice (a filler while a tool runs, then the answer; a static line
+   * then the next node's line) the first line was still playing when the second response started —
+   * and its ending was cut off. Interruptions do not rely on this: barge-in arrives as
+   * `response.cancelled` / `audio.clear`, which call `cancelCurrentAudio()`.
+   */
   setActiveResponse(responseId: number): void {
     if (responseId !== this.activeResponseId) {
-      this.cancelCurrentAudio("response_superseded");
       this.activeResponseId = responseId;
       this.chunkCount = 0;
     }
