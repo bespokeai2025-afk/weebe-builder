@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { CallTurnTrace } from "@/lib/voice/graph/latency-trace";
 
 /**
@@ -9,6 +9,36 @@ import { CallTurnTrace } from "@/lib/voice/graph/latency-trace";
  * the endpointing tests below.
  */
 describe("marks gathered before the trace exists", () => {
+  it("logs speech-end latency consistently with persisted timing and separates TTS input wait", () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      const trace = new CallTurnTrace(1, 1000);
+      trace.setUserSpeechStart(0);
+      trace.setSttFinal(1200);
+      trace.mark("tts_provider_start", 1300);
+      trace.mark("tts_first_text", 1600);
+      trace.mark("tts_first_audio", 2100);
+      trace.flushSummary();
+      expect(log.mock.calls[0][0]).toContain("speech→audio=1100ms");
+      expect(log.mock.calls[0][0]).toContain("tts_input_wait=300ms");
+      expect(log.mock.calls[0][0]).toContain("tts_text_to_audio=500ms");
+      expect(trace.toRecord().speechToFirstAudioMs).toBe(1100);
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it("does not invent TTS spans when a call has no audio", () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      new CallTurnTrace(1, 0).flushSummary();
+      expect(log.mock.calls[0][0]).toContain("tts_input_wait=n/a");
+      expect(log.mock.calls[0][0]).toContain("tts_text_to_audio=n/a");
+      expect(log.mock.calls[0][0]).toContain("speech→audio=n/a");
+    } finally {
+      log.mockRestore();
+    }
+  });
   it("measures speech_to_first_audio_ms from the VAD endpoint (turnOrigin), not from when the caller started talking", () => {
     // `speechToFirstAudioMs` is documented (see the call_turns migration) as "caller stopped
     // talking → caller hears audio" — Retell's own definition of end-to-end latency. It used to

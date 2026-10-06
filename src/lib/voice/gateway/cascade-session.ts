@@ -499,7 +499,12 @@ export class CascadeSession {
     this.lifecycleRef?.setProviderInfo({
       sttProvider: this.sttName,
       ttsProvider: this.tts?.name ?? null,
+      // Configured provider, as a floor. The resolver below supersedes it when the payload is
+      // built, which is after any mid-call Cerebras -> OpenAI fallback.
+      llmProvider: runtime?.llmProvider ?? null,
     });
+    const resolveLlm = runtime?.effectiveLlmProvider;
+    if (resolveLlm) this.lifecycleRef?.setLlmProviderResolver(() => resolveLlm());
 
     const banner: CascadeSessionBanner = {
       mode: runtime ? "graph" : "flat",
@@ -994,7 +999,7 @@ export class CascadeSession {
           `${this.log} graph ended reason=${reason} node=${this.graphVm?.nodeId ?? "unknown"}`,
         );
         this.transport.onEnd?.(reason);
-        void this.lifecycleRef?.ended("agent_hangup");
+            void this.lifecycleRef?.ended("agent_hangup");
         // Leave the transport open so buffered audio finishes playing.
         this.awaitPlayback();
       },
@@ -1276,6 +1281,8 @@ export class CascadeSession {
     }
     console.log(
       `${this.log} tts voice call=${this.config.callId} turn=${t.id} response=${responseId}` +
+        ` stt=${this.sttName} tts=${tts.name} llm=${this.config.model ?? WEBEE_NATIVE_SPEECH_MODEL}` +
+        ` tts_model=${req.model ?? "provider-default"}` +
         ` node=${nodeId ?? "-"} reference_id=${req.voiceId}` +
         (typeof req.temperature === "number" ? ` temp=${req.temperature.toFixed(2)}` : "") +
         (typeof req.speed === "number" ? ` speed=${req.speed}` : ""),
@@ -1295,10 +1302,23 @@ export class CascadeSession {
       req.speed = resolveDynamicSpeed(req.speed, normalized, this.config.settings);
     }
 
-    const openAudio = () =>
-      typeof normalized === "string"
-        ? tts.synthesize(normalized, req)
-        : tts.synthesizeStream(normalized, req);
+    // Observe consumption without buffering tokens or logging caller/agent text.
+    // This span includes provider setup and waiting for the first model text;
+    // it is not a pure network or synthesis-duration measurement.
+    const tracedText = async function* () {
+      for await (const text of normalized as AsyncIterable<string>) {
+        if (text.trim()) t.trace?.mark("tts_first_text");
+        yield text;
+      }
+    };
+    const openAudio = () => {
+      t.trace?.mark("tts_provider_start");
+      if (typeof normalized === "string") {
+        if (normalized.trim()) t.trace?.mark("tts_first_text");
+        return tts.synthesize(normalized, req);
+      }
+      return tts.synthesizeStream(tracedText(), req);
+    };
 
     const pumpAudio = async (audio: AsyncIterable<import("../tts/types").PcmChunk>) => {
       for await (const chunk of audio) {

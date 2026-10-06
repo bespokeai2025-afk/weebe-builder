@@ -14,7 +14,7 @@ import { WebSocket } from "ws";
 import { compileRealtimePrompt } from "../../builder/compile-realtime-prompt";
 import { isWebeeNativeMode, resolveDeploymentMode } from "../../runtime/adapter";
 import type { DeploymentMode } from "../../runtime/types";
-import { loadNativeCostCentsPerMinute } from "../lifecycle/cost";
+import { loadNativeCostRates } from "../lifecycle/cost";
 import { NativeCallLifecycle } from "../lifecycle/call-lifecycle";
 import { CallRecorder } from "../lifecycle/recording";
 import type { AnalysisField } from "../lifecycle/types";
@@ -277,8 +277,8 @@ export function createCallLifecycle(
   // read is deliberately not awaited: nothing about answering a call should wait
   // on the cost table.
   if (isWebeeNativeMode(config.deploymentMode)) {
-    void loadNativeCostCentsPerMinute(sb)
-      .then((cents) => lifecycle.setCostCentsPerMinute(cents))
+    void loadNativeCostRates(sb, config.workspaceId)
+      .then((rates) => lifecycle.setCostRates(rates))
       .catch(() => {});
   }
 

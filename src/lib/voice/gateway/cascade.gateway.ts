@@ -30,7 +30,7 @@ import { resolveWebeeLlmProvider, resolveWebeeSpeechModel } from "../webee-nativ
 import { resolveVoiceLlmApiKey } from "../llm/gpt";
 import type { TtsProviderName } from "../tts";
 import { NativeCallLifecycle } from "../lifecycle/call-lifecycle";
-import { loadNativeCostCentsPerMinute } from "../lifecycle/cost";
+import { loadNativeCostRates } from "../lifecycle/cost";
 import { CallRecorder } from "../lifecycle/recording";
 import type { VariableValue } from "../graph/types";
 import type { VoiceGatewayContext, VoiceGatewayRoute } from "./types";
@@ -161,8 +161,8 @@ function handleConnection(ws: WebSocket, _ctx: VoiceGatewayContext): void {
         lifecycle.started();
         // A test call burns the same providers a real one does, so it is priced
         // the same way. Not awaited: the greeting must not wait on a rate lookup.
-        void loadNativeCostCentsPerMinute(sb)
-          .then((cents) => lifecycle.setCostCentsPerMinute(cents))
+        void loadNativeCostRates(sb, runtime.agent.workspaceId)
+          .then((rates) => lifecycle.setCostRates(rates))
           .catch(() => {});
         return lifecycle;
       },

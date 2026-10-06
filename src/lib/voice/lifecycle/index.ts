@@ -3,7 +3,12 @@
  * assembly, recording capture and the post-call analysis pass.
  */
 export { analyzeCall, normalizeAnalysis } from "./analysis";
-export { loadNativeCostCentsPerMinute, resetNativeCostCache } from "./cost";
+export {
+  loadNativeCostCentsPerMinute,
+  loadNativeCostRates,
+  resetNativeCostCache,
+  type NativeCostRates,
+} from "./cost";
 export { NativeCallLifecycle } from "./call-lifecycle";
 export type { NativeCallIdentity, NativeCallLifecycleDeps } from "./call-lifecycle";
 export { buildWavFile, CallRecorder, RECORD_SAMPLE_RATE } from "./recording";

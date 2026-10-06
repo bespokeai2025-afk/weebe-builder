@@ -8,6 +8,11 @@
  *
  * Relative imports only (reachable from vite.config.ts).
  */
+import {
+  isWebTestCall,
+  resolveVoiceCallCost,
+} from "../../cost-engine/voice-call-cost.shared";
+import type { NativeCostRates } from "./cost";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { analyzeCall } from "./analysis";
 import { CallRecorder } from "./recording";
@@ -73,6 +78,9 @@ export class NativeCallLifecycle {
   /** Set once STT/TTS providers actually resolve — see `setProviderInfo`. */
   private sttProviderName: string | null = null;
   private ttsProviderName: string | null = null;
+  private llmProviderName: string | null = null;
+  private llmProviderResolver: (() => string | null) | null = null;
+  private costRates: NativeCostRates | null = null;
   /** Null until the first live transcript event has gone out. */
   private lastTranscriptEmit: number | null = null;
   private lastTranscriptText = "";
@@ -102,6 +110,19 @@ export class NativeCallLifecycle {
   }
 
   /**
+   * Blended row plus this workspace's per-provider rates.
+   *
+   * When present, the call is priced against the providers it actually used rather than one
+   * blended average — the same function the cost dashboards use, so the stored headline and the
+   * displayed breakdown agree. Arriving mid-call is fine: like the rate above, it is only read
+   * at hangup.
+   */
+  setCostRates(rates: NativeCostRates | null): void {
+    this.costRates = rates;
+    if (rates?.centsPerMinute != null) this.costCentsPerMinute = rates.centsPerMinute;
+  }
+
+  /**
    * Record which STT/TTS providers this call actually used, once they resolve.
    *
    * Carried in `call.metadata` (not a dedicated field on `RetellShapedCall` — that type mirrors
@@ -109,9 +130,28 @@ export class NativeCallLifecycle {
    * it onto `calls.stt_provider`/`calls.tts_provider` for a provider-accurate cost breakdown,
    * instead of every native call being costed against one blended, provider-agnostic rate.
    */
-  setProviderInfo(info: { sttProvider?: string | null; ttsProvider?: string | null }): void {
+  setProviderInfo(info: {
+    sttProvider?: string | null;
+    ttsProvider?: string | null;
+    llmProvider?: string | null;
+  }): void {
     if (info.sttProvider) this.sttProviderName = info.sttProvider;
     if (info.ttsProvider) this.ttsProviderName = info.ttsProvider;
+    if (info.llmProvider) this.llmProviderName = info.llmProvider;
+  }
+
+  /**
+   * Resolve the LLM provider that actually served the call, read when the payload is built.
+   *
+   * Cerebras quota errors fall back to OpenAI mid-call, so the configured provider is wrong
+   * whenever that happens. This was previously reported by the session calling a method on two
+   * of its end paths — but `ended()` is reached from at least five places across the cascade,
+   * Frejun and telephony gateways, and the others persisted the configured provider and costed
+   * the call ~6.5x too cheap. Resolving lazily here covers every path by construction, including
+   * any added later.
+   */
+  setLlmProviderResolver(resolve: () => string | null): void {
+    this.llmProviderResolver = resolve;
   }
 
   get recorder(): CallRecorder | null {
@@ -292,13 +332,20 @@ export class NativeCallLifecycle {
   }
 
   private baseMetadata(): Record<string, unknown> {
+    // Resolved here rather than at setup: this runs when the end payload is built, which is
+    // after any mid-call provider fallback has happened.
+    const llmProvider = this.llmProviderResolver?.() ?? this.llmProviderName;
     return {
+      // Caller-supplied metadata is spread FIRST so the measured values below win. It used to
+      // be spread last, which let a stale `metadata.stt_provider` silently override what the
+      // call actually used — and cost is priced off these fields.
+      ...(this.identity.metadata ?? {}),
       // Tells the processor and analytics which engine produced the call.
       engine: "webee_native",
       workspace_id: this.identity.workspaceId ?? undefined,
       stt_provider: this.sttProviderName ?? undefined,
       tts_provider: this.ttsProviderName ?? undefined,
-      ...(this.identity.metadata ?? {}),
+      llm_provider: llmProvider ?? undefined,
     };
   }
 
@@ -334,12 +381,36 @@ export class NativeCallLifecycle {
       call.end_timestamp = this.endedAt;
       call.duration_ms = this.endedAt - this.startedAt;
     }
-    const perMinute = this.costCentsPerMinute;
-    if (perMinute != null && this.endedAt) {
-      call.call_cost = {
-        combined_cost: Number(((durationSeconds / 60) * perMinute).toFixed(4)),
-        total_duration_seconds: durationSeconds,
-      };
+    if (this.endedAt) {
+      // Prefer the per-provider price. `resolveVoiceCallCost` is the same function the cost
+      // dashboards call, so `cost_cents` and the displayed breakdown can no longer disagree.
+      // Telephony is excluded: carrier minutes are reconciled from the carrier's own invoice.
+      const rates = this.costRates;
+      const combinedCents =
+        rates?.blended != null
+          ? resolveVoiceCallCost({
+              blended: rates.blended,
+              rates: rates.rates,
+              durationMinutes: durationSeconds / 60,
+              sttProvider: this.sttProviderName,
+              ttsProvider: this.ttsProviderName,
+              llmProvider: this.llmProviderResolver?.() ?? this.llmProviderName,
+              callType: isWebTestCall(call.to_number) ? "web_call" : "phone_call",
+              direction: call.direction ?? null,
+            }).engineTotalUsd * 100
+          : this.costCentsPerMinute != null
+            ? (durationSeconds / 60) * this.costCentsPerMinute
+            : null;
+
+      if (combinedCents != null) {
+        call.call_cost = {
+          // 4dp of a cent. The webhook processor rounds to whole cents for `cost_cents`, but
+          // carries this precision through to the sub-cent column — a 10-second test call is
+          // worth about half a cent, and rounding alone used to put it 93% out.
+          combined_cost: Number(combinedCents.toFixed(4)),
+          total_duration_seconds: durationSeconds,
+        };
+      }
     }
     return call;
   }

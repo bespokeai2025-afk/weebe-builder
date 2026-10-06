@@ -488,6 +488,43 @@ function customAnalysisForRow(data: unknown): Record<string, unknown> | null {
   return entries.length > 0 ? Object.fromEntries(entries) : null;
 }
 
+/**
+ * PostgREST names the offending column when a write references one the schema does not have.
+ * Both wordings seen in practice are matched.
+ */
+const UNKNOWN_COLUMN = /could not find the '([a-z0-9_]+)' column|column "?([a-z0-9_]+)"? of relation/i;
+
+function unknownColumnFrom(message: string | undefined): string | null {
+  const m = UNKNOWN_COLUMN.exec(message ?? "");
+  return m ? (m[1] ?? m[2] ?? null) : null;
+}
+
+/**
+ * Drop columns this database does not have yet, then retry.
+ *
+ * A call row gains columns ahead of the migrations that create them (`cost_cents_precise`,
+ * `llm_provider`). Without this, a single unapplied migration makes EVERY call write fail and
+ * calls silently stop being recorded — far worse than losing one optional field. Bounded to a
+ * few attempts so a genuinely broken write still surfaces its error.
+ */
+export async function writeWithSchemaFallback(
+  row: Record<string, unknown>,
+  write: (r: Record<string, unknown>) => PromiseLike<{ error: { message?: string } | null }>,
+): Promise<{ error: { message?: string } | null }> {
+  let attempt = { ...row };
+  for (let i = 0; i < 4; i++) {
+    const res = await write(attempt);
+    if (!res.error) return res;
+    const missing = unknownColumnFrom(res.error.message);
+    if (!missing || !(missing in attempt)) return res;
+    console.warn(
+      `[retell-webhook] calls.${missing} does not exist — writing without it. Apply the migration that adds it.`,
+    );
+    delete attempt[missing];
+  }
+  return await write(attempt);
+}
+
 async function upsertCall(row: Record<string, unknown>) {
   const retellCallId = row.retell_call_id as string;
   const { data: existing, error: lookupError } = await supabaseAdmin
@@ -498,21 +535,27 @@ async function upsertCall(row: Record<string, unknown>) {
   if (lookupError) return { error: lookupError };
 
   if (existing?.id) {
-    return supabaseAdmin
-      .from("calls")
-      .update(row as never)
-      .eq("id", existing.id as string);
+    return writeWithSchemaFallback(row, (r) =>
+      supabaseAdmin
+        .from("calls")
+        .update(r as never)
+        .eq("id", existing.id as string),
+    );
   }
 
-  const inserted = await supabaseAdmin.from("calls").insert(row as never);
+  const inserted = await writeWithSchemaFallback(row, (r) =>
+    supabaseAdmin.from("calls").insert(r as never),
+  );
   if (!inserted.error) return inserted;
 
-  const message = inserted.error.message.toLowerCase();
+  const message = (inserted.error.message ?? "").toLowerCase();
   if (!message.includes("duplicate") && !message.includes("unique")) return inserted;
-  return supabaseAdmin
-    .from("calls")
-    .update(row as never)
-    .eq("retell_call_id", retellCallId);
+  return writeWithSchemaFallback(row, (r) =>
+    supabaseAdmin
+      .from("calls")
+      .update(r as never)
+      .eq("retell_call_id", retellCallId),
+  );
 }
 
 export async function processRetellWebhook(
@@ -987,6 +1030,12 @@ export async function processRetellWebhook(
       typeof call.call_cost?.combined_cost === "number"
         ? Math.round(call.call_cost.combined_cost)
         : null,
+    // The same figure without the rounding. `combined_cost` arrives at 4dp and a short call is
+    // worth a fraction of a cent, so rounding alone put a 10-second call 93% out and a
+    // 5-second one at zero. `cost_cents` above stays rounded because a long tail of reporting
+    // reads it; cost surfaces prefer this one and fall back to that.
+    cost_cents_precise:
+      typeof call.call_cost?.combined_cost === "number" ? call.call_cost.combined_cost : null,
     // The agent's own post-call fields, kept on the call the way Retell keeps
     // them. Previously only workflow-specific handlers read these — bookings,
     // lead intelligence, qualification — so a test call showed the three
@@ -1008,6 +1057,12 @@ export async function processRetellWebhook(
     tts_provider: typeof (call as any)?.metadata?.tts_provider === "string"
       ? (call as any).metadata.tts_provider
       : null,
+    // The provider that actually served the call, not the configured one — a Cerebras quota
+    // error falls back to OpenAI mid-call, and costing it against Cerebras would understate
+    // the call by roughly 5x at current rates.
+    llm_provider: typeof (call as any)?.metadata?.llm_provider === "string"
+      ? (call as any).metadata.llm_provider
+      : null,
   } as Record<string, unknown>;
 
   const cleaned: Record<string, unknown> = {};
@@ -1026,7 +1081,7 @@ export async function processRetellWebhook(
     await updateWebhookEvent(eventLogId, "error", callError.message);
     try {
       const { markWebhookFailed } = await import("@/lib/retell/retell-webhook-management.server");
-      await markWebhookFailed(dedupLedgerId, workspaceId, callError.message);
+      await markWebhookFailed(dedupLedgerId, workspaceId, callError.message ?? "call upsert failed");
     } catch {
       /* non-fatal */
     }

@@ -49,6 +49,8 @@ export interface VoiceCostBreakdownInput {
   durationMinutes: number;
   sttProvider: string | null;
   ttsProvider: string | null;
+  /** Provider that actually served the call's LLM turns, after any mid-call fallback. */
+  llmProvider: string | null;
   callType: string | null | undefined;
   direction: string | null | undefined;
 }
@@ -61,6 +63,9 @@ export interface VoiceCostBreakdown {
   ttsUsd: number;
   ttsProvider: string | null;
   ttsRateMissing: boolean;
+  llmUsd: number;
+  llmProvider: string | null;
+  llmRateMissing: boolean;
   telephonyUsd: number;
   telephonyBasis: TelephonyBasis;
   /**
@@ -76,6 +81,7 @@ export function calcVoiceProviderCostBreakdown(input: VoiceCostBreakdownInput): 
   const minutes = Math.max(0, input.durationMinutes);
   const sttRate = input.sttProvider ? findRate(input.rates, "stt", input.sttProvider) : null;
   const ttsRate = input.ttsProvider ? findRate(input.rates, "tts", input.ttsProvider) : null;
+  const llmRate = input.llmProvider ? findRate(input.rates, "llm", input.llmProvider) : null;
 
   const telephonyBasis = resolveTelephonyBasis(input.callType, input.direction);
   const telephonyRate = findRate(input.rates, "telephony", telephonyBasis) ?? 0;
@@ -87,6 +93,9 @@ export function calcVoiceProviderCostBreakdown(input: VoiceCostBreakdownInput): 
     ttsUsd: (ttsRate ?? 0) * minutes,
     ttsProvider: input.ttsProvider,
     ttsRateMissing: !!input.ttsProvider && ttsRate == null,
+    llmUsd: (llmRate ?? 0) * minutes,
+    llmProvider: input.llmProvider,
+    llmRateMissing: !!input.llmProvider && llmRate == null,
     telephonyUsd: telephonyRate * minutes,
     telephonyBasis,
     telephonyIncludedInTotal: telephonyBasis === "web_estimate",

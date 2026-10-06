@@ -34,6 +34,8 @@ export type LatencyMark =
   | "llm_speech_first_sentence"
   | "llm_speech_complete"
   | "tts_speak_start"
+  | "tts_provider_start"
+  | "tts_first_text"
   | "tts_first_audio"
   | "partial_stt_stable"
   | "stt_partial_fallback"
@@ -181,6 +183,12 @@ export class CallTurnTrace {
   }
 
   flushSummary(): void {
+    const span = (start: LatencyMark, end: LatencyMark) => {
+      const a = this.marks.get(start);
+      const b = this.marks.get(end);
+      return a === undefined || b === undefined ? "n/a" : `${Math.round(b - a)}ms`;
+    };
+    const speechEndToAudio = this.msSinceTurnOrigin("tts_first_audio");
     const fromStt = (name: LatencyMark) => {
       const ms = this.msSinceStt(name);
       return ms !== null ? `${ms}ms` : "n/a";
@@ -201,8 +209,10 @@ export class CallTurnTrace {
         ` llm_1st_token=${fromStt("llm_speech_first_token")}` +
         ` llm_1st_sentence=${fromStt("llm_speech_first_sentence")}` +
         ` tts_1st_audio=${fromStt("tts_first_audio")}` +
+        ` tts_input_wait=${span("tts_provider_start", "tts_first_text")}` +
+        ` tts_text_to_audio=${span("tts_first_text", "tts_first_audio")}` +
         ` speech→stt_partial=${fromSpeech("partial_stt_stable")}` +
-        ` speech→audio=${fromSpeech("tts_first_audio")}`,
+        ` speech→audio=${speechEndToAudio === null ? "n/a" : `${speechEndToAudio}ms`}`,
     );
   }
 }

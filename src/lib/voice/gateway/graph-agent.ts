@@ -13,6 +13,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ConversationVm } from "../graph/vm";
 import { createOpenAiVmLlm } from "../graph/llm";
+import type { CerebrasBreaker } from "../llm/gpt";
 import { createTracedVmLlm } from "../graph/traced-llm";
 import { createVmHooks } from "../graph/tools";
 import { loadFlowFromAgent, mergeRuntimeVariables } from "../graph/load";
@@ -31,6 +32,15 @@ export interface GraphRuntime {
   voiceId: string;
   /** Text model resolved from agent settings, for cost attribution. */
   model: string;
+  /** LLM provider the agent is configured for. See `effectiveLlmProvider` for what served it. */
+  llmProvider: string;
+  /**
+   * Which provider actually served the call's LLM turns. A Cerebras quota/rate error falls
+   * back to OpenAI mid-call and never flips back, so this is the one cost must use — the
+   * configured provider would be wrong for every call while the Cerebras account is empty.
+   * Call it at call end, not at setup.
+   */
+  effectiveLlmProvider: () => string;
   warnings: string[];
   /**
    * The stored agent behind this call, when there is one. Null for builder test
@@ -204,6 +214,11 @@ export async function buildGraphRuntime(
     `${logPrefix} graph LLM provider=${llmProvider} speech=${configuredModel} classifier=${classifierModel}`,
   );
   let vm!: ConversationVm;
+  // Owned here rather than inside the factory so the session can ask, at call end, which
+  // provider actually served this call. Cerebras quota/rate errors silently fall back to
+  // OpenAI mid-call, and costing the call against the configured provider would then be
+  // wrong — which is exactly what happens while the Cerebras account is out of credit.
+  const llmBreaker: CerebrasBreaker = { down: false };
   const llm = createTracedVmLlm(
     createOpenAiVmLlm({
       apiKey,
@@ -211,6 +226,7 @@ export async function buildGraphRuntime(
       defaultModel: configuredModel,
       classifierModel,
       temperature: typeof flow.model_temperature === "number" ? flow.model_temperature : undefined,
+      breaker: llmBreaker,
     }),
     () => vm.getTurnTrace(),
   );
@@ -250,5 +266,13 @@ export async function buildGraphRuntime(
     agent,
     settings,
     analysisVariables,
+    /** What the agent asked for. May not be what served the call — see `effectiveLlmProvider`. */
+    llmProvider,
+    /**
+     * Which provider actually served the call, read at call end. The breaker flips to OpenAI
+     * on a Cerebras 402/429 and never flips back within a call, so this is the one to cost
+     * against.
+     */
+    effectiveLlmProvider: () => (llmBreaker.down ? "openai" : llmProvider),
   };
 }

@@ -37,6 +37,13 @@ export interface OpenAiVmLlmOptions {
    */
   classifierModel?: string;
   temperature?: number;
+  /**
+   * Supply the breaker instead of letting this factory own it, so the caller can read
+   * `.down` afterwards and know whether the call actually ran on Cerebras or silently
+   * fell back to OpenAI. Cost attribution needs the provider that served the call, not
+   * the one that was configured. Still one object per voice call — see `CerebrasBreaker`.
+   */
+  breaker?: CerebrasBreaker;
 }
 
 const CLASSIFY_SYSTEM = [
@@ -90,7 +97,7 @@ export function createOpenAiVmLlm(options: OpenAiVmLlmOptions): VmLlm {
   // call on this call hits a Cerebras quota/rate-limit error, every later call/classify/extract
   // on the SAME call skips straight to OpenAI instead of paying for a second failed Cerebras
   // attempt first — see CerebrasBreaker's doc comment for why this must not be shared across calls.
-  const breaker: CerebrasBreaker = { down: false };
+  const breaker: CerebrasBreaker = options.breaker ?? { down: false };
 
   const complete = (messages: LlmMessage[], model: string, extra: Record<string, unknown> = {}) =>
     gptComplete(messages as ChatMsg[], {

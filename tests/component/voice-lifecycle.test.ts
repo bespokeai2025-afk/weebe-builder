@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resolveVoiceCallCost } from "@/lib/cost-engine/voice-call-cost.shared";
 
 import {
   CallRecorder,
@@ -615,6 +616,114 @@ describe("NativeCallLifecycle", () => {
     expect(sink.events.find((e) => e.event === "call_ended")!.call.call_cost).toEqual({
       combined_cost: 6,
       total_duration_seconds: 120,
+    });
+  });
+
+  // The invariant that did not exist before, and whose absence let the two cost paths drift
+  // apart: what gets STORED must equal what the dashboards DISPLAY. Both now call
+  // `resolveVoiceCallCost`, so this holds by construction — the test is here to notice if
+  // anyone stops using it.
+  describe("stored cost agrees with the displayed breakdown", () => {
+    const blended = {
+      id: "r1",
+      tts_cost_per_1m_bytes: 15,
+      tts_chars_per_min: 900,
+      agent_talk_ratio: 0.5,
+      stt_cost_per_min: 0.006,
+      llm_cost_per_min: 0.015,
+      router_cost_per_min: 0.002,
+      analysis_cost_per_call: 0.004,
+      concurrency_tier_monthly: 0,
+      estimated_monthly_minutes: 5000,
+      is_current: true,
+      notes: null,
+    } as const;
+
+    const rates = [
+      { provider_category: "stt", provider_name: "cartesia", unit_type: "minute", cost_per_unit_usd: 0.0024 },
+      { provider_category: "stt", provider_name: "deepgram", unit_type: "minute", cost_per_unit_usd: 0.0077 },
+      { provider_category: "tts", provider_name: "fish", unit_type: "minute", cost_per_unit_usd: 0.012 },
+      { provider_category: "llm", provider_name: "cerebras", unit_type: "minute", cost_per_unit_usd: 0.00148 },
+      { provider_category: "telephony", provider_name: "twilio_outbound_us", unit_type: "minute", cost_per_unit_usd: 0.013 },
+    ];
+
+    async function priceCall(providers: {
+      sttProvider: string;
+      ttsProvider: string;
+      llmProvider: string;
+    }) {
+      let now = 0;
+      const sink = collect();
+      const lifecycle = new NativeCallLifecycle(identity, {
+        emit: sink.emit,
+        analyze: async () => ({}),
+        now: () => now,
+      });
+      lifecycle.setCostRates({ blended: blended as never, rates, centsPerMinute: null });
+      lifecycle.setProviderInfo(providers);
+      lifecycle.started();
+      now = 120_000;
+      await lifecycle.ended();
+      return sink.events.find((e) => e.event === "call_ended")!.call.call_cost!.combined_cost;
+    }
+
+    it("stores exactly what resolveVoiceCallCost reports for the same providers", async () => {
+      const providers = { sttProvider: "cartesia", ttsProvider: "fish", llmProvider: "cerebras" };
+      const stored = await priceCall(providers);
+      const displayed = resolveVoiceCallCost({
+        blended: blended as never,
+        rates,
+        durationMinutes: 2,
+        ...providers,
+        callType: "phone_call",
+        direction: null,
+      }).engineTotalUsd * 100;
+      expect(stored).toBeCloseTo(Number(displayed.toFixed(4)), 4);
+    });
+
+    it("charges a different amount when a different provider served the call", async () => {
+      // The whole point of recording providers. Before this, both of these cost the same.
+      const cheap = await priceCall({ sttProvider: "cartesia", ttsProvider: "fish", llmProvider: "cerebras" });
+      const dear = await priceCall({ sttProvider: "deepgram", ttsProvider: "fish", llmProvider: "cerebras" });
+      expect(dear).toBeGreaterThan(cheap);
+    });
+
+    it("keeps sub-cent precision instead of rounding a short call to nothing", async () => {
+      // A 10-second call is worth a fraction of a cent; it must not arrive as 0.
+      let now = 0;
+      const sink = collect();
+      const lifecycle = new NativeCallLifecycle(identity, {
+        emit: sink.emit,
+        analyze: async () => ({}),
+        now: () => now,
+      });
+      lifecycle.setCostRates({ blended: blended as never, rates, centsPerMinute: null });
+      lifecycle.setProviderInfo({ sttProvider: "cartesia", ttsProvider: "fish", llmProvider: "cerebras" });
+      lifecycle.started();
+      now = 10_000;
+      await lifecycle.ended();
+      const cost = sink.events.find((e) => e.event === "call_ended")!.call.call_cost!.combined_cost;
+      expect(cost).toBeGreaterThan(0);
+      expect(cost).toBeLessThan(1);
+    });
+
+    it("falls back to the blended rate for a stage with no recorded provider", async () => {
+      // Never a provider-specific $0 — that would understate the call, not just lack detail.
+      const withProvider = await priceCall({ sttProvider: "cartesia", ttsProvider: "fish", llmProvider: "cerebras" });
+      let now = 0;
+      const sink = collect();
+      const lifecycle = new NativeCallLifecycle(identity, {
+        emit: sink.emit,
+        analyze: async () => ({}),
+        now: () => now,
+      });
+      lifecycle.setCostRates({ blended: blended as never, rates, centsPerMinute: null });
+      lifecycle.started();
+      now = 120_000;
+      await lifecycle.ended();
+      const noProviders = sink.events.find((e) => e.event === "call_ended")!.call.call_cost!.combined_cost;
+      expect(noProviders).toBeGreaterThan(0);
+      expect(noProviders).not.toBeCloseTo(withProvider, 4);
     });
   });
 });

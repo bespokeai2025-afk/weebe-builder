@@ -11,11 +11,14 @@ const RATES: VoiceProviderRateRow[] = [
   { provider_category: "stt", provider_name: "deepgram", unit_type: "minute", cost_per_unit_usd: 0.0077 },
   { provider_category: "stt", provider_name: "assemblyai", unit_type: "minute", cost_per_unit_usd: 0.0025 },
   { provider_category: "stt", provider_name: "cartesia", unit_type: "minute", cost_per_unit_usd: 0.0024 },
+  { provider_category: "stt", provider_name: "fish", unit_type: "minute", cost_per_unit_usd: 0.006 },
   { provider_category: "tts", provider_name: "fish", unit_type: "minute", cost_per_unit_usd: 0.012 },
   { provider_category: "tts", provider_name: "cartesia", unit_type: "minute", cost_per_unit_usd: 0.03 },
   { provider_category: "telephony", provider_name: "twilio_outbound_us", unit_type: "minute", cost_per_unit_usd: 0.013 },
   { provider_category: "telephony", provider_name: "twilio_inbound_us", unit_type: "minute", cost_per_unit_usd: 0.0085 },
   { provider_category: "telephony", provider_name: "web_estimate", unit_type: "minute", cost_per_unit_usd: 0.013 },
+  { provider_category: "llm", provider_name: "cerebras", unit_type: "minute", cost_per_unit_usd: 0.00148 },
+  { provider_category: "llm", provider_name: "openai", unit_type: "minute", cost_per_unit_usd: 0.0096 },
 ];
 
 describe("resolveTelephonyBasis", () => {
@@ -124,5 +127,38 @@ describe("calcVoiceProviderCostBreakdown", () => {
     expect(Number.isFinite(b.telephonyUsd)).toBe(true);
     expect(b.sttUsd).toBe(0);
     expect(b.sttRateMissing).toBe(false); // no provider claimed, so nothing is "missing"
+  });
+});
+
+describe("LLM cost follows the provider that actually served the call", () => {
+  const base = {
+    rates: RATES,
+    durationMinutes: 2,
+    sttProvider: "fish",
+    ttsProvider: "fish",
+    callType: "phone_call" as const,
+    direction: "outbound" as const,
+  };
+
+  it("prices Cerebras and OpenAI differently for an identical call", () => {
+    const cerebras = calcVoiceProviderCostBreakdown({ ...base, llmProvider: "cerebras" });
+    const openai = calcVoiceProviderCostBreakdown({ ...base, llmProvider: "openai" });
+    expect(cerebras.llmUsd).toBeCloseTo(0.00296, 6);
+    expect(openai.llmUsd).toBeCloseTo(0.0192, 6);
+    // The whole point: the configured-provider flat rate hid a ~6.5x difference.
+    expect(openai.llmUsd / cerebras.llmUsd).toBeGreaterThan(5);
+  });
+
+  it("flags a missing rate instead of silently charging zero", () => {
+    const b = calcVoiceProviderCostBreakdown({ ...base, llmProvider: "some-new-provider" });
+    expect(b.llmUsd).toBe(0);
+    expect(b.llmRateMissing).toBe(true);
+    // Callers use this flag to fall back to the blended figure rather than under-bill.
+  });
+
+  it("does not flag a missing rate when no provider was recorded at all", () => {
+    const b = calcVoiceProviderCostBreakdown({ ...base, llmProvider: null });
+    expect(b.llmRateMissing).toBe(false);
+    expect(b.llmProvider).toBeNull();
   });
 });

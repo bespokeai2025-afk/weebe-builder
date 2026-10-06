@@ -40,6 +40,8 @@ export interface TestCallCost {
     sttProvider: string | null;
     sttRateMissing: boolean;
     llmCents: number;
+    llmProvider: string | null;
+    llmRateMissing: boolean;
     routerCents: number;
     analysisCents: number;
     concurrencyCents: number;
@@ -74,23 +76,62 @@ export const checkCanSeeCallCost = createServerFn({ method: "GET" })
     return { canSee };
   });
 
+/** PostgREST returns NUMERIC as a string; anything unparseable is treated as absent. */
+function coercePrecise(v: number | string | null | undefined): number | null {
+  if (v == null) return null;
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 export const getTestCallCost = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
   .validator((input) => z.object({ callId: z.string().min(1) }).parse(input))
   .handler(async ({ data }): Promise<TestCallCost> => {
     const sb = supabaseAdmin as any;
 
-    const [{ data: call }, { data: turns }] = await Promise.all([
-      sb
-        .from("calls")
-        .select("cost_cents, duration_seconds, workspace_id, call_type, to_number, stt_provider, tts_provider")
-        .eq("retell_call_id", data.callId)
-        .maybeSingle(),
-      sb.from("call_turns").select("engine").eq("call_id", data.callId).limit(1),
-    ]);
+    /**
+     * Exactly the columns selected below. `sb` has to stay `any` because the generated
+     * Supabase types have not been regenerated since `llm_provider` was added — but typing
+     * the ROW means removing a column from the select becomes a compile error instead of a
+     * silent `undefined`, which is how `llm_provider` was read here for a while while never
+     * being selected, quietly disabling per-provider LLM pricing on this surface.
+     */
+    type CostCallRow = {
+      cost_cents: number | null;
+      cost_cents_precise: number | string | null;
+      duration_seconds: number | null;
+      workspace_id: string | null;
+      call_type: string | null;
+      to_number: string | null;
+      stt_provider: string | null;
+      tts_provider: string | null;
+      llm_provider: string | null;
+    };
 
-    const durationSeconds = (call?.duration_seconds as number | null) ?? null;
-    const isNative = ((turns ?? [])[0] as { engine?: string } | undefined)?.engine === "webee_native";
+    // Selecting a column that does not exist makes PostgREST reject the ENTIRE query, so a
+    // not-yet-applied migration would blank the whole Cost panel rather than just omit the
+    // extra precision. Ask for it, and fall back to the columns that have always existed.
+    const BASE_COLS =
+      "cost_cents, duration_seconds, workspace_id, call_type, to_number, " +
+      "stt_provider, tts_provider, llm_provider";
+
+    const callQuery = (cols: string) =>
+      sb.from("calls").select(cols).eq("retell_call_id", data.callId).maybeSingle();
+
+    const [callRes, { data: turns }] = (await Promise.all([
+      callQuery(`${BASE_COLS}, cost_cents_precise`),
+      sb.from("call_turns").select("engine").eq("call_id", data.callId).limit(1),
+    ])) as [
+      { data: CostCallRow | null; error?: { message?: string } | null },
+      { data: { engine?: string }[] | null },
+    ];
+
+    const call: CostCallRow | null = callRes.error
+      ? (((await callQuery(BASE_COLS)) as { data: CostCallRow | null }).data ?? null)
+      : callRes.data;
+
+    const durationSeconds = call?.duration_seconds ?? null;
+    const isNative = (turns ?? [])[0]?.engine === "webee_native";
 
     let breakdown: TestCallCost["breakdown"] = null;
     if (isNative && durationSeconds != null && durationSeconds > 0) {
@@ -107,14 +148,15 @@ export const getTestCallCost = createServerFn({ method: "GET" })
               .from("provider_cost_rates")
               .select("provider_category, provider_name, unit_type, cost_per_unit_usd")
               .eq("workspace_id", call.workspace_id)
-              .in("provider_category", ["stt", "tts", "telephony"])
+              .in("provider_category", ["stt", "tts", "llm", "telephony"])
           : Promise.resolve({ data: [] as VoiceProviderRateRow[] }),
       ]);
 
       if (blendedRates) {
         const minutes = durationSeconds / 60;
-        // LLM/router/analysis/concurrency stay on the blended rate — there is no single
-        // "provider" to differentiate those by (see voice-provider-rates.ts's module doc).
+        // Router/analysis/concurrency stay on the blended rate — those are WEBEE's own
+        // overhead, with no single vendor to differentiate them by. LLM is no longer in that
+        // group: it has a real provider per call, and is priced from it below.
         const perMin = calcWebeeNativeCostPerMin({
           native: blendedRates as WebeeNativeCost,
           avgCallMinutes: minutes,
@@ -133,13 +175,18 @@ export const getTestCallCost = createServerFn({ method: "GET" })
         const voice = calcVoiceProviderCostBreakdown({
           rates: (providerRates ?? []) as VoiceProviderRateRow[],
           durationMinutes: minutes,
-          sttProvider: (call?.stt_provider as string | null) ?? null,
-          ttsProvider: (call?.tts_provider as string | null) ?? null,
+          sttProvider: call?.stt_provider ?? null,
+          ttsProvider: call?.tts_provider ?? null,
+          llmProvider: call?.llm_provider ?? null,
           callType: isWebCall ? "web_call" : "phone_call",
           direction: call?.call_type === "inbound" ? "inbound" : "outbound",
         });
 
-        const llmCents = toCents(perMin.llm * minutes);
+        // Same precedence as STT/TTS below: the provider that actually served the call wins;
+        // the blended GPT-4.1 figure is the fallback for calls predating provider tracking.
+        const llmCents = voice.llmProvider && !voice.llmRateMissing
+          ? toCents(voice.llmUsd)
+          : toCents(perMin.llm * minutes);
         const routerCents = toCents(perMin.router * minutes);
         const analysisCents = toCents(perMin.analysis * minutes);
         const concurrencyCents = toCents(perMin.concurrency * minutes);
@@ -164,6 +211,8 @@ export const getTestCallCost = createServerFn({ method: "GET" })
           sttProvider: voice.sttProvider,
           sttRateMissing: voice.sttRateMissing,
           llmCents,
+          llmProvider: voice.llmProvider,
+          llmRateMissing: voice.llmRateMissing,
           routerCents,
           analysisCents,
           concurrencyCents,
@@ -180,7 +229,10 @@ export const getTestCallCost = createServerFn({ method: "GET" })
 
     return {
       callId: data.callId,
-      costCents: (call?.cost_cents as number | null) ?? null,
+      // Prefer the unrounded figure. NUMERIC comes back from PostgREST as a string, so it is
+      // coerced here rather than at every display site. Falls back to the rounded column for
+      // rows written before `cost_cents_precise` existed.
+      costCents: coercePrecise(call?.cost_cents_precise) ?? call?.cost_cents ?? null,
       durationSeconds,
       breakdown,
     };
