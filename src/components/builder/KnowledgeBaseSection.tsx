@@ -35,16 +35,26 @@ import {
   addUrlToRetellKb,
   addFileToRetellKb,
   deleteRetellKnowledgeBase,
+  fetchKbUrlText,
+  extractKbFileText,
 } from "@/lib/builder/knowledge-base.functions";
+import { buildKnowledgeBaseSection } from "@/lib/builder/knowledge-base-prompt.shared";
+
+/** File types whose bytes are already readable text, so they can be kept locally as-is. */
+const LOCAL_TEXT_FILE = /\.(txt|md|markdown|csv|json|tsv)$/i;
 
 type KbDoc = NonNullable<ReturnType<typeof useBuilderStore.getState>["settings"]["kbDocuments"]>[number];
 
 interface Props {
   isRetell: boolean;
   isHyperStream: boolean;
+  /** WEBEE Native has no retrieval service: documents are kept locally and go into the prompt. */
+  isWebeeNative?: boolean;
 }
 
-export function KnowledgeBaseSection({ isRetell, isHyperStream }: Props) {
+export function KnowledgeBaseSection({ isRetell, isHyperStream, isWebeeNative = false }: Props) {
+  /** Engines without hosted retrieval keep each document's text in the agent itself. */
+  const localMode = isHyperStream || isWebeeNative;
   const settings = useBuilderStore((s) => s.settings);
   const setSettings = useBuilderStore((s) => s.setSettings);
 
@@ -76,6 +86,11 @@ export function KnowledgeBaseSection({ isRetell, isHyperStream }: Props) {
   const doAddUrl = useServerFn(addUrlToRetellKb);
   const doAddFile = useServerFn(addFileToRetellKb);
   const doDeleteKb = useServerFn(deleteRetellKnowledgeBase);
+  const doFetchUrlText = useServerFn(fetchKbUrlText);
+  const doExtractFileText = useServerFn(extractKbFileText);
+  const kbSection = isWebeeNative
+    ? buildKnowledgeBaseSection(docs, { instruction: kbConfig.instruction })
+    : null;
 
   function resetAddForm() {
     setTextName("");
@@ -116,7 +131,7 @@ export function KnowledgeBaseSection({ isRetell, isHyperStream }: Props) {
 
       let newDoc: KbDoc;
 
-      if (isHyperStream) {
+      if (localMode) {
         newDoc = {
           id: sourceId,
           name: tab === "text" ? (textName || "Text document") : tab === "url" ? (urlName || urlValue) : (fileName || file!.name),
@@ -127,7 +142,25 @@ export function KnowledgeBaseSection({ isRetell, isHyperStream }: Props) {
           addedAt: new Date().toISOString(),
         };
         if (tab === "file" && file) {
-          const text = await file.text().catch(() => "");
+          if (LOCAL_TEXT_FILE.test(file.name)) {
+            newDoc.content = await file.text().catch(() => "");
+          } else {
+            // PDF / DOCX / XLSX: extract the text server-side instead of reading raw bytes.
+            const bytes = new Uint8Array(await file.arrayBuffer());
+            let binary = "";
+            for (let i = 0; i < bytes.length; i += 0x8000) {
+              binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+            }
+            const { text, truncated } = await doExtractFileText({
+              data: { fileBase64: btoa(binary), fileName: file.name, mimeType: file.type },
+            });
+            newDoc.content = text;
+            if (truncated) toast.warning("Only the first part of this document was kept.");
+          }
+        }
+        // No crawler on this engine: capture the page text now, so calls can use it.
+        if (tab === "url" && isWebeeNative) {
+          const { text } = await doFetchUrlText({ data: { url: urlValue.trim() } });
           newDoc.content = text;
         }
       } else {
@@ -241,6 +274,14 @@ export function KnowledgeBaseSection({ isRetell, isHyperStream }: Props) {
                 >
                   <DocTypeIcon type={doc.type} />
                   <span className="flex-1 truncate text-foreground/80">{doc.name}</span>
+                  {isWebeeNative && !doc.content?.trim() && (
+                    <span
+                      className="shrink-0 text-amber-600 dark:text-amber-400"
+                      title="This document was added for Retell and has no local text, so WEBEE Native calls cannot use it. Re-add it here."
+                    >
+                      not used
+                    </span>
+                  )}
                   <button
                     onClick={() => handleDelete(doc)}
                     disabled={deleting === doc.id}
@@ -258,10 +299,17 @@ export function KnowledgeBaseSection({ isRetell, isHyperStream }: Props) {
             </ul>
           )}
 
+          {kbSection && kbSection.truncated.length > 0 && (
+            <p className="text-[10px] leading-snug text-amber-600 dark:text-amber-400">
+              Too much text for a live call — only the first part of {kbSection.truncated.join(", ")} is used.
+            </p>
+          )}
+
           <div className="space-y-1.5 pt-0.5">
             <p className="text-[9px] uppercase tracking-wide text-muted-foreground font-semibold">
               Advanced Settings
             </p>
+            {!localMode && (
             <button
               onClick={() => setAdvOpen(true)}
               className="flex w-full items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-[10px] text-foreground/80 hover:bg-muted/40 transition-colors text-left"
@@ -269,6 +317,7 @@ export function KnowledgeBaseSection({ isRetell, isHyperStream }: Props) {
               <Settings className="h-3 w-3 text-muted-foreground shrink-0" />
               Adjust KB Retrieval Chunks and Similarity
             </button>
+            )}
             <button
               onClick={() => setInstrOpen(true)}
               className="flex w-full items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-[10px] text-foreground/80 hover:bg-muted/40 transition-colors text-left"
@@ -349,6 +398,11 @@ export function KnowledgeBaseSection({ isRetell, isHyperStream }: Props) {
                   HyperStream mode: URL will be stored as a reference in the system prompt.
                 </p>
               )}
+              {isWebeeNative && (
+                <p className="text-[10px] text-muted-foreground">
+                  The page&rsquo;s text is captured now and used on every call. Re-add it if the page changes.
+                </p>
+              )}
               {isRetell && (
                 <p className="text-[10px] text-muted-foreground">
                   OmniVoice will crawl and index this URL automatically.
@@ -392,7 +446,7 @@ export function KnowledgeBaseSection({ isRetell, isHyperStream }: Props) {
                 ref={fileRef}
                 type="file"
                 className="hidden"
-                accept=".pdf,.docx,.txt,.csv,.md,.json"
+                accept=".pdf,.docx,.xlsx,.txt,.csv,.md,.json"
                 onChange={(e) => {
                   const f = e.target.files?.[0] ?? null;
                   setFile(f);

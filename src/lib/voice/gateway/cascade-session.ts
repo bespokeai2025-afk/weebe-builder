@@ -43,10 +43,16 @@ import { createTtsProvider, parseTtsProviderName } from "../tts";
 import { normalizeSpeechText, type TtsVoiceRequest } from "../tts/types";
 import { FishAudioTtsProvider, resolveFishTtsModel } from "../tts/fish.provider";
 import type { TtsProvider, TtsProviderName } from "../tts";
+import {
+  BackchannelScheduler,
+  DEFAULT_BACKCHANNEL_WORDS,
+  prepareBackchannelClip,
+} from "../backchannel.shared";
 import { createVad, EnergyVad, type Vad, type VadEvent } from "../vad";
 import type { NativeCallLifecycle } from "../lifecycle/call-lifecycle";
 import {
   buildLanguageLockInstruction,
+  isEnglishOnlyAgent,
   normalizeEnglishLockedSttText,
   resolveSttLanguageCode,
 } from "../language-lock.shared";
@@ -74,7 +80,7 @@ import { normalizeForSpeech } from "../tts/speech-normalization.shared";
 import { applyPronunciationDictionary } from "../tts/pronunciation-dictionary.shared";
 import { resolveDynamicSpeed } from "../tts/dynamic-voice-speed.shared";
 import { resolveDeepgramModel } from "../stt/stt-tuning.shared";
-import { CallTurnTrace } from "../graph/latency-trace";
+import { CallTurnTrace, type LatencyMark } from "../graph/latency-trace";
 import { ResponseLifecycle } from "../response-lifecycle.shared";
 import {
   resolveVoiceRuntimeConfig,
@@ -97,6 +103,25 @@ const SHORT_REPLY_STABLE_MS = 80;
 const COMMIT_READY_STABLE_MS = 100;
 /** Minimum partial length to start speculative generation. */
 const PARTIAL_MIN_CHARS = 4;
+/** ~600ms of mic audio at the browser's 50ms frames — enough to cover VAD confirmation lag plus onset. */
+const WITHHELD_STT_FRAMES_MAX = 12;
+/**
+ * How many times one utterance may fan out speculative generation before the endpoint.
+ *
+ * Each round costs up to `MAX_SPECULATIVE_FANOUT` mostly-discarded LLM calls, so this bounds the
+ * token cost of a caller who keeps pausing. Two is enough to cover the common "pause, then finish
+ * the sentence" shape without letting a hesitant caller multiply the bill.
+ */
+const MAX_SPECULATIVE_FANOUT_ROUNDS = 2;
+/**
+ * How many times one utterance may start edge routing before the endpoint.
+ *
+ * Higher than the fanout's budget because it buys more and costs less: one small classifier call,
+ * against up to three full-model generations per fanout round. It needs the extra headroom because
+ * a changing partial discards the previous route, and the only route that can actually be adopted
+ * is the one started from the partial that matches the final transcript — usually the last.
+ */
+const MAX_SPECULATIVE_ROUTE_ROUNDS = 4;
 /** Turnaround target from the plan; exceeding it is logged, not enforced. */
 const LATENCY_BUDGET_MS = 800;
 /** Nudge this many times before giving up on real speech that STT keeps returning empty for. */
@@ -225,6 +250,13 @@ export class CascadeSession {
 
   /** Locked at call start — Retell-style agent-level voice, never changes mid-call. */
   private voiceProfile: CallVoiceProfile | null = null;
+  private createClipTts: (() => import("../tts/types").TtsProvider) | null = null;
+  /** Builder backchannel settings → when to murmur "mm-hm" while the caller talks. */
+  private readonly backchannel: BackchannelScheduler | null;
+  private backchannelClips: Buffer[] = [];
+  private backchannelPrep: Promise<void> | null = null;
+  /** Playback-done signals before this time come from a backchannel clip, not an agent line. */
+  private backchannelWindowUntil = 0;
   private readonly history: ChatMsg[] = [];
 
   /**
@@ -255,6 +287,8 @@ export class CascadeSession {
   private readonly runtime: VoiceRuntimeConfig;
   private readonly languageLock: string;
   private readonly sttLanguage?: string;
+  /** English word-pattern turn-taking rules apply only to English-only agents. */
+  private readonly englishTurnRules: boolean;
   private sttName = "fish";
   private readonly fishTtsModel: string;
   private readonly vadTuning: import("../vad/types").EndpointingOptions;
@@ -285,6 +319,32 @@ export class CascadeSession {
    */
   private pendingUserSpeechStartAt: number | null = null;
   private pendingEndpointing: { hangoverMs: number; heldForIncomplete: boolean } | null = null;
+  /**
+   * Marks for events that happen while the caller is still talking, held until the turn they
+   * belong to exists.
+   *
+   * `beginTurn` only runs once STT has finalised, so anything recorded during the utterance was
+   * being written to `this.turn?.trace` while that was either null or — worse — still the previous
+   * turn. Every pre-endpoint timing was therefore either dropped or attributed to the wrong turn:
+   * across 400 recorded turns `partial_commit` was false on all of them and
+   * `speech→stt_partial` logged "n/a" every time, which read as "speculation never runs" when it
+   * actually meant "we never measured it". Same buffer-and-replay shape as `pendingEndpointing`.
+   */
+  private pendingMarks: Array<{ name: LatencyMark; at: number }> = [];
+  /**
+   * Fanout rounds spent on the utterance in progress.
+   *
+   * A changed partial aborts the in-flight speculative runs, so a caller who trails off and
+   * resumes ("um… so… my name is…") would otherwise restart a full fanout at every pause. The
+   * 220ms stability gate already keeps that to a handful, and this caps the worst case outright.
+   */
+  /** Most recent mic frames kept back from STT by the echo gate, replayed if the caller turns out to be speaking. */
+  private withheldSttFrames: Buffer[] = [];
+  private fanoutRoundsThisUtterance = 0;
+  /** Speculative routing starts spent on the utterance in progress — see `MAX_SPECULATIVE_ROUTE_ROUNDS`. */
+  private routeRoundsThisUtterance = 0;
+  /** Pending re-check of "has the partial stopped changing" — see `onCallerPartial`. */
+  private partialStabilityTimer: ReturnType<typeof setTimeout> | null = null;
   /** At most one LLM-assisted turn-completion check per utterance — see `applyAdaptiveHangover`. */
   private turnCheckFired = false;
   /** Bumped on every new utterance so a late-arriving check from an earlier one is a no-op. */
@@ -334,6 +394,11 @@ export class CascadeSession {
     this.playbackTracking = config.playback ?? "reported";
     this.languageLock = buildLanguageLockInstruction(config.speechLanguages);
     this.sttLanguage = resolveSttLanguageCode(config.speechLanguages);
+    this.englishTurnRules = isEnglishOnlyAgent(config.speechLanguages);
+    this.backchannel =
+      config.settings?.enableBackchannel === true
+        ? new BackchannelScheduler({ frequency: Number(config.settings?.backchannelFrequency ?? 0.3) })
+        : null;
     this.fishTtsModel = resolveFishTtsModel();
     this.runtime = resolveVoiceRuntimeConfig({
       silenceDurationMs: config.silenceDurationMs,
@@ -398,7 +463,7 @@ export class CascadeSession {
       parseTtsProviderName(this.config.ttsProvider) ??
       parseTtsProviderName((this.config.settings as Record<string, unknown> | null)?.webeeTtsProvider) ??
       "fish";
-    this.tts = createTtsProvider(ttsChoice, {
+    const ttsOptions = {
       fishApiKey: process.env.FISH_API_KEY,
       fishTtsModel: this.fishTtsModel,
       openaiApiKey: process.env.OPENAI_API_KEY,
@@ -411,7 +476,11 @@ export class CascadeSession {
       cartesiaTtsModel: (this.config.settings as Record<string, unknown> | null)?.webeeTtsModel as
         | string
         | undefined,
-    });
+    };
+    this.tts = createTtsProvider(ttsChoice, ttsOptions);
+    // A second, unbound provider for one-off clips (backchannels), so rendering them never queues
+    // behind — or delays — the call's own lines.
+    this.createClipTts = () => createTtsProvider(ttsChoice, ttsOptions);
 
     // Lock voice before graph load — Retell agent-level voice, never re-resolved mid-call.
     this.voiceProfile = lockCallVoiceProfile({
@@ -562,6 +631,17 @@ export class CascadeSession {
 
   /** Speak the greeting / flow start node after the transport is connected. */
   async beginConversation(): Promise<void> {
+    // Builder "Begin delay (ms)": wait before the agent's first line, as Retell does. The setting
+    // was stored and exported but never read on this engine. TTS warms during the wait.
+    const beginDelayMs = Math.min(
+      5000,
+      Math.max(0, Number(this.config.settings?.beginMessageDelayMs ?? 0) || 0),
+    );
+    if (beginDelayMs > 0) {
+      this.warmTts();
+      await new Promise((resolve) => setTimeout(resolve, beginDelayMs));
+      if (this.closed) return;
+    }
     if (this.graph) {
       await this.graph.begin();
       this.warmTts();
@@ -605,12 +685,29 @@ export class CascadeSession {
       !this.callerBargeIn;
     const blockSttDuringIntro = this.inPromptOpeningGrace() && !this.callerBargeIn;
     if (!agentBlockingMic && !blockSttDuringIntro) {
+      // The gate above exists so the agent's own voice does not reach STT. But the VAD only
+      // confirms the caller has started a few frames after they actually did, so by the time the
+      // gate lifts the first part of what they said has already been withheld — and a streaming
+      // recogniser fed a word with its onset cut off returns nothing or a fragment. Measured
+      // against Deepgram and Cartesia: withholding just the first 150ms of "Yes" or "Virani" turned
+      // it into "" or "S", while the same audio whole transcribed correctly. That is a bare
+      // "yes" needing to be said twice. The withheld tail is replayed first, only once the VAD
+      // has confirmed a real caller is speaking, so echo is still discarded.
+      if (this.withheldSttFrames.length > 0) {
+        if (this.callerSpeaking) for (const held of this.withheldSttFrames) this.stt?.push(held);
+        this.withheldSttFrames = [];
+      }
       this.stt?.push(chunk);
+    } else {
+      this.withheldSttFrames.push(chunk);
+      if (this.withheldSttFrames.length > WITHHELD_STT_FRAMES_MAX) this.withheldSttFrames.shift();
     }
     this.lifecycleRef?.recordCaller(pcm16View(chunk), this.sampleRate);
     this.framePump = this.framePump
       .then(async () => {
-        this.handleVadEvent(await detector.push(chunk));
+        const event = await detector.push(chunk);
+        this.handleVadEvent(event);
+        this.maybeBackchannel(chunk, event);
       })
       .catch((err: Error) => {
         console.error(`${this.log} VAD error: ${err.message}`);
@@ -634,7 +731,77 @@ export class CascadeSession {
   }
 
   /** The peer finished playing everything we sent ("reported" mode only). */
+  /** Render the agent's backchannel words once per call, in the locked call voice. */
+  private prepareBackchannelClips(): Promise<void> {
+    if (!this.backchannel || this.backchannelPrep || !this.createClipTts || !this.voiceProfile) {
+      return this.backchannelPrep ?? Promise.resolve();
+    }
+    const configured = Array.isArray(this.config.settings?.backchannelWords)
+      ? (this.config.settings?.backchannelWords as unknown[]).map((w) => String(w ?? "").trim()).filter(Boolean)
+      : [];
+    const words = (configured.length ? configured : DEFAULT_BACKCHANNEL_WORDS).slice(0, 4);
+    const tts = this.createClipTts();
+    const req = this.ttsVoiceRequest();
+    this.backchannelPrep = (async () => {
+      for (const word of words) {
+        if (this.closed) return;
+        try {
+          const parts: Buffer[] = [];
+          for await (const chunk of tts.synthesize(word, req)) parts.push(chunk);
+          const clip = prepareBackchannelClip(Buffer.concat(parts));
+          const seconds = clip.byteLength / (this.sampleRate * 2);
+          if (seconds >= 0.15 && seconds <= 1.5) this.backchannelClips.push(clip);
+        } catch (err) {
+          console.warn(`${this.log} backchannel clip "${word}" failed: ${(err as Error).message}`);
+        }
+      }
+      console.log(`${this.log} backchannel ready: ${this.backchannelClips.length} clip(s)`);
+    })();
+    return this.backchannelPrep;
+  }
+
+  private maybeBackchannel(chunk: Buffer, event: VadEvent): void {
+    const scheduler = this.backchannel;
+    if (!scheduler || this.backchannelClips.length === 0 || this.closed) return;
+    if (event.type === "speech_start") {
+      scheduler.startTalking(Date.now());
+      return;
+    }
+    if (event.type === "utterance_end" || event.type === "discarded") {
+      scheduler.stopTalking();
+      return;
+    }
+    if (event.type !== "speech") return;
+    const fire = scheduler.onFrame({
+      now: Date.now(),
+      rms: event.rms,
+      frameMs: (chunk.byteLength / (this.sampleRate * 2)) * 1000,
+      agentBusy: this.bargeInActive || !this.awaitingCallerInput,
+    });
+    if (fire) this.playBackchannel();
+  }
+
+  /** Play one clip without starting an agent turn. */
+  private playBackchannel(): void {
+    const clip = this.backchannelClips[Math.floor(Math.random() * this.backchannelClips.length)];
+    if (!clip) return;
+    const responseId = this.responses.activeResponseId;
+    const step = Math.floor(this.sampleRate * 0.1) * 2;
+    for (let off = 0; off < clip.byteLength; off += step) {
+      this.transport.sendAudio(clip.subarray(off, off + step), { responseId });
+    }
+    const clipMs = (clip.byteLength / (this.sampleRate * 2)) * 1000;
+    this.backchannelWindowUntil = Date.now() + clipMs + 1500;
+    console.log(`${this.log} backchannel (${Math.round(clipMs)}ms)`);
+  }
+
   playbackDone(): void {
+    // A backchannel clip drained while the caller was mid-turn. Treating that as the end of an
+    // agent line would reset the VAD and STT buffer and lose what the caller is saying.
+    if (Date.now() < this.backchannelWindowUntil && !this.bargeInActive) {
+      console.log(`${this.log} playback done from a backchannel — ignored`);
+      return;
+    }
     console.log(`${this.log} playback done — caller may speak`);
     this.endPlayback();
   }
@@ -746,6 +913,7 @@ export class CascadeSession {
       (this.tts as FishAudioTtsProvider).releaseCall();
     }
     this.clearUtteranceCoalesce();
+    this.clearPartialStability();
     this.clearSilenceTimer();
     this.clearDeadAirTimer();
     this.clearReminderTimer();
@@ -814,6 +982,10 @@ export class CascadeSession {
         this.speculativeGraphKey = "";
         this.speculativeGraphDestKey = destKey;
         this.graphVm?.clearSpeculativeSpeech();
+        // The routing decision was made from words the caller has since changed. `partialMatchesFinal`
+        // would reject it at adoption anyway; dropping it here frees the slot so the next stable
+        // partial can start a fresh one.
+        this.graphVm?.clearSpeculativeRoute();
       }
     }
 
@@ -825,11 +997,38 @@ export class CascadeSession {
       : commitReady
         ? COMMIT_READY_STABLE_MS
         : PARTIAL_STABLE_MS;
-    if (this.callerSpeaking && normalized.length >= minChars && Date.now() - this.partialStableSince >= stableMs) {
-      this.turn?.trace?.mark("partial_stt_stable");
-      if (this.graphVm) this.maybeStartSpeculativeGraph(normalized);
-      else this.maybeStartSpeculativeFlat(normalized);
+    this.clearPartialStability();
+    if (!this.callerSpeaking || normalized.length < minChars) return;
+
+    const stableFor = Date.now() - this.partialStableSince;
+    if (stableFor >= stableMs) {
+      this.startPreEndpointWork(normalized);
+      return;
     }
+    // Not stable long enough *yet*. This gate used to be checked only here, on partial arrival —
+    // but the condition it waits for ("the transcript stopped changing") becomes true precisely
+    // when the caller stops talking, and no further partial arrives during that silence to
+    // re-trigger the check. So on a real call it never passed: across 400 recorded turns
+    // `partial_commit` was false every time and nothing was ever started before the endpoint,
+    // leaving the whole ~800ms hangover idle. A timer closes that gap.
+    this.partialStabilityTimer = setTimeout(() => {
+      this.partialStabilityTimer = null;
+      // Re-check rather than trust: the caller may have resumed, or said something new.
+      if (!this.callerSpeaking || this.partialNormalized !== normalized) return;
+      this.startPreEndpointWork(normalized);
+    }, stableMs - stableFor);
+  }
+
+  private startPreEndpointWork(normalized: string): void {
+    this.markUtterance("partial_stt_stable");
+    if (this.graphVm) this.maybeStartSpeculativeGraph(normalized);
+    else this.maybeStartSpeculativeFlat(normalized);
+  }
+
+  private clearPartialStability(): void {
+    if (!this.partialStabilityTimer) return;
+    clearTimeout(this.partialStabilityTimer);
+    this.partialStabilityTimer = null;
   }
 
   private maybeStartSpeculativeGraph(partial: string): void {
@@ -837,7 +1036,10 @@ export class CascadeSession {
     if (!vm) return;
 
     const target = vm.peekSpeechWarmTarget(partial);
-    if (!target) return;
+    if (!target) {
+      this.startSpeculativeGraphFanout(vm, partial);
+      return;
+    }
 
     if (target.kind === "static") {
       this.speculativeGraphDestKey = `static:${target.text}`;
@@ -857,9 +1059,66 @@ export class CascadeSession {
       provider: resolveWebeeLlmProvider(this.config.settings),
     });
     vm.setSpeculativeSpeech(target.nodeId, run);
-    this.turn?.trace?.mark("speculative_llm_start");
+    this.markUtterance("speculative_llm_start");
     console.log(
       `${this.log} speculative graph LLM started node=${target.nodeId} (${partial.slice(0, 40)})`,
+    );
+  }
+
+  /**
+   * Warm every plausible destination while the caller is still trailing off.
+   *
+   * The single-target path above only fires when a heuristic predicts the destination outright. On
+   * every other turn nothing used to start until the endpoint, so the full LLM round trip — ~1.3s
+   * here, of which only ~250ms is the model and the rest is network — landed entirely after the
+   * caller stopped talking, with the ~800ms VAD hangover spent idle. This fans out the same
+   * candidates `beginRouteRaceSpeech` would have started post-endpoint, so that hangover overlaps
+   * the round trip instead of preceding it.
+   *
+   * Runs already in flight are skipped by `speechWarmFanout`, so a growing partial re-enters here
+   * without stacking duplicates, and a partial that genuinely changes clears them (see
+   * `onCallerPartial`). Whichever runs lose are aborted by `keepSpeculativeFor` once routing
+   * resolves, and `prepareSpeech` only adopts a run whose partial still matches the final
+   * transcript — so a misprediction costs tokens, never a wrong answer.
+   */
+  private startSpeculativeGraphFanout(vm: ConversationVm, partial: string): void {
+    // Routing gets its own budget, checked before the fanout's. Sharing one counter was a mistake:
+    // a growing partial ("it's" → "it's correct and" → the full sentence) clears the speculative
+    // route each time it changes, so on a long utterance the fanout cap was reached before the
+    // *last* partial — the only one that matches the final transcript — got a route at all. Measured
+    // on a real call: generation was fully hidden behind routing, then routing itself still cost
+    // 1250-1739ms cold. The two are not comparable in price either, which is why one number for
+    // both was wrong: a route is a single cheap classifier call, a fanout round is up to three
+    // full-model generations.
+    if (this.routeRoundsThisUtterance < MAX_SPECULATIVE_ROUTE_ROUNDS) {
+      if (vm.beginSpeculativeRoute(partial)) {
+        this.routeRoundsThisUtterance += 1;
+        this.markUtterance("llm_route_request_start");
+        console.log(`${this.log} speculative route started (${partial.slice(0, 40)})`);
+      }
+    }
+
+    if (this.fanoutRoundsThisUtterance >= MAX_SPECULATIVE_FANOUT_ROUNDS) return;
+    const targets = vm.speechWarmFanout(partial);
+    if (targets.length === 0) return;
+    this.fanoutRoundsThisUtterance += 1;
+
+    const provider = resolveWebeeLlmProvider(this.config.settings);
+    for (const target of targets) {
+      const run = startSpeculativeSpeech({
+        apiKey: this.config.apiKey,
+        model: target.model,
+        messages: [...target.messages, { role: "user", content: partial }],
+        partial,
+        provider,
+      });
+      vm.setSpeculativeSpeech(target.nodeId, run);
+    }
+    this.markUtterance("speculative_llm_start");
+    console.log(
+      `${this.log} speculative graph fanout started n=${targets.length} nodes=${targets
+        .map((t) => t.nodeId)
+        .join(",")} (${partial.slice(0, 40)})`,
     );
   }
 
@@ -878,7 +1137,7 @@ export class CascadeSession {
       partialUserText: partial,
       provider: resolveWebeeLlmProvider(this.config.settings),
     });
-    this.turn?.trace?.mark("speculative_llm_start");
+    this.markUtterance("speculative_llm_start");
     console.log(`${this.log} speculative flat LLM started (${partial.slice(0, 40)})`);
   }
 
@@ -949,6 +1208,7 @@ export class CascadeSession {
       },
       onAwaitUser: (options) => {
         this.awaitingCallerInput = true;
+        void this.prepareBackchannelClips();
         const nodeId = this.graphVm?.nodeId;
         if (nodeId) this.transport.onNodeActive?.(nodeId);
         console.log(`${this.log} awaiting caller input (duplex — mic open during playback)`);
@@ -1108,8 +1368,13 @@ export class CascadeSession {
     this.partialStableSince = 0;
     this.callerSpeaking = false;
 
+    // Fish is excluded for the same reason as Deepgram: its partials are full transcripts of the
+    // utterance up to the last pause, and its final returns at once when no speech followed that
+    // pause. Using the partial instead would drop anything said after the pause.
     const skipSttFinal =
+      this.englishTurnRules &&
       this.sttName !== "deepgram" &&
+      this.sttName !== "fish" &&
       shouldSkipSttFinal(
         partialFallback,
         !!this.graphVm?.peekSpeechWarmTarget(partialFallback),
@@ -1584,6 +1849,12 @@ export class CascadeSession {
   private startTurnTrace(t: Turn): CallTurnTrace {
     const trace = new CallTurnTrace(t.id, t.startedAt, this.log);
     t.trace = trace;
+    for (const { name, at } of this.pendingMarks) trace.mark(name, at);
+    this.pendingMarks = [];
+    this.fanoutRoundsThisUtterance = 0;
+    this.routeRoundsThisUtterance = 0;
+    // This utterance is committed; a stability re-check for it would act on stale text.
+    this.clearPartialStability();
     if (this.pendingUserSpeechStartAt !== null) {
       trace.setUserSpeechStart(this.pendingUserSpeechStartAt);
       this.pendingUserSpeechStartAt = null;
@@ -1598,8 +1869,23 @@ export class CascadeSession {
     return trace;
   }
 
+  /**
+   * Record a mark for the turn the caller is still speaking into.
+   *
+   * Always buffers rather than writing through to `this.turn`: a pre-endpoint event belongs to the
+   * turn about to be created, never the one still on `this.turn` (which is the agent's previous
+   * response until it is cancelled or superseded). First write per mark wins, so this reports when
+   * work on this utterance *first* started even if a changing partial restarts it.
+   */
+  private markUtterance(name: LatencyMark, at: number = Date.now()): void {
+    if (this.pendingMarks.some((m) => m.name === name)) return;
+    this.pendingMarks.push({ name, at });
+  }
+
   private applyAdaptiveHangover(partial: string): void {
     const baseMs = this.runtime.endpointing.silenceDurationMs;
+    // Reads the partial for English "unfinished" cues; other languages keep the configured wait.
+    if (!this.englishTurnRules) return;
     const hangoverMs = resolveEndpointHangoverMs(partial, baseMs, this.graphVm?.currentInstructionText);
     const frames = Math.max(3, Math.round(hangoverMs / BROWSER_VAD_FRAME_MS));
     this.vad?.setSilenceFramesTrigger(frames);

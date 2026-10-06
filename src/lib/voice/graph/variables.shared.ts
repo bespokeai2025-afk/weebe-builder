@@ -125,7 +125,7 @@ export function lookupRuntimeValue(
     const rendered = renderVariableValue(runtime[key], format);
     if (rendered !== undefined) return rendered;
   }
-  return systemVariable(name);
+  return systemVariable(name, runtime);
 }
 
 /** Flatten a tool JSON object into `{{tool.field}}` (and bare `{{field}}`) keys. */
@@ -321,6 +321,23 @@ function lookupNested(
 }
 
 /**
+ * Locale for spoken dates/times: the flow's `locale` variable (seeded from the agent's language by
+ * the native runtime), else en-GB — the format this used before agents carried a locale.
+ */
+function resolveLocale(runtime: Record<string, VariableValue>): string {
+  const raw = String(runtime.locale ?? "").trim();
+  if (raw && raw !== "multi") {
+    try {
+      new Intl.DateTimeFormat(raw);
+      return raw;
+    } catch {
+      /* not a BCP-47 tag — fall through */
+    }
+  }
+  return "en-GB";
+}
+
+/**
  * Real bug: neither call below named a `timeZone`, so both silently used the server process's own
  * local clock — whatever timezone the box the gateway happens to be deployed in runs on. A caller
  * hearing "the time is 3 PM" when it was actually 8 PM their time (or `current_date` landing on the
@@ -330,12 +347,33 @@ function lookupNested(
  * (`lookupRuntimeValue` has no settings in scope at all, only the variable map), so this is the
  * same "assume UK" default already made elsewhere (`wbahDateTimeOptions`), not a new one.
  */
-const SYSTEM_VARIABLE_TIMEZONE = "Europe/London";
+const FALLBACK_TIMEZONE = "Europe/London";
 
-function systemVariable(name: string): string | undefined {
+/**
+ * The flow's own `timezone` variable (any IANA name) wins, then the deployment's
+ * `WEBEE_DEFAULT_TIMEZONE`; the UK fallback only applies when neither is set, so an agent for any
+ * other region fixes this by declaring a variable rather than by a code change.
+ */
+function resolveTimezone(runtime: Record<string, VariableValue>): string {
+  for (const candidate of [runtime.timezone, process.env.WEBEE_DEFAULT_TIMEZONE]) {
+    const tz = String(candidate ?? "").trim();
+    if (!tz) continue;
+    try {
+      new Intl.DateTimeFormat("en-GB", { timeZone: tz });
+      return tz;
+    } catch {
+      /* not an IANA name — try the next source */
+    }
+  }
+  return FALLBACK_TIMEZONE;
+}
+
+function systemVariable(name: string, runtime: Record<string, VariableValue>): string | undefined {
+  const SYSTEM_VARIABLE_TIMEZONE = resolveTimezone(runtime);
+  const locale = resolveLocale(runtime);
   const now = new Date();
   if (name === "current_date") {
-    return now.toLocaleDateString("en-GB", {
+    return now.toLocaleDateString(locale, {
       day: "numeric",
       month: "long",
       year: "numeric",
@@ -343,7 +381,7 @@ function systemVariable(name: string): string | undefined {
     });
   }
   if (name === "current_time") {
-    return now.toLocaleTimeString("en-GB", {
+    return now.toLocaleTimeString(locale, {
       hour: "numeric",
       minute: "2-digit",
       timeZone: SYSTEM_VARIABLE_TIMEZONE,

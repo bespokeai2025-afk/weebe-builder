@@ -19,8 +19,13 @@ function varsRecord(
   return out;
 }
 
-function defaultArgs(node: FlowNode, variables: Record<string, VariableValue>): Record<string, unknown> {
+function defaultArgs(
+  node: FlowNode,
+  variables: Record<string, VariableValue>,
+  agentTimezone?: string,
+): Record<string, unknown> {
   const d = node.data;
+  const tz = String(d.toolTimezone ?? variables.timezone ?? agentTimezone ?? "Europe/London");
   const toolId = String(d.toolId ?? d.httpToolName ?? "").trim();
   const first = String(variables.first_name ?? "").trim();
   const last = String(variables.last_name ?? "").trim();
@@ -31,7 +36,7 @@ function defaultArgs(node: FlowNode, variables: Record<string, VariableValue>): 
       start: String(variables.appointment_time ?? variables.start ?? "").trim(),
       name,
       email,
-      timezone: String(d.toolTimezone ?? variables.timezone ?? "Europe/London"),
+      timezone: tz,
     };
   }
   if (toolId === "check_availability" || /availab/i.test(String(d.toolName ?? d.httpToolName ?? ""))) {
@@ -41,7 +46,7 @@ function defaultArgs(node: FlowNode, variables: Record<string, VariableValue>): 
     return {
       start_date: iso(today),
       end_date: iso(end),
-      timezone: String(d.toolTimezone ?? variables.timezone ?? "Europe/London"),
+      timezone: tz,
     };
   }
   return { ...variables };
@@ -62,12 +67,13 @@ function parseHeaders(raw: string | undefined): Record<string, string> | undefin
 export function FunctionTestPanel({ node }: { node: FlowNode }) {
   const variables = useBuilderStore((s) => s.variables);
   const flowTools = useBuilderStore((s) => s.settings.flowTools);
+  const agentTimezone = useBuilderStore((s) => s.settings.timezone);
   const pushDebugEvent = useBuilderStore((s) => s.pushDebugEvent);
   const setDebugOpen = useBuilderStore((s) => s.setDebugOpen);
   const runTest = useServerFn(testBuilderFunction);
   const varMap = useMemo(() => varsRecord(variables), [variables]);
   const [argsText, setArgsText] = useState(() =>
-    JSON.stringify(defaultArgs(node, varMap), null, 2),
+    JSON.stringify(defaultArgs(node, varMap, agentTimezone), null, 2),
   );
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; output: string; durationMs: number } | null>(

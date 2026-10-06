@@ -40,6 +40,9 @@ function numSetting(settings: Record<string, unknown> | null | undefined, key: s
   return undefined;
 }
 
+const STOCK_VOICE_TEMPERATURE_CAP = 0.6;
+const CLONE_TEMPERATURE_CAP = 0.1;
+
 /** Builder voiceTemperature 0–2 maps loosely to Fish temperature 0–1. */
 function resolveTemperature(
   settings?: Record<string, unknown> | null,
@@ -50,11 +53,17 @@ function resolveTemperature(
   const fromEmotion = EMOTION_TEMPERATURE[emotion] ?? EMOTION_TEMPERATURE.none;
   const voiceTemp = numSetting(settings, "voiceTemperature");
   let temp = voiceTemp == null ? fromEmotion : clamp(0.35 + voiceTemp * 0.25, 0.35, 0.95);
-  // Fish reference voices shift perceived identity at high temperature — keep stable
-  // for the whole call so utterances sound like the same speaker (Retell-style).
+  // Fish reference voices shift perceived identity at high temperature, so this stays capped —
+  // but the stock-voice ceiling was 0.2, far below Fish's own default of 0.7. Every call therefore
+  // ran at 0.2 regardless of what the builder said: the emotion and temperature settings mapped to
+  // 0.45–0.82 and were then flattened, which is the monotone, read-aloud quality callers hear as
+  // "robotic". 0.6 lets a configured temperature (voiceTemperature 0.8 → 0.55) actually apply while
+  // staying under Fish's default. Owned clones keep the tighter cap: their timbre drift between
+  // utterances is the problem the call voice anchor exists for, and that has not been re-tested
+  // at higher temperatures.
   const id = String(voiceId ?? "").trim();
   if (id) {
-    temp = Math.min(temp, cloneVoice ? 0.1 : 0.2);
+    temp = Math.min(temp, cloneVoice ? CLONE_TEMPERATURE_CAP : STOCK_VOICE_TEMPERATURE_CAP);
   }
   return temp;
 }

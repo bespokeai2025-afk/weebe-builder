@@ -289,8 +289,8 @@ export function RetellDeployDialog({
       : Boolean(settings.agentId);
 
   const flowIssues = useMemo(
-    () => validateFlow(nodes, edges, variables),
-    [nodes, edges, variables],
+    () => validateFlow(nodes, edges, variables, { phoneCountryCode: settings.phoneCountryCode }),
+    [nodes, edges, variables, settings.phoneCountryCode],
   );
   const flowErrors = flowIssues.filter((i) => i.level === "error");
   const flowWarnings = flowIssues.filter((i) => i.level === "warn");
@@ -375,8 +375,10 @@ export function RetellDeployDialog({
 
   async function handleDeploy(kind: "create" | "update") {
     // Block deploy if flow has validation errors.
-    const { nodes: n, edges: e, variables: v } = useBuilderStore.getState();
-    const errs = validateFlow(n, e, v).filter((i) => i.level === "error");
+    const { nodes: n, edges: e, variables: v, settings: st } = useBuilderStore.getState();
+    const errs = validateFlow(n, e, v, { phoneCountryCode: st.phoneCountryCode }).filter(
+      (i) => i.level === "error",
+    );
     if (errs.length > 0) {
       setCheckOpen(true);
       toast.error(`Fix ${errs.length} error${errs.length !== 1 ? "s" : ""} before deploying`, {

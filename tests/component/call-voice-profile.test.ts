@@ -50,7 +50,9 @@ describe("call-voice-profile", () => {
       sampleRate: 24000,
     });
     expect(profile.voiceId).toBe("fish-agent-voice");
-    expect(profile.temperature).toBeLessThanOrEqual(0.2);
+    // Stock-voice ceiling raised from 0.2 — that flattened every call to near-monotone whatever
+    // the builder said. Still capped below Fish's own 0.7 default for call-stable timbre.
+    expect(profile.temperature).toBeLessThanOrEqual(0.6);
     expect(profile.cloneVoice).toBe(false);
   });
 

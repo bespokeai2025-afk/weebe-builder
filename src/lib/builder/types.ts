@@ -244,6 +244,11 @@ export interface FlowNodeData {
   isGlobalNode?: boolean;
   /** Per-node global_node_setting overrides (voice speed, eagerness, interruption, LLM, etc.) */
   globalNodeSetting?: Record<string, unknown>;
+  /**
+   * Set when an imported node's type has no builder kind. The node is shown as-is and exported
+   * back with its original type and fields instead of being rewritten as a conversation node.
+   */
+  unsupportedType?: string;
   /** Raw node object from imported JSON — round-tripped on export so dashboard-only fields survive. */
   raw?: Record<string, unknown>;
   [key: string]: unknown;
@@ -260,6 +265,16 @@ export interface BuilderSettings {
   /** BCP-47 codes selected in the language picker. "multi" = Flex Mode.
    *  Single item → sent as string; multiple items → sent as array (multilingual). */
   speechLanguages?: string[];
+  /**
+   * IANA timezone for this agent ("America/New_York"). Drives {{current_date}} / {{current_time}},
+   * calendar tools and test calls. Unset keeps the legacy default, Europe/London.
+   */
+  timezone?: string;
+  /**
+   * Calling code (digits, no "+") used to turn a national number such as "07412 345678" into E.164.
+   * Unset keeps the legacy default, 44.
+   */
+  phoneCountryCode?: string;
   temperature: number;
   /** webhook + misc agent options to round-trip into the exported agent JSON */
   webhookUrl?: string;

@@ -12,13 +12,6 @@
 
 import { interpolate } from "./flow";
 import {
-  looksLikeFloorAnswer,
-  looksLikePropertyTypeAnswer,
-  looksLikeTenureAnswer,
-  userDeniesRented,
-} from "./stt-clarification.shared";
-import { summarizeCollectedFacts } from "./collected-facts.shared";
-import {
   buildCompactRoutingMessages,
   isEquationCondition,
   tryEquationEdge,
@@ -46,6 +39,13 @@ export interface RouteContext {
   flex?: boolean;
   /** True when the transport reported silence, even if history still has a prior user line. */
   silenceTimeout?: boolean;
+  /**
+   * False when the call may be in a language other than English. Every step that matches the
+   * caller's words against English lists (repair, yes/no, question detection, phrase overlap, the
+   * global-interrupt keyword gate) is skipped and the classifier — which reads any language —
+   * decides. Defaults to true.
+   */
+  englishRules?: boolean;
 }
 
 export interface EdgeRouteDecision {
@@ -76,10 +76,11 @@ export async function selectEdge(
   let conditions = usable.map((e) => interpolate(e.transition_condition.prompt.trim(), ctx.variables));
   const userText = ctx.silenceTimeout ? "" : lastUserText(ctx.history);
   const lastAgentText = lastAssistantText(ctx.history);
+  const english = ctx.englishRules !== false;
 
   // Repair turns ("what?", "pardon?") stay on the current node — Retell does not
   // treat them as a transition.
-  if (looksLikeRepairRequest(userText)) return { edge: null, method: "none" };
+  if (english && looksLikeRepairRequest(userText)) return { edge: null, method: "none" };
 
   const isTimeoutCondition = (c: string) =>
     /^(timeout|silence|no.?input|no.?response)$/i.test(c.trim());
@@ -125,18 +126,25 @@ export async function selectEdge(
   if (equationHit) return { edge: equationHit, method: "equation" };
 
   // 4. Single edge with generic/any-answer/placeholder prompt + substantive caller reply.
-  if (
-    ctx.flex !== false &&
-    usable.length === 1 &&
-    userText.trim() &&
-    !looksLikeRepairRequest(userText)
-  ) {
+  //
+  // Runs in strict mode (`flex_mode: false`) too, which it previously did not. Strict mode means
+  // "only fire a transition on a real match" — but a condition that literally reads "any answer"
+  // IS a real match for any answer; there is nothing being guessed. Measured on a live strict-mode
+  // flow, 29 of its 85 nodes have exactly one such edge, and every turn through them was paying a
+  // ~1.5s classifier call to confirm a tautology (46% of all turns were on the classifier path at
+  // a 1551ms median). The one thing strict mode should still withhold is advancing past a caller
+  // who asked a question instead of answering — there the classifier's "none of these" verdict
+  // keeps the agent on the node to answer it, so questions are excluded below rather than absorbed.
+  if (usable.length === 1 && userText.trim() && !(english && looksLikeRepairRequest(userText))) {
     const only = conditions[0]?.toLowerCase() ?? "";
-    if (
+    const generic =
       edgeExpectsGenericContinuation(only) ||
       edgeIsAnyAnswerEdge(only) ||
-      edgeIsPlaceholderCondition(only)
-    ) {
+      edgeIsGenericCatchAll(only) ||
+      edgeIsPlaceholderCondition(only);
+    // Strict mode must not absorb a caller's question; that check is English-only, so other
+    // languages let the classifier decide instead of guessing.
+    if (generic && (ctx.flex !== false || (english && !looksLikeCallerQuestion(userText)))) {
       return { edge: usable[0]!, method: "generic_single" };
     }
   }
@@ -151,7 +159,7 @@ export async function selectEdge(
   }
 
   // 5. Heuristic text matching (yes/no, phrase overlap, interrupt, …).
-  const heuristic = tryHeuristicEdgeIndex(conditions, userText, lastAgentText);
+  const heuristic = english ? tryHeuristicEdgeIndex(conditions, userText, lastAgentText) : null;
   if (heuristic !== null) return { edge: usable[heuristic]!, method: "heuristic" };
 
   // 6. Ambiguous prompt conditions only — compact context, per-node classifier.
@@ -187,7 +195,7 @@ export async function selectEdge(
 
   if (!Number.isInteger(index) || index < 0 || index >= usable.length) {
     if (ctx.flex === false) return { edge: null, method: "none" };
-    const scored = pickBestScoredEdge(conditions, userText, lastAgentText, 2);
+    const scored = english ? pickBestScoredEdge(conditions, userText, lastAgentText, 2) : null;
     return {
       edge: scored !== null ? usable[scored]! : null,
       method: scored !== null ? "heuristic" : "none",
@@ -210,11 +218,15 @@ export async function selectGlobalNode<T extends { condition: string }>(
   if (globals.length === 0) return { hit: null, method: "global_skip" };
 
   const userText = lastUserText(ctx.history);
-  if (!looksLikeGlobalInterrupt(userText)) return { hit: null, method: "global_skip" };
+  const english = ctx.englishRules !== false;
+  // The keyword gate saves a classifier call on ordinary English turns; without it (other
+  // languages) every turn is checked, or global nodes could never fire for those callers.
+  if (english && !looksLikeGlobalInterrupt(userText)) return { hit: null, method: "global_skip" };
+  if (!userText.trim()) return { hit: null, method: "global_skip" };
 
   const conditions = globals.map((g) => interpolate(g.condition, ctx.variables));
 
-  const heuristicGlobal = tryHeuristicGlobalIndex(conditions, userText);
+  const heuristicGlobal = english ? tryHeuristicGlobalIndex(conditions, userText) : null;
   if (heuristicGlobal !== null) {
     return { hit: globals[heuristicGlobal]!, method: "global_heuristic" };
   }
@@ -290,7 +302,6 @@ function buildTransitionState(ctx: RouteContext): LlmMessage[] {
     variables: ctx.variables,
     latestUserText: lastUserText(ctx.history),
     lastAgentText,
-    collectedFacts: summarizeCollectedFacts(ctx.history) || undefined,
   };
   return buildCompactRoutingMessages(state);
 }
@@ -349,7 +360,7 @@ export function looksLikeEmailAnswer(userText: string): boolean {
 }
 
 function edgeExpectsAddress(condition: string): boolean {
-  return /\b(address|postcode|post code|zip|location|property|where (?:do you|are you)|live|street|city|town|suburb)\b/.test(
+  return /\b(address|postcode|post code|zip|location|where (?:do you|are you)|street|city|town|suburb)\b/.test(
     condition.toLowerCase(),
   );
 }
@@ -359,7 +370,7 @@ export function looksLikeAddressAnswer(userText: string): boolean {
   const t = userText.trim();
   if (!t || t.length < 8 || looksLikePhoneAnswer(t)) return false;
   const hasStreetCue =
-    /\b(street|st\.?|road|rd\.?|avenue|ave\.?|lane|ln\.?|drive|dr\.?|court|ct\.?|way|place|pl\.?|boulevard|blvd\.?|close|crescent|terrace|gardens|park|house|flat|apartment|apt\.?)\b/i.test(
+    /\b(street|st\.?|road|rd\.?|avenue|ave\.?|lane|ln\.?|drive|dr\.?|court|ct\.?|way|place|pl\.?|boulevard|blvd\.?|close|crescent|terrace|gardens)\b/i.test(
       t,
     );
   const hasPostcode = /\b[A-Z]{1,2}\d{1,2}[A-Z]?\s*\d[A-Z]{2}\b/i.test(t);
@@ -467,6 +478,48 @@ function edgeIsAnyAnswerEdge(condition: string): boolean {
   );
 }
 
+/** Negates the act of answering — "user doesn't give details" is the failure path, not a catch-all. */
+const CATCH_ALL_NEGATION =
+  /\b(does ?n[o']?t|do ?n[o']?t|did ?n[o']?t|wo ?n[o']?t|can ?n[o']?t|cannot|refuses?|declines?|fails? to|unable to)\b/i;
+
+/**
+ * Condition the flow author wrote to mean "whatever they said, move on" — "any answer",
+ * "any acknowledgement, or any response", "user gives details requested".
+ *
+ * Broader than `edgeIsAnyAnswerEdge` (exact strings) and `edgeExpectsGenericContinuation` (a fixed
+ * phrase list) because real flows phrase this dozens of ways. Measured on a live 86-node flow,
+ * those two predicates missed most of them, so 1.5s classifier calls were being spent asking a
+ * model whether a reply counts as "any answer" — which it does by construction.
+ *
+ * Deliberately anchored on explicit "any …answer/response" phrasing and the
+ * gives/provides-the-information family only. A condition naming a specific value to discriminate
+ * on ("if its freehold", "when user answers property type as flat or apartment") is NOT a catch-all
+ * and must keep reaching the classifier, so no attempt is made to generalise past those two shapes.
+ */
+function edgeIsGenericCatchAll(condition: string): boolean {
+  const c = condition.trim().toLowerCase();
+  if (!c) return false;
+  if (CATCH_ALL_NEGATION.test(c)) return false;
+  if (/\bany\b[^.]{0,24}\b(answer|acknowledge?ment|response|reply)\b/.test(c)) return true;
+  if (/\b(gives?|provides?|supplies)\b[^.]{0,16}\b(detail|details|info|information)\b/.test(c)) {
+    return true;
+  }
+  if (/^(?:the )?(?:user|caller|customer) (?:answers?|responds?|replies)$/.test(c)) return true;
+  return false;
+}
+
+/**
+ * A reply carrying real content — not filler, not a repair request, not the caller asking their
+ * own question (which deserves an answer, not a transition).
+ */
+function isSubstantiveReply(userText: string): boolean {
+  const t = userText.trim();
+  if (t.length < 2) return false;
+  if (looksLikeRepairRequest(t) || looksLikeCallerQuestion(t)) return false;
+  if (/^(um+|uh+|er+|hmm+|mm+|ah+|oh+|well|so|like)[.,!?]*$/i.test(t)) return false;
+  return /[a-z0-9]/i.test(t);
+}
+
 /** Affirmative edge — excludes negated prompts like "not interested" / "not available". */
 function edgeExpectsAffirmative(condition: string): boolean {
   const c = condition.toLowerCase();
@@ -474,95 +527,9 @@ function edgeExpectsAffirmative(condition: string): boolean {
   if (/\b(no|negative|declin|reject|refus|unavailable|wrong name|incorrect name)\b/.test(c)) {
     return false;
   }
-  return /\b(yes|positive|affirm|confirm(?:s|ed|ing)?|correct|agree|available|interested|helpful|proceed|continue|live in|owner|occupied|rented|vacant|same as|matches|title deed|documents?)\b/.test(
+  return /\b(yes|positive|affirm|confirm(?:s|ed|ing)?|correct|agree|available|interested|helpful|proceed|continue)\b/.test(
     c,
   );
-}
-
-function edgeExpectsPropertyType(condition: string): boolean {
-  return /\b(property type|flat|house|bungalow|apartment)\b/.test(condition.toLowerCase());
-}
-
-function edgeExpectsTenure(condition: string): boolean {
-  return /\b(vacant|rented|tenanted|owner.?occupied|living there|live there)\b/.test(
-    condition.toLowerCase(),
-  );
-}
-
-function edgeExpectsVacant(condition: string): boolean {
-  return /\bvacant\b/.test(condition.toLowerCase());
-}
-
-function edgeExpectsRented(condition: string): boolean {
-  const c = condition.toLowerCase();
-  if (/\bnot (rented|tenanted)\b/.test(c)) return false;
-  return /\b(rented|tenanted)\b/.test(c);
-}
-
-function lastAgentAskedRented(agentText: string): boolean {
-  return /\b(rented|tenanted|let out)\b/i.test(agentText);
-}
-
-function lastAgentAskedVacantOrRented(agentText: string): boolean {
-  const a = agentText.toLowerCase();
-  return (
-    /\bvacant or (rented|tenanted)\b/.test(a) ||
-    (/\bvacant\b/.test(a) && /\b(rented|tenanted)\b/.test(a))
-  );
-}
-
-function pickNonRentedTenureEdge(conditions: string[], userText: string): number | null {
-  if (/\b(live|living|owner.?occupied)\b/i.test(userText)) {
-    for (let i = 0; i < conditions.length; i++) {
-      if (edgeExpectsOwnerOccupied(conditions[i] ?? "")) return i;
-    }
-  }
-  for (let i = 0; i < conditions.length; i++) {
-    if (edgeExpectsVacant(conditions[i] ?? "")) return i;
-  }
-  for (let i = 0; i < conditions.length; i++) {
-    if (edgeExpectsOwnerOccupied(conditions[i] ?? "")) return i;
-  }
-  for (let i = 0; i < conditions.length; i++) {
-    const c = conditions[i] ?? "";
-    if (edgeExpectsTenure(c) && !edgeExpectsRented(c)) return i;
-  }
-  return null;
-}
-
-function edgeExpectsOwnerOccupied(condition: string): boolean {
-  return /\b(living there|live there|owner.?occupied|im living)\b/.test(condition.toLowerCase());
-}
-
-function edgeExpectsPropertyOwner(condition: string): boolean {
-  const c = condition.toLowerCase();
-  if (/\bon behalf\b/.test(c)) return false;
-  return /\b(property owner|are you the owner|owns? the property|you(?:r|'re)? the owner|caller is the owner|user is the owner)\b/.test(
-    c,
-  ) || (/\bowner\b/.test(c) && !/\bowner.?occupied\b/.test(c) && !/\bliving\b/.test(c));
-}
-
-function edgeExpectsOnBehalf(condition: string): boolean {
-  return /\bon behalf\b/.test(condition.toLowerCase());
-}
-
-function edgeExpectsTitle(condition: string): boolean {
-  return /\b(preferred title|title is|mr,?\s*mrs|mister|salutation)\b/.test(condition.toLowerCase());
-}
-
-/** "I am the owner" / "calling on behalf" — not vacant vs rented. */
-export function looksLikeOwnerAnswer(userText: string): boolean {
-  return /\b(i am (the )?owner|i'm (the )?owner|im (the )?owner|i own (it|this|the)|owner of (the |this )?property|calling on behalf|on behalf of)\b/i.test(
-    userText,
-  );
-}
-
-export function looksLikeTitleAnswer(userText: string): boolean {
-  return /^(mr|mrs|miss|ms|mister|dr|doctor|mx|sir|madam)\b\.?$/i.test(userText.trim());
-}
-
-function edgeExpectsFloor(condition: string): boolean {
-  return /\bfloor\b/.test(condition.toLowerCase());
 }
 
 function isShortAcknowledgement(t: string): boolean {
@@ -780,16 +747,6 @@ export function tryHeuristicEdgeIndex(
     }
   }
 
-  // "No" / "not rented" after a rented question must not take the rented edge.
-  if (userDeniesRented(userText) || ((NO.test(t) || startsWithNegative(t)) && lastAgentAskedRented(lastAgentText))) {
-    if (lastAgentAskedVacantOrRented(lastAgentText) && NO.test(t) && !userDeniesRented(userText)) {
-      return null;
-    }
-    const nonRented = pickNonRentedTenureEdge(conditions, userText);
-    if (nonRented !== null) return nonRented;
-    return null;
-  }
-
   if (userSignalsCallEnd(userText) || userSignalsDecline(userText)) {
     const terminal = pickHeuristicEdge(
       conditions,
@@ -808,69 +765,6 @@ export function tryHeuristicEdgeIndex(
       return edgeExpectsGenericContinuation(condition) || edgeIsAnyAnswerEdge(c);
     });
     if (ack !== null) return ack;
-  }
-
-  // Property type answers.
-  if (looksLikePropertyTypeAnswer(userText)) {
-    const property = pickHeuristicEdge(conditions, userText, (condition) =>
-      edgeExpectsPropertyType(condition),
-    );
-    if (property !== null) return property;
-  }
-
-  // Vacant / rented / owner-occupied.
-  if (looksLikeTenureAnswer(userText) || userDeniesRented(userText)) {
-    if (userDeniesRented(userText)) {
-      const nonRented = pickNonRentedTenureEdge(conditions, userText);
-      if (nonRented !== null) return nonRented;
-      return null;
-    }
-    if (/\b(rented|tenanted|tenant)\b/i.test(userText)) {
-      for (let i = 0; i < conditions.length; i++) {
-        if (edgeExpectsRented(conditions[i] ?? "")) return i;
-      }
-    }
-    if (/\b(vacant|empty|unoccupied)\b/i.test(userText)) {
-      for (let i = 0; i < conditions.length; i++) {
-        if (edgeExpectsVacant(conditions[i] ?? "")) return i;
-      }
-    }
-    if (/\b(live|living|owner.?occupied)\b/i.test(userText)) {
-      for (let i = 0; i < conditions.length; i++) {
-        if (edgeExpectsOwnerOccupied(conditions[i] ?? "")) return i;
-      }
-    }
-    for (let i = 0; i < conditions.length; i++) {
-      if (edgeExpectsTenure(conditions[i] ?? "")) return i;
-    }
-  }
-
-  if (looksLikeOwnerAnswer(userText)) {
-    if (/\bon behalf\b/i.test(userText)) {
-      const behalf = pickHeuristicEdge(conditions, userText, (c) => edgeExpectsOnBehalf(c));
-      if (behalf !== null) return behalf;
-    } else {
-      const owner = pickHeuristicEdge(conditions, userText, (c) => edgeExpectsPropertyOwner(c));
-      if (owner !== null) return owner;
-    }
-  }
-
-  if (looksLikeTitleAnswer(userText)) {
-    const title = pickHeuristicEdge(conditions, userText, (c) => edgeExpectsTitle(c));
-    if (title !== null) return title;
-    const generic = pickHeuristicEdge(conditions, userText, (c) => edgeExpectsGenericContinuation(c));
-    if (generic !== null) return generic;
-  }
-
-  // Floor answers (first, second, ground, …).
-  if (looksLikeFloorAnswer(userText)) {
-    for (let i = 0; i < conditions.length; i++) {
-      if (edgeExpectsFloor(conditions[i] ?? "")) return i;
-    }
-    for (let i = 0; i < conditions.length; i++) {
-      const c = conditions[i]?.toLowerCase() ?? "";
-      if (/\b(user answers?|detail|floor)\b/.test(c)) return i;
-    }
   }
 
   // Short name-like answers — must not match "wrong name" edges by substring.
@@ -917,12 +811,6 @@ export function tryHeuristicEdgeIndex(
       edgeExpectsAddress(condition),
     );
     if (address !== null) return address;
-    const addressDetail = pickHeuristicEdge(conditions, userText, (condition) =>
-      /\b(address|property|location|postcode|post code|detail|confirm|provided|information|where)\b/.test(
-        condition.toLowerCase(),
-      ),
-    );
-    if (addressDetail !== null) return addressDetail;
     if (!conditions.some((condition) => edgeExpectsAddress(condition))) {
       const generic = pickHeuristicEdge(conditions, userText, (condition) =>
         edgeExpectsGenericContinuation(condition),
@@ -931,41 +819,34 @@ export function tryHeuristicEdgeIndex(
     }
   }
 
-  // Owner-occupied / tenancy one-liners ("I live in it", "it's rented").
-  if (
-    looksLikeTenureAnswer(userText) ||
-    /\b(i live in|we live in|owner.?occupied|it's rented|it is rented|tenant|vacant|empty property)\b/i.test(
-      userText,
-    )
-  ) {
-    if (userDeniesRented(userText)) {
-      const nonRented = pickNonRentedTenureEdge(conditions, userText);
-      if (nonRented !== null) return nonRented;
-      return null;
-    }
-    for (let i = 0; i < conditions.length; i++) {
-      const c = conditions[i]?.toLowerCase() ?? "";
-      if (/\b(owner|occupied|rent|tenant|vacant|live|tenure|property)\b/.test(c)) return i;
-    }
-  }
-
-  // Numeric / detail answers (price, floor, size, bedrooms) — never jump to hang-up edges.
-  if (
-    /\d/.test(t) ||
-    /\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|double|triple|zero|oh|million|thousand|hundred|floor|bhk|b h k)\b/.test(
-      t,
-    )
-  ) {
-    const numeric = pickHeuristicEdge(conditions, userText, (condition) =>
-      /\b(price|amount|floor|size|bedroom|unit|square|phone|mobile|contact|callback|bedrooms|sqft|square feet)\b/.test(
-        condition.toLowerCase(),
-      ),
-    );
-    if (numeric !== null) return numeric;
-  }
-
   const phrase = pickBestPhraseEdge(conditions, userText);
   if (phrase !== null) return phrase;
+
+  // Lone catch-all edge ("any answer", "user gives details requested") against a reply that has
+  // real content in it. Deliberately second-to-last: every specific heuristic above gets first
+  // refusal, so a real branch never loses a turn to the catch-all. Requires EXACTLY one catch-all
+  // among the node's edges — two of them is a genuine ambiguity only the classifier can settle.
+  //
+  // Before this, the catch-all path only triggered on a short "yes"/"ok" (see the acknowledgement
+  // block above), so a substantive answer — "Myself", "It's not occupied.", "Six bedrooms" — fell
+  // through to a ~1.5s classifier call on an edge that was always going to accept it.
+  if (isSubstantiveReply(userText)) {
+    const catchAll: number[] = [];
+    for (let i = 0; i < conditions.length; i++) {
+      const c = conditions[i] ?? "";
+      if (!c.trim() || !edgeIsGenericCatchAll(c)) continue;
+      if (edgeIsSkipAheadCondition(c) || edgeIsTerminalOrOptOutCondition(c)) continue;
+      // "any acknowledgement thats positive" must not swallow a decline.
+      if (
+        edgeExpectsAffirmative(c) &&
+        (NO.test(t) || startsWithNegative(t) || userSignalsDecline(userText))
+      ) {
+        continue;
+      }
+      catchAll.push(i);
+    }
+    if (catchAll.length === 1) return catchAll[0]!;
+  }
 
   if (looksLikeCallerQuestion(userText) || looksLikeMidFlowInterrupt(userText)) {
     const interrupt = pickHeuristicEdge(conditions, userText, edgeExpectsInterrupt);

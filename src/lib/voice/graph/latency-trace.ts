@@ -202,6 +202,9 @@ export class CallTurnTrace {
         ` llm_1st_sentence=${fromStt("llm_speech_first_sentence")}` +
         ` tts_1st_audio=${fromStt("tts_first_audio")}` +
         ` speech→stt_partial=${fromSpeech("partial_stt_stable")}` +
+        // Negative = speculation started before the endpoint, which is the whole point of it:
+        // that much of the LLM round trip was already spent while the caller was still talking.
+        ` spec_llm=${fromStt("speculative_llm_start")}` +
         ` speech→audio=${fromSpeech("tts_first_audio")}`,
     );
   }

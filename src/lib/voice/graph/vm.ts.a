@@ -214,45 +214,6 @@ function isSubstantiveAnswer(text: string): boolean {
   return words.length >= 1 && words.length <= 24 && t.length >= 2;
 }
 
-/**
- * Caller-text checks written for English. A non-English agent gets neutral answers instead — no
- * repair/filler/hedge/decline detection, every reply counts as an answer, and any reply might be a
- * question — so routing falls through to the language-neutral classifier rather than matching
- * Spanish or Hindi against English word lists.
- */
-interface CallerTextRules {
-  repair(text: string): boolean;
-  filler(text: string): boolean;
-  hedge(text: string): boolean;
-  question(text: string): boolean;
-  substantive(text: string): boolean;
-  callEnd(text: string): boolean;
-  decline(text: string): boolean;
-}
-
-function callerTextRules(english: boolean): CallerTextRules {
-  if (english) {
-    return {
-      repair: looksLikeRepairRequest,
-      filler: isFillerUtterance,
-      hedge: isHedgingUtterance,
-      question: looksLikeUserQuestion,
-      substantive: isSubstantiveAnswer,
-      callEnd: userSignalsCallEnd,
-      decline: userSignalsDecline,
-    };
-  }
-  return {
-    repair: () => false,
-    filler: () => false,
-    hedge: () => false,
-    question: () => true,
-    substantive: (t) => t.trim().length > 0,
-    callEnd: () => false,
-    decline: () => false,
-  };
-}
-
 function looksLikeUserQuestion(text: string): boolean {
   const t = text.trim();
   if (!t) return false;
@@ -283,9 +244,6 @@ export class ConversationVm {
   private readonly strongClassifierModel?: string;
   private readonly maxStepsPerTurn: number;
   private readonly languageLock: string;
-  /** English word-list checks apply only when every call language is English. */
-  private readonly englishRules: boolean;
-  private readonly textRules: CallerTextRules;
   private readonly declaredVariableNames: string[];
   private readonly capturedNames = new Set<string>();
   /** In-flight `extractTurnVariables` call for the current user turn, consumed once in `advance`. */
@@ -295,12 +253,6 @@ export class ConversationVm {
   private history: LlmMessage[] = [];
   private currentNodeId: string | null;
   private previousNodeId: string | null = null;
-  /**
-   * The node whose speech the caller heard last. When speech is built for that same node again,
-   * the caller has replied without completing it (a routing miss, or a self-loop) — see
-   * `buildSpeechMessages`.
-   */
-  private lastSpokenNodeId: string | null = null;
   /** Nodes to come back to after a `return_to_previous` global node finishes. */
   private returnStack: string[] = [];
   private awaiting: "user" | "digit" | "transfer" | "begin_silence" | null = null;
@@ -338,8 +290,6 @@ export class ConversationVm {
     this.strongClassifierModel = options.strongClassifierModel;
     this.maxStepsPerTurn = options.maxStepsPerTurn ?? DEFAULT_MAX_STEPS;
     this.languageLock = options.languageLock?.trim() ?? "";
-    this.englishRules = options.englishRules !== false;
-    this.textRules = callerTextRules(this.englishRules);
     this.declaredVariableNames = [
       ...new Set([
         ...(options.variableNames ?? []),
@@ -504,9 +454,7 @@ export class ConversationVm {
   predictedAdvanceNodeId(userText: string): string | null {
     const node = this.currentNode();
     if (!node) return null;
-    // Built on English heuristics; other languages wait for the classifier.
-    if (!this.englishRules) return null;
-    if (!userText.trim() || this.textRules.repair(userText) || this.textRules.filler(userText)) {
+    if (!userText.trim() || looksLikeRepairRequest(userText) || isFillerUtterance(userText)) {
       return null;
     }
 
@@ -622,7 +570,7 @@ export class ConversationVm {
   beginSpeculativeRoute(partial: string): boolean {
     const node = this.currentNode();
     if (!node?.edges?.length) return false;
-    if (!partial.trim() || this.textRules.repair(partial)) return false;
+    if (!partial.trim() || looksLikeRepairRequest(partial)) return false;
     if (this.predictedAdvanceNodeId(partial)) return false;
     if (this.pendingRoute?.partial === partial && this.pendingRoute.nodeId === node.id) return false;
 
@@ -674,9 +622,9 @@ export class ConversationVm {
     const elseDest = (node as { else_edge?: FlowEdge }).else_edge?.destination_node_id;
     if (
       elseDest &&
-      this.textRules.substantive(userText) &&
-      !this.textRules.filler(userText) &&
-      !this.textRules.hedge(userText)
+      isSubstantiveAnswer(userText) &&
+      !isFillerUtterance(userText) &&
+      !isHedgingUtterance(userText)
     ) {
       candidates.add(elseDest);
     }
@@ -1006,7 +954,7 @@ export class ConversationVm {
       return;
     }
 
-    if (this.textRules.repair(latestUser)) {
+    if (looksLikeRepairRequest(latestUser)) {
       const last =
         this.history
           .filter((m) => m.role === "assistant")
@@ -1015,7 +963,6 @@ export class ConversationVm {
       const replay = last && !last.split("\n").some((line) => isBuilderDirection(line)) ? last : "";
       if (replay) {
         this.history.push({ role: "assistant", content: replay });
-        this.lastSpokenNodeId = node.id;
         yield { type: "speak", nodeId: node.id, text: replay, interruptible: true };
       } else {
         yield* this.yieldSpeech(node);
@@ -1029,8 +976,8 @@ export class ConversationVm {
     if (
       alwaysEdge?.destination_node_id &&
       latestUser.trim() &&
-      !this.textRules.filler(latestUser) &&
-      !this.textRules.repair(latestUser)
+      !isFillerUtterance(latestUser) &&
+      !looksLikeRepairRequest(latestUser)
     ) {
       this.keepSpeculativeFor(alwaysEdge.destination_node_id);
       yield* this.advance(alwaysEdge.destination_node_id);
@@ -1041,7 +988,7 @@ export class ConversationVm {
 
     const predicted = this.predictedAdvanceNodeId(latestUser);
     const instant =
-      predicted && !this.textRules.question(latestUser) ? this.instantSpeechForNode(predicted) : null;
+      predicted && !looksLikeUserQuestion(latestUser) ? this.instantSpeechForNode(predicted) : null;
 
     this.turnTrace?.mark("graph_route_edge_start");
     // A routing call already started against this turn's partial resolves here for free; the
@@ -1056,7 +1003,6 @@ export class ConversationVm {
     if (instant && predicted) {
       this.latencyHooks.onSpeculativeTts?.(instant);
       this.history.push({ role: "assistant", content: instant });
-      this.lastSpokenNodeId = predicted;
       yield {
         type: "speak",
         nodeId: predicted,
@@ -1103,11 +1049,11 @@ export class ConversationVm {
         ));
     if (
       elseDest &&
-      this.textRules.substantive(latestUser) &&
-      !this.textRules.filler(latestUser) &&
-      !this.textRules.hedge(latestUser) &&
-      !this.textRules.repair(latestUser) &&
-      (!elseIsTerminal || this.textRules.callEnd(latestUser) || this.textRules.decline(latestUser))
+      isSubstantiveAnswer(latestUser) &&
+      !isFillerUtterance(latestUser) &&
+      !isHedgingUtterance(latestUser) &&
+      !looksLikeRepairRequest(latestUser) &&
+      (!elseIsTerminal || userSignalsCallEnd(latestUser) || userSignalsDecline(latestUser))
     ) {
       this.log(`routing miss on "${node.id}" — following else_edge`);
       this.keepSpeculativeFor(elseDest);
@@ -1126,14 +1072,14 @@ export class ConversationVm {
 
     // No edge matched — stay on this step. Static nodes may re-speak verbatim;
     // prompt nodes acknowledge substantive answers so the caller is not left in silence.
-    if (this.textRules.filler(latestUser) || this.textRules.hedge(latestUser)) {
+    if (isFillerUtterance(latestUser) || isHedgingUtterance(latestUser)) {
       this.log(`staying silent on "${node.id}" — filler/hedge "${latestUser.slice(0, 40)}"`);
       this.awaiting = "user";
       yield this.awaitUserDirective(node.id);
       return;
     }
     if (node.type !== "conversation" && node.type !== "end") {
-      if (this.textRules.callEnd(latestUser) || this.textRules.decline(latestUser)) {
+      if (userSignalsCallEnd(latestUser) || userSignalsDecline(latestUser)) {
         const endId = this.findEndNodeId();
         if (endId && endId !== node.id) {
           yield* this.advance(endId);
@@ -1609,7 +1555,6 @@ export class ConversationVm {
     if (speech.kind === "static") {
       this.traceLog("TTS_START", node.id, speech.text.slice(0, 120));
       this.history.push({ role: "assistant", content: speech.text });
-      this.lastSpokenNodeId = node.id;
       yield {
         type: "speak",
         nodeId: node.id,
@@ -1671,7 +1616,6 @@ export class ConversationVm {
       this.traceLog("LLM_RESPONSE", node.id, spoken.slice(0, 120));
       this.traceLog("TTS_START", node.id, spoken.slice(0, 120));
       this.history.push({ role: "assistant", content: spoken });
-      this.lastSpokenNodeId = node.id;
     }
   }
 
@@ -1883,31 +1827,7 @@ export class ConversationVm {
     // without dragging in earlier nodes' topics. Sits after the cached prefix, so it adds only a
     // few uncached tokens per turn.
     const recent = this.history.slice(-SPEECH_HISTORY_MESSAGES);
-    // The node's task again, AFTER the history. With the whole persona above and a few turns of
-    // conversation below, the model sometimes picked "the obvious next qualification question"
-    // over the node's own: on a live call the vacant-or-rented node asked "Is it freehold or
-    // leasehold?" (1 in 10 / 1 in 20 offline at the same point), and every later transition
-    // then routed on an answer to a question the node never asked. Restated here, it held 20/20.
-    // A separate trailing message, so the cached system prefix above is untouched.
-    const tail: string[] = [
-      "Your next line carries out only THIS node's task — no other question, and no step from elsewhere in the call:\n" +
-        (script.trim() || task.trim() || interpolated),
-    ];
-    if (node.id === this.lastSpokenNodeId) {
-      // Staying on a node the caller already heard (routing miss or self-loop). Without this the
-      // model treated the caller's reply as the end of the topic and invented the next question
-      // itself — five turns in a row on a live call (vacant? condition? timeframe? owner?) while
-      // the node's own question went unanswered and no edge could ever match.
-      tail.push(
-        "The caller has already heard this node's line, and their reply did not complete its task. If they asked something, answer it briefly. Then bring them back to what THIS node's task still needs, in fresh words. Do not ask about anything else and do not move the call on.",
-      );
-    }
-    if (missingRule) tail.push(`Reminder: ${missingRule}`);
-    return [
-      { role: "system", content: system.join("\n") },
-      ...recent,
-      { role: "system", content: tail.join("\n") },
-    ];
+    return [{ role: "system", content: system.join("\n") }, ...recent];
   }
 
   /** Blocking speech resolution for transfer prompts and other one-shot paths. */
@@ -2067,7 +1987,6 @@ export class ConversationVm {
       currentNodeHint: node ? this.nodeHint(node) : undefined,
       classifierModel: classifier || undefined,
       flex: this.compiled.flexMode,
-      englishRules: this.englishRules,
     };
   }
 

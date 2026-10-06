@@ -31,8 +31,12 @@ export function BuilderDebugConsole() {
   const nodes = useBuilderStore((s) => s.nodes);
   const edges = useBuilderStore((s) => s.edges);
   const variables = useBuilderStore((s) => s.variables);
+  const phoneCountryCode = useBuilderStore((s) => s.settings.phoneCountryCode);
   const [tab, setTab] = useState<"timeline" | "validation" | "latency" | "cost">("timeline");
-  const issues = useMemo(() => validateFlow(nodes, edges, variables), [nodes, edges, variables]);
+  const issues = useMemo(
+    () => validateFlow(nodes, edges, variables, { phoneCountryCode }),
+    [nodes, edges, variables, phoneCountryCode],
+  );
 
   const canSeeCostFn = useServerFn(checkCanSeeCallCost);
   const { data: costAccess } = useQuery({

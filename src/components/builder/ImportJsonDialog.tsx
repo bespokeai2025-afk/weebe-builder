@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -73,7 +74,8 @@ export function ImportJsonDialog({
         setError(res.error ?? "Could not load this agent.");
         return;
       }
-      const { nodes, edges, settings, variables } = importAgentJson(res.agentJson);
+      const { nodes, edges, settings, variables, warnings } = importAgentJson(res.agentJson);
+      for (const w of warnings) toast.warning(w);
       if (!nodes.length) {
         setError("This agent's flow has no nodes to load.");
         return;
@@ -99,7 +101,10 @@ export function ImportJsonDialog({
 
   const handleImport = () => {
     try {
-      const { nodes, edges, settings, variables } = importAgentJson(desanitizeImportJson(text));
+      const { nodes, edges, settings, variables, warnings } = importAgentJson(
+        desanitizeImportJson(text),
+      );
+      for (const w of warnings) toast.warning(w);
 
       if (!nodes.length) {
         setError("No nodes found in JSON.");
