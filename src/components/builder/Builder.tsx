@@ -127,6 +127,7 @@ import { extractPostCallVariables, type PostCallExtracted } from "@/lib/builder/
 import { saveHyperStreamTestCall, updateCallSentiment } from "@/lib/builder/save-hyperstream-call.functions";
 import { LATENCY_BUDGET_MS } from "@/lib/voice/call-latency-stats.shared";
 import { CallLatencyBreakdown } from "@/components/calls/CallLatencyBreakdown";
+import { PostCallCostBreakdown } from "./PostCallCostBreakdown";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
@@ -1509,6 +1510,11 @@ export function Builder({
                                 Latency{" "}
                                 <CallLatencyBreakdown retellCallId={lastCallMeta.sessionId} />
                               </span>
+                            )}
+                            {lastCallMeta.sessionId && (
+                              <div className="w-full">
+                                <PostCallCostBreakdown callId={lastCallMeta.sessionId} />
+                              </div>
                             )}
                             {lastCallMeta.sessionId && (
                               <span className="text-muted-foreground">
