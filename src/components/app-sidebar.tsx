@@ -196,6 +196,7 @@ const ADMINISTRATION_NAV_ITEMS: NavItem[] = [
   { title: "Team",         url: "/settings/account",      icon: Users },
   { title: "Integrations", url: "/settings/integrations", icon: Plug },
   { title: "Billing",      url: "/billing",               icon: CreditCard },
+  { title: "Settings",     url: "/settings/integrations", icon: Settings },
 ];
 
 // ── Nav item (fixed order — no drag-to-reorder) ─────────────────────────────
