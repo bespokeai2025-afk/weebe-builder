@@ -349,7 +349,7 @@ export function WhatsAppCampaigns() {
     for (const c of waContacts as Array<Record<string, unknown>>) {
       const meta = (c.import_meta as Record<string, unknown> | null) ?? {};
       const key = String(meta.upload_type ?? "").trim();
-      if (!key) continue;
+      if (!key || c.do_not_contact === true || !String(c.phone ?? "").trim()) continue;
       const entry = (out[key] ??= { total: 0, unsent: 0 });
       entry.total += 1;
       const messaged =
@@ -364,6 +364,9 @@ export function WhatsAppCampaigns() {
     const want = audienceUploadType.trim();
     const q = audienceSearch.trim().toLowerCase();
     return (waContacts as Array<Record<string, unknown>>).filter((c) => {
+      // The server never sends to these or to phoneless rows; listing them
+      // here only produced "not available" errors after ticking.
+      if (c.do_not_contact === true || !String(c.phone ?? "").trim()) return false;
       const meta = (c.import_meta as Record<string, unknown> | null) ?? {};
       if (want && String(meta.upload_type ?? "").trim() !== want) return false;
       if (skipAlreadySent) {

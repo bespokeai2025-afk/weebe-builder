@@ -29,6 +29,7 @@ import {
 } from "@/lib/whatsapp/contact-bulk-delete.shared";
 import {
   fetchWorkspaceMessageStatsMaps,
+  fetchAllRows,
   lookupWaContactMessageStats,
   markWhatsappContactsMessaged,
 } from "@/lib/whatsapp/wa-contact-message-stats.server";
@@ -1237,12 +1238,13 @@ export const listWAContacts = createServerFn({ method: "GET" })
         summary: { total: 0, messaged: 0, replied: 0, not_messaged: 0, dnc: 0 },
       };
     const sb = supabase as any;
-    const { data, error } = await sb
-      .from("whatsapp_contacts")
-      .select("*")
-      .eq("workspace_id", workspaceId)
-      .order("created_at", { ascending: false });
-    if (error) throw new Error(error.message);
+    const data = await fetchAllRows<Record<string, unknown>>(() =>
+      sb
+        .from("whatsapp_contacts")
+        .select("*")
+        .eq("workspace_id", workspaceId)
+        .order("created_at", { ascending: false }),
+    );
 
     const { byExact, byTail } = await fetchWorkspaceMessageStatsMaps(sb, workspaceId);
     let messaged = 0;
@@ -2769,17 +2771,17 @@ export const prepareCampaignAudienceFromContacts = createServerFn({ method: "POS
     const offset = data.offset ?? 0;
     const skipMessaged = data.skipMessaged !== false;
 
-    const { data: contacts, error: cErr } = await sb
-      .from("whatsapp_contacts")
-      .select("phone, name, notes, lead_status, import_meta")
-      .eq("workspace_id", workspaceId)
-      .not("phone", "is", null)
-      .neq("phone", "")
-      .or("do_not_contact.is.null,do_not_contact.eq.false")
-      .order("created_at", { ascending: true });
-
-    if (cErr) throw new Error(cErr.message);
-    if (!contacts?.length) {
+    const contacts = await fetchAllRows<Record<string, any>>(() =>
+      sb
+        .from("whatsapp_contacts")
+        .select("phone, name, notes, lead_status, import_meta")
+        .eq("workspace_id", workspaceId)
+        .not("phone", "is", null)
+        .neq("phone", "")
+        .or("do_not_contact.is.null,do_not_contact.eq.false")
+        .order("created_at", { ascending: true }),
+    );
+    if (!contacts.length) {
       throw new Error(
         "No Buzzchat contacts yet — import your CSV under Contacts first, or use New CSV.",
       );
@@ -2831,13 +2833,13 @@ export const prepareCampaignAudienceFromContacts = createServerFn({ method: "POS
       ? (wantPhones.map((p) => byPhone.get(p)).filter(Boolean) as typeof eligible)
       : eligible.slice(offset, offset + limit);
     if (wantPhones.length && sliced.length === 0) {
-      throw new Error("None of the selected contacts are still available to message.");
+      throw new Error("None of the ticked contacts can be messaged — they may have been deleted or marked do-not-contact. Refresh the list and tick again.");
     }
     if (sliced.length === 0) {
       throw new Error(
         skipMessaged
-          ? "Everyone left in Contacts was already messaged. Turn off “Skip already sent” to resend, or import a new CSV."
-          : "No contacts in this range — lower Skip or import more contacts.",
+          ? "Everyone in this list was already messaged. Tick “Include already messaged” to resend, or pick another list."
+          : "No contacts left to send to in this list.",
       );
     }
 
@@ -3188,13 +3190,16 @@ export const backfillWhatsappContactedStatus = createServerFn({ method: "POST" }
     assertNotWbahWorkspace(workspaceId);
     const sb = supabase as any;
 
-    const { data, error } = await sb
-      .from("whatsapp_messages")
-      .select("contact_phone")
-      .eq("workspace_id", workspaceId)
-      .eq("direction", "outbound")
-      .limit(25000);
-    if (error) throw new Error(error.message);
+    const data = await fetchAllRows<{ contact_phone: string }>(
+      () =>
+        sb
+          .from("whatsapp_messages")
+          .select("contact_phone")
+          .eq("workspace_id", workspaceId)
+          .eq("direction", "outbound")
+          .order("sent_at", { ascending: false }),
+      25_000,
+    );
 
     const phones: string[] = [
       ...new Set(

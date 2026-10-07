@@ -188,6 +188,34 @@ type WorkspaceStatsMaps = {
 // repeating it; "last campaign per phone" doesn't change fast enough for a
 // few seconds of staleness to matter.
 const workspaceStatsCache = new Map<string, { at: number; data: WorkspaceStatsMaps }>();
+
+/** Supabase returns at most this many rows per request, whatever `.limit()` asks for. */
+const SUPABASE_PAGE_ROWS = 1000;
+
+/**
+ * Every row a query matches, fetched page by page.
+ *
+ * The API silently caps each response at 1,000 rows, so a plain select read only the first page:
+ * the campaign composer listed a workspace's newest 1,000 contacts while audience preparation
+ * read its oldest 1,000 — on a 1,741-contact workspace, ticked contacts "were not available" and
+ * unsent contacts in recent uploads did not exist for the server. `build` must return a fresh,
+ * ordered query each call (query builders are single-use).
+ */
+export async function fetchAllRows<T>(
+  build: () => any,
+  maxRows = 50_000,
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; from < maxRows; from += SUPABASE_PAGE_ROWS) {
+    const to = Math.min(from + SUPABASE_PAGE_ROWS, maxRows) - 1;
+    const { data, error } = await build().range(from, to);
+    if (error) throw new Error(error.message);
+    const rows = (data ?? []) as T[];
+    out.push(...rows);
+    if (rows.length < to - from + 1) break;
+  }
+  return out;
+}
 const STATS_CACHE_TTL_MS = 20_000;
 
 export async function fetchWorkspaceMessageStatsMaps(
@@ -199,15 +227,15 @@ export async function fetchWorkspaceMessageStatsMaps(
     return cached.data;
   }
 
-  const { data, error } = await sb
-    .from("whatsapp_messages")
-    .select("contact_phone, direction, sent_at, status, campaign_id")
-    .eq("workspace_id", workspaceId)
-    .order("sent_at", { ascending: false })
-    .limit(25000);
-  if (error) throw new Error(error.message);
-
-  const rows = (data ?? []) as MessageRow[];
+  const rows = await fetchAllRows<MessageRow>(
+    () =>
+      sb
+        .from("whatsapp_messages")
+        .select("contact_phone, direction, sent_at, status, campaign_id")
+        .eq("workspace_id", workspaceId)
+        .order("sent_at", { ascending: false }),
+    25_000,
+  );
   const campaignIds = rows
     .map((r) => (r.campaign_id ? String(r.campaign_id) : null))
     .filter(Boolean) as string[];
