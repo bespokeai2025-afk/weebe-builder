@@ -1,17 +1,25 @@
 /**
  * Fish Audio streaming TTS provider.
  *
- * Protocol (wss://api.fish.audio/v1/tts/live, MessagePack frames):
- *   client -> { event: "start", request: {...} }   once per TCP connection
- *   client -> { event: "text",  text: "..." }      per text chunk
- *   client -> { event: "flush" }                   force synthesis of buffered text
- *   client -> { event: "stop" }                    end of stream
- *   server -> { event: "audio", audio: <bytes> }   repeatedly
+ * Protocol (wss://api.fish.audio/v1/tts/live/with-timestamp, MessagePack binary frames):
+ *   client -> { event: "start", request: {...} }   opens one synthesis session
+ *   client -> { event: "text",  text: "..." }      appends text to the session buffer
+ *   client -> { event: "flush" }                   forces buffered text through generation
+ *   client -> { event: "stop" }                    ends the session; server drains, then `finish`
+ *   server -> { event: "audio", audio, alignment, chunk_seq, chunk_audio_offset_sec }
  *   server -> { event: "finish", reason: "stop" | "error" }
+ *   server -> { event: "error", ... }             request-level failure; socket closes
  *
- * Call-bound mode: voice id + prosody are locked. One live WebSocket is reused
- * across utterances (start once, then text→flush per line; no stop/TCP teardown).
- * If Fish still closes after flush, the next line reconnects.
+ * One agent line = one Fish session: start → text… → stop → finish. After `finish` the same
+ * socket takes the next `start` (documented for the with-timestamp endpoint), so a call keeps one
+ * TCP/TLS connection for all its lines without ever guessing where a line ends.
+ *
+ * Why not one session for the whole call (what this used to do): Fish holds the last few
+ * milliseconds of a flushed line until the next text/flush/stop arrives, and labels the next
+ * line's first audio with the previous line's chunk, so inside one long session there is no
+ * signal that a line is complete. The old code ended each line after 0.9–3.2s of audio silence —
+ * adding that wait to every line and cutting long ones that paused mid-sentence — and an
+ * interrupted line's leftover audio was pushed into the NEXT line's queue on the reused socket.
  */
 import { WebSocket } from "ws";
 import { decode, encode } from "@msgpack/msgpack";
@@ -23,42 +31,51 @@ import {
   type TtsVoiceRequest,
 } from "./types";
 
-const FISH_TTS_WS = "wss://api.fish.audio/v1/tts/live";
+const FISH_TTS_WS = "wss://api.fish.audio/v1/tts/live/with-timestamp";
 const CONNECT_TIMEOUT_MS = 10_000;
+/** One retry on a failed handshake (429 concurrency, 503 load). Fish sends no Retry-After. */
+const CONNECT_RETRY_DELAY_MS = 300;
+/**
+ * After `stop`, how long to wait for `finish` before giving up on the session. Fish streams faster
+ * than real time, so a line normally finishes well inside its own spoken duration; this only
+ * bounds a stuck socket.
+ */
+const FINISH_TIMEOUT_MS = 20_000;
 /** Nucleus sampling — lower keeps clone timbre from jumping between utterances. */
 const FISH_CLONE_TOP_P = 0.5;
-/** Target Fish chunk size. 200 is Fish's default — smaller than 300 so first audio starts sooner. */
+/** Target chunk size (Fish allows 100–300, default 300). Smaller starts first audio sooner. */
 const FISH_CLONE_CHUNK_LENGTH = 200;
 /** Don't emit a fragment shorter than a word; 80 blocked first-audio by a full clause. */
 export const FISH_CLONE_MIN_CHUNK_LENGTH = 12;
-/** Bound-call TTS keeps the live socket open between agent lines (no stop/TCP teardown). */
-export const FISH_BOUND_KEEP_ALIVE = true;
-/**
- * After a burst of audio, wait this long before ending the local drain.
- * Fish S2 often pauses 400–900ms between clauses on a long greeting; 280ms
- * cut Clare off after "Hi, this is Clare".
- */
-export const FISH_LIVE_UTTERANCE_IDLE_MS = 900;
-/** When far less audio has arrived than the text requires, wait longer — still synthesizing. */
-export const FISH_LIVE_SHORT_COVERAGE_IDLE_MS = 3200;
-/** Static lines finish pumping in milliseconds — wait this long for Fish's first audio. */
-export const FISH_LIVE_FIRST_AUDIO_WAIT_MS = 2500;
 /** First live flush once we have a speakable phrase — matches VOICE_LATENCY_TTS_BATCH. */
 export const FISH_STREAM_FIRST_FLUSH_CHARS = 12;
 /** Keep enough of the greeting to lock timbre; cap payload size. */
 const ANCHOR_MAX_SECONDS = 3;
 const ANCHOR_MIN_SECONDS = 1.2;
 
-/** Models that accept the `model` connection header. */
-const KNOWN_MODELS = new Set(["s1", "s2-pro", "s2.1-pro", "s2.1-pro-free"]);
+/** Models the `model` connection header accepts (docs.fish.audio OpenAPI enum). */
+const KNOWN_MODELS = new Set(["s1", "s2-pro", "s2.1-pro", "s2.1-pro-free", "drama-3-preview"]);
 
-/** WEBEE Native default — Fish S2.1 Pro free tier (same model, fair-use API). */
+/**
+ * WEBEE Native default — Fish S2.1 Pro free tier (same model, fair-use API, no latency
+ * guarantee). Fish lists it at no cost through 30 November 2026; after that set
+ * FISH_TTS_MODEL=s2.1-pro.
+ */
 export const FISH_TTS_DEFAULT_MODEL = "s2.1-pro-free";
+const FREE_TIER_ENDS = Date.UTC(2026, 11, 1);
+let freeTierWarned = false;
 
 /** Resolve TTS model: per-request → FISH_TTS_MODEL env → s2.1-pro-free. */
 export function resolveFishTtsModel(override?: string | null): string {
   const pick = String(override ?? process.env.FISH_TTS_MODEL ?? FISH_TTS_DEFAULT_MODEL).trim();
-  return KNOWN_MODELS.has(pick) ? pick : FISH_TTS_DEFAULT_MODEL;
+  const model = KNOWN_MODELS.has(pick) ? pick : FISH_TTS_DEFAULT_MODEL;
+  if (model === "s2.1-pro-free" && Date.now() >= FREE_TIER_ENDS && !freeTierWarned) {
+    freeTierWarned = true;
+    console.warn(
+      "[fish-tts] s2.1-pro-free was free only through 2026-11-30 — set FISH_TTS_MODEL=s2.1-pro",
+    );
+  }
+  return model;
 }
 
 /**
@@ -74,6 +91,7 @@ class ChunkQueue {
   private error: Error | null = null;
 
   push(chunk: Buffer): void {
+    if (this.ended) return;
     this.items.push(chunk);
     this.signal();
   }
@@ -116,11 +134,15 @@ interface FishServerEvent {
   message?: string;
 }
 
-interface FishLiveSession {
+/**
+ * One open WebSocket. Runs at most one Fish session at a time; `session` is null between
+ * sessions, when the socket is idle and ready for the next `start`.
+ */
+interface FishSocket {
   ws: WebSocket;
-  queue: ChunkQueue;
-  /** True after `{ event: "stop" }` — only then may a finish frame end the queue. */
-  stopSent: boolean;
+  session: { queue: ChunkQueue; finished: boolean; usedAnchor: boolean } | null;
+  /** Set when a session failed with the voice anchor attached, so the owner can drop it. */
+  onAnchorError?: () => void;
   close(): void;
 }
 
@@ -159,7 +181,7 @@ export function buildStartRequest(
     text: "",
     format: "pcm",
     sample_rate: req.sampleRate,
-    // Fish documents `balanced` (~300ms) and `normal` (~500ms) for live TTS.
+    // Measured on s2.1-pro-free: low ≈ balanced (~470–510ms to first audio), normal ~2.5s.
     latency: req.latency ?? "balanced",
     reference_id: voiceId,
     condition_on_previous_chunks: true,
@@ -168,11 +190,11 @@ export function buildStartRequest(
     chunk_length: FISH_CLONE_CHUNK_LENGTH,
     min_chunk_length: FISH_CLONE_MIN_CHUNK_LENGTH,
   };
-  // Anchor on every voice, not just detected clones. The anchor is a clip of
-  // this same call's first utterance, so it can only pull later sessions back
-  // toward the voice already being used — and relying on clone detection meant
-  // a misclassified voice silently lost its drift protection.
-  if (anchor?.wav.byteLength && anchor.text.trim()) {
+  // Owned clones only. Every agent line is now its own Fish session, so the anchor travels with
+  // every `start` and costs ~70ms of first-audio latency each time (measured). Clones need it —
+  // they re-sample timbre per session and the caller hears the voice change. Library voices are
+  // trained models that stay consistent from `reference_id` alone, so they skip that cost.
+  if (req.cloneVoice && anchor?.wav.byteLength && anchor.text.trim()) {
     request.references = [
       {
         audio: new Uint8Array(anchor.wav),
@@ -212,6 +234,10 @@ async function waitForOpen(ws: WebSocket): Promise<void> {
       clearTimeout(timer);
       resolve();
     });
+    ws.once("unexpected-response", (_req, res) => {
+      clearTimeout(timer);
+      reject(new Error(`Fish Audio TTS handshake rejected: HTTP ${res.statusCode}`));
+    });
     ws.once("error", (err: Error) => {
       clearTimeout(timer);
       reject(err);
@@ -224,98 +250,143 @@ async function waitForOpen(ws: WebSocket): Promise<void> {
   });
 }
 
-function attachFishHandlers(session: FishLiveSession): void {
-  const { ws } = session;
+function attachFishHandlers(sock: FishSocket): void {
+  const { ws } = sock;
   ws.on("message", (data: import("ws").RawData) => {
+    const session = sock.session;
     try {
       const buf = Array.isArray(data) ? Buffer.concat(data) : Buffer.from(data as Buffer);
       const msg = decode(buf) as FishServerEvent;
 
-      if (msg.event === "audio" && msg.audio) {
-        session.queue.push(Buffer.from(msg.audio));
-        return;
-      }
-      if (msg.event === "error" || (msg.event === "finish" && msg.reason === "error")) {
-        const detail = msg.message ?? msg.reason ?? "unknown error";
-        console.error(`[fish-tts] server error event=${msg.event} ${detail}`);
-        session.queue.fail(new Error(`Fish Audio TTS synthesis failed: ${detail}`));
+      if (msg.event === "audio") {
+        // Trailing audio events can carry empty bytes (alignment corrections only).
+        if (session && msg.audio?.byteLength) session.queue.push(Buffer.from(msg.audio));
         return;
       }
       if (msg.event === "finish") {
-        if (session.stopSent) {
+        if (!session) return;
+        session.finished = true;
+        sock.session = null;
+        if (msg.reason === "error") {
+          console.error("[fish-tts] session finished with reason=error");
+          if (session.usedAnchor) sock.onAnchorError?.();
+          session.queue.fail(new Error("Fish Audio TTS synthesis failed: finish reason=error"));
+        } else {
           session.queue.end();
         }
         return;
       }
-      if (msg.event && msg.event !== "start" && msg.event !== "log") {
-        console.warn(
-          `[fish-tts] unexpected event=${msg.event}${msg.message ? ` ${msg.message}` : ""}`,
-        );
+      if (msg.event === "error") {
+        const detail = msg.message ?? msg.reason ?? "unknown error";
+        console.error(`[fish-tts] server error event: ${detail}`);
+        if (session?.usedAnchor) sock.onAnchorError?.();
+        session?.queue.fail(new Error(`Fish Audio TTS error: ${detail}`));
+        return;
       }
+      // Clients must ignore unknown events (forward-compatible protocol).
     } catch (err) {
-      session.queue.fail(err instanceof Error ? err : new Error(String(err)));
+      session?.queue.fail(err instanceof Error ? err : new Error(String(err)));
+    }
+  });
+  ws.on("error", (err: Error) => sock.session?.queue.fail(err));
+  ws.on("close", () => {
+    const session = sock.session;
+    sock.session = null;
+    if (session && !session.finished) {
+      session.queue.fail(new Error("Fish Audio TTS socket closed before the line finished"));
     }
   });
 }
 
-async function connectFishSession(
-  req: TtsVoiceRequest,
-  apiKey: string,
-  defaultModel: string,
-  anchor?: FishVoiceAnchor | null,
-): Promise<FishLiveSession> {
-  try {
-    return await openFishSession(req, apiKey, defaultModel, anchor);
-  } catch (err) {
-    if (!anchor) throw err;
-    console.warn(
-      `[fish-tts] connect with voice anchor failed, retrying without: ${
-        err instanceof Error ? err.message : String(err)
-      }`,
-    );
-    return openFishSession(req, apiKey, defaultModel, null);
-  }
-}
-
-async function openFishSession(
-  req: TtsVoiceRequest,
-  apiKey: string,
-  defaultModel: string,
-  anchor?: FishVoiceAnchor | null,
-): Promise<FishLiveSession> {
-  const model = resolveModel(req, defaultModel);
-  const queue = new ChunkQueue();
+async function openFishSocketOnce(apiKey: string, model: string): Promise<FishSocket> {
   const ws = new WebSocket(FISH_TTS_WS, {
     headers: {
       Authorization: `Bearer ${apiKey}`,
       model,
     },
   });
-
-  const session: FishLiveSession = {
+  // Late errors after a failed handshake must not crash the process.
+  ws.on("error", () => {});
+  const sock: FishSocket = {
     ws,
-    queue,
-    stopSent: false,
+    session: null,
     close() {
       if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
         ws.terminate();
       }
     },
   };
-
-  attachFishHandlers(session);
   await waitForOpen(ws);
-
-  ws.on("error", (err: Error) => session.queue.fail(err));
-  ws.on("close", () => session.queue.end());
-  ws.send(encode({ event: "start", request: buildStartRequest(req, anchor) }));
-
-  return session;
+  attachFishHandlers(sock);
+  return sock;
 }
 
+async function openFishSocket(
+  req: TtsVoiceRequest,
+  apiKey: string,
+  defaultModel: string,
+): Promise<FishSocket> {
+  const model = resolveModel(req, defaultModel);
+  try {
+    return await openFishSocketOnce(apiKey, model);
+  } catch (err) {
+    console.warn(
+      `[fish-tts] connect failed (${err instanceof Error ? err.message : String(err)}), retrying once`,
+    );
+    await new Promise((r) => setTimeout(r, CONNECT_RETRY_DELAY_MS));
+    return openFishSocketOnce(apiKey, model);
+  }
+}
+
+function isIdle(sock: FishSocket | null | undefined): boolean {
+  return !!sock && sock.ws.readyState === WebSocket.OPEN && sock.session === null;
+}
+
+/** Open a new Fish session on an idle socket and return its audio queue. */
+function startSession(
+  sock: FishSocket,
+  req: TtsVoiceRequest,
+  anchor: FishVoiceAnchor | null,
+): ChunkQueue {
+  if (!isIdle(sock)) throw new Error("Fish Audio TTS socket is not idle");
+  const request = buildStartRequest(req, anchor);
+  const queue = new ChunkQueue();
+  sock.session = { queue, finished: false, usedAnchor: Boolean(request.references) };
+  sock.ws.send(encode({ event: "start", request }));
+  return queue;
+}
+
+/** End the session's input. Fish drains what is buffered and answers with `finish`. */
+function stopSession(sock: FishSocket): void {
+  const session = sock.session;
+  if (!session) return;
+  if (sock.ws.readyState !== WebSocket.OPEN) {
+    session.queue.fail(new Error("Fish Audio TTS socket closed before stop"));
+    return;
+  }
+  sock.ws.send(encode({ event: "stop" }));
+  const timer = setTimeout(() => {
+    if (sock.session !== session) return;
+    console.error(`[fish-tts] no finish within ${FINISH_TIMEOUT_MS}ms of stop — closing socket`);
+    session.queue.fail(new Error("Fish Audio TTS did not finish the line"));
+    sock.close();
+  }, FINISH_TIMEOUT_MS);
+  timer.unref?.();
+}
+
+/** With no clause punctuation yet, flush at a word boundary once this much text is waiting. */
+const FISH_FIRST_FLUSH_FALLBACK_CHARS = 60;
+
 /**
- * When to flush the Fish live buffer so first audio can start before the
- * full sentence exists. Later flushes stay on sentence boundaries.
+ * When to flush the Fish live buffer.
+ *
+ * Fish buffers text and generates "once it has enough context for natural-sounding speech"; a
+ * flush forces whatever is buffered out as a finished piece, with an ending's intonation and a
+ * pause after it. The first flush used to fire after 12 characters, mid-phrase — "Perfect, and |
+ * is the property…" — which put an audible break inside the sentence (a 380ms gap measured at
+ * exactly that cut), the "voice breaks then carries on" effect. Flushing at the first clause
+ * boundary instead (a comma or full stop, where a speaker pauses anyway) reached first audio just
+ * as fast in measurement (676 vs 695ms median) with less dead air inside the line.
  */
 export function shouldFlushFishLiveBuffer(
   buffered: string,
@@ -324,209 +395,76 @@ export function shouldFlushFishLiveBuffer(
   const ready = buffered.trim();
   if (!ready) return false;
   if (!alreadyFlushed) {
-    if (ready.length >= FISH_STREAM_FIRST_FLUSH_CHARS) return true;
-    if (ready.length >= 8 && /[.!?,;:]["']?\s*$/.test(ready)) return true;
-    if (ready.length >= 12 && /\s$/.test(buffered)) return true;
-    return false;
+    if (ready.length >= 6 && /[.!?,;:]["'”’)]?$/.test(ready)) return true;
+    return ready.length >= FISH_FIRST_FLUSH_FALLBACK_CHARS && /\s$/.test(buffered);
   }
-  return /[.!?]["']?\s*$/.test(ready) && ready.length >= 24;
+  return /[.!?]["'”’)]?$/.test(ready) && ready.length >= 24;
 }
 
-interface PumpOptions {
-  /** When false, keep the TCP session open for the next agent line (call-bound mode). */
-  sendStop?: boolean;
-}
-
-function endFishPump(session: FishLiveSession, sendStop: boolean): void {
-  if (session.ws.readyState !== WebSocket.OPEN) {
-    session.queue.fail(new Error("Fish Audio TTS socket closed before stop"));
-    return;
-  }
-  session.ws.send(encode({ event: "flush" }));
-  if (!sendStop) return;
-  session.stopSent = true;
-  session.ws.send(encode({ event: "stop" }));
-}
-
-async function pumpFishText(
-  session: FishLiveSession,
-  textStream: AsyncIterable<string>,
-  options: PumpOptions = {},
-): Promise<void> {
-  const sendStop = options.sendStop !== false;
+/** Stream text into the socket's current session, then stop it. */
+async function pumpFishText(sock: FishSocket, textStream: AsyncIterable<string>): Promise<void> {
+  const session = sock.session;
+  if (!session) return;
   try {
     let buffered = "";
     let flushed = false;
     for await (const segment of textStream) {
       if (!segment) continue;
-      if (session.ws.readyState !== WebSocket.OPEN) {
+      if (sock.session !== session) return;
+      if (sock.ws.readyState !== WebSocket.OPEN) {
         session.queue.fail(new Error("Fish Audio TTS socket closed during synthesis"));
         return;
       }
       buffered += segment;
-      session.ws.send(encode({ event: "text", text: segment }));
+      sock.ws.send(encode({ event: "text", text: segment }));
       if (shouldFlushFishLiveBuffer(buffered, flushed)) {
-        session.ws.send(encode({ event: "flush" }));
+        sock.ws.send(encode({ event: "flush" }));
         flushed = true;
         buffered = "";
       }
     }
-    endFishPump(session, sendStop);
+    if (sock.session === session) stopSession(sock);
   } catch (err) {
     session.queue.fail(err instanceof Error ? err : new Error(String(err)));
-    session.close();
+    sock.close();
   }
 }
 
-async function pumpFishStaticChunks(
-  session: FishLiveSession,
-  text: string,
-  options: PumpOptions = {},
-): Promise<void> {
-  const sendStop = options.sendStop !== false;
-  try {
-    if (session.ws.readyState !== WebSocket.OPEN) {
-      session.queue.fail(new Error("Fish Audio TTS socket closed during synthesis"));
-      return;
-    }
-    // One text + one flush: splitting/flushing every sentence resamples the clone mid-line.
-    session.ws.send(encode({ event: "text", text }));
-    endFishPump(session, sendStop);
-  } catch (err) {
-    session.queue.fail(err instanceof Error ? err : new Error(String(err)));
-    session.close();
-  }
-}
-
-function isFishLiveOpen(session: FishLiveSession | null | undefined): boolean {
-  return !!session && session.ws.readyState === WebSocket.OPEN;
-}
-
-function recycleFishQueue(session: FishLiveSession): void {
-  session.queue = new ChunkQueue();
-  session.stopSent = false;
-}
-
-/** Spoken duration implied by text at ~14 chars/s (PCM16 mono). */
-export function expectedPcmBytesForText(text: string, sampleRate: number): number {
-  const chars = text.replace(/\s+/g, " ").trim().length;
-  if (chars <= 0 || sampleRate <= 0) return 0;
-  return Math.floor((chars / 14) * sampleRate * 2);
-}
-
-/**
- * Keep-alive TTS cannot wait for Fish `finish` (that only arrives after `stop`).
- * End the local queue only after audio has gone idle — and never while the
- * amount of PCM is far short of the text still being synthesised.
- */
-export function shouldEndFishLiveUtterance(opts: {
-  gotAudio: boolean;
-  idleMs: number;
-  pcmBytes: number;
-  expectedText: string;
-  sampleRate: number;
-}): boolean {
-  if (!opts.gotAudio) return false;
-  const expected = expectedPcmBytesForText(opts.expectedText, opts.sampleRate);
-  const coverage = expected > 0 ? opts.pcmBytes / expected : 1;
-  const idleNeed =
-    coverage < 0.75 ? FISH_LIVE_SHORT_COVERAGE_IDLE_MS : FISH_LIVE_UTTERANCE_IDLE_MS;
-  return opts.idleMs >= idleNeed;
-}
-
-/**
- * Bound-call utterances flush but do not send `stop`, so the TCP session stays
- * up for the next line. End the local drain once audio has been idle — but
- * never before the first chunk, or a long greeting is silenced.
- */
-async function endQueueWhenAudioIdle(
-  session: FishLiveSession,
-  pumpDone: Promise<void>,
-  options: { expectedText: () => string; sampleRate: number },
-): Promise<void> {
-  const queue = session.queue;
-  let gotAudio = false;
-  let lastAudio = Date.now();
-  let pcmBytes = 0;
-  const origPush = queue.push.bind(queue);
-  queue.push = (chunk: Buffer) => {
-    gotAudio = true;
-    lastAudio = Date.now();
-    pcmBytes += chunk.byteLength;
-    origPush(chunk);
-  };
-  try {
-    await pumpDone;
-  } catch {
-    queue.end();
+/** Send a complete line in one text event (splitting resamples the clone mid-line), then stop. */
+function pumpFishStaticText(sock: FishSocket, text: string): void {
+  const session = sock.session;
+  if (!session) return;
+  if (sock.ws.readyState !== WebSocket.OPEN) {
+    session.queue.fail(new Error("Fish Audio TTS socket closed during synthesis"));
     return;
   }
-  if (session.stopSent) return;
-  const flushedAt = Date.now();
-  await new Promise<void>((resolve) => {
-    const finish = (reason: string) => {
-      const expected = options.expectedText();
-      const need = expectedPcmBytesForText(expected, options.sampleRate);
-      if (need > 0 && pcmBytes < need * 0.75) {
-        console.warn(
-          `[fish-tts] utterance idle-end ${reason} coverage=${(pcmBytes / need).toFixed(2)} ` +
-            `pcm=${pcmBytes} expected=${need}`,
-        );
-      }
-      queue.end();
-      resolve();
-    };
-    const tick = () => {
-      if (queue !== session.queue) {
-        resolve();
-        return;
-      }
-      if (session.ws.readyState !== WebSocket.OPEN) {
-        finish("socket-closed");
-        return;
-      }
-      if (!gotAudio) {
-        if (Date.now() - flushedAt >= FISH_LIVE_FIRST_AUDIO_WAIT_MS) {
-          if (!session.stopSent && session.ws.readyState === WebSocket.OPEN) {
-            session.stopSent = true;
-            session.ws.send(encode({ event: "stop" }));
-            setTimeout(() => finish("no-audio-stop"), 1200);
-            return;
-          }
-          finish("no-audio");
-          return;
-        }
-        setTimeout(tick, 40);
-        return;
-      }
-      if (
-        shouldEndFishLiveUtterance({
-          gotAudio: true,
-          idleMs: Date.now() - lastAudio,
-          pcmBytes,
-          expectedText: options.expectedText(),
-          sampleRate: options.sampleRate,
-        })
-      ) {
-        finish("idle");
-        return;
-      }
-      setTimeout(tick, 40);
-    };
-    setTimeout(tick, 40);
-  });
+  sock.ws.send(encode({ event: "text", text }));
+  stopSession(sock);
+}
+
+/**
+ * Release a socket after a line. Reusable only when the line reached `finish`; a line abandoned
+ * mid-synthesis (barge-in, error) still has audio in flight that would land in the next line, so
+ * that socket is closed instead.
+ */
+function releaseSocket(sock: FishSocket): FishSocket | null {
+  if (isIdle(sock)) return sock;
+  sock.close();
+  return null;
 }
 
 class BoundCallUtteranceRunner {
   private utteranceChain: Promise<void> = Promise.resolve();
-  private warmSession: Promise<FishLiveSession> | null = null;
-  /** Socket already synthesizing a predicted static line. */
-  private primed: { text: string; session: Promise<FishLiveSession> } | null = null;
-  /** First in-call agent audio — later lines clone this instead of resampling the model. */
+  /** Idle socket ready for the next line's `start`. */
+  private idle: FishSocket | null = null;
+  /** Handshake in progress for the next line. */
+  private connecting: Promise<FishSocket> | null = null;
+  /** A predicted static line already synthesizing on its own session. */
+  private primed: { text: string; sock: FishSocket; queue: ChunkQueue } | null = null;
+  /** First in-call agent audio — later lines of an owned clone reference it. */
   private anchor: FishVoiceAnchor | null = null;
-  /** Live TCP session reused across agent lines when Fish leaves it open. */
-  private live: FishLiveSession | null = null;
   private busy = false;
+  private closed = false;
 
   constructor(
     private readonly apiKey: string,
@@ -535,21 +473,88 @@ class BoundCallUtteranceRunner {
   ) {}
 
   close(): void {
-    this.live?.close();
-    this.live = null;
-    this.warmSession?.then((session) => session.close()).catch(() => {});
-    this.primed?.session.then((session) => {
-      if (session !== this.live) session.close();
-    }).catch(() => {});
-    this.warmSession = null;
+    this.closed = true;
+    this.idle?.close();
+    this.idle = null;
+    this.connecting?.then((s) => s.close()).catch(() => {});
+    this.connecting = null;
+    this.primed?.sock.close();
     this.primed = null;
     this.anchor = null;
   }
 
+  private adopt(sock: FishSocket): FishSocket {
+    sock.onAnchorError = () => {
+      if (!this.anchor) return;
+      console.warn("[fish-tts] line failed with the voice anchor attached — dropping the anchor");
+      this.anchor = null;
+    };
+    return sock;
+  }
+
+  /** Hold a reusable socket for the next line, unless one is already held. */
+  private keepIdle(sock: FishSocket | null): void {
+    if (!sock) return;
+    const held = this.idle;
+    if (this.closed || (held && isIdle(held))) {
+      sock.close();
+      return;
+    }
+    this.idle = sock;
+  }
+
+  /** Make sure an idle socket is open (or opening) for the next line. */
   warm(): void {
-    if (this.busy || this.warmSession || this.primed) return;
-    if (isFishLiveOpen(this.live)) return;
-    this.warmSession = connectFishSession(this.req, this.apiKey, this.defaultModel, this.anchor);
+    if (this.closed || this.busy || this.primed || this.connecting) return;
+    if (isIdle(this.idle)) return;
+    this.idle = null;
+    const pending = openFishSocket(this.req, this.apiKey, this.defaultModel).then((s) =>
+      this.adopt(s),
+    );
+    this.connecting = pending;
+    pending
+      .then((sock) => {
+        if (this.connecting !== pending) return;
+        this.connecting = null;
+        if (this.closed || isIdle(this.idle)) {
+          sock.close();
+          return;
+        }
+        this.idle = sock;
+      })
+      .catch((err) => {
+        if (this.connecting === pending) this.connecting = null;
+        console.warn(`[fish-tts] warm connect failed: ${err instanceof Error ? err.message : err}`);
+      });
+  }
+
+  /** Take an idle socket: the warm one, an in-flight handshake, or a fresh connection. */
+  private async acquire(): Promise<FishSocket> {
+    const held = this.idle;
+    if (held && isIdle(held)) {
+      this.idle = null;
+      return held;
+    }
+    this.idle?.close();
+    this.idle = null;
+    if (this.connecting) {
+      const pending = this.connecting;
+      this.connecting = null;
+      try {
+        const sock = await pending;
+        if (isIdle(sock)) return sock;
+      } catch {
+        /* fall through to a fresh connection */
+      }
+    }
+    return this.adopt(await openFishSocket(this.req, this.apiKey, this.defaultModel));
+  }
+
+  private discardPrimed(): void {
+    const primed = this.primed;
+    if (!primed) return;
+    this.primed = null;
+    this.keepIdle(releaseSocket(primed.sock));
   }
 
   /** Start synthesizing a predicted static line while the caller is still talking. */
@@ -559,38 +564,23 @@ class BoundCallUtteranceRunner {
       this.warm();
       return;
     }
-    if (this.primed?.text === trimmed) return;
-    if (this.busy) return;
+    if (this.closed || this.busy || this.primed?.text === trimmed) return;
+    this.discardPrimed();
 
-    if (isFishLiveOpen(this.live)) {
-      this.primed?.session.then((session) => {
-        if (session !== this.live) session.close();
-      }).catch(() => {});
-      recycleFishQueue(this.live!);
-      this.live!.ws.send(encode({ event: "text", text: trimmed }));
-      this.live!.ws.send(encode({ event: "flush" }));
-      this.primed = { text: trimmed, session: Promise.resolve(this.live!) };
+    const sock = this.idle && isIdle(this.idle) ? this.idle : null;
+    if (sock) {
+      this.idle = null;
+      const queue = startSession(sock, this.req, this.anchor);
+      pumpFishStaticText(sock, trimmed);
+      this.primed = { text: trimmed, sock, queue };
       return;
     }
-
-    this.primed?.session.then((session) => session.close()).catch(() => {});
-    const pending = this.warmSession;
-    this.warmSession = null;
-    this.primed = {
-      text: trimmed,
-      session: (async () => {
-        const session = await (pending ?? connectFishSession(this.req, this.apiKey, this.defaultModel, this.anchor));
-        if (session.ws.readyState === WebSocket.OPEN) {
-          session.ws.send(encode({ event: "text", text: trimmed }));
-          session.ws.send(encode({ event: "flush" }));
-        }
-        return session;
-      })(),
-    };
+    // No idle socket yet: open one; prime it only if nothing else claimed the slot meanwhile.
+    this.warm();
   }
 
   private maybeSetAnchor(pcm: Buffer, spokenText: string): void {
-    if (this.anchor) return;
+    if (this.anchor || !this.req.cloneVoice) return;
     const bytesPerSecond = this.req.sampleRate * 2;
     const minBytes = Math.floor(ANCHOR_MIN_SECONDS * bytesPerSecond);
     if (pcm.byteLength < minBytes) return;
@@ -605,68 +595,8 @@ class BoundCallUtteranceRunner {
     );
   }
 
-  private async takeSession(
-    expectedText?: string,
-  ): Promise<{ session: FishLiveSession; primed: boolean }> {
-    const want = expectedText?.trim();
-    if (want && this.primed?.text === want) {
-      const slot = this.primed;
-      this.primed = null;
-      try {
-        return { session: await slot.session, primed: true };
-      } catch {
-        this.live = null;
-        return {
-          session: await connectFishSession(this.req, this.apiKey, this.defaultModel, this.anchor),
-          primed: false,
-        };
-      }
-    }
-
-    if (this.primed) {
-      const discard = this.primed;
-      this.primed = null;
-      discard.session.then((s) => {
-        if (s !== this.live) s.close();
-      }).catch(() => {});
-    }
-
-    if (isFishLiveOpen(this.live)) {
-      recycleFishQueue(this.live!);
-      return { session: this.live!, primed: false };
-    }
-    this.live = null;
-
-    if (this.warmSession) {
-      const pending = this.warmSession;
-      this.warmSession = null;
-      try {
-        return { session: await pending, primed: false };
-      } catch {
-        return {
-          session: await connectFishSession(this.req, this.apiKey, this.defaultModel, this.anchor),
-          primed: false,
-        };
-      }
-    }
-    const model = resolveModel(this.req, this.defaultModel);
-    console.log(
-      `[fish-tts] utterance reference_id=${this.req.voiceId} model=${model}` +
-        ` sample_rate=${this.req.sampleRate}` +
-        (typeof this.req.temperature === "number"
-          ? ` temp=${this.req.temperature.toFixed(2)}`
-          : "") +
-        (typeof this.req.speed === "number" ? ` speed=${this.req.speed}` : "") +
-        (this.anchor ? " anchor=on" : " anchor=off"),
-    );
-    return {
-      session: await connectFishSession(this.req, this.apiKey, this.defaultModel, this.anchor),
-      primed: false,
-    };
-  }
-
   async *runUtterance(
-    pump: (session: FishLiveSession) => Promise<void>,
+    pump: (sock: FishSocket) => Promise<void> | void,
     spokenText: () => string,
     expectedText?: string,
   ): AsyncGenerator<Buffer> {
@@ -680,50 +610,45 @@ class BoundCallUtteranceRunner {
     await prior;
     this.busy = true;
 
-    const { session, primed } = await this.takeSession(expectedText);
-    const pumpDone = primed
-      ? Promise.resolve()
-      : pump(session).catch((err) => {
-          session.queue.fail(err instanceof Error ? err : new Error(String(err)));
-        });
-    void endQueueWhenAudioIdle(session, pumpDone, {
-      expectedText: spokenText,
-      sampleRate: this.req.sampleRate ?? 24000,
-    });
-
+    let sock: FishSocket | null = null;
     const pcmChunks: Buffer[] = [];
     try {
-      for await (const chunk of session.queue.drain()) {
+      let queue: ChunkQueue;
+      const want = expectedText?.trim();
+      if (want && this.primed?.text === want) {
+        ({ sock, queue } = this.primed);
+        this.primed = null;
+      } else {
+        this.discardPrimed();
+        sock = await this.acquire();
+        const model = resolveModel(this.req, this.defaultModel);
+        console.log(
+          `[fish-tts] utterance reference_id=${this.req.voiceId} model=${model}` +
+            ` sample_rate=${this.req.sampleRate}` +
+            (typeof this.req.temperature === "number"
+              ? ` temp=${this.req.temperature.toFixed(2)}`
+              : "") +
+            (typeof this.req.speed === "number" ? ` speed=${this.req.speed}` : "") +
+            (this.req.cloneVoice && this.anchor ? " anchor=on" : " anchor=off"),
+        );
+        queue = startSession(sock, this.req, this.anchor);
+        const active = sock;
+        void Promise.resolve()
+          .then(() => pump(active))
+          .catch((err) => queue.fail(err instanceof Error ? err : new Error(String(err))));
+      }
+
+      for await (const chunk of queue.drain()) {
         pcmChunks.push(chunk);
         yield chunk;
       }
     } finally {
       this.maybeSetAnchor(Buffer.concat(pcmChunks), spokenText());
-      const keep = FISH_BOUND_KEEP_ALIVE && pcmChunks.length > 0 && isFishLiveOpen(session);
-      if (keep) {
-        this.live = session;
-      } else {
-        session.close();
-        if (this.live === session) this.live = null;
-        this.warm();
-      }
+      this.keepIdle(sock ? releaseSocket(sock) : null);
       this.busy = false;
       release();
+      this.warm();
     }
-  }
-}
-
-async function* streamFishAudio(
-  textStream: AsyncIterable<string>,
-  takeSession: () => Promise<FishLiveSession>,
-): AsyncGenerator<Buffer> {
-  const session = await takeSession();
-  void pumpFishText(session, textStream);
-
-  try {
-    yield* session.queue.drain();
-  } finally {
-    session.close();
   }
 }
 
@@ -732,10 +657,13 @@ export class FishAudioTtsProvider implements TtsProvider {
   private readonly apiKey: string;
   private readonly defaultModel: string;
   /** Open WebSocket warmed while the caller is still speaking (preview / unbound only). */
-  private warmSlot: { key: string; session: Promise<FishLiveSession> } | null = null;
+  private warmSlot: { key: string; sock: Promise<FishSocket> } | null = null;
   /** Session already synthesizing a predicted static line (unbound preview only). */
-  private primedSlot: { key: string; text: string; session: Promise<FishLiveSession> } | null =
-    null;
+  private primedSlot: {
+    key: string;
+    text: string;
+    started: Promise<{ sock: FishSocket; queue: ChunkQueue }>;
+  } | null = null;
   /** When set, every utterance in this call uses the same Fish reference_id + prosody. */
   private callBound: TtsVoiceRequest | null = null;
   private callRunner: BoundCallUtteranceRunner | null = null;
@@ -758,9 +686,17 @@ export class FishAudioTtsProvider implements TtsProvider {
     this.callBound = null;
     this.callRunner?.close();
     this.callRunner = null;
-    this.warmSlot?.session.then((s) => s.close()).catch(() => {});
+    this.dropWarmSlot();
+    this.dropPrimedSlot();
+  }
+
+  private dropWarmSlot(): void {
+    this.warmSlot?.sock.then((s) => s.close()).catch(() => {});
     this.warmSlot = null;
-    this.primedSlot?.session.then((s) => s.close()).catch(() => {});
+  }
+
+  private dropPrimedSlot(): void {
+    this.primedSlot?.started.then(({ sock }) => sock.close()).catch(() => {});
     this.primedSlot = null;
   }
 
@@ -781,7 +717,7 @@ export class FishAudioTtsProvider implements TtsProvider {
     return req;
   }
 
-  /** Pre-open the next synthesis session so the first audio chunk arrives sooner. */
+  /** Pre-open the next synthesis socket so the first audio chunk arrives sooner. */
   warm(req: TtsVoiceRequest): void {
     if (this.callRunner) {
       this.callRunner.warm();
@@ -790,12 +726,11 @@ export class FishAudioTtsProvider implements TtsProvider {
     req = this.effectiveRequest(req);
     const key = sessionKey(req, this.defaultModel);
     if (this.warmSlot?.key === key) return;
-    this.primedSlot?.session.then((s) => s.close()).catch(() => {});
-    this.primedSlot = null;
-    this.warmSlot = {
-      key,
-      session: connectFishSession(req, this.apiKey, this.defaultModel),
-    };
+    this.dropPrimedSlot();
+    this.dropWarmSlot();
+    const sock = openFishSocket(req, this.apiKey, this.defaultModel);
+    sock.catch(() => {});
+    this.warmSlot = { key, sock };
   }
 
   /** Speculative static warm for the next agent line. */
@@ -813,26 +748,24 @@ export class FishAudioTtsProvider implements TtsProvider {
     const key = sessionKey(req, this.defaultModel);
     if (this.primedSlot?.key === key && this.primedSlot.text === trimmed) return;
 
+    const pendingSock = this.warmSlot?.key === key ? this.warmSlot.sock : null;
     this.warmSlot = null;
-    this.primedSlot?.session.then((s) => s.close()).catch(() => {});
-    this.primedSlot = {
-      key,
-      text: trimmed,
-      session: (async () => {
-        const session = await connectFishSession(req, this.apiKey, this.defaultModel);
-        if (session.ws.readyState === WebSocket.OPEN) {
-          session.ws.send(encode({ event: "text", text: trimmed }));
-          session.ws.send(encode({ event: "flush" }));
-        }
-        return session;
-      })(),
-    };
+    this.dropPrimedSlot();
+    const started = (async () => {
+      const sock = await (pendingSock ?? openFishSocket(req, this.apiKey, this.defaultModel));
+      const queue = startSession(sock, req, null);
+      pumpFishStaticText(sock, trimmed);
+      return { sock, queue };
+    })();
+    started.catch(() => {});
+    this.primedSlot = { key, text: trimmed, started };
   }
 
-  private async takeSession(
+  /** A socket with a session already started for this line (primed, warm or fresh). */
+  private async startLine(
     req: TtsVoiceRequest,
     expectedText?: string,
-  ): Promise<{ session: FishLiveSession; primed: boolean }> {
+  ): Promise<{ sock: FishSocket; queue: ChunkQueue; primed: boolean }> {
     const key = sessionKey(req, this.defaultModel);
     const trimmed = expectedText?.trim();
 
@@ -840,27 +773,22 @@ export class FishAudioTtsProvider implements TtsProvider {
       const slot = this.primedSlot;
       this.primedSlot = null;
       try {
-        return { session: await slot.session, primed: true };
+        return { ...(await slot.started), primed: true };
       } catch {
-        return { session: await connectFishSession(req, this.apiKey, this.defaultModel), primed: false };
+        /* fall through to a fresh session */
       }
+    } else if (this.primedSlot?.key === key) {
+      this.dropPrimedSlot();
     }
 
-    if (this.primedSlot?.key === key) {
-      this.primedSlot.session.then((s) => s.close()).catch(() => {});
-      this.primedSlot = null;
-    }
-
+    let sock: FishSocket | null = null;
     if (this.warmSlot?.key === key) {
       const slot = this.warmSlot;
       this.warmSlot = null;
-      try {
-        return { session: await slot.session, primed: false };
-      } catch {
-        return { session: await connectFishSession(req, this.apiKey, this.defaultModel), primed: false };
-      }
+      sock = await slot.sock.catch(() => null);
     }
-    return { session: await connectFishSession(req, this.apiKey, this.defaultModel), primed: false };
+    const ready = sock && isIdle(sock) ? sock : await openFishSocket(req, this.apiKey, this.defaultModel);
+    return { sock: ready, queue: startSession(ready, req, null), primed: false };
   }
 
   synthesize(text: string, req: TtsVoiceRequest): AsyncGenerator<PcmChunk> {
@@ -873,37 +801,21 @@ export class FishAudioTtsProvider implements TtsProvider {
 
         if (self.callRunner) {
           yield* self.callRunner.runUtterance(
-            (session) =>
-              pumpFishStaticChunks(session, trimmed, { sendStop: !FISH_BOUND_KEEP_ALIVE }),
+            (sock) => pumpFishStaticText(sock, trimmed),
             () => trimmed,
             trimmed,
           );
           return;
         }
 
-        const segments = [...splitSpeakableChunks(trimmed)];
-        if (segments.length === 1) {
-          const { session, primed } = await self.takeSession(req, trimmed);
-          if (primed) {
-            try {
-              yield* session.queue.drain();
-            } finally {
-              if (session.ws.readyState === WebSocket.OPEN) {
-                session.ws.send(encode({ event: "stop" }));
-              }
-              session.close();
-            }
-            return;
-          }
-          session.close();
-        }
-
-        const { session } = await self.takeSession(req);
-        void pumpFishStaticChunks(session, trimmed);
+        // A primed slot only ever holds a single-segment line.
+        const single = [...splitSpeakableChunks(trimmed)].length === 1;
+        const { sock, queue, primed } = await self.startLine(req, single ? trimmed : undefined);
+        if (!primed) pumpFishStaticText(sock, trimmed);
         try {
-          yield* session.queue.drain();
+          yield* queue.drain();
         } finally {
-          session.close();
+          sock.close();
         }
       })(),
     );
@@ -926,13 +838,18 @@ export class FishAudioTtsProvider implements TtsProvider {
             }
           }
           yield* self.callRunner.runUtterance(
-            (session) => pumpFishText(session, tap(), { sendStop: !FISH_BOUND_KEEP_ALIVE }),
+            (sock) => pumpFishText(sock, tap()),
             () => spoken,
           );
           return;
         }
-        const takeSession = async () => (await self.takeSession(req)).session;
-        yield* streamFishAudio(textStream, takeSession);
+        const { sock, queue } = await self.startLine(req);
+        void pumpFishText(sock, textStream);
+        try {
+          yield* queue.drain();
+        } finally {
+          sock.close();
+        }
       })(),
     );
   }

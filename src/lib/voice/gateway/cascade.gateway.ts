@@ -181,6 +181,15 @@ function handleConnection(ws: WebSocket, _ctx: VoiceGatewayContext): void {
   }
 
   ws.on("message", (raw: import("ws").RawData) => {
+    // A throw here would escape every handler and take the process down with all live calls.
+    try {
+      handleMessage(raw);
+    } catch (err) {
+      console.error(`${LOG} message handler failed: ${(err as Error).stack ?? err}`);
+    }
+  });
+
+  function handleMessage(raw: import("ws").RawData): void {
     let msg: Record<string, unknown>;
     try {
       msg = JSON.parse(raw.toString()) as Record<string, unknown>;
@@ -222,12 +231,18 @@ function handleConnection(ws: WebSocket, _ctx: VoiceGatewayContext): void {
       session?.pushCallerAudio(pcm);
       return;
     }
-  });
+  }
 
   ws.on("close", () => {
-    session?.close();
+    try {
+      session?.close();
+    } catch (err) {
+      console.error(`${LOG} session close failed: ${(err as Error).message}`);
+    }
     // Idempotent, so a graph that already ended the call does not report twice.
-    void session?.lifecycle?.ended("user_hangup");
+    void session?.lifecycle?.ended("user_hangup")?.catch((err: Error) =>
+      console.error(`${LOG} lifecycle end failed: ${err.message}`),
+    );
     console.log(`${LOG} connection closed`);
   });
   ws.on("error", (e: Error) => {

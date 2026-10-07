@@ -7,34 +7,14 @@ import {
   serializeEquationPrompt,
   type EquationClause,
 } from "../voice/graph/equations.shared";
-import { allNodeKinds } from "./node-registry";
+import { allNodeKinds, importTypeMap } from "./node-registry";
 import { normalizeBuilderSpeechMode } from "../voice/graph/speech-mode.shared";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type AnyObj = Record<string, any>;
 
-const TYPE_MAP: Record<string, NodeKind> = {
-  conversation: "conversation",
-  begin: "begin",
-  wait: "wait",
-  subagent: "subagent",
-  function: "function",
-  transfer_call: "call_transfer",
-  call_transfer: "call_transfer",
-  agent_transfer: "agent_transfer",
-  agent_swap: "agent_transfer",
-  press_digit: "press_digit",
-  branch: "logic_split",
-  logic_split: "logic_split",
-  sms: "sms",
-  extract_dynamic_variable: "extract_variable",
-  extract_variable: "extract_variable",
-  code: "code",
-  end: "ending",
-  ending: "ending",
-  mcp: "mcp",
-  http_request: "http_request",
-};
+/** Imported node `type` → kind. Owned by the node registry (`importTypes` on each kind). */
+const TYPE_MAP: Record<string, NodeKind> = importTypeMap();
 
 const KNOWN_KINDS = new Set<string>(allNodeKinds());
 
@@ -195,8 +175,11 @@ export function importAgentJson(raw: string): {
   edges: Edge[];
   settings: Partial<BuilderSettings>;
   variables?: BuilderVariable[];
+  /** Things the import could not represent faithfully, for the UI to show. */
+  warnings: string[];
 } {
   const data: AnyObj = JSON.parse(raw);
+  const warnings: string[] = [];
   const cf: AnyObj = data.conversationFlow ?? data.conversation_flow ?? data;
   const rawNodes: AnyObj[] = Array.isArray(cf.nodes) ? cf.nodes : [];
 
@@ -213,6 +196,23 @@ export function importAgentJson(raw: string): {
         : rn.tool_type === "webhook"
           ? "http_request"
           : (TYPE_MAP[rn.type] ?? "conversation");
+    // A node type this builder has no kind for. It used to become a plain conversation node
+    // silently — changing what the node does. It now keeps its original type (exported back
+    // verbatim from `raw`) and is flagged on the canvas and in validation.
+    const rawType = typeof rn.type === "string" ? rn.type.trim() : "";
+    const unsupportedType =
+      !KNOWN_KINDS.has(String(rn.builder_kind ?? "")) &&
+      rn.tool_type !== "mcp" &&
+      rn.tool_type !== "webhook" &&
+      rawType &&
+      !(rawType in TYPE_MAP)
+        ? rawType
+        : undefined;
+    if (unsupportedType) {
+      warnings.push(
+        `Node "${rn.name ?? rn.id}" has type "${unsupportedType}", which the builder does not support. It is kept unchanged, but cannot be edited here.`,
+      );
+    }
     const kind: NodeKind =
       mapped !== "conversation"
         ? mapped
@@ -231,6 +231,7 @@ export function importAgentJson(raw: string): {
 
     const nodeData: FlowNodeData = {
       kind,
+      ...(unsupportedType ? { unsupportedType } : {}),
       label: rn.name ?? kind,
       dialogue:
         rn.instruction?.text ??
@@ -489,5 +490,5 @@ export function importAgentJson(raw: string): {
     if ((settings as AnyObj)[k] === undefined) delete (settings as AnyObj)[k];
   });
 
-  return { nodes, edges, settings, variables };
+  return { nodes, edges, settings, variables, warnings };
 }

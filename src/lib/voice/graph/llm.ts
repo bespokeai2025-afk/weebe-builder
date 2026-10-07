@@ -49,6 +49,14 @@ export interface OpenAiVmLlmOptions {
 const CLASSIFY_SYSTEM = [
   "You are a routing classifier for a voice agent.",
   "Pick exactly one transition option, or none.",
+  // Without these two lines the classifier forced a reply onto whichever option looked least
+  // wrong: on a live call "it's freehold" (answering a different question) went to "if its
+  // vacant" — a wrong turn the call could not recover from, where staying would have been. The
+  // wording is a balance: a stricter "the caller must have said it" also sent real answers
+  // ("we live in it ourselves" → "im living there") to none on gpt-4.1-nano, making callers
+  // repeat themselves. This version kept every real answer routing in offline checks.
+  "Pick an option only if the caller's latest reply itself states what that option's condition describes, in any wording. A reply about a related topic, or one you would have to infer the option from, does not count.",
+  "If the reply answers something else, is off topic, or meets no condition clearly, pick the 'None of these' option. Staying is safe; a wrong transition is not.",
   'Reply with JSON only: {"transition": <option_number_or_label>}',
   "Option numbers are 1-based. Use 0 if none apply.",
   'Labels may match option text (e.g. "positive"). Do not generate speech.',

@@ -308,6 +308,7 @@ function CanvasInner({
    * means a node already comfortably in view barely moves.
    */
   const activeNodeId = useBuilderStore((st) => st.activeNodeId);
+  const phoneCountryCode = useBuilderStore((st) => st.settings.phoneCountryCode);
   useEffect(() => {
     if (!activeNodeId) return;
     const node = rf.getNode(activeNodeId);
@@ -338,8 +339,8 @@ function CanvasInner({
   );
   const edgeTypes = useMemo(() => ({ flow: FlowDeletableEdge }), []);
   const issueMap = useMemo(
-    () => issueMapFromList(validateFlow(nodes, edges, variables)),
-    [nodes, edges, variables],
+    () => issueMapFromList(validateFlow(nodes, edges, variables, { phoneCountryCode })),
+    [nodes, edges, variables, phoneCountryCode],
   );
 
   useEffect(() => {

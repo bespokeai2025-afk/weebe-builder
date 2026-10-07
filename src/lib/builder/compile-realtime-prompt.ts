@@ -1,3 +1,4 @@
+import { buildKnowledgeBaseSection } from "./knowledge-base-prompt.shared";
 import type { Edge } from "@xyflow/react";
 import type { FlowNode } from "./store";
 import type { BuilderSettings, BuilderVariable } from "./types";
@@ -49,24 +50,11 @@ export function compileRealtimePrompt(
   }
 
   // Inject Knowledge Base documents for HyperStream (no external KB retrieval available).
-  const kbDocs = settings.kbDocuments ?? [];
-  if (kbDocs.length > 0) {
-    const kbInstruction = settings.kbConfig?.instruction?.trim();
-    const kbParts: string[] = [];
-    if (kbInstruction) kbParts.push(kbInstruction);
-    for (const doc of kbDocs) {
-      if (doc.type === "text" && doc.content) {
-        kbParts.push(`## ${doc.name}\n${doc.content}`);
-      } else if (doc.type === "url" && doc.url) {
-        kbParts.push(`## ${doc.name || doc.url}\nSource URL: ${doc.url}\n(Refer to this URL for accurate information on the topic.)`);
-      } else if (doc.type === "file" && doc.content) {
-        kbParts.push(`## ${doc.name || doc.fileName || "Uploaded document"}\n${doc.content}`);
-      }
-    }
-    if (kbParts.length > 0) {
-      sections.push(`# Knowledge Base\nUse the following reference material to answer questions accurately:\n\n${kbParts.join("\n\n")}`);
-    }
-  }
+  const kb = buildKnowledgeBaseSection(settings.kbDocuments, {
+    instruction: settings.kbConfig?.instruction,
+    includeUrlReferences: true,
+  });
+  if (kb.text) sections.push(kb.text);
 
   const beginMessage = settings.beginMessage?.trim();
   if (beginMessage) {

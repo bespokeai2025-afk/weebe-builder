@@ -17,6 +17,8 @@ import type { CerebrasBreaker } from "../llm/gpt";
 import { createTracedVmLlm } from "../graph/traced-llm";
 import { createVmHooks } from "../graph/tools";
 import { loadFlowFromAgent, mergeRuntimeVariables } from "../graph/load";
+import { alignFlowModelsToEngine } from "../graph/flow-models.shared";
+import { buildKnowledgeBaseSection, type KbDocLike } from "../../builder/knowledge-base-prompt.shared";
 import type { ConversationFlow, VariableValue } from "../graph/types";
 import { buildLanguageLockInstruction } from "../language-lock.shared";
 import { resolveCallVoiceId } from "../call-voice-profile.shared";
@@ -200,6 +202,27 @@ export async function buildGraphRuntime(
     flow = { ...flow, tools };
   }
 
+  // Agent locale settings → the variables date/time rendering reads. A flow (or call-time value)
+  // that sets `timezone` / `locale` itself still wins.
+  const agentTimezone = String(settings.timezone ?? "").trim();
+  if (agentTimezone && !String(variables.timezone ?? "").trim()) {
+    variables = { ...variables, timezone: agentTimezone };
+  }
+  const agentLocale = String(
+    (Array.isArray(settings.speechLanguages) ? settings.speechLanguages[0] : undefined) ??
+      settings.language ??
+      "",
+  ).trim();
+  if (agentLocale && agentLocale !== "multi" && !String(variables.locale ?? "").trim()) {
+    variables = { ...variables, locale: agentLocale };
+  }
+
+  const agentLanguages = (
+    Array.isArray(settings.speechLanguages)
+      ? (settings.speechLanguages as unknown[]).map((l) => String(l ?? "").trim())
+      : [String(settings.language ?? "").trim()]
+  ).filter(Boolean);
+
   const variableKeys = Object.keys(variables);
   console.info(
     `${logPrefix} graph variables: ${variableKeys.length ? variableKeys.join(", ") : "(none)"}` +
@@ -213,6 +236,26 @@ export async function buildGraphRuntime(
   console.info(
     `${logPrefix} graph LLM provider=${llmProvider} speech=${configuredModel} classifier=${classifierModel}`,
   );
+  const aligned = alignFlowModelsToEngine(flow, configuredModel, llmProvider);
+  flow = aligned.flow;
+  for (const warning of aligned.warnings) console.warn(`${logPrefix} ${warning}`);
+
+  // Knowledge base: this engine has no retrieval service, so the documents' text joins the global
+  // prompt (a stable, cached prefix). Previously only the ids reached the model.
+  const kbConfig = isRecord(settings.kbConfig) ? settings.kbConfig : {};
+  const kb = buildKnowledgeBaseSection(
+    Array.isArray(settings.kbDocuments) ? (settings.kbDocuments as KbDocLike[]) : [],
+    { instruction: typeof kbConfig.instruction === "string" ? kbConfig.instruction : undefined },
+  );
+  if (kb.text) {
+    flow = { ...flow, global_prompt: [flow.global_prompt ?? "", kb.text].filter(Boolean).join("\n\n") };
+  }
+  if (kb.missing.length) {
+    console.warn(`${logPrefix} knowledge-base documents with no local text (not used): ${kb.missing.join(", ")}`);
+  }
+  if (kb.truncated.length) {
+    console.warn(`${logPrefix} knowledge base over the prompt cap; truncated: ${kb.truncated.join(", ")}`);
+  }
   let vm!: ConversationVm;
   // Owned here rather than inside the factory so the session can ask, at call end, which
   // provider actually served this call. Cerebras quota/rate errors silently fall back to
@@ -246,9 +289,12 @@ export async function buildGraphRuntime(
           : undefined,
       String(settings.language ?? "en-US"),
     ),
+    // English word-list routing heuristics only when every language the agent may speak is English.
+    englishRules: agentLanguages.length === 0 || agentLanguages.every((l) => /^en(-|$)/i.test(l)),
     variableNames,
     hooks: createVmHooks({
       tools,
+      defaultTimezone: agentTimezone || undefined,
       sendSms: options.sendSms,
       log: (message, meta) => console.warn(`${logPrefix} ${message}`, meta ?? ""),
     }),

@@ -35,10 +35,13 @@ export function BuilderVersionMenu() {
         <DropdownMenuLabel className="text-[11px]">Versions</DropdownMenuLabel>
         <DropdownMenuItem
           onClick={() => {
-            const v = publishFlow();
-            toast.success(`Published v${v}`, {
-              description: "Live calls now use this graph. The canvas stays your draft.",
-            });
+            void publishFlow()
+              .then((v) =>
+                toast.success(`Published v${v}`, {
+                  description: "Live calls now use this graph. The canvas stays your draft.",
+                }),
+              )
+              .catch((e) => toast.error("Publish failed", { description: (e as Error).message }));
           }}
         >
           <Rocket className="mr-2 h-3.5 w-3.5" />
@@ -63,9 +66,11 @@ export function BuilderVersionMenu() {
             <DropdownMenuItem
               key={snap.version}
               onClick={() => {
-                if (restoreFlowVersion(snap.version)) {
-                  toast.success(`Restored v${snap.version}`);
-                }
+                void restoreFlowVersion(snap.version)
+                  .then((ok) => {
+                    if (ok) toast.success(`Restored v${snap.version}`);
+                  })
+                  .catch((e) => toast.error("Restore failed", { description: (e as Error).message }));
               }}
             >
               <RotateCcw className="mr-2 h-3.5 w-3.5" />

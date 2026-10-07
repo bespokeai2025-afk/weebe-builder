@@ -104,4 +104,45 @@ describe("marks gathered before the trace exists", () => {
     trace.mark("tts_first_audio", 900);
     expect(trace.toRecord().sttToFirstAudioMs).toBe(500);
   });
+
+  /**
+   * Same ordering problem as the hangover above, for the two marks that record work started while
+   * the caller was still talking. `CascadeSession` buffers these and replays them through
+   * `startTurnTrace`, so the trace has to accept a timestamp that predates STT-final.
+   */
+  describe("pre-endpoint marks replayed into the turn they belong to", () => {
+    it("reports partial_commit once the buffered partial mark is replayed", () => {
+      const speechStart = 1_000;
+      const partialStable = 1_600; // caller still talking
+      const endpoint = 2_000;
+
+      const trace = new CallTurnTrace(8, endpoint, "[test]");
+      trace.setUserSpeechStart(speechStart);
+      trace.setSttFinal(endpoint);
+      // Replayed out of the session's pendingMarks buffer.
+      trace.mark("partial_stt_stable", partialStable);
+
+      expect(trace.toRecord().partialCommit).toBe(true);
+      expect(trace.msSinceUserSpeech("partial_stt_stable")).toBe(partialStable - speechStart);
+    });
+
+    it("reports speculation that started before the endpoint as a negative span from STT-final", () => {
+      const specStart = 1_700;
+      const endpoint = 2_500;
+
+      const trace = new CallTurnTrace(9, endpoint, "[test]");
+      trace.setSttFinal(endpoint);
+      trace.mark("speculative_llm_start", specStart);
+
+      // Negative is the signal worth having: 800ms of the LLM round trip was already spent
+      // before the caller stopped talking.
+      expect(trace.msSinceStt("speculative_llm_start")).toBe(specStart - endpoint);
+    });
+
+    it("leaves partial_commit false when nothing was buffered", () => {
+      const trace = new CallTurnTrace(10, 0, "[test]");
+      trace.setSttFinal(0);
+      expect(trace.toRecord().partialCommit).toBe(false);
+    });
+  });
 });

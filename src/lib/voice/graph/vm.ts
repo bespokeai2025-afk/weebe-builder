@@ -31,7 +31,6 @@ import {
   nodeModel,
   type CompiledFlow,
 } from "./flow";
-import { historyIndicatesStandaloneHouse, clarificationForNode } from "./stt-clarification.shared";
 import { shouldCaptureCollectAnswer } from "./collect-variable.shared";
 import { validateExtractedValue } from "./extraction-validation.shared";
 import { guardPrematureWrapUpStream, replacePrematureWrapUp } from "./speech-guard.shared";
@@ -41,7 +40,7 @@ import {
   splitPromptParts,
   spokenExecutionFiller,
 } from "./speech-prompt.shared";
-import { constrainGeneratedSpeech, personaFromGlobalPrompt } from "./speech-isolate.shared";
+import { constrainGeneratedSpeech } from "./speech-isolate.shared";
 import { responseModeFromInstruction } from "./speech-mode.shared";
 import {
   humaniseVariableName,
@@ -61,6 +60,7 @@ import {
   edgeIsTerminalOrOptOutCondition,
   userSignalsCallEnd,
   userSignalsDecline,
+  type EdgeRouteDecision,
   type RouteContext,
 } from "./router";
 import {
@@ -105,6 +105,23 @@ const TURN_RULES_BASE = [
   "Punctuate properly — a comma wherever a person would pause for breath, and a full stop, question mark or exclamation mark to end every sentence.",
   "Never send a sentence with no terminating punctuation, and never write in all capitals.",
   "Write numbers, times and prices the way they are said aloud, not as digits or symbols.",
+  // Without these two, the rule above was read as "one digit word per comma": a mobile came out
+  // "zero, seven, seven, zero, zero, nine…" — a pause after every digit — even on a node whose
+  // own instruction asked for grouped read-back. The node's format now wins outright.
+  "If the task gives a format for reading numbers back, follow it exactly.",
+  'Otherwise read a phone number in natural groups, the way a person does — "oh-seven-seven-oh-oh, nine-oh-oh, one-two-three" — never one digit at a time with a pause after each.',
+  // Register. These are what separated "sounds scripted" from "sounds like a person" in side-by-side
+  // runs against a real agent's persona and node tasks.
+  "Sound like a real person on the phone, not a script: contractions, plain everyday words, a warm relaxed tone.",
+  // No quoted example openers here on purpose: a list like ("Lovely.", "Perfect.") or even a
+  // "don't say X" rule names the very words the model then reaches for every turn. Variation is
+  // asked for in terms of the conversation itself, which it can see.
+  "Often a person starts a reply by reacting briefly to what they just heard, and often they simply go straight to the next point — do whichever fits, and don't react at all when the caller only gave a bare answer.",
+  "Read your own earlier replies in this conversation and do not start this one the way any of your last few started; if you have been opening with a thank-you, drop it.",
+  // Without this the reaction turned into commentary — on a read-back node the model "reacted" to
+  // the email the caller had just said by confirming it, and never read the mobile.
+  "A reaction is only a sound of listening — never repeat, confirm, or comment on what the caller just said unless THIS node's task asks you to.",
+  "Use the caller's name only occasionally, the way a person would, not in every reply.",
 ].join(" ");
 
 function splitPromptScript(raw: string) {
@@ -133,12 +150,15 @@ function buildTurnRules(raw: string, isEndNode = false): string {
       "The node text is an instruction to you — never read it, quote it, or start with Ask / Find out / Collect.",
       "Speak one short natural question to the caller that does the task.",
       "You may give a brief example only if the task includes one (Mr or Mrs, house or flat).",
-      "Say ONE short sentence — under 25 words when possible — then stop.",
+      // Was "Say ONE short sentence — under 25 words". A hard single-sentence cap left no room for
+      // the brief acknowledgement people open with, so every line was a bare question — the
+      // clipped shape that read as robotic. Still bounded, so replies stay quick to speak.
+      "Keep it short — at most a brief acknowledgement plus what the task asks for, under 30 words — then stop.",
     );
   } else {
     rules.push(
       "Ask one question from the task, nothing else.",
-      "Say ONE short sentence — under 25 words when possible — then stop.",
+      "Keep it short — at most a brief acknowledgement plus the question, under 30 words — then stop.",
     );
   }
   if (!isEndNode) {
@@ -190,11 +210,47 @@ function isSubstantiveAnswer(text: string): boolean {
     return false;
   if (looksLikePhoneAnswer(t)) return true;
   if (/\d/.test(t)) return true;
-  if (/\b(apartment|villa|flat|house|street|road|dubai|email|at gmail|at yahoo)\b/i.test(t)) {
-    return true;
-  }
   const words = t.split(/\s+/).filter(Boolean);
   return words.length >= 1 && words.length <= 24 && t.length >= 2;
+}
+
+/**
+ * Caller-text checks written for English. A non-English agent gets neutral answers instead — no
+ * repair/filler/hedge/decline detection, every reply counts as an answer, and any reply might be a
+ * question — so routing falls through to the language-neutral classifier rather than matching
+ * Spanish or Hindi against English word lists.
+ */
+interface CallerTextRules {
+  repair(text: string): boolean;
+  filler(text: string): boolean;
+  hedge(text: string): boolean;
+  question(text: string): boolean;
+  substantive(text: string): boolean;
+  callEnd(text: string): boolean;
+  decline(text: string): boolean;
+}
+
+function callerTextRules(english: boolean): CallerTextRules {
+  if (english) {
+    return {
+      repair: looksLikeRepairRequest,
+      filler: isFillerUtterance,
+      hedge: isHedgingUtterance,
+      question: looksLikeUserQuestion,
+      substantive: isSubstantiveAnswer,
+      callEnd: userSignalsCallEnd,
+      decline: userSignalsDecline,
+    };
+  }
+  return {
+    repair: () => false,
+    filler: () => false,
+    hedge: () => false,
+    question: () => true,
+    substantive: (t) => t.trim().length > 0,
+    callEnd: () => false,
+    decline: () => false,
+  };
 }
 
 function looksLikeUserQuestion(text: string): boolean {
@@ -211,13 +267,8 @@ function looksLikeUserQuestion(text: string): boolean {
  */
 const MAX_SPECULATIVE_FANOUT = 3;
 
-/**
- * How long `advance` will wait on a still-in-flight turn-variable extraction before giving up and
- * moving on (see `advance`'s own comment for why this exists at all). Short on purpose: this is
- * only meant to catch the call finishing just slightly after routing did, not to give it real
- * working time — that's what running concurrently with routing was supposed to provide already.
- */
-const EXTRACTION_WAIT_BUDGET_MS = 400;
+/** Conversation messages the speech model sees each turn — three exchanges. */
+const SPEECH_HISTORY_MESSAGES = 6;
 
 export type SpeechWarmTarget =
   | { kind: "static"; text: string }
@@ -232,6 +283,9 @@ export class ConversationVm {
   private readonly strongClassifierModel?: string;
   private readonly maxStepsPerTurn: number;
   private readonly languageLock: string;
+  /** English word-list checks apply only when every call language is English. */
+  private readonly englishRules: boolean;
+  private readonly textRules: CallerTextRules;
   private readonly declaredVariableNames: string[];
   private readonly capturedNames = new Set<string>();
   /** In-flight `extractTurnVariables` call for the current user turn, consumed once in `advance`. */
@@ -241,6 +295,12 @@ export class ConversationVm {
   private history: LlmMessage[] = [];
   private currentNodeId: string | null;
   private previousNodeId: string | null = null;
+  /**
+   * The node whose speech the caller heard last. When speech is built for that same node again,
+   * the caller has replied without completing it (a routing miss, or a self-loop) — see
+   * `buildSpeechMessages`.
+   */
+  private lastSpokenNodeId: string | null = null;
   /** Nodes to come back to after a `return_to_previous` global node finishes. */
   private returnStack: string[] = [];
   private awaiting: "user" | "digit" | "transfer" | "begin_silence" | null = null;
@@ -254,6 +314,20 @@ export class ConversationVm {
   private speculativeSpeech = new Map<string, SpeculativeSpeechRun>();
   /** Dest already spoken while the classifier was still running — skip a second line. */
   private skipSpeechNodeId: string | null = null;
+  /**
+   * Edge routing started on a stable partial, before the endpoint.
+   *
+   * The classifier call is ~1.5s here (almost all of it network), and it sits on the critical path
+   * with nothing to overlap it: speculative *speech* can be pre-warmed, but the agent still cannot
+   * speak until routing says which node's line to use. Starting the routing call during the
+   * caller's trailing silence moves that wait off the post-endpoint path. Only adopted when the
+   * final transcript still matches the partial it was decided from — see `takeSpeculativeRoute`.
+   */
+  private pendingRoute: {
+    partial: string;
+    nodeId: string;
+    promise: Promise<EdgeRouteDecision>;
+  } | null = null;
 
   constructor(options: VmOptions) {
     this.compiled = compileFlow(options.flow);
@@ -264,6 +338,8 @@ export class ConversationVm {
     this.strongClassifierModel = options.strongClassifierModel;
     this.maxStepsPerTurn = options.maxStepsPerTurn ?? DEFAULT_MAX_STEPS;
     this.languageLock = options.languageLock?.trim() ?? "";
+    this.englishRules = options.englishRules !== false;
+    this.textRules = callerTextRules(this.englishRules);
     this.declaredVariableNames = [
       ...new Set([
         ...(options.variableNames ?? []),
@@ -428,12 +504,11 @@ export class ConversationVm {
   predictedAdvanceNodeId(userText: string): string | null {
     const node = this.currentNode();
     if (!node) return null;
-    if (!userText.trim() || looksLikeRepairRequest(userText) || isFillerUtterance(userText)) {
+    // Built on English heuristics; other languages wait for the classifier.
+    if (!this.englishRules) return null;
+    if (!userText.trim() || this.textRules.repair(userText) || this.textRules.filler(userText)) {
       return null;
     }
-
-    const floorSkip = this.floorNodeSkipTarget(node);
-    if (floorSkip) return floorSkip;
 
     const always = (node as { always_edge?: FlowEdge }).always_edge;
     if (always?.destination_node_id) {
@@ -454,9 +529,7 @@ export class ConversationVm {
   }
 
   private resolvePredictedDest(destId: string): string {
-    const dest = this.compiled.nodes.get(destId);
-    const skipFloor = dest ? this.floorNodeSkipTarget(dest) : null;
-    return skipFloor ?? destId;
+    return destId;
   }
 
   private instantSpeechForNode(destId: string): string | null {
@@ -525,28 +598,8 @@ export class ConversationVm {
     // discards whichever runs lose. Cost: extra, mostly-discarded LLM calls, but only on turns
     // that needed a classifier call anyway — traded for cutting those two steps from serial to
     // parallel.
-    const candidates = new Set<string>();
-    for (const e of node.edges ?? []) {
-      if (e.destination_node_id) candidates.add(e.destination_node_id);
-    }
-    const elseDest = (node as { else_edge?: FlowEdge }).else_edge?.destination_node_id;
-    if (
-      elseDest &&
-      isSubstantiveAnswer(userText) &&
-      !isFillerUtterance(userText) &&
-      !isHedgingUtterance(userText)
-    ) {
-      candidates.add(elseDest);
-    }
-    if (
-      (node.type === "conversation" || node.type === "end") &&
-      node.instruction?.type === "prompt"
-    ) {
-      candidates.add(node.id);
-    }
-
     let started = 0;
-    for (const destId of candidates) {
+    for (const destId of this.fanoutCandidates(node, userText)) {
       if (started >= MAX_SPECULATIVE_FANOUT) break;
       const warm = this.speechWarmForNode(destId);
       if (!warm) continue;
@@ -556,6 +609,112 @@ export class ConversationVm {
       }
       if (this.startSpeculativeRun(warm, userText)) started++;
     }
+  }
+
+  /**
+   * Start edge routing from a stable partial, so the classifier call overlaps the caller's
+   * trailing silence instead of following it.
+   *
+   * Only worth doing when routing is actually going to need the classifier: if
+   * `predictedAdvanceNodeId` already has a confident answer, the real routing call resolves from
+   * the same heuristic in single-digit milliseconds and there is nothing to hide.
+   */
+  beginSpeculativeRoute(partial: string): boolean {
+    const node = this.currentNode();
+    if (!node?.edges?.length) return false;
+    if (!partial.trim() || this.textRules.repair(partial)) return false;
+    if (this.predictedAdvanceNodeId(partial)) return false;
+    if (this.pendingRoute?.partial === partial && this.pendingRoute.nodeId === node.id) return false;
+
+    const ctx: RouteContext = {
+      ...this.routeContext(node),
+      // The partial is not in `this.history` yet; `selectEdge` reads the caller's words from there.
+      history: [...this.history, { role: "user", content: partial }],
+    };
+    const promise = selectEdge(node.edges, ctx, this.llm).catch(
+      (): EdgeRouteDecision => ({ edge: null, method: "none" }),
+    );
+    this.pendingRoute = { partial, nodeId: node.id, promise };
+    return true;
+  }
+
+  /** Drop a speculative route whose partial no longer reflects what the caller said. */
+  clearSpeculativeRoute(): void {
+    this.pendingRoute = null;
+  }
+
+  /**
+   * The speculative route for this turn, if it is still valid for `finalText`.
+   *
+   * Two guards. The transcript must still match what the decision was made from, the same test
+   * `prepareSpeech` applies to speculative speech. And the decision must be one the classifier
+   * actually produced — a heuristic/equation/unconditional result is re-derived post-endpoint in
+   * single-digit milliseconds, and re-deriving it avoids reusing a verdict that was computed
+   * against variables which may since have changed.
+   */
+  private takeSpeculativeRoute(
+    node: FlowNode,
+    finalText: string,
+  ): Promise<EdgeRouteDecision | null> | null {
+    const pending = this.pendingRoute;
+    this.pendingRoute = null;
+    if (!pending || pending.nodeId !== node.id) return null;
+    if (!partialMatchesFinal(pending.partial, finalText)) return null;
+    return pending.promise.then((decision) =>
+      decision.method === "llm" || decision.method === "none" ? decision : null,
+    );
+  }
+
+  /** Every destination worth warming from `node` when routing has not resolved yet. */
+  private fanoutCandidates(node: FlowNode, userText: string): string[] {
+    const candidates = new Set<string>();
+    for (const e of node.edges ?? []) {
+      if (e.destination_node_id) candidates.add(e.destination_node_id);
+    }
+    const elseDest = (node as { else_edge?: FlowEdge }).else_edge?.destination_node_id;
+    if (
+      elseDest &&
+      this.textRules.substantive(userText) &&
+      !this.textRules.filler(userText) &&
+      !this.textRules.hedge(userText)
+    ) {
+      candidates.add(elseDest);
+    }
+    if (
+      (node.type === "conversation" || node.type === "end") &&
+      node.instruction?.type === "prompt"
+    ) {
+      candidates.add(node.id);
+    }
+    return [...candidates];
+  }
+
+  /**
+   * Destinations to warm from a still-growing partial transcript, before the endpoint fires.
+   *
+   * Same candidate set `beginRouteRaceSpeech` fans out across, exposed so the gateway can start
+   * those generations during the caller's trailing silence (a measured ~800ms hangover) instead of
+   * only after it. `peekSpeechWarmTarget` already covers the case where a heuristic predicts one
+   * destination confidently; this is for the rest, which is where the classifier — and therefore
+   * the slowest turns — live. Returns prompt targets only: a static destination needs no LLM call,
+   * and nodes with a run already in flight are skipped so a growing partial cannot stack duplicates.
+   */
+  speechWarmFanout(
+    userText: string,
+    limit = MAX_SPECULATIVE_FANOUT,
+  ): Array<Extract<SpeechWarmTarget, { kind: "prompt" }>> {
+    if (!this.llm.generateStream) return [];
+    const node = this.currentNode();
+    if (!node) return [];
+    const out: Array<Extract<SpeechWarmTarget, { kind: "prompt" }>> = [];
+    for (const destId of this.fanoutCandidates(node, userText)) {
+      if (out.length >= limit) break;
+      const warm = this.speechWarmForNode(destId);
+      if (warm?.kind !== "prompt") continue;
+      if (this.speculativeSpeech.has(warm.nodeId)) continue;
+      out.push(warm);
+    }
+    return out;
   }
 
   /** Start one speculative generation run; false if one is already in flight for this node. */
@@ -847,16 +1006,7 @@ export class ConversationVm {
       return;
     }
 
-    const clarify = clarificationForNode(node.instruction?.text, latestUser);
-    if (clarify) {
-      this.history.push({ role: "assistant", content: clarify });
-      yield { type: "speak", nodeId: node.id, text: clarify, interruptible: true };
-      this.awaiting = "user";
-      yield this.awaitUserDirective(node.id);
-      return;
-    }
-
-    if (looksLikeRepairRequest(latestUser)) {
+    if (this.textRules.repair(latestUser)) {
       const last =
         this.history
           .filter((m) => m.role === "assistant")
@@ -865,6 +1015,7 @@ export class ConversationVm {
       const replay = last && !last.split("\n").some((line) => isBuilderDirection(line)) ? last : "";
       if (replay) {
         this.history.push({ role: "assistant", content: replay });
+        this.lastSpokenNodeId = node.id;
         yield { type: "speak", nodeId: node.id, text: replay, interruptible: true };
       } else {
         yield* this.yieldSpeech(node);
@@ -878,8 +1029,8 @@ export class ConversationVm {
     if (
       alwaysEdge?.destination_node_id &&
       latestUser.trim() &&
-      !isFillerUtterance(latestUser) &&
-      !looksLikeRepairRequest(latestUser)
+      !this.textRules.filler(latestUser) &&
+      !this.textRules.repair(latestUser)
     ) {
       this.keepSpeculativeFor(alwaysEdge.destination_node_id);
       yield* this.advance(alwaysEdge.destination_node_id);
@@ -890,14 +1041,22 @@ export class ConversationVm {
 
     const predicted = this.predictedAdvanceNodeId(latestUser);
     const instant =
-      predicted && !looksLikeUserQuestion(latestUser) ? this.instantSpeechForNode(predicted) : null;
+      predicted && !this.textRules.question(latestUser) ? this.instantSpeechForNode(predicted) : null;
 
     this.turnTrace?.mark("graph_route_edge_start");
-    const edgePromise = selectEdge(node.edges ?? [], ctx, this.llm);
+    // A routing call already started against this turn's partial resolves here for free; the
+    // `?? selectEdge(...)` arm covers both "nothing was started" and "what was started is no
+    // longer usable" (transcript moved on, or it resolved without needing the classifier).
+    const speculativeRoute = this.takeSpeculativeRoute(node, latestUser);
+    const freshRoute = () => selectEdge(node.edges ?? [], ctx, this.llm);
+    const edgePromise = speculativeRoute
+      ? speculativeRoute.then((decision) => decision ?? freshRoute())
+      : freshRoute();
 
     if (instant && predicted) {
       this.latencyHooks.onSpeculativeTts?.(instant);
       this.history.push({ role: "assistant", content: instant });
+      this.lastSpokenNodeId = predicted;
       yield {
         type: "speak",
         nodeId: predicted,
@@ -944,11 +1103,11 @@ export class ConversationVm {
         ));
     if (
       elseDest &&
-      isSubstantiveAnswer(latestUser) &&
-      !isFillerUtterance(latestUser) &&
-      !isHedgingUtterance(latestUser) &&
-      !looksLikeRepairRequest(latestUser) &&
-      (!elseIsTerminal || userSignalsCallEnd(latestUser) || userSignalsDecline(latestUser))
+      this.textRules.substantive(latestUser) &&
+      !this.textRules.filler(latestUser) &&
+      !this.textRules.hedge(latestUser) &&
+      !this.textRules.repair(latestUser) &&
+      (!elseIsTerminal || this.textRules.callEnd(latestUser) || this.textRules.decline(latestUser))
     ) {
       this.log(`routing miss on "${node.id}" — following else_edge`);
       this.keepSpeculativeFor(elseDest);
@@ -967,14 +1126,14 @@ export class ConversationVm {
 
     // No edge matched — stay on this step. Static nodes may re-speak verbatim;
     // prompt nodes acknowledge substantive answers so the caller is not left in silence.
-    if (isFillerUtterance(latestUser) || isHedgingUtterance(latestUser)) {
+    if (this.textRules.filler(latestUser) || this.textRules.hedge(latestUser)) {
       this.log(`staying silent on "${node.id}" — filler/hedge "${latestUser.slice(0, 40)}"`);
       this.awaiting = "user";
       yield this.awaitUserDirective(node.id);
       return;
     }
     if (node.type !== "conversation" && node.type !== "end") {
-      if (userSignalsCallEnd(latestUser) || userSignalsDecline(latestUser)) {
+      if (this.textRules.callEnd(latestUser) || this.textRules.decline(latestUser)) {
         const endId = this.findEndNodeId();
         if (endId && endId !== node.id) {
           yield* this.advance(endId);
@@ -1004,36 +1163,19 @@ export class ConversationVm {
 
   /** Execute nodes until the flow blocks or ends. */
   private async *advance(startNodeId: string): AsyncGenerator<VmDirective> {
-    // A turn-extraction call started concurrently with edge routing (see the "user_utterance"
-    // case) — the idea was that by now routing has already resolved, so this has been running in
-    // the background for that whole time and needs little to no extra wait. Measured against real
-    // calls, that assumption only holds when routing itself was slow (an LLM classify() call);
-    // when routing resolved via a near-instant heuristic match, extraction had no time to run
-    // concurrently with anything, and awaiting it here unconditionally added its full 1-4s model
-    // latency directly onto `stt_to_node_loaded_ms` — on every single turn with a collectible
-    // reply, heuristic-routed or not. Bounded to a short budget instead: long enough to catch the
-    // common case where it really did finish concurrently, short enough that a genuinely slow
-    // call can't stall the node from loading. A still-pending extraction is deliberately left on
-    // `this.pendingExtraction` rather than cancelled — the `user_utterance` case's own fallback
-    // consumption point (after this turn's `afterUserTurn()` returns) picks it up from there.
-    if (this.pendingExtraction) {
-      const pending = this.pendingExtraction;
-      const timedOut = Symbol("extraction-wait-timeout");
-      const race = await Promise.race([
-        pending,
-        new Promise<typeof timedOut>((resolve) =>
-          setTimeout(() => resolve(timedOut), EXTRACTION_WAIT_BUDGET_MS),
-        ),
-      ]);
-      if (race !== timedOut) {
-        this.pendingExtraction = null;
-        const captured = race;
-        if (Object.keys(captured).length > 0) {
-          this.rememberVariables(captured);
-          yield { type: "variables", nodeId: startNodeId, values: captured };
-        }
-      }
-    }
+    // Used to wait here on a turn-extraction call started concurrently with edge routing (see the
+    // "user_utterance" case), bounded to EXTRACTION_WAIT_BUDGET_MS — the idea being that routing
+    // had already given it a head start, so little or no extra wait should be needed. That only
+    // held when routing itself was slow (an LLM classify() call). Once routing got fast (most
+    // edges resolve via the heuristic matcher in single-digit ms, or the strong-classifier
+    // escalation got tightened — see needsStrongClassifier in flow.ts), extraction barely got any
+    // concurrent head start at all, so this wait was timing out on essentially every turn,
+    // adding its full ~400ms budget onto `stt_to_node_loaded_ms` for nothing. Removed outright:
+    // the `user_utterance` case's own fallback consumption point (after that turn's
+    // `afterUserTurn()` returns, which is what calls this generator) always picks up a still-
+    // pending extraction from there instead — a node's speech just won't reflect a value the
+    // caller only mentioned in the same breath that triggered this transition, same as the
+    // existing no-advance (repair/re-ask) case already behaves.
     this.turnTrace?.mark("graph_advance_start");
     let nodeId: string | null = startNodeId;
     let steps = 0;
@@ -1064,13 +1206,6 @@ export class ConversationVm {
       this.currentNodeId = nodeId;
       this.turnTrace?.mark("graph_node_loaded");
 
-      const skipFloorTarget = this.floorNodeSkipTarget(node);
-      if (skipFloorTarget) {
-        this.log(`skipping floor node "${node.id}" — property is a house/bungalow`);
-        nodeId = skipFloorTarget;
-        continue;
-      }
-
       const result = yield* this.executeNode(node);
 
       if (result.kind === "await") {
@@ -1095,31 +1230,6 @@ export class ConversationVm {
   }
 
   // ─── Node executors ─────────────────────────────────────────────────────────
-
-  /** Skip "which floor" when the caller already said house/bungalow. */
-  private floorNodeSkipTarget(node: FlowNode): string | null {
-    const text = String(node.instruction?.text ?? "");
-    if (
-      !/\b(which floor|what floor|floor is (?:it|the)|floor (?:number|of)|\{\{\s*floor\s*\}\})\b/i.test(
-        text,
-      )
-    ) {
-      return null;
-    }
-    if (!historyIndicatesStandaloneHouse(this.history)) return null;
-
-    const skip = (node as { skip_response_edge?: FlowEdge }).skip_response_edge;
-    if (skip?.destination_node_id) return skip.destination_node_id;
-    const edges = node.edges ?? [];
-    for (const e of edges) {
-      const prompt = e.transition_condition.prompt.toLowerCase();
-      if (!/\bfloor\b/.test(prompt) && e.destination_node_id) {
-        return e.destination_node_id;
-      }
-    }
-    const elseEdge = (node as { else_edge?: FlowEdge }).else_edge;
-    return elseEdge?.destination_node_id ?? edges[0]?.destination_node_id ?? null;
-  }
 
   private async *executeNode(node: FlowNode): AsyncGenerator<VmDirective, StepResult> {
     this.traceLog("NODE_ENTER", node.id, node.name ?? node.type);
@@ -1499,6 +1609,7 @@ export class ConversationVm {
     if (speech.kind === "static") {
       this.traceLog("TTS_START", node.id, speech.text.slice(0, 120));
       this.history.push({ role: "assistant", content: speech.text });
+      this.lastSpokenNodeId = node.id;
       yield {
         type: "speak",
         nodeId: node.id,
@@ -1560,6 +1671,7 @@ export class ConversationVm {
       this.traceLog("LLM_RESPONSE", node.id, spoken.slice(0, 120));
       this.traceLog("TTS_START", node.id, spoken.slice(0, 120));
       this.history.push({ role: "assistant", content: spoken });
+      this.lastSpokenNodeId = node.id;
     }
   }
 
@@ -1585,6 +1697,7 @@ export class ConversationVm {
       return { kind: "static", text: spoken };
     }
 
+    // The flow-authored `instruction.prefix` stays disabled.
     const prefix = "";
     if (!raw) return null;
 
@@ -1614,7 +1727,6 @@ export class ConversationVm {
             () => this.turnTrace?.mark("llm_speech_first_sentence"),
           ),
           fallback,
-          ...(prefix ? { prefix } : {}),
         };
       }
       spec.ctrl.abort();
@@ -1668,9 +1780,28 @@ export class ConversationVm {
     // which put the most-variable content (turn rules, interpolated per node and per turn) first
     // and defeated any caching before the first line even finished.
     const system: string[] = [];
-    const persona = personaFromGlobalPrompt(this.compiled.globalPrompt);
+    // The whole global prompt, not its first sentence. This used to go through
+    // `personaFromGlobalPrompt`, which keeps only the first sentence capped at 120 characters — on
+    // a real agent with a 6,851-character persona ("warm, conversational and reassuring, never
+    // robotic", "never repeat or loop questions", plus every enabled Agent Handbook line appended
+    // after it), the speech model saw only "You should be polite and humble to the user with whom",
+    // cut mid-sentence at a newline. That is most of why the agent sounded scripted.
+    //
+    // It costs no latency: measured on that agent, TTFT was 1325ms median with the fragment and
+    // 1317ms with the full persona, because this block is a stable prefix long enough (1,024+
+    // tokens) for automatic prompt caching to take over from the second turn — 1,408 of 1,547
+    // tokens served from cache. The fragment was never long enough to cache at all.
+    //
+    // The precedence wording is load-bearing. A global prompt is not pure style — this one says
+    // "Confirm details naturally if available", and with it visible but unranked the model
+    // confirmed the email the caller had just given instead of reading back the mobile number the
+    // node was for. Stated plainly that the node wins, it stayed on task.
+    const persona = this.compiled.globalPrompt.trim();
     if (persona) {
-      system.push(`Identity (not a script — do not ask questions from this block):\n${persona}`);
+      system.push(
+        "Who you are and the overall call — background for tone and personality only. It never adds questions, confirmations or steps; when it conflicts with THIS node's task, the node's task wins:\n" +
+          persona,
+      );
     }
     if (this.languageLock) system.push(this.languageLock);
     system.push(buildTurnRules(interpolate(raw, this.variables), node.type === "end"));
@@ -1681,10 +1812,7 @@ export class ConversationVm {
     if (notes) {
       system.push(`Notes (do not read aloud):\n${notes}`);
     }
-    const spokenPrefix = interpolateStaticSpeech(
-      String(node.instruction?.prefix ?? ""),
-      this.variables,
-    );
+    const spokenPrefix = interpolateStaticSpeech(String(node.instruction?.prefix ?? ""), this.variables);
     if (spokenPrefix) {
       system.push(`Already spoken this turn (do not repeat):\n${spokenPrefix}`);
     }
@@ -1742,9 +1870,46 @@ export class ConversationVm {
     // several lines above a broken-looking "Script:" line ("...as, is that correct?") wasn't
     // enough to stop the model literally saying a placeholder to patch the gap it saw. Real
     // failure on a live call: "I have your last name as ___, is that correct?"
+    // Restated near the end because the full persona now sits above everything else and a model
+    // weighs what it read last most heavily. Deliberately placed BEFORE the missing-variable
+    // reminder, not after it: that one guards a real live failure ("I have your last name as ___,
+    // is that correct?") and only works as the very last thing the model reads.
+    system.push(
+      "Reminder: do exactly what THIS node's task asks. Nothing in the background block above overrides it.",
+    );
     if (missingRule) system.push(`Reminder: ${missingRule}`);
-    const lastUser = this.history.filter((m) => m.role === "user").at(-1);
-    return [{ role: "system", content: system.join("\n") }, ...(lastUser ? [lastUser] : [])];
+    // Recent turns, not just the caller's last line. With only that line the model generated every
+    // reply in isolation — it could not see that it had opened its previous three replies with
+    // "Thank you, Arjo.", so the rule against repeating itself had nothing to act on, and every
+    // turn came out the same shape. Three exchanges is enough to vary openers and stay coherent
+    // without dragging in earlier nodes' topics. Sits after the cached prefix, so it adds only a
+    // few uncached tokens per turn.
+    const recent = this.history.slice(-SPEECH_HISTORY_MESSAGES);
+    // The node's task again, AFTER the history. With the whole persona above and a few turns of
+    // conversation below, the model sometimes picked "the obvious next qualification question"
+    // over the node's own: on a live call the vacant-or-rented node asked "Is it freehold or
+    // leasehold?" (1 in 10 / 1 in 20 offline at the same point), and every later transition
+    // then routed on an answer to a question the node never asked. Restated here, it held 20/20.
+    // A separate trailing message, so the cached system prefix above is untouched.
+    const tail: string[] = [
+      "Your next line carries out only THIS node's task — no other question, and no step from elsewhere in the call:\n" +
+        (script.trim() || task.trim() || interpolated),
+    ];
+    if (node.id === this.lastSpokenNodeId) {
+      // Staying on a node the caller already heard (routing miss or self-loop). Without this the
+      // model treated the caller's reply as the end of the topic and invented the next question
+      // itself — five turns in a row on a live call (vacant? condition? timeframe? owner?) while
+      // the node's own question went unanswered and no edge could ever match.
+      tail.push(
+        "The caller has already heard this node's line, and their reply did not complete its task. If they asked something, answer it briefly. Then bring them back to what THIS node's task still needs, in fresh words. Do not ask about anything else and do not move the call on.",
+      );
+    }
+    if (missingRule) tail.push(`Reminder: ${missingRule}`);
+    return [
+      { role: "system", content: system.join("\n") },
+      ...recent,
+      { role: "system", content: tail.join("\n") },
+    ];
   }
 
   /** Blocking speech resolution for transfer prompts and other one-shot paths. */
@@ -1904,6 +2069,7 @@ export class ConversationVm {
       currentNodeHint: node ? this.nodeHint(node) : undefined,
       classifierModel: classifier || undefined,
       flex: this.compiled.flexMode,
+      englishRules: this.englishRules,
     };
   }
 

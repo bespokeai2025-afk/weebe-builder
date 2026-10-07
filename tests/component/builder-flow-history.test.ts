@@ -1,41 +1,74 @@
+/**
+ * Version history rides along in agent settings on every save. Uncompressed it grew to ~2.9 MB on
+ * a real agent and the server rejected saves with HTTP 413. History is now stored compressed and
+ * capped by size.
+ */
 import { describe, expect, it } from "vitest";
-import { appendFlowVersion, graphFingerprint, makePublishedSnapshot } from "@/lib/builder/flow-history";
-import { defaultNodeData } from "@/lib/builder/node-registry";
-import type { BuilderSettings, FlowNode } from "@/lib/builder/types";
-import type { Edge } from "@xyflow/react";
+import {
+  appendFlowVersion,
+  compactFlowHistory,
+  expandFlowVersion,
+  historyNeedsCompaction,
+} from "@/lib/builder/flow-history";
+import type { BuilderSettings, FlowNode, FlowVersionSnapshot } from "@/lib/builder/types";
 
-const node = (id: string, dialogue: string): FlowNode => ({
-  id,
-  type: "conversation",
-  position: { x: 0, y: 0 },
-  data: defaultNodeData("conversation", { dialogue, isStart: id === "a" }),
+function graph(n: number, text = "x"): { nodes: FlowNode[]; edges: [] } {
+  return {
+    nodes: Array.from({ length: n }, (_, i) => ({
+      id: `n${i}`,
+      type: "flowNode",
+      position: { x: i, y: i },
+      data: { kind: "conversation", label: `Step ${i}`, dialogue: `${text} ${i} `.repeat(40), transitions: [] },
+    })) as FlowNode[],
+    edges: [],
+  };
+}
+
+const legacy = (version: number, text: string): FlowVersionSnapshot => ({
+  version,
+  label: "Saved",
+  createdAt: new Date(0).toISOString(),
+  flowData: graph(60, text),
+  variables: [],
 });
 
-describe("flow history", () => {
-  it("skips a duplicate snapshot with the same fingerprint", () => {
-    const nodes = [node("a", "Hi")];
-    const edges: Edge[] = [];
-    const variables = [{ name: "x", description: "x", defaultValue: "" }];
-    const settings = { flowHistory: [] } as unknown as BuilderSettings;
-    const first = appendFlowVersion(settings, {
-      label: "Saved",
-      flowData: { nodes, edges },
-      variables,
-    });
-    const second = appendFlowVersion({ ...settings, flowHistory: first }, {
-      label: "Autosave",
-      flowData: { nodes, edges },
-      variables,
-    });
-    expect(first).toHaveLength(1);
-    expect(second).toHaveLength(1);
-    expect(graphFingerprint(nodes, edges, variables)).toBeTruthy();
+describe("flow history compression", () => {
+  it("compresses legacy entries and restores them exactly", async () => {
+    const entry = legacy(1, "hello");
+    const [compacted] = await compactFlowHistory([entry]);
+    expect(compacted!.flowData).toBeUndefined();
+    expect(compacted!.gz!.length).toBeLessThan(JSON.stringify(entry.flowData).length / 3);
+    const restored = await expandFlowVersion(compacted!);
+    expect(restored.flowData).toEqual(entry.flowData);
+    expect(historyNeedsCompaction([compacted!])).toBe(false);
+    expect(historyNeedsCompaction([entry])).toBe(true);
   });
 
-  it("builds a published snapshot", () => {
-    const nodes = [node("a", "Hi")];
-    const published = makePublishedSnapshot(3, nodes, [], []);
-    expect(published.version).toBe(3);
-    expect(published.flowData.nodes).toHaveLength(1);
+  it("drops the oldest versions to stay under the size cap, always keeping the newest", async () => {
+    const history = Array.from({ length: 10 }, (_, i) => legacy(i + 1, `version ${i}`));
+    const one = (await compactFlowHistory([history[0]!]))[0]!.gz!.length;
+    const kept = await compactFlowHistory(history, one * 3 + 700);
+    expect(kept.map((e) => e.version)).toEqual([8, 9, 10]);
+    const tiny = await compactFlowHistory(history, 10);
+    expect(tiny.map((e) => e.version)).toEqual([10]);
+  });
+
+  it("skips a version identical to the newest, compressed or not", async () => {
+    const g = graph(5, "same");
+    const settings = { flowHistory: [] } as unknown as BuilderSettings;
+    const first = await appendFlowVersion(settings, { label: "Saved", flowData: g, variables: [] });
+    expect(first).toHaveLength(1);
+    const again = await appendFlowVersion({ flowHistory: first } as unknown as BuilderSettings, {
+      label: "Saved",
+      flowData: structuredClone(g),
+      variables: [],
+    });
+    expect(again).toBeNull();
+    const changed = await appendFlowVersion({ flowHistory: first } as unknown as BuilderSettings, {
+      label: "Saved",
+      flowData: graph(5, "different"),
+      variables: [],
+    });
+    expect(changed!.map((e) => e.version)).toEqual([1, 2]);
   });
 });

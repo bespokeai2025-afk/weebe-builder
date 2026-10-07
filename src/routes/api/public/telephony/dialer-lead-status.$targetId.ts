@@ -79,7 +79,8 @@ export const Route = createFileRoute("/api/public/telephony/dialer-lead-status/$
         const mapped = mapLeadCallStatus(twilioStatus);
 
         if (mapped === "ringing") {
-          if (!isTerminalTargetStatus(target.status as string)) {
+          // Only a call still going out can be "ringing" — never overwrite an answered one.
+          if (target.status === "dialing") {
             await (supabaseAdmin as any)
               .from("dialer_targets")
               .update({ status: "ringing", updated_at: new Date().toISOString() })

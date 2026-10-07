@@ -432,6 +432,11 @@ export interface VmOptions {
   maxStepsPerTurn?: number;
   /** Appended to every generation turn — keeps the agent in the configured language. */
   languageLock?: string;
+  /**
+   * False when the agent may speak anything other than English. The router and VM then skip their
+   * English word-list heuristics and let the classifier decide. Defaults to true.
+   */
+  englishRules?: boolean;
   /** Extra declared variable names (builder / post-call fields) to bind collect answers. */
   variableNames?: string[];
 }

@@ -1,6 +1,7 @@
+import { getNodeDef, missingRequiredFields } from "./node-registry";
 import type { Edge } from "@xyflow/react";
 import type { BuilderVariable, FlowNode } from "./types";
-import { isE164, normalizeTransferNumber } from "./export-conversation-flow";
+import { isE164, LEGACY_PHONE_COUNTRY_CODE, normalizeTransferNumber } from "./export-conversation-flow";
 import { unknownTemplateVars } from "./flow-variables";
 import { isEquationCondition } from "../voice/graph/transition-engine.shared";
 import type { GraphSlice } from "./graph-ops";
@@ -122,8 +123,18 @@ export function validateFlow(
   nodes: FlowNode[],
   edges: Edge[],
   variables: BuilderVariable[] = [],
+  options: { phoneCountryCode?: string } = {},
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
+  for (const n of nodes) {
+    if (typeof n.data.unsupportedType === "string" && n.data.unsupportedType) {
+      issues.push({
+        level: "warn",
+        message: `Node "${n.data.label}" has type "${n.data.unsupportedType}", which the builder does not support. It is exported unchanged, and WEBEE Native cannot run it.`,
+        nodeId: n.id,
+      });
+    }
+  }
   const ids = new Set(nodes.map((n) => n.id));
   for (const e of edges) {
     if (!ids.has(e.source) || !ids.has(e.target))
@@ -166,18 +177,13 @@ export function validateFlow(
         message: `HTTP Request "${n.data.label}" has no URL.`,
         nodeId: n.id,
       });
-    if (n.data.kind === "mcp" && !String(n.data.mcpServerUrl ?? "").trim())
-      issues.push({
-        level: "error",
-        message: `MCP "${n.data.label}" has no server URL.`,
-        nodeId: n.id,
-      });
-    if (n.data.kind === "mcp" && !String(n.data.mcpToolName ?? "").trim())
-      issues.push({
-        level: "warn",
-        message: `MCP "${n.data.label}" has no tool name selected.`,
-        nodeId: n.id,
-      });
+    // Registry-declared required fields (see `fields` in node-registry).
+    if (!n.data.unsupportedType) {
+      const def = getNodeDef(n.data.kind);
+      for (const miss of missingRequiredFields(def.fields, n.data)) {
+        issues.push({ level: miss.level, message: `${def.label} "${n.data.label}" ${miss.message}.`, nodeId: n.id });
+      }
+    }
     if (n.data.kind === "subagent" && !n.data.dialogue.trim())
       issues.push({
         level: "warn",
@@ -230,7 +236,7 @@ export function validateFlow(
           });
         }
       } else {
-        const num = normalizeTransferNumber(n.data.transferNumber ?? "");
+        const num = normalizeTransferNumber(n.data.transferNumber ?? "", options.phoneCountryCode);
         if (!num) {
           issues.push({
             level: "error",
@@ -243,7 +249,7 @@ export function validateFlow(
           if (!isSip && !ignore && !isE164(num)) {
             issues.push({
               level: "error",
-              message: `Call Transfer "${n.data.label}" has an invalid number "${num}". Use E.164 (e.g. +14155551234), a SIP URI, or enable raw format. UK numbers like 07412345678 are auto-normalized.`,
+              message: `Call Transfer "${n.data.label}" has an invalid number "${num}". Use E.164 (e.g. +14155551234), a SIP URI, or enable raw format. National numbers starting with 0 use the agent's country code (+${options.phoneCountryCode || LEGACY_PHONE_COUNTRY_CODE}).`,
               nodeId: n.id,
             });
           }

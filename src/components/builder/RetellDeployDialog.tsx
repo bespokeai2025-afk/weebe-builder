@@ -289,8 +289,8 @@ export function RetellDeployDialog({
       : Boolean(settings.agentId);
 
   const flowIssues = useMemo(
-    () => validateFlow(nodes, edges, variables),
-    [nodes, edges, variables],
+    () => validateFlow(nodes, edges, variables, { phoneCountryCode: settings.phoneCountryCode }),
+    [nodes, edges, variables, settings.phoneCountryCode],
   );
   const flowErrors = flowIssues.filter((i) => i.level === "error");
   const flowWarnings = flowIssues.filter((i) => i.level === "warn");
@@ -346,6 +346,8 @@ export function RetellDeployDialog({
     setOpenaiDeploying(true);
     try {
       const { nodes: n, edges: e, settings: s, variables: v } = useBuilderStore.getState();
+      // History snapshots ride along in settings; keep them compressed (HTTP 413 otherwise).
+      await useBuilderStore.getState().compactHistory();
       const result = await upsertAgent({
         data: {
           id: currentAgentRowId ?? undefined,
@@ -375,8 +377,10 @@ export function RetellDeployDialog({
 
   async function handleDeploy(kind: "create" | "update") {
     // Block deploy if flow has validation errors.
-    const { nodes: n, edges: e, variables: v } = useBuilderStore.getState();
-    const errs = validateFlow(n, e, v).filter((i) => i.level === "error");
+    const { nodes: n, edges: e, variables: v, settings: st } = useBuilderStore.getState();
+    const errs = validateFlow(n, e, v, { phoneCountryCode: st.phoneCountryCode }).filter(
+      (i) => i.level === "error",
+    );
     if (errs.length > 0) {
       setCheckOpen(true);
       toast.error(`Fix ${errs.length} error${errs.length !== 1 ? "s" : ""} before deploying`, {
@@ -430,6 +434,8 @@ export function RetellDeployDialog({
           deployedAgentName: s.agentName,
         };
         setSettings({ agentId: localId, deployedAgentName: s.agentName });
+        // History snapshots ride along in settings; keep them compressed (HTTP 413 otherwise).
+        await useBuilderStore.getState().compactHistory();
         const { id: rowId } = await upsertAgent({
           data: {
             id: useBuilderStore.getState().currentAgentRowId ?? undefined,
@@ -467,6 +473,8 @@ export function RetellDeployDialog({
       try {
         const { nodes: n, edges: e, settings: s, variables: v } =
           useBuilderStore.getState();
+        // History snapshots ride along in settings; keep them compressed (HTTP 413 otherwise).
+        await useBuilderStore.getState().compactHistory();
         const { id: rowId } = await upsertAgent({
           data: {
             id: useBuilderStore.getState().currentAgentRowId ?? undefined,
@@ -542,6 +550,8 @@ export function RetellDeployDialog({
           deployedElevenLabsAgentId: result.agentId as never,
           deployedAgentName: s.agentName,
         });
+        // History snapshots ride along in settings; keep them compressed (HTTP 413 otherwise).
+        await useBuilderStore.getState().compactHistory();
         const { id: rowId } = await upsertAgent({
           data: {
             id: useBuilderStore.getState().currentAgentRowId ?? undefined,
@@ -2904,6 +2914,8 @@ export function RetellDeployDialog({
     try {
       const { nodes: n, edges: e, settings: s, variables: v } = useBuilderStore.getState();
       const existing = await getAgentByRetellId({ data: { retellAgentId } });
+      // History snapshots ride along in settings; keep them compressed (HTTP 413 otherwise).
+      await useBuilderStore.getState().compactHistory();
       const saved = await upsertAgent({
         data: {
           id: existing?.id,

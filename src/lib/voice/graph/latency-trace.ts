@@ -212,6 +212,12 @@ export class CallTurnTrace {
         ` tts_input_wait=${span("tts_provider_start", "tts_first_text")}` +
         ` tts_text_to_audio=${span("tts_first_text", "tts_first_audio")}` +
         ` speech→stt_partial=${fromSpeech("partial_stt_stable")}` +
+        // Negative = speculation started before the endpoint, which is the whole point of it:
+        // that much of the LLM round trip was already spent while the caller was still talking.
+        ` spec_llm=${fromStt("speculative_llm_start")}` +
+        // From the VAD endpoint, not from when the caller started talking, so this console line
+        // matches the figure persisted as speech_to_first_audio_ms. Measured from speech start
+        // it read about 3x higher than the stored value on the same turn.
         ` speech→audio=${speechEndToAudio === null ? "n/a" : `${speechEndToAudio}ms`}`,
     );
   }

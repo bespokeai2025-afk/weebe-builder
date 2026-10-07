@@ -140,8 +140,16 @@ class DeepgramSttSession implements SttSession {
       this.latestPartial = "";
       if (text) {
         const boosted = applyKeywordBoost(text, this.options.keywords);
-        this.segments.push(boosted);
-        this.options.onFinal?.(boosted);
+        // Deepgram emits the utterance's own final and then, because we send Finalize, a second
+        // final carrying the same words — measured: "Yes." came back as "Yes. Yes." and "Six
+        // bedrooms." as "Six bedrooms. Six bedrooms,". Collapse an immediate repeat of the
+        // previous segment so the caller is not transcribed saying everything twice.
+        const norm = (v: string) => v.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+        const prev = this.segments[this.segments.length - 1];
+        if (!prev || norm(prev) !== norm(boosted)) {
+          this.segments.push(boosted);
+          this.options.onFinal?.(boosted);
+        }
       }
 
       // A flush is satisfied by the first final that follows it, whether or not

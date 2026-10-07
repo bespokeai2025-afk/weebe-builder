@@ -75,7 +75,9 @@ export function exportAgentJson(
     return [...transitionEdges, ...extraGraphEdges];
   };
 
-  const flowNodes = exportableNodes.map((n) => mapNode(n, edgesFromNode(n.id)));
+  const flowNodes = exportableNodes.map((n) =>
+    mapNode(n, edgesFromNode(n.id), { phoneCountryCode: settings.phoneCountryCode }),
+  );
 
   const rawCf = (settings.rawConversationFlow ?? {}) as Record<string, unknown>;
   const hasRawCf = Object.keys(rawCf).length > 0;
@@ -366,7 +368,7 @@ function stripUndefined<T extends Record<string, unknown>>(obj: T): T {
  * Rules:
  * - Strip spaces and common formatting characters: ( ) - . and unicode dashes
  * - Convert international prefix "00" → "+"
- * - Convert UK national format (leading "0", 10–11 digits) → "+44…"
+ * - Convert a national number (trunk prefix "0") → "+<agent calling code>…" (44 when unset)
  * - Already-prefixed "+<digits>" passes through if 8–16 digits
  * - Anything else with a leading digit and 8–15 total digits gets a "+" prepended
  *
@@ -374,7 +376,13 @@ function stripUndefined<T extends Record<string, unknown>>(obj: T): T {
  * stripped) string when it cannot be coerced into E.164 — callers must
  * validate with `isE164` before sending to Retell.
  */
-export function normalizeTransferNumber(value: unknown): string {
+/** Calling code applied when an agent has not set one — the builder's original UK assumption. */
+export const LEGACY_PHONE_COUNTRY_CODE = "44";
+
+export function normalizeTransferNumber(
+  value: unknown,
+  countryCode: string = LEGACY_PHONE_COUNTRY_CODE,
+): string {
   const raw = String(value ?? "").trim();
   if (!raw) return "";
   if (/^sip:/i.test(raw)) return raw;
@@ -386,8 +394,9 @@ export function normalizeTransferNumber(value: unknown): string {
   if (s === "+") return "";
   if (s.startsWith("+")) return s;
   if (s.startsWith("00")) return "+" + s.slice(2);
-  // UK national format: 0 + 10 digits = 11 chars total
-  if (/^0\d{9,10}$/.test(s)) return "+44" + s.slice(1);
+  // National format (trunk prefix 0) → the agent's calling code.
+  const cc = String(countryCode ?? "").replace(/\D/g, "") || LEGACY_PHONE_COUNTRY_CODE;
+  if (/^0\d{6,12}$/.test(s)) return `+${cc}${s.slice(1)}`;
   // Bare digits — prepend +
   if (/^\d{8,15}$/.test(s)) return "+" + s;
   return s;
@@ -601,7 +610,11 @@ function splitNodeSettings(settings: Record<string, unknown>) {
   return { nodeOverrides, globalNodeSetting, model };
 }
 
-function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id: string } {
+function mapNode(
+  n: FlowNode,
+  edges: FlowEdge[],
+  ctx: { phoneCountryCode?: string } = {},
+): Record<string, unknown> & { id: string } {
   const d = n.data as FlowNodeData;
   const raw = (d.raw ?? {}) as Record<string, unknown>;
   const hasRaw = Object.keys(raw).length > 0;
@@ -659,6 +672,13 @@ function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id
   }
   const orderNode = <T extends Record<string, unknown>>(obj: T): T =>
     orderLikeRaw(obj, Object.keys(raw));
+
+  // Imported node of a type the builder cannot model: emit it exactly as imported (with the
+  // live graph's edges and position), never rewritten as some other kind.
+  if (typeof d.unsupportedType === "string" && d.unsupportedType && hasRaw) {
+    const { builder_kind: _kind, ...passthrough } = base;
+    return orderNode({ ...passthrough, type: d.unsupportedType, edges });
+  }
 
   switch (d.kind) {
     case "begin":
@@ -773,6 +793,7 @@ function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id
             (rawDest as { mobile_number?: string }).mobile_number ??
             (raw.mobile_number as string | undefined) ??
             "",
+          ctx.phoneCountryCode,
         );
         if (!num) {
           // Fallback to a documented example E.164 number so deployment
@@ -783,8 +804,8 @@ function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id
         if (!ignoreE164 && !isE164(num)) {
           throw new Error(
             `Call Transfer "${d.label}" has an invalid phone number "${num}". ` +
-              `Use E.164 format like +447412345678. ` +
-              `For UK numbers, "07412345678" is auto-converted to "+447412345678".`,
+              `Use E.164 format like +14155551234, or a national number starting with 0 ` +
+              `(converted with the agent's country code, +${ctx.phoneCountryCode || LEGACY_PHONE_COUNTRY_CODE}).`,
           );
         }
         transfer_destination = stripUndefined({

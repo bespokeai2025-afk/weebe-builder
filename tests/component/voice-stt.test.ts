@@ -249,3 +249,41 @@ describe("Cartesia live listen", () => {
     expect(url).not.toContain("language=");
   });
 });
+
+describe("Fish batch ASR (/v1/asr)", () => {
+  const realFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+  });
+
+  it("names the model in the header, sends no ignored prompt field, and strips speaker markers", async () => {
+    const { fishTranscribe } = await import("@/lib/voice/stt/fish");
+    const seen: Array<{ headers: Record<string, string>; body: FormData }> = [];
+    globalThis.fetch = (async (_url: string, init: RequestInit) => {
+      seen.push({ headers: init.headers as Record<string, string>, body: init.body as FormData });
+      return new Response(JSON.stringify({ text: "<|speaker:0|> Six bedrooms, yes.", duration: 1 }), {
+        status: 200,
+      });
+    }) as typeof fetch;
+
+    const text = await fishTranscribe(buildWav([Buffer.alloc(320)], 16000), "key", "en-GB", ["Virani"]);
+    expect(text).toBe("Six bedrooms, yes.");
+    expect(seen[0]!.headers.model).toBe("transcribe-1");
+    expect(seen[0]!.body.get("language")).toBe("en");
+    expect(seen[0]!.body.get("prompt")).toBeNull();
+  });
+
+  it("retries once on a 429 concurrency refusal", async () => {
+    const { fishTranscribe } = await import("@/lib/voice/stt/fish");
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      return calls === 1
+        ? new Response(JSON.stringify({ status: 429, message: "busy" }), { status: 429 })
+        : new Response(JSON.stringify({ text: "Yes.", duration: 1 }), { status: 200 });
+    }) as typeof fetch;
+
+    expect(await fishTranscribe(buildWav([Buffer.alloc(320)], 16000), "key")).toBe("Yes.");
+    expect(calls).toBe(2);
+  });
+});

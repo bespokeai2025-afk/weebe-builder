@@ -36,6 +36,32 @@ export interface MountOptions {
 
 /** Marker so repeated mounts (dev server restarts) don't stack listeners. */
 const MOUNTED = Symbol.for("webee.voiceGatewayMounted");
+const GUARDED = Symbol.for("webee.voiceProcessGuards");
+
+/**
+ * Keep one call's error from killing every call.
+ *
+ * Voice calls run in the same Node process as the web app, and nothing handled errors that escape
+ * a call's code: on Node 15+ a single unhandled promise rejection (there are dozens of
+ * fire-and-forget lifecycle/finalise promises) or a throw inside a WebSocket event handler exits
+ * the process. Every live call then dropped at once, and nginx answered "502 Bad Gateway" —
+ * including the post-call analysis request — until systemd restarted the service.
+ *
+ * These log the full error (so the real bug is visible in `journalctl -u webespoke`) and keep the
+ * server running.
+ */
+export function installVoiceProcessGuards(): void {
+  const proc = process as NodeJS.Process & { [GUARDED]?: boolean };
+  if (proc[GUARDED]) return;
+  proc[GUARDED] = true;
+  process.on("unhandledRejection", (reason) => {
+    const err = reason instanceof Error ? reason : new Error(String(reason));
+    console.error(`[process] unhandled promise rejection (kept running): ${err.stack ?? err.message}`);
+  });
+  process.on("uncaughtException", (err) => {
+    console.error(`[process] uncaught exception (kept running): ${err.stack ?? err.message}`);
+  });
+}
 
 /** Base URL for server-to-server calls back into this app. */
 function resolveInternalBase(port: number): string {
@@ -63,6 +89,7 @@ export function mountVoiceGateways(
   const target = httpServer as HttpServer & { [MOUNTED]?: boolean };
   if (target[MOUNTED]) return [];
   target[MOUNTED] = true;
+  installVoiceProcessGuards();
 
   const routes = options.routes ?? VOICE_GATEWAY_ROUTES;
 

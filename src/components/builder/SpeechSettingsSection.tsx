@@ -1,3 +1,4 @@
+import { EngineSupportNote, useSettingSupported } from "./EngineSupportNote";
 import { useState } from "react";
 import {
   ChevronDown,
@@ -161,6 +162,7 @@ export function SpeechSettingsSection({ isRetell }: { isRetell: boolean }) {
     open: false,
   });
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const backchannelSupported = useSettingSupported("enableBackchannel");
 
   const pronunciationDictionary = settings.pronunciationDictionary ?? [];
 
@@ -330,6 +332,7 @@ export function SpeechSettingsSection({ isRetell }: { isRetell: boolean }) {
               </div>
               <Switch
                 checked={Boolean(settings.enableBackchannel)}
+                disabled={!backchannelSupported}
                 onCheckedChange={(v) => set({ enableBackchannel: v })}
               />
             </div>
@@ -337,6 +340,7 @@ export function SpeechSettingsSection({ isRetell }: { isRetell: boolean }) {
               Enables the agent to use affirmations like &lsquo;yeah&rsquo; or &lsquo;uh-huh&rsquo; during
               conversations, indicating active listening and engagement.
             </p>
+            <EngineSupportNote setting="enableBackchannel" />
 
             {settings.enableBackchannel && (
               <div className="mt-2 space-y-3 rounded-md border border-border dark:border-white/[0.06] bg-muted/40 dark:bg-white/[0.02] p-3">
@@ -479,6 +483,7 @@ export function SpeechSettingsSection({ isRetell }: { isRetell: boolean }) {
                   <span className="text-[10px] tabular-nums text-foreground/70 font-mono">{(settings.voiceTemperature ?? 1).toFixed(1)}</span>
                 </div>
                 <SpeechSlider value={settings.voiceTemperature ?? 1} min={0} max={2} step={0.1} onChange={(v) => set({ voiceTemperature: v })} />
+                <EngineSupportNote setting="voiceTemperature" />
               </div>
 
               {/* Volume */}
@@ -505,6 +510,7 @@ export function SpeechSettingsSection({ isRetell }: { isRetell: boolean }) {
                       ))}
                     </SelectContent>
                   </Select>
+                  <EngineSupportNote setting="voiceEmotion" />
                 </div>
               </div>
 

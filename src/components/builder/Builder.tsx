@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useReactFlow } from "@xyflow/react";
 import { toPng } from "html-to-image";
 import { useBuilderStore } from "@/lib/builder/store";
@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ChevronDown, MoreHorizontal, FileJson, Upload, FileUp, Search, Check, ArrowLeftRight, Globe, Mic, MessageSquare as MsgSq, Settings2, Zap, Radio, Lock, Sparkles, Gem, Waves, Volume2, Play, Loader2, Download, Clock, Phone } from "lucide-react";
 import { KnowledgeBaseSection } from "@/components/builder/KnowledgeBaseSection";
+import { LocaleSettingsFields } from "@/components/builder/LocaleSettingsFields";
 import { SpeechSettingsSection } from "@/components/builder/SpeechSettingsSection";
 import { HyperStreamSettingsSection } from "@/components/builder/HyperStreamSettingsSection";
 import { TranscriptionSettingsSection } from "@/components/builder/TranscriptionSettingsSection";
@@ -129,6 +130,9 @@ import { LATENCY_BUDGET_MS } from "@/lib/voice/call-latency-stats.shared";
 import { CallLatencyBreakdown } from "@/components/calls/CallLatencyBreakdown";
 import { PostCallCostBreakdown } from "./PostCallCostBreakdown";
 import { useServerFn } from "@tanstack/react-start";
+import { useQuery } from "@tanstack/react-query";
+import { agentVoicePatch } from "@/lib/builder/agent-voice.shared";
+import { listCartesiaVoices, listRetellVoices } from "@/lib/builder/voice-catalog.functions";
 import { toast } from "sonner";
 
 const PALETTE_UI: Record<NodeKind, { icon: React.ElementType; color: string }> = {
@@ -337,8 +341,9 @@ function LanguagePicker({
   );
 }
 
-type VoiceGroup = "ElevenLabs" | "OpenAI" | "Deepgram";
+type VoiceGroup = string;
 
+/** Offline fallback only — the picker reads Retell's live catalogue when it can reach it. */
 const DEFAULT_VOICES: { id: string; label: string; group: VoiceGroup }[] = [
   // ElevenLabs
   { id: "11labs-Adrian", label: "Adrian — male, US", group: "ElevenLabs" },
@@ -364,7 +369,20 @@ const DEFAULT_VOICES: { id: string; label: string; group: VoiceGroup }[] = [
   { id: "deepgram-Orion", label: "Orion — male", group: "Deepgram" },
 ];
 
-const VOICE_GROUPS: VoiceGroup[] = ["ElevenLabs", "OpenAI", "Deepgram"];
+const VOICE_PROVIDER_LABELS: Record<string, string> = {
+  elevenlabs: "ElevenLabs",
+  openai: "OpenAI",
+  deepgram: "Deepgram",
+  cartesia: "Cartesia",
+  minimax: "MiniMax",
+  fish_audio: "Fish Audio",
+  platform: "Platform",
+};
+
+function voiceProviderLabel(provider: string | undefined): string {
+  const key = String(provider ?? "").toLowerCase();
+  return VOICE_PROVIDER_LABELS[key] ?? (key ? key.charAt(0).toUpperCase() + key.slice(1) : "Other");
+}
 
 function MiniAudioPlayer({ url }: { url: string }) {
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -495,6 +513,48 @@ export function Builder({
   const isOpenAI = isOpenAINativeMode(activeMode);
   const isElevenLabs = isElevenLabsNativeMode(activeMode);
   const isWebeeNative = isWebeeNativeMode(activeMode);
+
+  // Live voice catalogues (fallback: the built-in list above).
+  const fetchRetellVoices = useServerFn(listRetellVoices);
+  const { data: retellCatalog } = useQuery({
+    queryKey: ["retell-voice-catalog"],
+    queryFn: () => fetchRetellVoices(),
+    enabled: isRetell,
+    staleTime: 10 * 60_000,
+    retry: 1,
+    throwOnError: false,
+  });
+  const retellVoiceOptions = useMemo(
+    () =>
+      retellCatalog && retellCatalog.length > 0
+        ? retellCatalog.map((v) => ({
+            id: v.id,
+            label: [v.name, [v.gender, v.accent].filter(Boolean).join(", ")].filter(Boolean).join(" — "),
+            group: voiceProviderLabel(v.provider),
+          }))
+        : DEFAULT_VOICES,
+    [retellCatalog],
+  );
+  const retellVoiceGroups = useMemo(
+    () => [...new Set(retellVoiceOptions.map((v) => v.group))],
+    [retellVoiceOptions],
+  );
+  const fetchCartesiaVoices = useServerFn(listCartesiaVoices);
+  const cartesiaActive = isWebeeNative && settings.webeeTtsProvider === "cartesia";
+  const [cartesiaSearch, setCartesiaSearch] = useState("");
+  const [cartesiaQuery, setCartesiaQuery] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setCartesiaQuery(cartesiaSearch.trim()), 350);
+    return () => clearTimeout(t);
+  }, [cartesiaSearch]);
+  const { data: cartesiaCatalog, error: cartesiaCatalogError, isFetching: cartesiaLoading } = useQuery({
+    queryKey: ["cartesia-voice-catalog", cartesiaQuery],
+    queryFn: () => fetchCartesiaVoices({ data: { query: cartesiaQuery || undefined } }),
+    enabled: cartesiaActive,
+    staleTime: 10 * 60_000,
+    retry: 1,
+    throwOnError: false,
+  });
   const preAutoLayoutPositions = useBuilderStore((s) => s.preAutoLayoutPositions);
   const [rf, setRf] = useState<ReturnType<typeof useReactFlow> | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -1814,13 +1874,14 @@ export function Builder({
                     onChange={(v) => setSettings({ speechLanguages: v, language: v[0] === "multi" ? "en-US" : v[0] })}
                   />
                 </div>
+                <LocaleSettingsFields />
                 {isRetell && (
                   <>
                     <div>
                       <Label className="text-[9px]">Voice</Label>
                       <Select
                         value={
-                          DEFAULT_VOICES.some((v) => v.id === settings.voiceId)
+                          retellVoiceOptions.some((v) => v.id === settings.voiceId)
                             ? settings.voiceId
                             : settings.voiceId
                               ? "__custom__"
@@ -1834,15 +1895,15 @@ export function Builder({
                           <SelectValue placeholder="Pick a voice" />
                         </SelectTrigger>
                         <SelectContent>
-                          {VOICE_GROUPS.map((group) => (
+                          {retellVoiceGroups.map((group) => (
                             <SelectGroup key={group}>
                               <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">{group}</SelectLabel>
-                              {DEFAULT_VOICES.filter((v) => v.group === group).map((v) => (
+                              {retellVoiceOptions.filter((v) => v.group === group).map((v) => (
                                 <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
                               ))}
                             </SelectGroup>
                           ))}
-                          {settings.voiceId && !DEFAULT_VOICES.some((v) => v.id === settings.voiceId) && (
+                          {settings.voiceId && !retellVoiceOptions.some((v) => v.id === settings.voiceId) && (
                             <SelectGroup>
                               <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">Custom</SelectLabel>
                               <SelectItem value="__custom__">
@@ -1971,16 +2032,48 @@ export function Builder({
                     </div>
                     {settings.webeeTtsProvider === "cartesia" && (
                       <div className="space-y-1.5">
-                        <Label className="text-[10px] text-muted-foreground">Cartesia voice ID</Label>
+                        <Label className="text-[10px] text-muted-foreground">Cartesia voice</Label>
                         <Input
                           className="h-8 text-[11px]"
-                          placeholder="694f9389-aac1-45b6-b726-9d9369183238"
+                          placeholder="Search your Cartesia library (name, accent, style)"
+                          value={cartesiaSearch}
+                          onChange={(e) => setCartesiaSearch(e.target.value)}
+                        />
+                        {cartesiaQuery && !cartesiaLoading && cartesiaCatalog?.length === 0 && (
+                          <p className="text-[10px] text-muted-foreground">No voices match &ldquo;{cartesiaQuery}&rdquo;.</p>
+                        )}
+                        {cartesiaCatalog && cartesiaCatalog.length > 0 && (
+                          <Select
+                            value={
+                              cartesiaCatalog.some((v) => v.id === settings.cartesiaVoice)
+                                ? settings.cartesiaVoice
+                                : ""
+                            }
+                            onValueChange={(v) => setSettings(agentVoicePatch("cartesia", v))}
+                          >
+                            <SelectTrigger className="h-8 text-[11px]">
+                              <SelectValue placeholder="Pick from your Cartesia library" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {cartesiaCatalog.map((v) => (
+                                <SelectItem key={v.id} value={v.id} textValue={v.name}>
+                                  {v.name}
+                                  {v.language ? ` · ${v.language}` : ""}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                        <Input
+                          className="h-8 text-[11px]"
+                          placeholder="…or paste a voice ID"
                           value={settings.cartesiaVoice ?? ""}
-                          onChange={(e) => setSettings({ cartesiaVoice: e.target.value })}
+                          onChange={(e) => setSettings(agentVoicePatch("cartesia", e.target.value))}
                         />
                         <p className="text-[10px] text-muted-foreground">
-                          A voice id from your Cartesia voice library. Leave blank to use Cartesia's
-                          default sample voice.
+                          {cartesiaCatalogError
+                            ? `Could not load your Cartesia library (${(cartesiaCatalogError as Error).message}). Paste a voice ID instead.`
+                            : "Leave blank to use Cartesia's default sample voice."}
                         </p>
                       </div>
                     )}
@@ -2130,7 +2223,7 @@ export function Builder({
                         <button
                           type="button"
                           className="text-[11px] text-muted-foreground hover:text-destructive shrink-0"
-                          onClick={() => setSettings({ webeeVoiceId: "", webeeVoiceName: "" })}
+                          onClick={() => setSettings(agentVoicePatch("fish", "", ""))}
                         >
                           ×
                         </button>
@@ -2198,8 +2291,7 @@ export function Builder({
                       <FishVoiceCloneDialog
                         onCloned={(voiceId, voiceName) => {
                           setSettings({
-                            webeeVoiceId: voiceId,
-                            webeeVoiceName: voiceName,
+                            ...agentVoicePatch("fish", voiceId, voiceName),
                             webeeVoiceOwned: true,
                           });
                           setFishVoicesLoading(true);
@@ -2280,8 +2372,7 @@ export function Builder({
                                         className="flex flex-1 items-start gap-1.5 text-left min-w-0"
                                         onClick={() => {
                                           setSettings({
-                                            webeeVoiceId: v.voiceId,
-                                            webeeVoiceName: formatFishVoiceLabel(v),
+                                            ...agentVoicePatch("fish", v.voiceId, formatFishVoiceLabel(v)),
                                             webeeVoiceOwned: v.owned,
                                           });
                                           if (fishAudioRef.current) {
@@ -2749,7 +2840,7 @@ export function Builder({
               </Collapsible>
             )}
 
-            <KnowledgeBaseSection isRetell={isRetell} isHyperStream={isOpenAI || isElevenLabs} />
+            <KnowledgeBaseSection isRetell={isRetell} isHyperStream={isOpenAI || isElevenLabs} isWebeeNative={isWebeeNative} />
 
             <Collapsible className="rounded-lg border border-border dark:border-white/[0.06] bg-muted/20 dark:bg-white/[0.01]">
               <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">

@@ -17,6 +17,10 @@ import {
   type DialerSessionStatus,
 } from "./auto-dialer.shared";
 import { dialNextDialerTarget } from "./auto-dialer-engine.server";
+import {
+  createLeadFromDataRecord,
+  findDataRecordByPhone,
+} from "@/lib/dashboard/lead-from-record.server";
 
 const targetInputSchema = z.object({
   name: z.string().trim().max(200).nullable().optional(),
@@ -304,7 +308,68 @@ export const getDialerSession = createServerFn({ method: "GET" })
       .limit(2000);
     if (targetsErr) throw new Error(targetsErr.message);
 
-    return { session, targets: targets ?? [] };
+    // Which of these people are already in Leads (sent from this page, or the same number).
+    const rows = (targets ?? []) as Array<Record<string, any>>;
+    const inLeads = new Set<string>();
+    if (rows.length) {
+      const ids = rows.map((t) => t.id);
+      const phones = [...new Set(rows.map((t) => String(t.phone)))];
+      const [byTarget, byPhone] = await Promise.all([
+        supabase
+          .from("leads")
+          .select("meta")
+          .eq("workspace_id", workspaceId)
+          .in("meta->>dialer_target_id", ids)
+          .limit(2000),
+        supabase.from("leads").select("phone").eq("workspace_id", workspaceId).in("phone", phones).limit(2000),
+      ]);
+      for (const l of byTarget.data ?? []) if (l?.meta?.dialer_target_id) inLeads.add(`t:${l.meta.dialer_target_id}`);
+      for (const l of byPhone.data ?? []) if (l?.phone) inLeads.add(`p:${l.phone}`);
+    }
+
+    return {
+      session,
+      targets: rows.map((t) => ({ ...t, in_leads: inLeads.has(`t:${t.id}`) || inLeads.has(`p:${t.phone}`) })),
+    };
+  });
+
+/**
+ * Send one dialled person to Leads. Uses their Data Records row when the number came from there
+ * (so the lead keeps every field), otherwise the name and number from the call list, and records
+ * how the call went.
+ */
+export const addDialerTargetToLead = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) => z.object({ targetId: z.string().uuid() }).parse(input))
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId } = context as any;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const { data: target, error } = await supabase
+      .from("dialer_targets")
+      .select("id, session_id, name, phone, status, bridged_number, duration_secs, ended_at")
+      .eq("id", data.targetId)
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!target) throw new Error("This call is not in your workspace");
+
+    const callMeta = {
+      source_detail: "auto_dialer",
+      dialer_target_id: target.id,
+      dialer_session_id: target.session_id,
+      dialer_outcome: target.status,
+      dialer_answered_by: target.bridged_number ?? null,
+      dialer_call_duration_secs: target.duration_secs ?? null,
+      dialer_called_at: target.ended_at ?? null,
+    };
+    const record = await findDataRecordByPhone(supabase, workspaceId, String(target.phone));
+    return createLeadFromDataRecord(
+      supabase,
+      workspaceId,
+      record ?? { name: target.name, mobile_number: target.phone },
+      callMeta,
+    );
   });
 
 async function setSessionStatus(

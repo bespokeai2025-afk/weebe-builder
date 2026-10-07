@@ -34,6 +34,14 @@ import { getWorkspaceCalendarSettings } from "@/lib/calendar/calendar.functions"
 import { listMyAgents } from "@/lib/agents/agents.functions";
 import { listWatiTemplates } from "@/lib/whatsapp/wati.functions";
 import { FunctionTestPanel } from "./FunctionTestPanel";
+import { NodeSchemaFields } from "./NodeSchemaFields";
+import { getNodeDef } from "@/lib/builder/node-registry";
+import { isWebeeNativeMode, resolveDeploymentMode } from "@/lib/runtime/adapter";
+import {
+  WEBEE_NATIVE_LLM_MODELS,
+  defaultModelForProvider,
+  resolveWebeeLlmProvider,
+} from "@/lib/voice/webee-native.shared";
 
 const BOOKING_PRESETS: {
   id: string;
@@ -263,6 +271,7 @@ export function NodeEditorDialog() {
   if (!node) return null;
 
   const d = node.data;
+  const schemaFields = d.unsupportedType ? undefined : getNodeDef(d.kind).fields;
   const setTransitions = (t: Transition[]) => updateNode(node.id, { transitions: t });
   const speechMode = normalizeBuilderSpeechMode(
     d.instructionType ?? (d.kind === "wait" || d.kind === "begin" ? "static_text" : "prompt"),
@@ -292,6 +301,13 @@ export function NodeEditorDialog() {
       </div>
 
       <div className="flex-1 space-y-5 overflow-y-auto py-1 pr-1">
+        {typeof d.unsupportedType === "string" && d.unsupportedType && (
+          <p className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-[11px] leading-snug text-amber-700 dark:text-amber-300">
+            Imported as type &ldquo;{d.unsupportedType}&rdquo;, which the builder does not support. It is
+            exported exactly as imported, so changes here other than its name and connections are not
+            saved into it.
+          </p>
+        )}
         <div className="flex items-end gap-2">
           <div className="flex-1">
             <Label>Name</Label>
@@ -734,207 +750,8 @@ export function NodeEditorDialog() {
           </>
         )}
 
-        {d.kind === "press_digit" && (
-          <>
-            <div>
-              <Label>Pause detection (ms)</Label>
-              <Input
-                type="number"
-                value={d.pauseDetectionMs ?? 1000}
-                onChange={(e) =>
-                  updateNode(node.id, { pauseDetectionMs: parseInt(e.target.value) || 0 })
-                }
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <Label>Digit timeout (ms)</Label>
-                <Input
-                  type="number"
-                  min={500}
-                  value={d.digitTimeoutMs ?? 5000}
-                  onChange={(e) =>
-                    updateNode(node.id, { digitTimeoutMs: parseInt(e.target.value) || 5000 })
-                  }
-                />
-              </div>
-              <div>
-                <Label>Retries</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  max={5}
-                  value={d.digitRetryCount ?? 2}
-                  onChange={(e) =>
-                    updateNode(node.id, { digitRetryCount: parseInt(e.target.value) || 0 })
-                  }
-                />
-              </div>
-            </div>
-            <div>
-              <Label>Instruction</Label>
-              <Textarea
-                rows={3}
-                value={d.dialogue}
-                onChange={(e) => updateNode(node.id, { dialogue: e.target.value })}
-              />
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                Add a transition named <code>timeout</code> or <code>invalid</code> for those paths.
-              </p>
-            </div>
-          </>
-        )}
-
-        {d.kind === "logic_split" && (
-          <div>
-            <Label>Logic prompt</Label>
-            <VariableTextarea
-              rows={4}
-              value={d.dialogue}
-              onValueChange={(v) => updateNode(node.id, { dialogue: v })}
-              placeholder="Describe how to choose between branches…"
-            />
-            <p className="mt-1 text-[11px] text-muted-foreground leading-snug">
-              Use <strong>Equation</strong> transitions below — If any / If all with =, ≠, contains,
-              does not contain, exists. Leave one branch empty or named Else as the fallback.
-            </p>
-          </div>
-        )}
-
-        {d.kind === "wait" && (
-          <div className="grid grid-cols-2 gap-2">
-            <div className="col-span-2">
-              <Label>Wait for</Label>
-              <Select
-                value={d.waitMode ?? "user"}
-                onValueChange={(v) => updateNode(node.id, { waitMode: v as "user" | "silence" })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="user">User to speak</SelectItem>
-                  <SelectItem value="silence">Silence / pause</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Timeout (ms)</Label>
-              <Input
-                type="number"
-                min={500}
-                value={d.waitTimeoutMs ?? 8000}
-                onChange={(e) =>
-                  updateNode(node.id, { waitTimeoutMs: parseInt(e.target.value) || 8000 })
-                }
-              />
-            </div>
-            <div>
-              <Label>Retries</Label>
-              <Input
-                type="number"
-                min={0}
-                max={5}
-                value={d.waitRetryCount ?? 1}
-                onChange={(e) =>
-                  updateNode(node.id, { waitRetryCount: parseInt(e.target.value) || 0 })
-                }
-              />
-            </div>
-            <p className="col-span-2 text-[11px] text-muted-foreground">
-              Connect a transition labeled <code>timeout</code> for the silence path.
-            </p>
-          </div>
-        )}
-
-        {d.kind === "subagent" && (
-          <div className="space-y-3">
-            <div>
-              <Label>Tools (comma-separated names)</Label>
-              <Input
-                value={d.subagentToolIds ?? ""}
-                onChange={(e) => updateNode(node.id, { subagentToolIds: e.target.value })}
-                placeholder="check_availability, book_appointment"
-              />
-            </div>
-            <div>
-              <Label>Knowledge bases</Label>
-              <Input
-                value={d.subagentKbIds ?? ""}
-                onChange={(e) => updateNode(node.id, { subagentKbIds: e.target.value })}
-                placeholder="kb ids or names"
-              />
-            </div>
-            <div>
-              <Label>Model override</Label>
-              <Input
-                value={d.subagentModel ?? ""}
-                onChange={(e) => updateNode(node.id, { subagentModel: e.target.value })}
-                placeholder="Leave blank to use agent model"
-              />
-            </div>
-            <p className="text-[11px] text-muted-foreground">
-              Exit using the transitions below (prompt or equation). This stays one conversation
-              node at runtime so existing flows keep working.
-            </p>
-          </div>
-        )}
-
-        {d.kind === "mcp" && (
-          <div className="space-y-3">
-            <div>
-              <Label>MCP server URL</Label>
-              <VariableInput
-                value={d.mcpServerUrl ?? ""}
-                onValueChange={(v) => updateNode(node.id, { mcpServerUrl: v })}
-                placeholder="https://mcp.example.com/sse"
-              />
-            </div>
-            <div>
-              <Label>Tool name</Label>
-              <Input
-                value={d.mcpToolName ?? ""}
-                onChange={(e) => updateNode(node.id, { mcpToolName: e.target.value })}
-                placeholder="tool name from the MCP server"
-              />
-            </div>
-            <div>
-              <Label>Headers (JSON)</Label>
-              <VariableTextarea
-                rows={2}
-                className="font-mono text-xs"
-                value={d.mcpHeaders ?? ""}
-                onValueChange={(v) => updateNode(node.id, { mcpHeaders: v })}
-                placeholder='{"Authorization": "Bearer {{token}}"}'
-              />
-              <p className="text-[11px] text-muted-foreground mt-1">
-                Use variable placeholders. Do not paste live API keys into the canvas.
-              </p>
-            </div>
-            <div>
-              <Label>Timeout (ms)</Label>
-              <Input
-                type="number"
-                min={1000}
-                value={d.mcpTimeoutMs ?? 10000}
-                onChange={(e) =>
-                  updateNode(node.id, { mcpTimeoutMs: parseInt(e.target.value) || 10000 })
-                }
-              />
-            </div>
-          </div>
-        )}
-
-        {d.kind === "sms" && (
-          <div>
-            <Label>Message</Label>
-            <VariableTextarea
-              rows={3}
-              value={d.smsMessage ?? ""}
-              onValueChange={(v) => updateNode(node.id, { smsMessage: v })}
-            />
-          </div>
-        )}
+        {/* Kinds that declare their fields in the node registry render them generically. */}
+        {schemaFields && <NodeSchemaFields nodeId={node.id} data={d} fields={schemaFields} />}
 
         {d.kind === "check_documents" && (
           <>
@@ -2001,8 +1818,31 @@ const OVERRIDES: Override[] = [
   },
 ];
 
+/**
+ * Node overrides for the engine this agent actually runs on. The LLM list used to be the Retell
+ * catalogue for every agent — Claude, Gemini, GPT-5 — so a WEBEE Native agent could pick a model its
+ * provider cannot serve and that node failed at runtime. Native agents now see exactly the models
+ * their selected provider offers.
+ */
+function useNodeOverrides(): Override[] {
+  const { settings } = useBuilderStore();
+  if (!isWebeeNativeMode(resolveDeploymentMode(settings))) return OVERRIDES;
+  const provider = resolveWebeeLlmProvider(settings as unknown as Record<string, unknown>);
+  const models = WEBEE_NATIVE_LLM_MODELS[provider] ?? [];
+  return OVERRIDES.map((o) =>
+    o.key === "model"
+      ? {
+          ...o,
+          defaultValue: settings.webeeSpeechModel ?? defaultModelForProvider(provider),
+          options: models.map((m) => ({ label: m.label, value: m.id })),
+        }
+      : o,
+  );
+}
+
 function GlobalNodeSettings({ nodeId, value }: { nodeId: string; value: Record<string, unknown> }) {
   const { updateNode, nodes } = useBuilderStore();
+  const overrides = useNodeOverrides();
   const node = nodes.find((n) => n.id === nodeId);
   const isGlobal = !!node?.data.isGlobalNode;
 
@@ -2068,7 +1908,7 @@ function GlobalNodeSettings({ nodeId, value }: { nodeId: string; value: Record<s
         </div>
 
         <div className="rounded-md border bg-background divide-y">
-          {OVERRIDES.map((o) => {
+          {overrides.map((o) => {
             const enabled = value[o.key] !== undefined;
             const current = value[o.key];
             return (
