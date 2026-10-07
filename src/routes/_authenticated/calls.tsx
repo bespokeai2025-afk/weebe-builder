@@ -1,6 +1,7 @@
 import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { checkCanSeeCallCost } from "@/lib/voice/call-cost.functions";
 import { Fragment, useState, useEffect, useMemo } from "react";
 import {
   ChevronDown,
@@ -135,10 +136,13 @@ function TestCallRow({
   c,
   selected,
   onToggleSelect,
+  canSeeCost,
 }: {
   c: ReturnType<typeof listTestCalls> extends Promise<infer T> ? T extends Array<infer U> ? U : never : never;
   selected: boolean;
   onToggleSelect: (id: string) => void;
+  /** Raw cost is our COGS. A workspace's own admin is a customer, not staff. */
+  canSeeCost: boolean;
 }) {
   // Detail opens in a sheet now; a table row cannot give a transcript and a
   // variables table enough room, and expanding one lost the row you were
@@ -182,9 +186,11 @@ function TestCallRow({
         <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">
           {channelLabel(c.from_number, c.call_type)}
         </td>
-        <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap tabular-nums">
-          {fmtCost(c.cost_cents)}
-        </td>
+        {canSeeCost && (
+          <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap tabular-nums">
+            {fmtCost(c.cost_cents)}
+          </td>
+        )}
         <td className="px-2 py-0.5 text-[11px] text-muted-foreground font-mono max-w-[200px] truncate" title={sessionId !== "—" ? sessionId : undefined}>
           {shortSessionId}
         </td>
@@ -270,6 +276,17 @@ function CallsPage() {
   const { vm } = useSearch({ from: "/_authenticated/calls" });
   const [tab, setTab] = useState<"live" | "test">("live");
   const [isWbah, setIsWbah] = useState(false);
+
+  // `cost_cents` is our cost of goods, not the customer's price. Every other cost surface
+  // (the Builder's Cost tab, the call detail sheet) is platform-admin only; this column was
+  // showing the same number to any workspace member. Same check as those, so one answer.
+  const canSeeCostFn = useServerFn(checkCanSeeCallCost);
+  const { data: costAccess } = useQuery({
+    queryKey: ["can-see-call-cost"],
+    queryFn: () => canSeeCostFn(),
+    throwOnError: false,
+  });
+  const canSeeCost = Boolean(costAccess?.canSee);
 
   useEffect(() => {
     let active = true;
@@ -1257,7 +1274,9 @@ function CallsPage() {
                       <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Agent</th>
                       <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Duration</th>
                       <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Channel Type</th>
-                      <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Cost</th>
+                      {canSeeCost && (
+                        <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Cost</th>
+                      )}
                       <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Session ID</th>
                       <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">End Reason</th>
                       <th className="px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Session Status</th>
@@ -1276,6 +1295,7 @@ function CallsPage() {
                         c={c}
                         selected={selectedTestIds.has(c.id)}
                         onToggleSelect={toggleTestSelect}
+                        canSeeCost={canSeeCost}
                       />
                     ))}
                   </tbody>
