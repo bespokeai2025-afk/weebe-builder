@@ -71,6 +71,7 @@ import {
   type CallVoiceProfile,
 } from "../call-voice-profile.shared";
 import { WEBEE_NATIVE_SPEECH_MODEL, resolveWebeeLlmProvider } from "../webee-native.shared";
+import { isAckOrRepeat, isRepeatOf, isStaleReply } from "../stale-reply.shared";
 import { looksLikePlaybackEcho } from "../graph/speech-guard.shared";
 import { resolveEndCallAfterSilenceMs, resolveMaxCallDurationMs } from "../lifecycle/call-safety-limits.shared";
 import { DEFAULT_REMINDER_TEXT, resolveReminderSettings } from "../lifecycle/reminder-settings.shared";
@@ -361,6 +362,11 @@ export class CascadeSession {
   /** Dedupe rapid identical caller utterances (echo / double endpoint). */
   private lastAcceptedUserText = "";
   private lastAcceptedUserAt = 0;
+  /** When the caller started the utterance now being collected (first burst, survives coalescing). */
+  private utteranceSpeechStartAt: number | null = null;
+  /** When the agent began / was first heard replying to the last accepted caller turn. */
+  private replySpeakAt: number | null = null;
+  private replyAudioStartAt: number | null = null;
   /** Rolling agent-line-end -> caller-response gaps, for `enableDynamicResponsiveness`. */
   private recentResponseGapsMs: number[] = [];
   /** The effective silence-timeout for the current wait, cached so a false-start (VAD `discarded`) can re-arm it. */
@@ -740,9 +746,16 @@ export class CascadeSession {
       ? (this.config.settings?.backchannelWords as unknown[]).map((w) => String(w ?? "").trim()).filter(Boolean)
       : [];
     const words = (configured.length ? configured : DEFAULT_BACKCHANNEL_WORDS).slice(0, 4);
-    const tts = this.createClipTts();
+    const createClipTts = this.createClipTts;
     const req = this.ttsVoiceRequest();
     this.backchannelPrep = (async () => {
+      let tts: import("../tts/types").TtsProvider;
+      try {
+        tts = createClipTts();
+      } catch (err) {
+        console.warn(`${this.log} backchannel disabled: ${(err as Error).message}`);
+        return;
+      }
       for (const word of words) {
         if (this.closed) return;
         try {
@@ -1152,6 +1165,7 @@ export class CascadeSession {
     return new GraphSession(runtime.vm, {
       speak: (source, options) => {
         this.awaitingCallerInput = false;
+        if (this.replySpeakAt === null) this.replySpeakAt = Date.now();
         const t = this.turn ?? this.activeSpeak?.turn ?? this.beginTurn(Date.now());
         if (!t.speakAt) {
           t.speakAt = Date.now();
@@ -1356,7 +1370,11 @@ export class CascadeSession {
   }
 
   /** Transcribe an endpointed utterance and hand it to whichever driver is active. */
-  private async processTurn(frames: Buffer[], endpointAt: number): Promise<void> {
+  private async processTurn(
+    frames: Buffer[],
+    endpointAt: number,
+    speechStartAt: number | null = null,
+  ): Promise<void> {
     // Retell-like: never drop the utterance before STT. Laptop-speaker echo is
     // empty/hallucinated text; a real "yes" must be allowed to interrupt.
     this.abortSpeculativeFlat("utterance_end");
@@ -1439,6 +1457,25 @@ export class CascadeSession {
     this.sttMissCount = 0;
     userText = applyKeywordBoost(userText, this.config.boostedKeywords);
 
+    // Said before the caller could have heard the agent's reply — and nothing but "yeah" / a repeat
+    // of their last answer. Routing it would answer a question they never heard (the node gets
+    // skipped), and treating it as barge-in would cut that question off. Drop it.
+    if (
+      isStaleReply({
+        speechStartAt,
+        lastAcceptedUserAt: this.lastAcceptedUserAt,
+        replySpeakAt: this.replySpeakAt,
+        replyAudioStartAt: this.replyAudioStartAt,
+      }) &&
+      isAckOrRepeat(userText, this.lastAcceptedUserText, this.englishTurnRules)
+    ) {
+      console.log(
+        `${this.log} ignoring "${userText.slice(0, 40)}" — said before the agent's reply was heard (repeat/acknowledgement)`,
+      );
+      this.callerBargeIn = false;
+      return;
+    }
+
     const agentStillPlaying = this.agentSpeaking || this.activeSpeak !== null;
     const recentlyPlayed =
       this.ttsStreamEndedAt > 0 &&
@@ -1491,7 +1528,7 @@ export class CascadeSession {
     const normalizedUser = userText.trim().toLowerCase();
     if (
       normalizedUser &&
-      normalizedUser === this.lastAcceptedUserText &&
+      isRepeatOf(normalizedUser, this.lastAcceptedUserText) &&
       Date.now() - this.lastAcceptedUserAt < 2500
     ) {
       console.log(`${this.log} turn ${t.id}: duplicate user utterance ignored`);
@@ -1500,6 +1537,8 @@ export class CascadeSession {
     this.lastAcceptedUserText = normalizedUser;
     this.recordResponseGap();
     this.lastAcceptedUserAt = Date.now();
+    this.replySpeakAt = null;
+    this.replyAudioStartAt = null;
 
     if (this.graph) {
       await this.graph.submitUserText(userText);
@@ -1568,6 +1607,9 @@ export class CascadeSession {
     const pumpAudio = async (audio: AsyncIterable<import("../tts/types").PcmChunk>) => {
       for await (const chunk of audio) {
         if (!this.responses.isActive(responseId) || t.ctrl.signal.aborted || this.closed) break;
+        if (this.replySpeakAt !== null && this.replyAudioStartAt === null) {
+          this.replyAudioStartAt = Date.now();
+        }
         if (!t.firstAudioAt) {
           t.firstAudioAt = Date.now();
           t.trace?.mark("tts_first_audio");
@@ -1824,7 +1866,7 @@ export class CascadeSession {
     const normalizedUser = userText.trim().toLowerCase();
     if (
       normalizedUser &&
-      normalizedUser === this.lastAcceptedUserText &&
+      isRepeatOf(normalizedUser, this.lastAcceptedUserText) &&
       Date.now() - this.lastAcceptedUserAt < 2500
     ) {
       console.log(`${this.log} turn ${t.id}: duplicate buffered utterance ignored`);
@@ -1833,6 +1875,8 @@ export class CascadeSession {
     this.lastAcceptedUserText = normalizedUser;
     this.recordResponseGap();
     this.lastAcceptedUserAt = Date.now();
+    this.replySpeakAt = null;
+    this.replyAudioStartAt = null;
     this.awaitingCallerInput = false;
 
     if (this.graph) {
@@ -1955,9 +1999,11 @@ export class CascadeSession {
       this.utteranceCoalesceTimer = null;
       const frames = this.pendingUtteranceFrames;
       this.pendingUtteranceFrames = [];
+      const speechStartAt = this.utteranceSpeechStartAt;
+      this.utteranceSpeechStartAt = null;
       if (frames.length === 0) return;
       this.turnPipeline = this.turnPipeline
-        .then(() => this.processTurn(frames, Date.now()))
+        .then(() => this.processTurn(frames, Date.now(), speechStartAt))
         .catch((err: Error) => {
           console.error(`${this.log} processTurn unhandled: ${err.message}`);
           this.endPlayback();
@@ -2106,6 +2152,7 @@ export class CascadeSession {
         this.callerSpeaking = true;
         this.speechFrames = 1;
         this.lastSpeechRms = event.rms;
+        if (this.utteranceSpeechStartAt === null) this.utteranceSpeechStartAt = Date.now();
         // New speech burst — allow one more LLM-assisted completion check for it, and make sure a
         // check still in flight from before this burst started can no longer act (they resuming
         // is itself evidence they weren't done, so that check's answer is moot either way).
@@ -2141,6 +2188,7 @@ export class CascadeSession {
         return;
       case "discarded":
         this.callerSpeaking = false;
+        if (this.pendingUtteranceFrames.length === 0) this.utteranceSpeechStartAt = null;
         this.speechFrames = 0;
         this.abortSpeculativeFlat("discarded");
         this.speculativeGraphKey = "";

@@ -1,10 +1,12 @@
 /**
  * Auto Dialer — shared, environment-free logic.
  *
- * Dials a list of real numbers one at a time. When a target answers, it rings
- * two real people's phones simultaneously and bridges the call to whichever
- * picks up first — Twilio's native `<Dial>` behaviour with multiple `<Number>`
- * nouns, so no custom conference orchestration is needed.
+ * Dials a list of real numbers and bridges each answered call to one of the session's people
+ * (its 1–2 route numbers). It keeps exactly as many calls live as there are people to take them:
+ * with two people, two leads can be on the phone at once, and a third is never dialled while
+ * both are busy. When an answered lead is the only live call, every free person rings and the
+ * first to pick up takes it (Twilio's native `<Dial>` with several `<Number>` nouns); otherwise
+ * it goes to one free person.
  */
 
 export type DialerSessionStatus = "draft" | "running" | "paused" | "completed" | "cancelled";
@@ -13,14 +15,69 @@ export type DialerTargetStatus =
   | "pending"
   | "dialing"
   | "ringing"
+  /** The lead answered; our person(s) are being rung. `bridged_number` lists who is reserved. */
+  | "connecting"
+  /** One of our people picked up; the conversation is live. `bridged_number` is that person. */
+  | "connected"
   | "bridged"
   | "no_answer"
   | "busy"
   | "failed"
   | "completed";
 
-/** A target's call is still in flight — the queue must not advance past it yet. */
-export const IN_FLIGHT_TARGET_STATUSES: DialerTargetStatus[] = ["dialing", "ringing"];
+/** A target's call is still live — it occupies capacity until it ends. */
+export const IN_FLIGHT_TARGET_STATUSES: DialerTargetStatus[] = [
+  "dialing",
+  "ringing",
+  "connecting",
+  "connected",
+];
+
+/** How many calls a session may have live at once: one per person who can take them. */
+export function dialerCapacity(routeNumbers: readonly string[] | null | undefined): number {
+  return Math.max(1, (routeNumbers ?? []).length);
+}
+
+/** People a live target is holding: the one on the call, or everyone being rung for it. */
+export function reservedRouteNumbers(target: { status: string; bridged_number?: string | null }): string[] {
+  if (target.status !== "connecting" && target.status !== "connected") return [];
+  return String(target.bridged_number ?? "")
+    .split(",")
+    .map((n) => n.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Capacity a live target uses. A call still ringing out to a lead needs one person ready for it;
+ * an answered call uses everyone it is ringing or talking to.
+ */
+export function capacityUsed(target: { status: string; bridged_number?: string | null }): number {
+  if (!(IN_FLIGHT_TARGET_STATUSES as string[]).includes(target.status)) return 0;
+  const reserved = reservedRouteNumbers(target).length;
+  return Math.max(1, reserved);
+}
+
+/**
+ * Who to ring for a lead that just answered.
+ *
+ * Returns the chosen route numbers with their index in the session's list (the per-person
+ * "answered" callback is keyed by index). Empty when nobody is free.
+ */
+export function chooseRouteNumbers(params: {
+  routeNumbers: readonly string[];
+  /** Other live targets of the session (not the one that just answered). */
+  otherLive: ReadonlyArray<{ status: string; bridged_number?: string | null }>;
+}): Array<{ number: string; index: number }> {
+  const busy = new Set(params.otherLive.flatMap(reservedRouteNumbers));
+  const free = params.routeNumbers
+    .map((number, index) => ({ number, index }))
+    .filter((r) => !busy.has(r.number));
+  if (free.length === 0) return [];
+  // Ring everyone free only when that cannot starve another call: nothing else is live. Holding
+  // both people stops new dials until one of them picks up (which frees the other).
+  if (params.otherLive.length === 0) return free;
+  return [free[0]!];
+}
 
 /** Terminal states — the target's call has finished, one way or another. */
 export const TERMINAL_TARGET_STATUSES: DialerTargetStatus[] = [
@@ -242,6 +299,8 @@ export function statusLabel(status: DialerTargetStatus): string {
     pending: "Waiting",
     dialing: "Dialling…",
     ringing: "Ringing…",
+    connecting: "Ringing your team…",
+    connected: "On call",
     bridged: "Connected",
     no_answer: "No answer",
     busy: "Busy",

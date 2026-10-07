@@ -13,6 +13,8 @@ import {
   ArrowLeft,
   Users,
   Upload,
+  UserPlus,
+  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,6 +30,7 @@ import {
   deleteDialerSession,
   listWorkspacePhoneNumbers,
   getDialerQuickCallDefaults,
+  addDialerTargetToLead,
 } from "@/lib/telephony/auto-dialer.functions";
 import { parseDialerTargetList, dedupeDialerTargets, statusLabel } from "@/lib/telephony/auto-dialer.shared";
 import {
@@ -48,6 +51,8 @@ const STATUS_COLORS: Record<string, string> = {
   pending: "bg-muted text-muted-foreground",
   dialing: "bg-amber-500/15 text-amber-400",
   ringing: "bg-amber-500/15 text-amber-400",
+  connecting: "bg-sky-500/15 text-sky-400",
+  connected: "bg-emerald-500/25 text-emerald-300",
   bridged: "bg-emerald-500/15 text-emerald-400",
   no_answer: "bg-muted text-muted-foreground",
   busy: "bg-muted text-muted-foreground",
@@ -436,6 +441,23 @@ function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack: () =>
   const startFn = useServerFn(startDialerSession);
   const pauseFn = useServerFn(pauseDialerSession);
   const cancelFn = useServerFn(cancelDialerSession);
+  const addToLeadFn = useServerFn(addDialerTargetToLead);
+  const [addingLead, setAddingLead] = useState<string | null>(null);
+  const [addedLeads, setAddedLeads] = useState<Set<string>>(new Set());
+
+  async function addToLeads(targetId: string) {
+    setAddingLead(targetId);
+    try {
+      const result = await addToLeadFn({ data: { targetId } });
+      setAddedLeads((prev) => new Set(prev).add(targetId));
+      if (result.alreadyLead) toast.message("Already in Leads", { description: "This number is already a lead." });
+      else toast.success("Added to Leads");
+    } catch (e: any) {
+      toast.error("Could not add to Leads", { description: e?.message });
+    } finally {
+      setAddingLead(null);
+    }
+  }
   const queryClient = useQueryClient();
 
   const { data, isFetching, refetch } = useQuery({
@@ -496,6 +518,8 @@ function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack: () =>
             </div>
             <p className="mt-0.5 text-sm text-muted-foreground">
               Calling from {session.from_number} · routing to {(session.route_numbers ?? []).join(" · ")}
+              {" · "}up to {Math.max(1, (session.route_numbers ?? []).length)} call
+              {(session.route_numbers ?? []).length > 1 ? "s" : ""} at once
             </p>
           </div>
         </div>
@@ -524,8 +548,12 @@ function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack: () =>
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-5 gap-4">
         {[
+          {
+            label: "On call now",
+            value: targets.filter((t: any) => t.status === "connected").length,
+          },
           { label: "Total", value: stats.total ?? 0 },
           { label: "Dialled", value: stats.dialed ?? 0 },
           { label: "Connected", value: stats.bridged ?? 0 },
@@ -548,6 +576,7 @@ function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack: () =>
               <th className="px-4 py-2.5 text-left font-medium">Status</th>
               <th className="px-4 py-2.5 text-left font-medium">Answered by</th>
               <th className="px-4 py-2.5 text-left font-medium">Duration</th>
+              <th className="px-4 py-2.5 text-right font-medium">Leads</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -572,10 +601,29 @@ function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack: () =>
                   )}
                 </td>
                 <td className="px-4 py-2 font-mono text-xs text-muted-foreground">
-                  {t.bridged_number || "—"}
+                  {t.status === "connecting" ? "Ringing…" : t.bridged_number || "—"}
                 </td>
                 <td className="px-4 py-2 text-muted-foreground">
                   {t.duration_secs ? `${t.duration_secs}s` : "—"}
+                </td>
+                <td className="px-4 py-2 text-right">
+                  {t.in_leads || addedLeads.has(t.id) ? (
+                    <span className="inline-flex items-center gap-1 text-xs text-emerald-400">
+                      <Check className="h-3.5 w-3.5" />
+                      In Leads
+                    </span>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      disabled={addingLead === t.id}
+                      onClick={() => addToLeads(t.id)}
+                    >
+                      <UserPlus className="h-3.5 w-3.5" />
+                      {addingLead === t.id ? "Adding…" : "Add to Leads"}
+                    </Button>
+                  )}
                 </td>
               </tr>
             ))}

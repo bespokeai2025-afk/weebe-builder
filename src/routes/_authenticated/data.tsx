@@ -813,6 +813,7 @@ function DynamicDataTable({
   onReset,
   onDelete,
   onAddToLead,
+  addedLeadIds,
   onGenerate,
   canGenerate,
 }: {
@@ -825,6 +826,8 @@ function DynamicDataTable({
   onReset: (id: string) => void;
   onDelete: (id: string) => void;
   onAddToLead: (id: string) => void;
+  /** Records sent to Leads this session — their button shows "In Leads". */
+  addedLeadIds?: Set<string>;
   onGenerate: (record: any) => void;
   canGenerate: boolean;
 }) {
@@ -921,13 +924,22 @@ function DynamicDataTable({
                   >
                     {(r.call_status ?? "").replace(/_/g, " ") || "—"}
                   </span>
-                  <button
-                    title="Add to Leads"
-                    onClick={() => onAddToLead(r.id)}
-                    className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-primary group-hover:opacity-100 focus:opacity-100"
-                  >
-                    <UserPlus className="h-3 w-3" />
-                  </button>
+                  {/* Always visible: it used to appear only on hover, so most people never found it. */}
+                  {addedLeadIds?.has(r.id) ? (
+                    <span className="inline-flex items-center gap-0.5 rounded px-1 text-[10px] text-emerald-400">
+                      <UserPlus className="h-3 w-3" />
+                      In Leads
+                    </span>
+                  ) : (
+                    <button
+                      title="Send this record to Leads"
+                      onClick={() => onAddToLead(r.id)}
+                      className="inline-flex items-center gap-0.5 rounded border border-primary/25 px-1 py-0.5 text-[10px] font-medium text-primary/80 transition-colors hover:border-primary/50 hover:bg-primary/10 hover:text-primary"
+                    >
+                      <UserPlus className="h-3 w-3" />
+                      Leads
+                    </button>
+                  )}
                   <button
                     title="Reset — mark as needs to call again"
                     onClick={() => onReset(r.id)}
@@ -1070,6 +1082,7 @@ function DataPage() {
   const resetFn = useServerFn(resetDataRecord);
   const deleteRecordsFn = useServerFn(deleteDataRecords);
   const addToLeadFn = useServerFn(addDataRecordToLead);
+  const [addedLeadIds, setAddedLeadIds] = useState<Set<string>>(new Set());
   const getScheduleFn = useServerFn(getCallSchedule);
   const setScheduleFn = useServerFn(setCallSchedule);
   const listAgentsFn = useServerFn(listLiveAgents);
@@ -1465,6 +1478,7 @@ function DataPage() {
   async function handleAddToLead(recordId: string) {
     try {
       const result = await addToLeadFn({ data: { recordId } });
+      setAddedLeadIds((prev) => new Set(prev).add(recordId));
       if (result.alreadyLead) {
         toast.message("Already a lead", {
           description: "This phone number is already in Leads.",
@@ -2471,7 +2485,7 @@ function DataPage() {
                       size="sm"
                       className="h-7 text-xs"
                       onClick={() => setAutoDialOpen(true)}
-                      title="Dials each record and bridges to 2 real people — not the AI agent"
+                      title="Dials each record and connects answered calls to your people (one call per person at a time) — not the AI agent"
                     >
                       <PhoneForwarded className="mr-1 h-3.5 w-3.5" />
                       Auto Dial
@@ -2573,6 +2587,7 @@ function DataPage() {
                   onReset={handleReset}
                   onDelete={(id: string) => handleDeleteRecords([id])}
                   onAddToLead={handleAddToLead}
+                  addedLeadIds={addedLeadIds}
                   canGenerate={canUseAssistant}
                   onGenerate={(r: any) =>
                     setAssistantTarget({
@@ -4282,14 +4297,15 @@ function AutoDialSetupDialog({
         <DialogHeader>
           <DialogTitle>Auto Dial</DialogTitle>
           <DialogDescription>
-            Dials the {recordCount} selected record{recordCount !== 1 ? "s" : ""} one at a time.
-            When one answers, the call connects to the number below — add a second to ring both at
-            once and connect whichever picks up first.
+            Dials the {recordCount} selected record{recordCount !== 1 ? "s" : ""} and connects each
+            answered call to one of your people. Add a second person and two calls can run at once —
+            one each. A new number is only dialled when someone is free, so nobody is ever left
+            waiting on the line.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="autodial-route1">Connect to</Label>
+            <Label htmlFor="autodial-route1">Person 1</Label>
             <Input
               id="autodial-route1"
               placeholder="+971585248237"
@@ -4298,7 +4314,7 @@ function AutoDialSetupDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="autodial-route2">Also ring (optional)</Label>
+            <Label htmlFor="autodial-route2">Person 2 (optional)</Label>
             <Input
               id="autodial-route2"
               placeholder="+971501234567"

@@ -345,7 +345,13 @@ class FishStreamingSttSession implements SttSession {
     if (commit.coveredBytes < this.latest.coveredBytes) return;
     const text = applyKeywordBoost(cleanFishTranscript(transcript), this.options.keywords);
     this.latest = { coveredBytes: commit.coveredBytes, text };
-    if (text) this.options.onPartial?.(text);
+    if (!text) return;
+    try {
+      this.options.onPartial?.(text);
+    } catch (err) {
+      // Runs inside the socket's message handler — a throw here would crash the process.
+      console.error("[fish-stt] partial handler failed:", (err as Error).message);
+    }
   }
 
   private isSpeech(frame: Buffer): boolean {

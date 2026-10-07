@@ -9,6 +9,7 @@
  * Best-effort: nothing in the dialer's queue-advancement depends on this
  * route succeeding.
  */
+import { dialNextDialerTarget } from "@/lib/telephony/auto-dialer-engine.server";
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
@@ -41,8 +42,16 @@ export const Route = createFileRoute("/api/public/telephony/dialer-leg-answered/
         if (answeredNumber) {
           await (supabaseAdmin as any)
             .from("dialer_targets")
-            .update({ bridged_number: answeredNumber, updated_at: new Date().toISOString() })
-            .eq("id", targetId);
+            .update({
+              bridged_number: answeredNumber,
+              status: "connected",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", targetId)
+            .eq("status", "connecting");
+          // If every free person was rung for this lead, the ones who didn't pick up are free
+          // again — let the next lead be dialled for them.
+          await dialNextDialerTarget(supabaseAdmin, target.session_id as string);
         }
 
         return jsonOk({ ok: true });

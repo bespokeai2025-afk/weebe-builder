@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { retellFetch } from "@/lib/providers/retell/client.server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { createLeadFromDataRecord } from "./lead-from-record.server";
 
 const RecordIdsSchema = z.object({
   recordIds: z.array(z.string().uuid()).min(1).max(2000),
@@ -217,10 +218,9 @@ export const addDataRecordToLead = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input) => z.object({ recordId: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
-    const { supabase } = context;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No active workspace");
-    const sb = supabase as any;
+    const sb = context.supabase as any;
 
     const { data: record, error: readErr } = await sb
       .from("data_records")
@@ -231,50 +231,7 @@ export const addDataRecordToLead = createServerFn({ method: "POST" })
     if (readErr) throw new Error(readErr.message);
     if (!record) throw new Error("Record not found");
 
-    const phone = String(record.mobile_number ?? "").trim();
-    if (!phone) throw new Error("This record has no phone number to lead with");
-
-    const { data: existing, error: dupErr } = await sb
-      .from("leads")
-      .select("id")
-      .eq("workspace_id", workspaceId)
-      .eq("phone", phone)
-      .maybeSingle();
-    if (dupErr) throw new Error(dupErr.message);
-    if (existing) return { alreadyLead: true, leadId: existing.id as string };
-
-    const addressParts = [record.address_line1, record.address_line2, record.city, record.state, record.postal_code]
-      .map((v) => (v ? String(v).trim() : ""))
-      .filter(Boolean);
-
-    const meta: Record<string, unknown> = { ...(record.meta ?? {}) };
-    for (const [key, value] of Object.entries(record)) {
-      if (key === "meta" || value == null || value === "") continue;
-      if (!(key in meta)) meta[key] = value;
-    }
-    meta.added_from_data_record_id = record.id;
-
-    const { data: inserted, error: insertErr } = await sb
-      .from("leads")
-      .insert({
-        workspace_id: workspaceId,
-        full_name: record.name || null,
-        phone,
-        email: record.email || null,
-        company_name: record.client_name || null,
-        business_address: addressParts.length ? addressParts.join(", ") : null,
-        state_name: record.state || null,
-        business_type: record.title || null,
-        source: "import",
-        source_detail: "data_records",
-        status: "need_to_call",
-        meta,
-      })
-      .select("id")
-      .single();
-    if (insertErr) throw new Error(insertErr.message);
-
-    return { alreadyLead: false, leadId: inserted.id as string };
+    return createLeadFromDataRecord(sb, workspaceId, record);
   });
 
 export const deleteDataRecords = createServerFn({ method: "POST" })
