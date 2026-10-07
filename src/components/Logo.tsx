@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import logoWebeeDark from "@/assets/webee-logo-dark.png";
-import logoDark from "@/assets/logo-dark.jpg";
-import logoLight from "@/assets/logo-light.png";
+import logoLight from "@/assets/logo-light.webp";
 import { cn } from "@/lib/utils";
 
 export function Logo({ className }: { className?: string }) {

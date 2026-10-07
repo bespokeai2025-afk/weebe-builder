@@ -86,6 +86,37 @@ function GlobalStyles() {
       .card-hover:hover { transform: translateY(-4px); box-shadow: 0 24px 60px rgba(45,140,255,0.16); }
       .feat-card-hover { transition: transform 0.2s ease, border-color 0.2s ease; }
       .feat-card-hover:hover { transform: translateY(-3px); }
+
+      /* Two-column split sections. These used to carry BOTH an inline
+         display:grid AND className="flex flex-col lg:grid". An inline style
+         always beats a class, so the Tailwind half was dead and the layout
+         stayed locked at two equal columns on every viewport. The grid now
+         lives here, where a media query can actually reach it. */
+      .mk-split {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 72px;
+        align-items: center;
+      }
+      @media (max-width: 1023px) {
+        .mk-split { grid-template-columns: 1fr; gap: 40px; }
+        /* VoiceSection puts the visual first in the DOM so it sits left on
+           desktop. Stacked, the copy must lead — this is what the dead
+           flex-col-reverse was reaching for. */
+        .mk-split--reverse > :first-child { order: 2; }
+      }
+
+      .mk-footer-grid {
+        display: grid;
+        grid-template-columns: 1.5fr repeat(4, 1fr);
+        gap: 40px;
+      }
+      @media (max-width: 900px) {
+        .mk-footer-grid { grid-template-columns: repeat(2, 1fr); gap: 32px; }
+      }
+      @media (max-width: 520px) {
+        .mk-footer-grid { grid-template-columns: 1fr; gap: 28px; }
+      }
     `}</style>
   );
 }
@@ -593,7 +624,7 @@ function BuilderSection() {
 
   return (
     <section id="builder" style={{ background: "linear-gradient(180deg, #07142a 0%, #050e1e 100%)", padding: "100px 24px" }}>
-      <div style={{ maxWidth: 1100, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 72, alignItems: "center" }} className="flex flex-col lg:grid">
+      <div style={{ maxWidth: 1100, margin: "0 auto" }} className="mk-split">
         <div className="section-reveal" ref={ref}>
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#F5B800", opacity: 0.8, marginBottom: 14 }}>WEBEE Builder</div>
           <h2 style={{ fontSize: "clamp(26px, 3.5vw, 40px)", fontWeight: 900, color: "#fff", letterSpacing: "-0.035em", lineHeight: 1.15, marginBottom: 18, WebkitFontSmoothing: "antialiased" }}>
@@ -682,7 +713,7 @@ function VoiceSection() {
 
   return (
     <section id="voice" style={{ background: "#050e1e", padding: "100px 24px" }}>
-      <div style={{ maxWidth: 1100, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 72, alignItems: "center" }} className="flex flex-col-reverse lg:grid">
+      <div style={{ maxWidth: 1100, margin: "0 auto" }} className="mk-split mk-split--reverse">
         <div>
           <div className="glass" style={{ borderRadius: 20, overflow: "hidden" }}>
             <div style={{ padding: "12px 16px", borderBottom: "1px solid rgba(255,255,255,0.06)", background: "rgba(5,14,30,0.8)", display: "flex", alignItems: "center", gap: 10 }}>
@@ -954,7 +985,7 @@ function Footer() {
   return (
     <footer style={{ background: "#050e1e", borderTop: "1px solid rgba(255,255,255,0.05)", padding: "60px 24px 32px" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1.5fr repeat(4, 1fr)", gap: 40, marginBottom: 48 }} className="flex flex-wrap gap-8">
+        <div style={{ marginBottom: 48 }} className="mk-footer-grid">
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 14 }}>
               <img src={logoWebee} alt="WEBEE" style={{ height: 30, width: 30, borderRadius: 8, objectFit: "cover" }} />

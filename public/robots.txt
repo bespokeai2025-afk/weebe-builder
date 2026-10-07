@@ -1,0 +1,53 @@
+# WEBEE — https://www.webespokeai.com
+User-agent: *
+Allow: /
+
+# Authenticated application surfaces. These render only a sign-in check to an
+# anonymous crawler, so they carry no index value and just burn crawl budget.
+Disallow: /accountsmind
+Disallow: /admin
+Disallow: /agent-health
+Disallow: /analytics
+Disallow: /billing
+Disallow: /builder
+Disallow: /calendar
+Disallow: /calls
+Disallow: /campaign-leads
+Disallow: /campaigns
+Disallow: /contacts
+Disallow: /dashboard
+Disallow: /data
+Disallow: /enterprise
+Disallow: /follow-up
+Disallow: /growthmind
+Disallow: /hexmail
+Disallow: /hivemind
+Disallow: /knowledge-centre
+Disallow: /leads
+Disallow: /my-agents
+Disallow: /notifications
+Disallow: /phone-numbers
+Disallow: /pipeline
+Disallow: /qualified
+Disallow: /receptionist
+Disallow: /reseller
+Disallow: /systemmind
+Disallow: /telephony-calls
+Disallow: /telephony-settings
+Disallow: /template-studio
+Disallow: /templates
+Disallow: /whatsapp
+Disallow: /workflow-engine
+
+# Token-bearing and transactional URLs. Never index these.
+Disallow: /invite/
+Disallow: /upload/
+Disallow: /unsubscribe
+Disallow: /auth/callback
+Disallow: /reset-password
+Disallow: /forgot-password
+
+# Internal API.
+Disallow: /api/
+
+Sitemap: https://www.webespokeai.com/sitemap.xml

@@ -205,11 +205,21 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "icon", type: "image/x-icon", href: "/favicon.ico?v=2" },
       { rel: "icon", type: "image/png", sizes: "512x512", href: "/favicon.png?v=2" },
       { rel: "apple-touch-icon", sizes: "180x180", href: "/apple-touch-icon.png?v=2" },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+      // Inter is self-hosted from /public/fonts — see the @font-face block at the
+      // top of styles.css. This used to be two preconnects plus a Google Fonts
+      // stylesheet, while styles.css separately @import-ed the same family from
+      // rsms.me: two CDNs, two handshakes, and a render-blocking request chain for
+      // a font we can serve ourselves. Preloading the latin subset starts the fetch
+      // alongside the stylesheet rather than after it. latin-ext is deliberately
+      // NOT preloaded — unicode-range means most pages never need it. crossOrigin
+      // is required on font preloads even same-origin, or the preloaded response
+      // is discarded and fetched a second time.
       {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap",
+        rel: "preload",
+        as: "font",
+        type: "font/woff2",
+        href: "/fonts/inter-latin.woff2",
+        crossOrigin: "anonymous",
       },
       {
         rel: "stylesheet",

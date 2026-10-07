@@ -109,6 +109,59 @@ export default defineConfig({
         ],
       },
     },
+    // Chunk grouping for the CLIENT bundle only.
+    //
+    // Route components are ALREADY code-split — @tanstack/start-plugin-core pushes
+    // tanStackRouterCodeSplitter unconditionally and hardcodes autoCodeSplitting:true,
+    // so the ~350 static imports in routeTree.gen.ts are reference imports, not
+    // eagerly-loaded components. The problem was never splitting, it was GROUPING:
+    //   - @supabase/* landed in the shared entry, so every visitor to the marketing
+    //     homepage downloaded and executed GoTrue before seeing a headline.
+    //   - lucide-react emitted one chunk PER ICON: 298 of 569 chunks were under 3 KB,
+    //     i.e. hundreds of HTTP requests to draw a few dozen glyphs.
+    //
+    // Scoped under environments.client so the SSR build is untouched (it has its own
+    // externals and must not be regrouped). Neither @lovable.dev/vite-tanstack-config
+    // nor start-plugin-core sets environments/rollupOptions/manualChunks, so this key
+    // is unclaimed — re-verify that before upgrading either package.
+    environments: {
+      client: {
+        build: {
+          rollupOptions: {
+            output: {
+              manualChunks(id: string) {
+                const n = id.split("\\").join("/");
+                // NEVER regroup application code. Pulling route modules into a
+                // shared chunk would defeat the per-route splitting above and put
+                // the 1 MB builder back onto the critical path.
+                if (!n.includes("/node_modules/")) return;
+
+                // The whole Supabase client surface. GoTrue/realtime/postgrest/
+                // storage/functions ship as separate packages, so match the scope
+                // and the standalone names.
+                if (
+                  /\/node_modules\/@supabase\//.test(n) ||
+                  /\/node_modules\/(gotrue-js|realtime-js|postgrest-js|storage-js|functions-js)\//.test(n)
+                ) {
+                  return "vendor-supabase";
+                }
+
+                // Collapse the per-icon chunks into one cacheable file.
+                if (/\/node_modules\/lucide-react\//.test(n)) return "vendor-icons";
+
+                // Exact package-root matches only — a loose /react/ test would also
+                // swallow react-hook-form, react-markdown, @react-email, etc.
+                if (/\/node_modules\/(react|react-dom|scheduler)\//.test(n)) {
+                  return "vendor-react";
+                }
+
+                return;
+              },
+            },
+          },
+        },
+      },
+    },
     plugins: [voiceGatewayPlugin(), campaignSchedulerPlugin(), videoJobPollerPlugin(), providerHealthSweepPlugin(), adsSyncPlugin(), trendScoutPlugin(), accountsMindSchedulerPlugin()],
     resolve: {
       alias: {
