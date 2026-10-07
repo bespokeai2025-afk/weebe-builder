@@ -427,7 +427,10 @@ export function AppSidebar() {
                 isPackageLocked(item);
               return (
                 <NavItemButton
-                  key={item.url}
+                  // Title too, not just url: two Administration entries legitimately point at
+                  // the same page, and a url-only key made React treat them as one item and
+                  // warn about duplicate keys on every render.
+                  key={`${item.title}:${item.url}`}
                   item={item}
                   active={isActive(item.url)}
                   buttonClass={navButtonClasses(isActive(item.url))}
@@ -540,7 +543,7 @@ export function AppSidebar() {
                   ].map((item) => {
                     const active = isActive(item.url);
                     return (
-                      <SidebarMenuItem key={item.url} className="group-data-[collapsible=icon]:w-auto">
+                      <SidebarMenuItem key={`${item.title}:${item.url}`} className="group-data-[collapsible=icon]:w-auto">
                         <SidebarMenuButton asChild tooltip={item.title} className={navButtonClasses(active)}>
                           <Link to={item.url} className="flex items-center gap-3">
                             <item.icon
