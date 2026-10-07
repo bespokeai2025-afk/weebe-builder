@@ -1570,6 +1570,8 @@ export const previewWatiTemplateSend = createServerFn({ method: "POST" })
         mapping: z.record(z.string(), z.string()).nullable().optional(),
         leadIds: z.array(z.string().uuid()).max(500).optional(),
         uploadType: z.string().trim().max(60).nullable().optional(),
+        /** Preview these recipients (the contacts ticked in the composer). */
+        phones: z.array(z.string().trim().min(5).max(40)).max(50).optional(),
         limit: z.number().int().min(1).max(5).default(3),
       })
       .parse(input),
@@ -1594,18 +1596,29 @@ export const previewWatiTemplateSend = createServerFn({ method: "POST" })
     const slots = extractWatiTemplateParamSlots(tpl);
     const bodyText = watiTemplateBodyOriginalText(tpl) || (tpl.body_preview as string | null) || "";
 
-    // Same audience the campaign will use, so the preview is not a different set.
-    let q = sb
-      .from("leads")
-      .select("id, full_name, phone, email, company_name, notes, meta, source")
-      .eq("workspace_id", workspaceId);
-    if (data.leadIds?.length) q = q.in("id", data.leadIds);
-    const { data: leadRows, error } = await q
-      .order("created_at", { ascending: false })
-      .limit(Math.max(data.limit * 20, 100));
-    if (error) throw new Error(error.message);
-
+    // Same audience the campaign will use, so the preview is not a different set. The upload is
+    // filtered in the query: it used to fetch the newest 100 leads and filter afterwards, so any
+    // upload older than the latest 100 contacts previewed as empty.
     const want = (data.uploadType ?? "").trim();
+    const fetchLeads = async (byPhones: boolean) => {
+      let q = sb
+        .from("leads")
+        .select("id, full_name, phone, email, company_name, notes, meta, source")
+        .eq("workspace_id", workspaceId);
+      if (data.leadIds?.length) q = q.in("id", data.leadIds);
+      else if (byPhones && data.phones?.length) q = q.in("phone", data.phones);
+      if (want) q = q.eq("meta->>upload_type", want);
+      return q.order("created_at", { ascending: false }).limit(Math.max(data.limit * 20, 100));
+    };
+    let { data: leadRows, error } = await fetchLeads(true);
+    if (error) throw new Error(error.message);
+    // Ticked contacts not yet turned into leads (or stored with a different phone format):
+    // preview from the upload instead of showing nothing.
+    if ((leadRows ?? []).length === 0 && data.phones?.length) {
+      ({ data: leadRows, error } = await fetchLeads(false));
+      if (error) throw new Error(error.message);
+    }
+
     const scoped = (leadRows ?? []).filter((r: { meta?: Record<string, unknown> | null }) =>
       want ? String((r.meta ?? {}).upload_type ?? "").trim() === want : true,
     );
