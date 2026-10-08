@@ -178,13 +178,18 @@ const AI_EXECUTIVE_ITEMS: NavItem[] = [
 ];
 const ACCOUNTSMIND_ITEM: NavItem = { title: "AccountsMind", url: "/admin/accounts", icon: Building2 };
 
+// Buzzchat and Data are gated because they are sold: "WhatsApp Centre" (+£99/mo)
+// and "Lead Generation" (+£250/mo) in MODULE_CATALOG. a0bfac39 re-added both links
+// after the nav rebuild dropped them, but did not carry the moduleId across, which
+// silently un-gated £349/mo of paid modules for every workspace. Keep these ids in
+// step with MODULE_CATALOG in src/lib/modules/modules.functions.ts.
 const WORKSPACE_NAV_ITEMS: NavItem[] = [
   { title: "Contacts",  url: "/contacts",         icon: BookUser },
   { title: "Pipeline",  url: "/pipeline",         icon: Kanban },
   { title: "Calls",     url: "/calls",            icon: PhoneCall },
-  { title: "Buzzchat",  url: "/whatsapp",         icon: MessageSquare },
+  { title: "Buzzchat",  url: "/whatsapp",         icon: MessageSquare, moduleId: "whatsapp" },
   { title: "Calendar",  url: "/calendar",         icon: CalendarDays },
-  { title: "Data",      url: "/data",             icon: Database },
+  { title: "Data",      url: "/data",             icon: Database,      moduleId: "lead_generation" },
   { title: "Knowledge", url: "/knowledge-centre", icon: BookOpen },
   { title: "Webforms",  url: "/leads/webforms",   icon: FormInput },
   { title: "Workflows", url: "/workflow-engine",  icon: GitBranch },
