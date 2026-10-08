@@ -11,7 +11,11 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { resolveTwilioCredentialsForWorkspace } from "@/lib/telephony/twilio-credentials.server";
 import { resolvePublicHost } from "@/lib/telephony/twilio-env";
-import { buildSimulRingTwiml } from "@/lib/telephony/auto-dialer.shared";
+import {
+  IN_FLIGHT_TARGET_STATUSES,
+  buildSimulRingTwiml,
+  chooseRouteNumbers,
+} from "@/lib/telephony/auto-dialer.shared";
 
 function verifyTwilioSignature(
   authToken: string,
@@ -35,6 +39,10 @@ function twimlResponse(xml: string) {
 
 const HANGUP_TWIML =
   `<?xml version="1.0" encoding="UTF-8"?><Response><Say>Sorry, this call could not be connected.</Say><Hangup/></Response>`;
+
+/** Every person is already on (or being rung for) another call — should not happen, see engine. */
+const ALL_BUSY_TWIML =
+  `<?xml version="1.0" encoding="UTF-8"?><Response><Say>Sorry, everyone is on another call. We will call you back shortly.</Say><Hangup/></Response>`;
 
 export const Route = createFileRoute("/api/public/telephony/dialer-connect/$targetId")({
   server: {
@@ -79,18 +87,44 @@ export const Route = createFileRoute("/api/public/telephony/dialer-connect/$targ
         const routeNumbers = (session.route_numbers ?? []) as string[];
         if (routeNumbers.length < 1 || routeNumbers.length > 2) return twimlResponse(HANGUP_TWIML);
 
+        // Ring only people who are free: never someone already on, or being rung for, another
+        // lead of this run.
+        const { data: others } = await (supabaseAdmin as any)
+          .from("dialer_targets")
+          .select("id, status, bridged_number")
+          .eq("session_id", target.session_id as string)
+          .neq("id", targetId)
+          .in("status", IN_FLIGHT_TARGET_STATUSES);
+        const chosen = chooseRouteNumbers({ routeNumbers, otherLive: others ?? [] });
+        if (chosen.length === 0) {
+          await (supabaseAdmin as any)
+            .from("dialer_targets")
+            .update({
+              status: "failed",
+              error_message: "Answered while every person was on another call",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", targetId);
+          return twimlResponse(ALL_BUSY_TWIML);
+        }
+
         await (supabaseAdmin as any)
           .from("dialer_targets")
-          .update({ status: "ringing", updated_at: new Date().toISOString() })
+          .update({
+            status: "connecting",
+            bridged_number: chosen.map((c) => c.number).join(","),
+            updated_at: new Date().toISOString(),
+          })
           .eq("id", targetId);
 
         const publicHost = resolvePublicHost();
         const twiml = buildSimulRingTwiml({
-          routeNumbers,
+          routeNumbers: chosen.map((c) => c.number),
           timeoutSecs: (session.ring_timeout_secs as number) ?? 20,
           actionUrl: `${publicHost}/api/public/telephony/dialer-result/${targetId}`,
-          legAnsweredUrls: routeNumbers.map(
-            (_, i) => `${publicHost}/api/public/telephony/dialer-leg-answered/${targetId}/${i}`,
+          // Keyed by the person's position in the session, so "answered by" stays right.
+          legAnsweredUrls: chosen.map(
+            (c) => `${publicHost}/api/public/telephony/dialer-leg-answered/${targetId}/${c.index}`,
           ),
           callerId: (session.from_number as string) ?? "",
         });

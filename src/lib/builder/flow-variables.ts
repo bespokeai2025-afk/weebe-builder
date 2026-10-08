@@ -294,18 +294,64 @@ export interface TestCallField {
   group: "caller" | "booking" | "flow" | "system";
 }
 
+/** Where the agent operates — unset values keep the builder's original UK defaults. */
+export interface TestCallLocale {
+  /** BCP-47 tag for date/time wording (the agent's language). */
+  locale?: string;
+  /** IANA timezone. */
+  timezone?: string;
+  /** Calling code, digits only. */
+  phoneCountryCode?: string;
+}
+
+function safeLocale(locale?: string): string {
+  const tag = String(locale ?? "").trim();
+  if (!tag || tag === "multi") return "en-GB";
+  try {
+    new Intl.DateTimeFormat(tag);
+    return tag;
+  } catch {
+    return "en-GB";
+  }
+}
+
+function safeTimezone(tz?: string): string | undefined {
+  const name = String(tz ?? "").trim();
+  if (!name) return undefined;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: name });
+    return name;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Obviously-fictional numbers in ranges reserved for drama/testing where one is known. */
+function sampleCallerNumber(code?: string): string {
+  const cc = String(code ?? "").replace(/\D/g, "") || "44";
+  if (cc === "44") return "+447700900123";
+  if (cc === "1") return "+12025550123";
+  return `+${cc}123456789`;
+}
+
 /** Clock / identity values the runtime interpolates if the tester leaves them blank. */
-export function suggestTestCallValue(name: string, now: Date = new Date()): string {
+export function suggestTestCallValue(
+  name: string,
+  now: Date = new Date(),
+  where: TestCallLocale = {},
+): string {
+  const locale = safeLocale(where.locale);
+  const timeZone = safeTimezone(where.timezone);
   if (name === "current_date") {
-    return now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    return now.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone });
   }
   if (name === "current_time") {
-    return now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+    return now.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", timeZone });
   }
   if (/^current_time_/i.test(name)) {
     const tz = name.replace(/^current_time_/, "").replace(/_/g, "/");
     try {
-      return now.toLocaleString("en-GB", {
+      return now.toLocaleString(locale, {
         timeZone: tz,
         weekday: "long",
         day: "numeric",
@@ -315,7 +361,7 @@ export function suggestTestCallValue(name: string, now: Date = new Date()): stri
         minute: "2-digit",
       });
     } catch {
-      return now.toLocaleString("en-GB");
+      return now.toLocaleString(locale);
     }
   }
   // A literal debug string here isn't just a UI placeholder — it's the actual `user_number` value
@@ -323,7 +369,7 @@ export function suggestTestCallValue(name: string, now: Date = new Date()): stri
   // interpolates {{user_number}}/{{caller_number}} into speech (e.g. confirming "your mobile
   // number") reads it back verbatim: "w, e, b, colon, t, e, s, t." A realistic-looking fake number
   // reads sensibly instead, while still being obviously not a real caller's number if inspected.
-  if (name === "user_number") return "+447700900123";
+  if (name === "user_number") return sampleCallerNumber(where.phoneCountryCode);
   return "";
 }
 
@@ -353,7 +399,7 @@ function testCallGroup(name: string, source: TestCallField["source"]): TestCallF
     return "system";
   }
   if (
-    /^(first_name|last_name|First_name|email|mobile|phone|user_number|contact_address|postcode_contact)$/i.test(
+    /^(first_name|last_name|First_name|email|mobile|phone|user_number|contact_address)$/i.test(
       name,
     )
   ) {
@@ -380,6 +426,7 @@ export function collectTestCallFields(
   nodes: FlowNode[],
   declared: BuilderVariable[] = [],
   now: Date = new Date(),
+  where: TestCallLocale = {},
 ): TestCallField[] {
   const spokenNames = new Set<string>();
   const usedOn = new Map<string, string>();
@@ -405,7 +452,7 @@ export function collectTestCallFields(
     if (isAnalysisPrompt(description) && !spokenNames.has(name)) return;
     const row = declaredByName.get(name);
     const example = String(row?.defaultValue ?? row?.examples?.[0] ?? "").trim();
-    const suggested = suggestTestCallValue(name, now) || (isAnalysisPrompt(example) ? "" : example);
+    const suggested = suggestTestCallValue(name, now, where) || (isAnalysisPrompt(example) ? "" : example);
     byName.set(name, {
       name,
       description: shortFieldHint({

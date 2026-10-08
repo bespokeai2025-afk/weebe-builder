@@ -21,6 +21,8 @@ export interface VmHooksOptions {
   /** The flow's `tools` array, used to resolve `tool_type: "local"` nodes. */
   tools?: Array<Record<string, unknown>>;
   sendSms?(message: string, variables: Record<string, VariableValue>): Promise<boolean>;
+  /** Agent timezone (IANA) for calendar tools when the call and the tool name none. */
+  defaultTimezone?: string;
   log?(message: string, meta?: Record<string, unknown>): void;
 }
 
@@ -62,7 +64,7 @@ export function createVmHooks(options: VmHooksOptions = {}): VmHooks {
           http.output,
         );
         if (networkFail) {
-          const cal = await tryNativeCalcom(registered, invocation.args, true);
+          const cal = await tryNativeCalcom(registered, invocation.args, true, options.defaultTimezone);
           if (cal) {
             options.log?.(
               `webhook ${registeredUrl} failed; falling back to Cal.com for "${invocation.toolName}"`,
@@ -72,7 +74,7 @@ export function createVmHooks(options: VmHooksOptions = {}): VmHooks {
         }
         return http;
       }
-      const cal = registered ? await tryNativeCalcom(registered, invocation.args) : null;
+      const cal = registered ? await tryNativeCalcom(registered, invocation.args, false, options.defaultTimezone) : null;
       if (cal) return cal;
 
       const result = await executeToolCall(
@@ -249,6 +251,7 @@ async function tryNativeCalcom(
   tool: Record<string, unknown>,
   args: unknown,
   allowNameMatch = false,
+  defaultTimezone?: string,
 ): Promise<ToolOutcome | null> {
   const type = String(tool.type ?? tool.tool_type ?? "").trim();
   const apiKey = String(tool.cal_api_key ?? "").trim();
@@ -265,8 +268,8 @@ async function tryNativeCalcom(
   if (!isAvailability && !isBook) return null;
 
   const record = isRecord(args) ? args : {};
-  const timezone =
-    String(record.timezone ?? tool.timezone ?? "Europe/London").trim() || "Europe/London";
+  const fallbackTz = String(defaultTimezone ?? "").trim() || "Europe/London";
+  const timezone = String(record.timezone ?? tool.timezone ?? fallbackTz).trim() || fallbackTz;
 
   try {
     if (isAvailability) {

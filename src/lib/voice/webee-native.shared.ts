@@ -67,6 +67,22 @@ function isCerebrasModelId(modelId: string): boolean {
   );
 }
 
+/**
+ * Can this provider actually serve this model id?
+ *
+ * The builder's per-node LLM list used to offer every Retell model (Claude, Gemini, GPT-5) whatever
+ * engine the agent ran on, and the native runtime sent the id straight to OpenAI or Cerebras — which
+ * rejects it, so that node's line failed mid-call. Callers use this to filter what the builder
+ * offers and to drop an override the runtime cannot honour.
+ */
+export function isModelServedByWebeeProvider(modelId: string, provider: VoiceLlmProvider): boolean {
+  const id = modelId.trim().toLowerCase();
+  if (!id) return false;
+  if (provider === "cerebras") return isCerebrasModelId(id);
+  if (isCerebrasModelId(id)) return false;
+  return /^(gpt-|o\d|chatgpt-)/.test(id);
+}
+
 /** Provider chosen in the builder. Defaults to OpenAI so a dead Cerebras quota cannot freeze calls. */
 export function resolveWebeeLlmProvider(
   settings?: Record<string, unknown> | null,

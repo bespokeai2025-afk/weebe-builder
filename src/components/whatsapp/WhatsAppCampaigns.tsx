@@ -11,7 +11,6 @@ import {
   PlayCircle,
   Rocket,
   Loader2,
-  Upload,
   FileSpreadsheet,
   X,
   Users,
@@ -54,7 +53,6 @@ import {
   deleteWACampaign,
   listWATemplates,
   launchWACampaign,
-  importWatiCampaignLeadsCsv,
   prepareCampaignAudienceFromContacts,
   listWAContacts,
   getBuzzchatOpsDashboard,
@@ -83,16 +81,6 @@ import {
   listWatiTemplates,
   getWatiWarmupDashboard,
 } from "@/lib/whatsapp/wati.functions";
-import {
-  autoDetectCsvColumnMapping,
-  csvScanRowCount,
-  loadCsvSkipForFile,
-  mapCsvRowsToLeads,
-  readSpreadsheetFileHead,
-  SPREADSHEET_ACCEPT,
-  saveCsvSkipForFile,
-  type CsvColumnMapping,
-} from "@/lib/whatsapp/csv-leads.shared";
 import {
   defaultWatiTemplateParamMapping,
   extractWatiTemplateParamSlots,
@@ -161,7 +149,7 @@ function emptyForm(): CampaignForm {
     wati_template_name: "",
     wati_broadcast_name: "",
     template_params: {},
-    audienceMode: "csv",
+    audienceMode: "contacts",
     audience: {
       qualification_status: "",
       pipeline_stage: "",
@@ -216,6 +204,17 @@ function buildAudienceFilter(form: CampaignForm, csvLeadIds: string[]) {
   return Object.keys(filter).length ? filter : undefined;
 }
 
+function StepTitle({ n, title }: { n: number; title: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/15 text-[11px] font-semibold text-primary">
+        {n}
+      </span>
+      <span className="text-sm font-medium">{title}</span>
+    </div>
+  );
+}
+
 export function WhatsAppCampaigns() {
   const qc = useQueryClient();
   const listFn = useServerFn(listWACampaigns);
@@ -228,11 +227,9 @@ export function WhatsAppCampaigns() {
   const warmupDashFn = useServerFn(getWatiWarmupDashboard);
   const buzzchatOpsFn = useServerFn(getBuzzchatOpsDashboard);
   const overlapFn = useServerFn(checkCampaignAudienceOverlapFn);
-  const importCsvFn = useServerFn(importWatiCampaignLeadsCsv);
   const loadContactsAudienceFn = useServerFn(prepareCampaignAudienceFromContacts);
   const listContactsFn = useServerFn(listWAContacts);
   const metaFn = useServerFn(getWhatsappInboxMeta);
-  const csvInputRef = useRef<HTMLInputElement>(null);
 
   const { data: campaigns = [], isLoading } = useQuery({
     queryKey: ["wa-campaigns"],
@@ -295,26 +292,7 @@ export function WhatsAppCampaigns() {
   const [launchAllowOverlap, setLaunchAllowOverlap] = useState(false);
   const [form, setForm] = useState(emptyForm());
   const [csvLeadIds, setCsvLeadIds] = useState<string[]>([]);
-  const [csvStats, setCsvStats] = useState<{
-    inserted: number;
-    updated: number;
-    skipped: number;
-    total: number;
-    remaining?: number;
-    unsentTotal?: number;
-    source?: AudienceMode;
-  } | null>(null);
-  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
-  const [csvRows, setCsvRows] = useState<Record<string, string>[]>([]);
-  const [csvMapping, setCsvMapping] = useState<CsvColumnMapping | null>(null);
-  const [csvNeedsMapping, setCsvNeedsMapping] = useState(false);
-  const [csvImporting, setCsvImporting] = useState(false);
-  const [csvParsing, setCsvParsing] = useState(false);
   const [csvImportLimit, setCsvImportLimit] = useState(50);
-  const [csvSkipCount, setCsvSkipCount] = useState(0);
-  const [csvBuyersOnly, setCsvBuyersOnly] = useState(true);
-  const [csvFileName, setCsvFileName] = useState<string | null>(null);
-  const [loadingContactsAudience, setLoadingContactsAudience] = useState(false);
   /** Which import batch this campaign draws its audience from. "" = all. */
   const [audienceUploadType, setAudienceUploadType] = useState("");
   /** Phones ticked in the audience table. Empty = fall back to the batch walk. */
@@ -365,10 +343,30 @@ export function WhatsAppCampaigns() {
     return { total: inScope.length, sent, unsent: inScope.length - sent };
   }, [waContacts, audienceUploadType]);
 
+  /** Per upload: how many contacts, and how many not messaged yet — shown in the list picker. */
+  const uploadCounts = useMemo(() => {
+    const out: Record<string, { total: number; unsent: number }> = {};
+    for (const c of waContacts as Array<Record<string, unknown>>) {
+      const meta = (c.import_meta as Record<string, unknown> | null) ?? {};
+      const key = String(meta.upload_type ?? "").trim();
+      if (!key || c.do_not_contact === true || !String(c.phone ?? "").trim()) continue;
+      const entry = (out[key] ??= { total: 0, unsent: 0 });
+      entry.total += 1;
+      const messaged =
+        (c.wa_stats as { messaged?: boolean } | undefined)?.messaged ||
+        String(c.lead_status ?? "").toLowerCase() === "contacted";
+      if (!messaged) entry.unsent += 1;
+    }
+    return out;
+  }, [waContacts]);
+
   const audienceRows = useMemo(() => {
     const want = audienceUploadType.trim();
     const q = audienceSearch.trim().toLowerCase();
     return (waContacts as Array<Record<string, unknown>>).filter((c) => {
+      // The server never sends to these or to phoneless rows; listing them
+      // here only produced "not available" errors after ticking.
+      if (c.do_not_contact === true || !String(c.phone ?? "").trim()) return false;
       const meta = (c.import_meta as Record<string, unknown> | null) ?? {};
       if (want && String(meta.upload_type ?? "").trim() !== want) return false;
       if (skipAlreadySent) {
@@ -406,20 +404,15 @@ export function WhatsAppCampaigns() {
 
   function resetCsvState() {
     setCsvLeadIds([]);
-    setCsvStats(null);
-    setCsvHeaders([]);
-    setCsvRows([]);
-    setCsvMapping(null);
-    setCsvNeedsMapping(false);
-    setCsvFileName(null);
-    setCsvSkipCount(0);
-    if (csvInputRef.current) csvInputRef.current.value = "";
   }
 
   function openCreateDialog() {
     setForm(emptyForm());
     resetCsvState();
     setSkipAlreadySent(true);
+    setPickedPhones(new Set());
+    setAudienceSearch("");
+    setCsvImportLimit(contactsBatchCap);
     setOpen(true);
   }
 
@@ -509,7 +502,9 @@ export function WhatsAppCampaigns() {
   // Render the template as it will actually send, and report any variable that
   // resolves for nobody — the failure that otherwise reaches customers.
   const previewFn = useServerFn(previewWatiTemplateSend);
-  const mappingComplete = paramSlots.length > 0 && !paramMappingError;
+  // Any chosen template previews — one with no variables too (it used to show nothing at all).
+  const mappingComplete = Boolean(form.wati_template_name) && !paramMappingError;
+  const previewPhones = useMemo(() => [...pickedPhones].slice(0, 50), [pickedPhones]);
   const {
     data: sendPreview,
     isFetching: previewLoading,
@@ -522,6 +517,7 @@ export function WhatsAppCampaigns() {
       form.wati_template_name,
       JSON.stringify(form.template_params),
       audienceUploadType || null,
+      previewPhones.join(","),
     ],
     queryFn: () =>
       previewFn({
@@ -529,6 +525,8 @@ export function WhatsAppCampaigns() {
           templateName: form.wati_template_name,
           mapping: form.template_params,
           uploadType: audienceUploadType.trim() || null,
+          // Preview the people actually ticked, when any are.
+          phones: previewPhones.length ? previewPhones : undefined,
           limit: 2,
         },
       }),
@@ -545,9 +543,30 @@ export function WhatsAppCampaigns() {
     }>
   ).filter((p) => p.checked > 0 && p.resolvedCount === 0);
 
+  /**
+   * The campaign's recipients, gathered at Create time: the ticked contacts, or the first N shown.
+   * This used to be a separate "Load contacts" step that had to be clicked before Create worked.
+   */
+  async function gatherRecipientLeadIds(): Promise<string[]> {
+    const picked = pickedPhones.size > 0;
+    const result = await loadContactsAudienceFn({
+      data: {
+        limit: Math.max(1, Math.min(csvImportLimit, 5000)),
+        offset: 0,
+        skipMessaged: skipAlreadySent,
+        uploadType: audienceUploadType.trim() || null,
+        phones: picked ? [...pickedPhones] : undefined,
+      },
+    });
+    const ids = (result.leadIds ?? []) as string[];
+    if (ids.length === 0) throw new Error("No recipients to send to — tick contacts or include already messaged.");
+    return ids;
+  }
+
   const create = useMutation({
-    mutationFn: () => {
-      const audience_filter = buildAudienceFilter(form, csvLeadIds);
+    mutationFn: async () => {
+      const leadIds = watiConnected ? await gatherRecipientLeadIds() : csvLeadIds;
+      const audience_filter = buildAudienceFilter(form, leadIds);
       const template_params = Object.keys(form.template_params).length
         ? form.template_params
         : undefined;
@@ -669,184 +688,29 @@ export function WhatsAppCampaigns() {
     form.sendWhen === "now" ||
     (!!form.scheduled_at && new Date(form.scheduled_at).getTime() > Date.now() + 15_000);
 
-  const canCreate =
-    !!form.name &&
-    scheduleOk &&
-    (watiConnected
-      ? !!form.wati_template_name &&
-        (form.audienceMode === "filters" || csvLeadIds.length > 0) &&
-        !paramMappingError
-      : true);
+  /** How many people Create will send to. */
+  const recipientCount =
+    pickedPhones.size > 0 ? pickedPhones.size : Math.min(csvImportLimit, audienceRows.length);
+  const createBlocker = !form.name.trim()
+    ? "Give the campaign a name."
+    : !scheduleOk
+      ? "Pick a time in the future."
+      : watiConnected && recipientCount === 0
+        ? "Choose who to send to."
+        : watiConnected && !form.wati_template_name
+          ? "Choose a template."
+          : watiConnected && paramMappingError
+            ? paramMappingError
+            : null;
+  const canCreate = createBlocker === null;
 
-  const audienceReady = csvLeadIds.length > 0;
   const contactsBatchCap = Math.max(
     1,
     Math.min(warmupDash?.remaining ?? warmupDash?.dailyCap ?? 50, 50),
   );
 
-  function useContactsAudience() {
-    setForm({ ...form, audienceMode: "contacts" });
-    setCsvImportLimit(contactsBatchCap);
-    setSkipAlreadySent(true);
-    setCsvSkipCount(0);
-  }
 
-  async function loadExistingContactsAudience() {
-    setLoadingContactsAudience(true);
-    try {
-      const limit = Math.max(1, Math.min(csvImportLimit, 5000));
-      const offset = Math.max(0, csvSkipCount);
-      // A hand-picked selection is exact: it ignores the batch size, the
-      // offset and the skip-messaged filter, so the messaging below has to
-      // stop calling the result "unsent" when the user chose the rows.
-      const handPicked = pickedPhones.size > 0;
-      const result = await loadContactsAudienceFn({
-        data: {
-          limit,
-          offset: skipAlreadySent ? 0 : offset,
-          skipMessaged: skipAlreadySent,
-          uploadType: audienceUploadType.trim() || null,
-          phones: handPicked ? [...pickedPhones] : undefined,
-        },
-      });
-      setCsvLeadIds(result.leadIds ?? []);
-      const loaded = result.total ?? 0;
-      const remaining = result.remainingUnsent ?? 0;
-      const skipped = result.skippedMessaged ?? 0;
-      const unsentTotal = result.unsentTotal ?? loaded + remaining;
-      setCsvStats({
-        inserted: result.inserted ?? 0,
-        updated: result.updated ?? 0,
-        skipped,
-        total: loaded,
-        remaining,
-        unsentTotal,
-        source: "contacts",
-      });
-      toast.success(
-        handPicked
-          ? `Added ${loaded} selected contact${loaded === 1 ? "" : "s"} to this campaign`
-          : `Loaded ${loaded} unsent contact${loaded === 1 ? "" : "s"} for this campaign`,
-        {
-          description: handPicked
-            ? audienceUploadType.trim()
-              ? `From the "${audienceUploadType.trim()}" upload`
-              : undefined
-            : skipAlreadySent
-              ? `${skipped} already messaged were left out · ${remaining} unsent still available for the next campaign`
-              : `${result.inserted} new phones · ${result.updated} already on file`,
-        },
-      );
-      if (!handPicked && !skipAlreadySent) {
-        const nextSkip = offset + (result.total ?? 0);
-        setCsvSkipCount(nextSkip);
-      }
-    } catch (err) {
-      toast.error("Could not load contacts", { description: (err as Error).message });
-    } finally {
-      setLoadingContactsAudience(false);
-    }
-  }
 
-  async function handleCsvFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setCsvParsing(true);
-    const limit = Math.max(1, Math.min(csvImportLimit, 5000));
-    const skip = Math.max(0, csvSkipCount);
-    try {
-      const scanRows = csvScanRowCount(limit, skip);
-      const { headers, rows, truncated } = await readSpreadsheetFileHead(file, scanRows);
-      const mapping = autoDetectCsvColumnMapping(headers);
-      setCsvHeaders(headers);
-      setCsvRows(rows);
-      setCsvMapping(
-        mapping ?? {
-          phone: headers.find((h) => h.toLowerCase().includes("mobile")) ?? headers[0] ?? "",
-        },
-      );
-      setCsvNeedsMapping(!mapping);
-      setCsvFileName(file.name);
-      const savedSkip = loadCsvSkipForFile(file.name);
-      const effectiveSkip = skip > 0 ? skip : savedSkip;
-      if (effectiveSkip > 0 && skip === 0) setCsvSkipCount(effectiveSkip);
-      setCsvLeadIds([]);
-      setCsvStats(null);
-      if (truncated) {
-        toast.message(`Large file — scanned first ${scanRows.toLocaleString()} rows`, {
-          description: `Importing up to ${limit} contacts after skipping ${effectiveSkip}.`,
-        });
-      }
-      if (mapping) {
-        await runCsvImport(rows, mapping, limit, effectiveSkip);
-      } else {
-        toast.message("Choose which column is the phone number", {
-          description: `${rows.length.toLocaleString()} rows parsed · Mobile column recommended`,
-        });
-      }
-    } catch (err) {
-      toast.error("Could not read that file", { description: (err as Error).message });
-      resetCsvState();
-    } finally {
-      setCsvParsing(false);
-    }
-    if (csvInputRef.current) csvInputRef.current.value = "";
-  }
-
-  async function runCsvImport(
-    rows: Record<string, string>[],
-    mapping: CsvColumnMapping,
-    limit = csvImportLimit,
-    skip = csvSkipCount,
-  ) {
-    if (!mapping.phone) {
-      toast.error("Select a phone column");
-      return;
-    }
-    const maxLeads = Math.max(1, Math.min(limit, 5000));
-    const skipLeads = Math.max(0, skip);
-    const leads = mapCsvRowsToLeads(rows, mapping, {
-      maxLeads,
-      skipLeads,
-      buyersOnly: csvBuyersOnly,
-    });
-    if (leads.length === 0) {
-      toast.error("No valid phone numbers found in CSV", {
-        description: skipLeads
-          ? `Skipped first ${skipLeads} — try a lower skip or scan more rows.`
-          : "Map the Mobile column — many rows in this file are sellers without phones.",
-      });
-      return;
-    }
-    setCsvImporting(true);
-    try {
-      const result = await importCsvFn({ data: { rows: leads } });
-      setCsvLeadIds(result.leadIds ?? []);
-      setCsvStats({
-        inserted: result.inserted ?? 0,
-        updated: result.updated ?? 0,
-        skipped: result.skipped ?? 0,
-        total: result.total ?? 0,
-      });
-      const nextSkip = skipLeads + (result.total ?? 0);
-      setCsvSkipCount(nextSkip);
-      if (csvFileName) saveCsvSkipForFile(csvFileName, nextSkip);
-      toast.success(`Imported ${result.total} for this campaign`, {
-        description: `${result.inserted} new · ${result.updated} already in Contacts (updated, not duplicated) · next skip ${nextSkip}`,
-      });
-      qc.invalidateQueries({ queryKey: ["wa-contacts"] });
-      qc.invalidateQueries({ queryKey: ["campaign-leads"] });
-    } catch (err) {
-      toast.error("CSV import failed", { description: (err as Error).message });
-    } finally {
-      setCsvImporting(false);
-    }
-  }
-
-  async function applyCsvMapping() {
-    if (!csvMapping?.phone || csvRows.length === 0) return;
-    await runCsvImport(csvRows, csvMapping, csvImportLimit);
-  }
 
   function openContinueWarmup() {
     const batch = warmupDash?.dailyCap ?? csvImportLimit;
@@ -854,7 +718,6 @@ export function WhatsAppCampaigns() {
     setSkipAlreadySent(true);
     setForm({ ...emptyForm(), audienceMode: "contacts" });
     setCsvImportLimit(Math.min(batch, 5000));
-    setCsvSkipCount(0);
     setOpen(true);
   }
 
@@ -1127,8 +990,9 @@ export function WhatsAppCampaigns() {
             <DialogTitle>New Campaign</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
+            <StepTitle n={1} title="Details" />
             <div className="space-y-1.5">
-              <Label className="text-xs">Campaign Name *</Label>
+              <Label className="text-xs">Campaign name</Label>
               <Input
                 value={form.name}
                 onChange={(e) =>
@@ -1340,7 +1204,7 @@ export function WhatsAppCampaigns() {
                     setForm({ ...form, sendWhen: "now", type: "broadcast", scheduled_at: "" })
                   }
                 >
-                  Send now (draft)
+                  Save as draft
                 </Button>
                 <Button
                   type="button"
@@ -1371,10 +1235,153 @@ export function WhatsAppCampaigns() {
               )}
             </div>
 
+            {watiConnected && (
+              <section className="space-y-2 border-t border-border/60 pt-3">
+                <StepTitle n={2} title="Recipients" />
+                {uploadTypeOptions.length > 0 && (
+                  <Select
+                    value={audienceUploadType || AUDIENCE_ALL_UPLOADS}
+                    onValueChange={(v) => {
+                      setAudienceUploadType(v === AUDIENCE_ALL_UPLOADS ? "" : v);
+                      setShowAllParamFields(false);
+                    }}
+                  >
+                    <SelectTrigger className="h-9 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={AUDIENCE_ALL_UPLOADS}>All contacts</SelectItem>
+                      {uploadTypeOptions.map((t: string) => (
+                        <SelectItem key={t} value={t}>
+                          {t}
+                          {uploadCounts[t] ? ` · ${uploadCounts[t].unsent} not messaged` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <div className="flex items-center justify-between gap-2 text-xs">
+                  <span className="text-muted-foreground">
+                    {audienceScope.unsent} not messaged · {audienceScope.sent} already messaged
+                  </span>
+                  <label className="flex cursor-pointer items-center gap-1.5">
+                    <Checkbox
+                      checked={!skipAlreadySent}
+                      onCheckedChange={(v) => setSkipAlreadySent(v !== true)}
+                    />
+                    Include already messaged
+                  </label>
+                </div>
+
+                <div className="rounded-md border border-border/60">
+                  <div className="flex items-center gap-2 border-b border-border/60 px-2 py-1.5">
+                    <Checkbox
+                      checked={audienceRows.length > 0 && pickedPhones.size === audienceRows.length}
+                      onCheckedChange={(v) =>
+                        setPickedPhones(
+                          v === true
+                            ? new Set(audienceRows.map((c) => String(c.phone ?? "").trim()))
+                            : new Set(),
+                        )
+                      }
+                      aria-label="Select all"
+                    />
+                    <Input
+                      value={audienceSearch}
+                      onChange={(e) => setAudienceSearch(e.target.value)}
+                      placeholder="Search name or phone"
+                      className="h-7 flex-1 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-0"
+                    />
+                    {pickedPhones.size > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setPickedPhones(new Set())}
+                        className="shrink-0 text-[11px] text-muted-foreground hover:text-foreground"
+                      >
+                        Clear ({pickedPhones.size})
+                      </button>
+                    )}
+                  </div>
+                  <div className="max-h-48 overflow-y-auto p-1">
+                    {audienceRows.length === 0 ? (
+                      <div className="space-y-2 py-4 text-center text-xs text-muted-foreground">
+                        <p>
+                          {audienceSearch.trim()
+                            ? "No contacts match your search."
+                            : audienceScope.total === 0
+                              ? "No contacts here yet. Import them under Contacts."
+                              : "Everyone in this list has already been messaged."}
+                        </p>
+                        {audienceScope.total > 0 && skipAlreadySent && !audienceSearch.trim() && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-[11px]"
+                            onClick={() => setSkipAlreadySent(false)}
+                          >
+                            Show them
+                          </Button>
+                        )}
+                      </div>
+                    ) : (
+                      audienceRows.slice(0, 500).map((c) => {
+                        const phone = String(c.phone ?? "").trim();
+                        const sent = Boolean(
+                          (c.wa_stats as { messaged?: boolean } | undefined)?.messaged,
+                        );
+                        return (
+                          <label
+                            key={phone}
+                            className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 hover:bg-muted/20 dark:hover:bg-white/[0.03]"
+                          >
+                            <Checkbox
+                              checked={pickedPhones.has(phone)}
+                              onCheckedChange={(v) =>
+                                setPickedPhones((prev) => {
+                                  const next = new Set(prev);
+                                  if (v === true) next.add(phone);
+                                  else next.delete(phone);
+                                  return next;
+                                })
+                              }
+                            />
+                            <span className="min-w-0 flex-1 truncate text-xs">
+                              {String(c.name ?? "") || phone}
+                            </span>
+                            <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                              {phone}
+                            </span>
+                            {sent && <span className="shrink-0 text-[10px] text-amber-400">sent</span>}
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+                {pickedPhones.size === 0 && audienceRows.length > 0 && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>No one ticked — send to the first</span>
+                    <NumberInput
+                      min={1}
+                      max={Math.max(1, Math.min(5000, audienceRows.length))}
+                      fallback={contactsBatchCap}
+                      value={csvImportLimit}
+                      onValueChange={setCsvImportLimit}
+                      className="h-7 w-20 text-xs"
+                    />
+                    <span>of {audienceRows.length}</span>
+                  </div>
+                )}
+              </section>
+            )}
+
+            <section className="space-y-2 border-t border-border/60 pt-3">
+              <StepTitle n={watiConnected ? 3 : 2} title="Message" />
             {watiConnected ? (
               <>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">WATI Template *</Label>
+                  <Label className="text-xs">Template</Label>
                   <Select
                     value={form.wati_template_name}
                     onValueChange={(v) => {
@@ -1402,7 +1409,10 @@ export function WhatsAppCampaigns() {
                   </Select>
                 </div>
 
-                {selectedWatiTemplate && watiTemplateBodyPreview(selectedWatiTemplate) && (
+                {/* The raw template text, until the real preview below is available. */}
+                {selectedWatiTemplate &&
+                  watiTemplateBodyPreview(selectedWatiTemplate) &&
+                  !(sendPreview?.samples ?? []).length && (
                   <div className="rounded-md border border-border/50 bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground whitespace-pre-wrap">
                     {watiTemplateBodyPreview(selectedWatiTemplate)}
                   </div>
@@ -1412,55 +1422,14 @@ export function WhatsAppCampaigns() {
                     verbatim — WhatsApp only fills declared variables. */}
                 {templateLiteralPlaceholders.length > 0 && (
                   <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-[11px] text-amber-600 dark:text-amber-400">
-                    This template has no variables, so{" "}
-                    <strong>{templateLiteralPlaceholders.join(", ")}</strong> will be sent to every
-                    recipient exactly as written. Add a WhatsApp variable to the template to
-                    personalise it.
+                    <strong>{templateLiteralPlaceholders.join(", ")}</strong> is sent to everyone
+                    exactly as written — this template has no variables.
                   </p>
                 )}
 
                 {paramSlots.length > 0 && (
                   <div className="space-y-2 rounded-md border border-border/60 p-3">
-                    {/* The upload comes first, because it decides which fields exist to map to.
-                        Same state as the audience picker below, so the two cannot diverge — a
-                        campaign always maps against the list it will actually send to. */}
-                    {uploadTypeOptions.length > 0 && (
-                      <div className="space-y-1.5 border-b border-border/60 pb-3">
-                        <Label className="text-xs">1. Which upload are you sending to?</Label>
-                        <Select
-                          value={audienceUploadType || AUDIENCE_ALL_UPLOADS}
-                          onValueChange={(v) => {
-                            setAudienceUploadType(v === AUDIENCE_ALL_UPLOADS ? "" : v);
-                            // The old list described a different upload; keep it collapsed so the
-                            // new one is read on its own terms.
-                            setShowAllParamFields(false);
-                          }}
-                        >
-                          <SelectTrigger className="h-8 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value={AUDIENCE_ALL_UPLOADS}>
-                              All uploads (fields from every list)
-                            </SelectItem>
-                            {uploadTypeOptions.map((t: string) => (
-                              <SelectItem key={t} value={t}>
-                                {t}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <p className="text-[10px] text-muted-foreground">
-                          {audienceUploadType
-                            ? `Sending to "${audienceUploadType}" — the ${relevantFields.length} fields below are the ones it actually has data for.`
-                            : "Pick one to send to a single list and narrow the fields below to what that list holds."}
-                        </p>
-                      </div>
-                    )}
-                    <Label className="text-xs">
-                      {uploadTypeOptions.length > 0 ? "2. " : ""}
-                      Fill each {"{{variable}}"}
-                    </Label>
+                    <Label className="text-xs">Personalise the message</Label>
                     {paramSlots.map((slot) => {
                       const mapped = form.template_params[slot] ?? "";
                       const isFixed = isLiteralTemplateField(mapped);
@@ -1570,620 +1539,92 @@ export function WhatsAppCampaigns() {
                     {paramMappingError && (
                       <>
                         <p className="text-[11px] text-destructive">{paramMappingError}</p>
-                        <p className="text-[10px] text-muted-foreground">
-                          The send preview appears once every variable is mapped.
-                        </p>
                       </>
                     )}
 
-                    {/* What will actually be sent. A variable that resolves for
-                        nobody still sends — WATI rejects blank variables, so a
-                        generic sample goes out instead — and nothing else in the
-                        product surfaces that before customers receive it. */}
-                    {mappingComplete && (
-                      <div className="space-y-2 border-t border-border/60 pt-2">
-                        <div className="flex items-center gap-2">
-                          <Label className="text-xs">Preview</Label>
-                          {previewLoading && (
-                            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-                          )}
-                          {sendPreview && (
-                            <span className="text-[10px] text-muted-foreground">
-                              {sendPreview.audienceCount} lead
-                              {sendPreview.audienceCount === 1 ? "" : "s"} in scope
-                            </span>
-                          )}
-                        </div>
+                  </div>
+                )}
 
-                        {previewError && (
-                          <div className="rounded-md border border-destructive/40 bg-destructive/10 px-2.5 py-2">
-                            <p className="text-[11px] text-destructive">
-                              Preview could not load: {(previewError as Error).message}
-                            </p>
-                            <p className="mt-0.5 text-[10px] text-muted-foreground">
-                              The campaign can still be sent — this only affects the preview. If
-                              this persists after a page refresh, the template variables have not
-                              been checked, so verify the mapping before sending.
-                            </p>
-                          </div>
-                        )}
+                {/* What will actually be sent. A variable that resolves for
+                    nobody still sends — WATI rejects blank variables, so a
+                    generic sample goes out instead — and nothing else in the
+                    product surfaces that before customers receive it. */}
+                {mappingComplete && (
+                  <div className="space-y-2 border-t border-border/60 pt-2">
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs">Preview</Label>
+                      {previewLoading && (
+                        <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                      )}
+                    </div>
 
-                        {deadSlots.length > 0 && (
-                          <div className="space-y-1 rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-2">
-                            {deadSlots.map((p) => (
-                              <p
-                                key={p.slot}
-                                className="text-[11px] text-amber-600 dark:text-amber-400"
+                    {previewError && (
+                      <div className="rounded-md border border-destructive/40 bg-destructive/10 px-2.5 py-2">
+                        <p className="text-[11px] text-destructive">
+                          Preview could not load: {(previewError as Error).message}
+                        </p>
+                      </div>
+                    )}
+
+                    {deadSlots.length > 0 && (
+                      <div className="space-y-1 rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-2">
+                        {deadSlots.map((p) => (
+                          <p
+                            key={p.slot}
+                            className="text-[11px] text-amber-600 dark:text-amber-400"
+                          >
+                            <strong>{`{{${p.slot}}}`}</strong> uses <code>{p.fieldKey}</code>, which is empty for these contacts — pick another column.
+                          </p>
+                        ))}
+                      </div>
+                    )}
+
+                    {(sendPreview?.samples ?? []).map(
+                      (sample: {
+                        leadId: string;
+                        name: string | null;
+                        phone: string | null;
+                        body: string;
+                        params: Array<{ name: string; value: string; resolved: boolean }>;
+                      }) => (
+                        <div
+                          key={sample.leadId}
+                          className="rounded-md border border-border/50 bg-muted/20 px-2.5 py-2"
+                        >
+                          <p className="mb-1 text-[10px] text-muted-foreground">
+                            To {sample.name || "—"} · {sample.phone}
+                          </p>
+                          <p className="whitespace-pre-wrap text-[11px] leading-relaxed">
+                            {sample.body}
+                          </p>
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {sample.params.map((prm) => (
+                              <span
+                                key={prm.name}
+                                className={cn(
+                                  "rounded px-1 py-0.5 text-[9px]",
+                                  prm.resolved
+                                    ? "bg-muted/40 dark:bg-white/[0.06] text-muted-foreground"
+                                    : "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+                                )}
                               >
-                                <strong>{`{{${p.slot}}}`}</strong> is mapped to{" "}
-                                <code>{p.fieldKey}</code>, which is empty for all {p.checked} leads
-                                checked — every message would show filler text instead. Pick a
-                                column from “Your imported columns”.
-                              </p>
+                                {prm.name}: {prm.value}
+                                {prm.resolved ? "" : " (filler)"}
+                              </span>
                             ))}
                           </div>
-                        )}
+                        </div>
+                      ),
+                    )}
 
-                        {(sendPreview?.samples ?? []).map(
-                          (sample: {
-                            leadId: string;
-                            name: string | null;
-                            phone: string | null;
-                            body: string;
-                            params: Array<{ name: string; value: string; resolved: boolean }>;
-                          }) => (
-                            <div
-                              key={sample.leadId}
-                              className="rounded-md border border-border/50 bg-muted/20 px-2.5 py-2"
-                            >
-                              <p className="mb-1 text-[10px] text-muted-foreground">
-                                To {sample.name || "—"} · {sample.phone}
-                              </p>
-                              <p className="whitespace-pre-wrap text-[11px] leading-relaxed">
-                                {sample.body}
-                              </p>
-                              <div className="mt-1.5 flex flex-wrap gap-1">
-                                {sample.params.map((prm) => (
-                                  <span
-                                    key={prm.name}
-                                    className={cn(
-                                      "rounded px-1 py-0.5 text-[9px]",
-                                      prm.resolved
-                                        ? "bg-muted/40 dark:bg-white/[0.06] text-muted-foreground"
-                                        : "bg-amber-500/15 text-amber-600 dark:text-amber-400",
-                                    )}
-                                  >
-                                    {prm.name}: {prm.value}
-                                    {prm.resolved ? "" : " (filler)"}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          ),
-                        )}
-
-                        {sendPreview && sendPreview.samples.length === 0 && (
-                          <p className="text-[11px] text-muted-foreground">
-                            No leads match this audience yet, so there is nothing to preview.
-                          </p>
-                        )}
-                      </div>
+                    {sendPreview && sendPreview.samples.length === 0 && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Nobody to preview yet — choose recipients above.
+                      </p>
                     )}
                   </div>
                 )}
 
-                <div className="space-y-2 rounded-md border border-border/60 p-3">
-                  <Label className="text-xs">Audience</Label>
-                  <div className="grid grid-cols-3 gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={form.audienceMode === "csv" ? "default" : "outline"}
-                      className="h-7 text-xs"
-                      onClick={() => setForm({ ...form, audienceMode: "csv" })}
-                    >
-                      <Upload className="h-3 w-3 mr-1" /> New file
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={form.audienceMode === "contacts" ? "default" : "outline"}
-                      className="h-7 text-xs"
-                      onClick={() => useContactsAudience()}
-                    >
-                      <Users className="h-3 w-3 mr-1" /> Contacts
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={form.audienceMode === "filters" ? "default" : "outline"}
-                      className="h-7 text-xs"
-                      onClick={() => setForm({ ...form, audienceMode: "filters" })}
-                    >
-                      Filter
-                    </Button>
-                  </div>
-
-                  {audienceReady && (
-                    <div className="rounded-md bg-green-500/10 border border-green-500/20 px-2.5 py-2 text-xs text-green-700 dark:text-green-400 space-y-0.5">
-                      {csvStats?.source === "contacts" ? (
-                        <>
-                          <p>
-                            <strong>{csvStats.total}</strong> unsent people are on this campaign
-                            {csvStats.unsentTotal != null && csvStats.unsentTotal > csvStats.total
-                              ? ` (${csvStats.unsentTotal} unsent in total)`
-                              : ""}
-                            .
-                          </p>
-                          <p className="text-muted-foreground">
-                            {csvStats.skipped} already messaged were not included.
-                            {csvStats.remaining
-                              ? ` ${csvStats.remaining} unsent left for the next campaign.`
-                              : " No unsent contacts left after this batch."}
-                          </p>
-                        </>
-                      ) : (
-                        <p>
-                          <strong>{csvStats?.total ?? csvLeadIds.length}</strong> ready
-                          {csvStats && (
-                            <span className="text-muted-foreground ml-1">
-                              ({csvStats.inserted} new phones · {csvStats.updated} matched existing)
-                            </span>
-                          )}
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  {form.audienceMode === "contacts" ? (
-                    <div className="space-y-2 pt-1">
-                      <div className="grid grid-cols-3 gap-2 text-center">
-                        <div className="rounded-md bg-muted/30 px-2 py-1.5">
-                          <p className="text-sm font-semibold tabular-nums">
-                            {audienceScope.total}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground">Contacts</p>
-                        </div>
-                        <div className="rounded-md bg-muted/30 px-2 py-1.5">
-                          <p className="text-sm font-semibold tabular-nums">
-                            {audienceScope.unsent}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground">Not sent</p>
-                        </div>
-                        <div className="rounded-md bg-muted/30 px-2 py-1.5">
-                          <p className="text-sm font-semibold tabular-nums">{audienceScope.sent}</p>
-                          <p className="text-[10px] text-muted-foreground">Already sent</p>
-                        </div>
-                      </div>
-                      {/* Pick the upload this campaign draws from — "send to
-                          the JVC list" without keeping separate contact books. */}
-                      {uploadTypeOptions.length > 0 && (
-                        <div>
-                          <Label className="text-xs">Contacts from upload</Label>
-                          <Select
-                            value={audienceUploadType || AUDIENCE_ALL_UPLOADS}
-                            onValueChange={(v) =>
-                              setAudienceUploadType(v === AUDIENCE_ALL_UPLOADS ? "" : v)
-                            }
-                          >
-                            <SelectTrigger className="mt-1 h-8 text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value={AUDIENCE_ALL_UPLOADS}>All uploads</SelectItem>
-                              {uploadTypeOptions.map((t: string) => (
-                                <SelectItem key={t} value={t}>
-                                  {t}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <p className="mt-1 text-[10px] text-muted-foreground">
-                            {audienceUploadType
-                              ? `Only contacts imported as "${audienceUploadType}" will be loaded. This is the same choice as in the template section — changing it here changes the fields offered there.`
-                              : "Every contact is eligible. Choose an upload to send to one list only, and to narrow the template fields to what it holds."}
-                          </p>
-                        </div>
-                      )}
-                      <label className="flex items-center gap-2 text-xs cursor-pointer">
-                        <Checkbox
-                          checked={skipAlreadySent}
-                          onCheckedChange={(v) => setSkipAlreadySent(v === true)}
-                        />
-                        Skip already sent (recommended)
-                      </label>
-
-                      {/* Pick the audience by hand. The dropdown above narrows
-                          this table; ticking rows sends to exactly those, and
-                          ticking nothing falls back to the batch controls
-                          below. */}
-                      <div className="space-y-1.5 rounded-md border border-border dark:border-white/[0.06] p-2">
-                        <div className="flex items-center gap-2">
-                          <Input
-                            value={audienceSearch}
-                            onChange={(e) => setAudienceSearch(e.target.value)}
-                            placeholder="Search name or phone…"
-                            className="h-7 flex-1 text-xs"
-                          />
-                          <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
-                            {pickedPhones.size > 0
-                              ? `${pickedPhones.size} selected`
-                              : `${audienceRows.length} available`}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-2 border-b border-border dark:border-white/[0.06] pb-1.5">
-                          <Checkbox
-                            checked={
-                              audienceRows.length > 0 && pickedPhones.size === audienceRows.length
-                            }
-                            onCheckedChange={(v) =>
-                              setPickedPhones(
-                                v === true
-                                  ? new Set(audienceRows.map((c) => String(c.phone ?? "").trim()))
-                                  : new Set(),
-                              )
-                            }
-                            aria-label="Select all shown"
-                          />
-                          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                            Select all shown
-                          </span>
-                          {pickedPhones.size > 0 && (
-                            <button
-                              type="button"
-                              onClick={() => setPickedPhones(new Set())}
-                              className="ml-auto text-[10px] text-muted-foreground hover:text-foreground"
-                            >
-                              Clear
-                            </button>
-                          )}
-                        </div>
-
-                        <div className="max-h-52 overflow-y-auto">
-                          {audienceRows.length === 0 ? (
-                            /* Say why it is empty and offer the way out. "No
-                               unsent contacts" alone is a dead end when the
-                               cause is simply that this list has all been
-                               messaged before. */
-                            <div className="space-y-1.5 py-4 text-center">
-                              <p className="text-[11px] text-muted-foreground">
-                                {audienceSearch.trim()
-                                  ? "No contacts match that search."
-                                  : audienceScope.total === 0
-                                    ? audienceUploadType
-                                      ? `No contacts were imported as "${audienceUploadType}".`
-                                      : "No contacts yet — import a list under Contacts."
-                                    : skipAlreadySent
-                                      ? `All ${audienceScope.total} contact${audienceScope.total === 1 ? "" : "s"} in ${audienceUploadType ? `"${audienceUploadType}"` : "this list"} have already been messaged.`
-                                      : "No contacts match."}
-                              </p>
-                              {audienceScope.total > 0 &&
-                                skipAlreadySent &&
-                                !audienceSearch.trim() && (
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-7 text-[11px]"
-                                    onClick={() => setSkipAlreadySent(false)}
-                                  >
-                                    Show already-sent contacts
-                                  </Button>
-                                )}
-                            </div>
-                          ) : (
-                            audienceRows.slice(0, 500).map((c) => {
-                              const phone = String(c.phone ?? "").trim();
-                              const meta = (c.import_meta as Record<string, unknown> | null) ?? {};
-                              const label = String(meta.upload_type ?? "").trim();
-                              const sent = Boolean(
-                                (c.wa_stats as { messaged?: boolean } | undefined)?.messaged,
-                              );
-                              return (
-                                <label
-                                  key={phone}
-                                  className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 hover:bg-muted/20 dark:hover:bg-white/[0.03]"
-                                >
-                                  <Checkbox
-                                    checked={pickedPhones.has(phone)}
-                                    onCheckedChange={(v) =>
-                                      setPickedPhones((prev) => {
-                                        const next = new Set(prev);
-                                        if (v === true) next.add(phone);
-                                        else next.delete(phone);
-                                        return next;
-                                      })
-                                    }
-                                  />
-                                  <span className="min-w-0 flex-1 truncate text-[11px]">
-                                    {String(c.name ?? "") || phone}
-                                  </span>
-                                  <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
-                                    {phone}
-                                  </span>
-                                  {label && (
-                                    <span className="shrink-0 rounded bg-muted/40 dark:bg-white/[0.06] px-1 py-0.5 text-[9px] text-muted-foreground">
-                                      {label}
-                                    </span>
-                                  )}
-                                  {sent && (
-                                    <span className="shrink-0 text-[9px] text-amber-400">sent</span>
-                                  )}
-                                </label>
-                              );
-                            })
-                          )}
-                        </div>
-                        {audienceRows.length > 500 && (
-                          <p className="text-[10px] text-muted-foreground">
-                            Showing the first 500 — narrow with search or an upload type.
-                          </p>
-                        )}
-                      </div>
-                      {/* The table above and this batch control are two ways
-                          to do one job, which read as competing when stacked
-                          with no hierarchy. Ticked rows win, so this dims out
-                          of the way and says so. */}
-                      <div
-                        className={cn(
-                          "space-y-2 rounded-md border border-border dark:border-white/[0.06] p-2 transition-opacity",
-                          pickedPhones.size > 0 && "pointer-events-none opacity-40",
-                        )}
-                      >
-                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                          {pickedPhones.size > 0
-                            ? "Not used — rows are selected above"
-                            : "Or load a batch automatically"}
-                        </p>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <Label className="text-xs">
-                              How many
-                              {skipAlreadySent && audienceScope.unsent > 0
-                                ? ` of ${audienceScope.unsent} unsent`
-                                : ""}
-                            </Label>
-                            <NumberInput
-                              min={1}
-                              max={5000}
-                              fallback={50}
-                              value={csvImportLimit}
-                              onValueChange={setCsvImportLimit}
-                              className="mt-1 h-8 text-xs"
-                            />
-                          </div>
-                          {!skipAlreadySent && (
-                            <div>
-                              <Label className="text-xs">Skip first</Label>
-                              <NumberInput
-                                min={0}
-                                max={500000}
-                                value={csvSkipCount}
-                                onValueChange={setCsvSkipCount}
-                                className="mt-1 h-8 text-xs"
-                              />
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <Button
-                        type="button"
-                        variant={pickedPhones.size > 0 ? "default" : "outline"}
-                        size="sm"
-                        className="h-8 w-full gap-1.5 text-xs"
-                        disabled={
-                          loadingContactsAudience ||
-                          (pickedPhones.size === 0 && audienceRows.length === 0)
-                        }
-                        onClick={loadExistingContactsAudience}
-                      >
-                        {loadingContactsAudience ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Users className="h-3.5 w-3.5" />
-                        )}
-                        {pickedPhones.size > 0
-                          ? `Use ${pickedPhones.size} selected contact${pickedPhones.size === 1 ? "" : "s"}`
-                          : (() => {
-                              const n = Math.min(csvImportLimit, Math.max(audienceRows.length, 1));
-                              return `Load ${n} ${skipAlreadySent ? "unsent " : ""}contact${n === 1 ? "" : "s"}`;
-                            })()}
-                      </Button>
-                      {waContacts.length === 0 && (
-                        <p className="text-[10px] text-amber-400">
-                          Import contacts first, or switch to New file.
-                        </p>
-                      )}
-                    </div>
-                  ) : form.audienceMode === "csv" ? (
-                    <div className="space-y-2 pt-1">
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <Label className="text-xs">This batch</Label>
-                          <NumberInput
-                            min={1}
-                            max={5000}
-                            fallback={50}
-                            value={csvImportLimit}
-                            onValueChange={setCsvImportLimit}
-                            className="mt-1 h-8 text-xs"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-xs">Skip already used rows</Label>
-                          <NumberInput
-                            min={0}
-                            max={500000}
-                            value={csvSkipCount}
-                            onValueChange={setCsvSkipCount}
-                            className="mt-1 h-8 text-xs"
-                          />
-                        </div>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground leading-snug">
-                        Same phone updates the existing contact — it is never added twice. Skip 0 =
-                        first batch. After import this becomes the next start row
-                        {csvSkipCount > 0 ? ` (currently ${csvSkipCount}).` : "."}
-                      </p>
-                      <label className="mt-2 flex items-center gap-2 text-xs">
-                        <Checkbox
-                          checked={csvBuyersOnly}
-                          onCheckedChange={(v) => setCsvBuyersOnly(v === true)}
-                        />
-                        Buyers only
-                      </label>
-                      <input
-                        ref={csvInputRef}
-                        type="file"
-                        accept={SPREADSHEET_ACCEPT}
-                        className="hidden"
-                        onChange={handleCsvFile}
-                      />
-                      <div className="flex items-center gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-8 text-xs gap-1.5 flex-1"
-                          disabled={csvImporting || csvParsing}
-                          onClick={() => csvInputRef.current?.click()}
-                        >
-                          {csvImporting || csvParsing ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <FileSpreadsheet className="h-3.5 w-3.5" />
-                          )}
-                          {csvParsing
-                            ? "Parsing…"
-                            : csvImporting
-                              ? "Importing…"
-                              : csvFileName
-                                ? "Replace file"
-                                : "Upload CSV or Excel"}
-                        </Button>
-                        {csvFileName && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 shrink-0"
-                            onClick={resetCsvState}
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                      </div>
-                      {csvFileName && (
-                        <p className="text-[10px] text-muted-foreground truncate">{csvFileName}</p>
-                      )}
-                      {csvRows.length > 0 && csvNeedsMapping && csvMapping && (
-                        <div className="space-y-1.5 rounded border border-border/40 p-2">
-                          <p className="text-[10px] text-muted-foreground">Map columns</p>
-                          <Select
-                            value={csvMapping.phone}
-                            onValueChange={(v) => setCsvMapping({ ...csvMapping, phone: v })}
-                          >
-                            <SelectTrigger className="h-7 text-xs">
-                              <SelectValue placeholder="Phone column *" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {csvHeaders.map((h) => (
-                                <SelectItem key={h} value={h}>
-                                  {h}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <Select
-                            value={csvMapping.full_name ?? "__none__"}
-                            onValueChange={(v) =>
-                              setCsvMapping({
-                                ...csvMapping,
-                                full_name: v === "__none__" ? undefined : v,
-                              })
-                            }
-                          >
-                            <SelectTrigger className="h-7 text-xs">
-                              <SelectValue placeholder="Name column (optional)" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="__none__">— None —</SelectItem>
-                              {csvHeaders.map((h) => (
-                                <SelectItem key={h} value={h}>
-                                  {h}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <Button
-                            type="button"
-                            size="sm"
-                            className="h-7 text-xs w-full"
-                            disabled={csvImporting || csvParsing || !csvMapping.phone}
-                            onClick={() => applyCsvMapping()}
-                          >
-                            Import up to {csvImportLimit} contacts
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <>
-                      <div className="grid grid-cols-2 gap-2">
-                        <Input
-                          placeholder="Status (optional)"
-                          value={form.audience.status}
-                          onChange={(e) =>
-                            setForm({
-                              ...form,
-                              audience: { ...form.audience, status: e.target.value },
-                            })
-                          }
-                          className="h-8 text-xs"
-                        />
-                        <Input
-                          placeholder="Pipeline stage (optional)"
-                          value={form.audience.pipeline_stage}
-                          onChange={(e) =>
-                            setForm({
-                              ...form,
-                              audience: { ...form.audience, pipeline_stage: e.target.value },
-                            })
-                          }
-                          className="h-8 text-xs"
-                        />
-                        <Input
-                          placeholder="Qualification (optional)"
-                          value={form.audience.qualification_status}
-                          onChange={(e) =>
-                            setForm({
-                              ...form,
-                              audience: { ...form.audience, qualification_status: e.target.value },
-                            })
-                          }
-                          className="h-8 text-xs col-span-2"
-                        />
-                      </div>
-                    </>
-                  )}
-                  <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
-                    <Checkbox
-                      checked={form.audience.whatsapp_opt_in_only}
-                      onCheckedChange={(v) =>
-                        setForm({
-                          ...form,
-                          audience: { ...form.audience, whatsapp_opt_in_only: v === true },
-                        })
-                      }
-                    />
-                    Only opted-in WhatsApp numbers
-                  </label>
-                  <p className="text-[11px] text-muted-foreground">
-                    Launch still skips DNC and already-sent numbers unless you allow a resend.
-                  </p>
-                </div>
               </>
             ) : (
               <div className="space-y-1.5">
@@ -2205,13 +1646,20 @@ export function WhatsAppCampaigns() {
                 </Select>
               </div>
             )}
+            </section>
           </div>
           <DialogFooter className="flex-col items-stretch gap-2 sm:flex-col sm:space-x-0">
-            {!canCreate && watiConnected && form.audienceMode !== "filters" && !audienceReady && (
-              <p className="text-xs text-amber-400 text-center">
-                {form.audienceMode === "csv" ? "Upload a CSV first." : "Load contacts first."}
-              </p>
-            )}
+            <p
+              className={cn(
+                "text-center text-xs",
+                createBlocker ? "text-amber-400" : "text-muted-foreground",
+              )}
+            >
+              {createBlocker ??
+                (watiConnected
+                  ? `Will send to ${recipientCount} ${recipientCount === 1 ? "person" : "people"}`
+                  : "")}
+            </p>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setOpen(false)}>
                 Cancel

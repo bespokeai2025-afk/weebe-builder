@@ -10,63 +10,113 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { resolvePublicHost } from "./twilio-env";
 import { resolveTwilioCredentialsForWorkspace } from "./twilio-credentials.server";
-import { IN_FLIGHT_TARGET_STATUSES, type DialerTargetStatus } from "./auto-dialer.shared";
+import {
+  IN_FLIGHT_TARGET_STATUSES,
+  capacityUsed,
+  dialerCapacity,
+  type DialerTargetStatus,
+} from "./auto-dialer.shared";
 
 type DbClient = SupabaseClient | { from: (table: string) => any };
 
 /**
- * Dial the next pending target in a session, if the session is still running
- * and nothing is currently in flight. Safe to call redundantly — both the
- * Start action and every webhook call this after updating a target, and only
- * one of them will find a pending target with nothing in flight.
+ * Fill the session's free capacity: dial pending targets until the live calls equal the number
+ * of people who can take them (`dialerCapacity`). With two people, a third lead is never dialled
+ * while both are on calls; as soon as one is free again, the next lead is dialled.
+ *
+ * Safe to call redundantly and concurrently — the Start action and every webhook call it. Each
+ * pending target is claimed with a conditional update, and a dial that would overshoot capacity
+ * (two webhooks racing) is handed back to the queue before any phone rings.
  */
 export async function dialNextDialerTarget(sb: DbClient, sessionId: string): Promise<void> {
-  const { data: session } = await sb
-    .from("dialer_sessions")
-    .select("id, workspace_id, status, from_number, route_numbers, ring_timeout_secs, stats")
-    .eq("id", sessionId)
-    .maybeSingle();
-
-  if (!session || session.status !== "running") return;
-
-  const { data: inFlight } = await sb
-    .from("dialer_targets")
-    .select("id")
-    .eq("session_id", sessionId)
-    .in("status", IN_FLIGHT_TARGET_STATUSES)
-    .limit(1)
-    .maybeSingle();
-  if (inFlight) return; // something is already ringing — the webhook for it will call us again
-
-  const { data: next } = await sb
-    .from("dialer_targets")
-    .select("id, phone")
-    .eq("session_id", sessionId)
-    .eq("status", "pending")
-    .order("position", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
-  if (!next) {
-    await sb
+  for (let guard = 0; guard < 50; guard++) {
+    const { data: session } = await sb
       .from("dialer_sessions")
-      .update({ status: "completed", updated_at: new Date().toISOString() })
+      .select("id, workspace_id, status, from_number, route_numbers, ring_timeout_secs, stats")
       .eq("id", sessionId)
-      .eq("status", "running"); // don't stomp a Pause/Cancel that raced us here
-    return;
+      .maybeSingle();
+    if (!session || session.status !== "running") return;
+
+    const capacity = dialerCapacity(session.route_numbers as string[]);
+    const live = await liveTargets(sb, sessionId);
+    if (live.reduce((n, t) => n + capacityUsed(t), 0) >= capacity) return; // everyone is busy
+
+    const { data: next } = await sb
+      .from("dialer_targets")
+      .select("id, phone")
+      .eq("session_id", sessionId)
+      .eq("status", "pending")
+      .order("position", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (!next) {
+      if (live.length === 0) {
+        await sb
+          .from("dialer_sessions")
+          .update({ status: "completed", updated_at: new Date().toISOString() })
+          .eq("id", sessionId)
+          .eq("status", "running"); // don't stomp a Pause/Cancel that raced us here
+      }
+      return;
+    }
+
+    // Claim it: only one caller can move this row out of "pending".
+    const { data: claimed } = await sb
+      .from("dialer_targets")
+      .update({
+        status: "dialing",
+        attempt_count: 1,
+        started_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", next.id)
+      .eq("status", "pending")
+      .select("id")
+      .maybeSingle();
+    if (!claimed) continue; // someone else took it — look again
+
+    // A concurrent caller may have claimed another target at the same moment.
+    const after = await liveTargets(sb, sessionId);
+    if (after.reduce((n, t) => n + capacityUsed(t), 0) > capacity) {
+      await sb
+        .from("dialer_targets")
+        .update({ status: "pending", started_at: null, updated_at: new Date().toISOString() })
+        .eq("id", next.id)
+        .eq("status", "dialing")
+        .is("call_sid", null);
+      return;
+    }
+
+    await placeDialerCall(sb, session, next as { id: string; phone: string });
   }
+}
 
-  const routeNumbers = (session.route_numbers ?? []) as string[];
+async function liveTargets(
+  sb: DbClient,
+  sessionId: string,
+): Promise<Array<{ id: string; status: string; bridged_number: string | null }>> {
+  const { data } = await sb
+    .from("dialer_targets")
+    .select("id, status, bridged_number")
+    .eq("session_id", sessionId)
+    .in("status", IN_FLIGHT_TARGET_STATUSES);
+  return (data ?? []) as Array<{ id: string; status: string; bridged_number: string | null }>;
+}
+
+async function placeDialerCall(
+  sb: DbClient,
+  session: { id: string; workspace_id: string; from_number: string },
+  next: { id: string; phone: string },
+): Promise<void> {
   const host = resolvePublicHost();
-  const credentials = await resolveTwilioCredentialsForWorkspace(sb, session.workspace_id as string);
-
-  const { default: twilio } = await import("twilio");
-  const client = twilio(credentials.accountSid, credentials.authToken);
-
   try {
+    const credentials = await resolveTwilioCredentialsForWorkspace(sb, session.workspace_id);
+    const { default: twilio } = await import("twilio");
+    const client = twilio(credentials.accountSid, credentials.authToken);
     const call = await client.calls.create({
-      to: next.phone as string,
-      from: session.from_number as string,
+      to: next.phone,
+      from: session.from_number,
       url: `${host}/api/public/telephony/dialer-connect/${next.id}`,
       method: "POST",
       statusCallback: `${host}/api/public/telephony/dialer-lead-status/${next.id}`,
@@ -76,22 +126,14 @@ export async function dialNextDialerTarget(sb: DbClient, sessionId: string): Pro
 
     await sb
       .from("dialer_targets")
-      .update({
-        status: "dialing",
-        call_sid: call.sid,
-        attempt_count: 1,
-        started_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
+      .update({ call_sid: call.sid, updated_at: new Date().toISOString() })
       .eq("id", next.id);
 
-    await bumpStat(sb, sessionId, "dialed");
+    await bumpStat(sb, session.id, "dialed");
   } catch (e: any) {
     // Twilio's SDK throws a RestException with `code`/`status`/`moreInfo` for a rejected call —
-    // e.g. a destination country blocked under Voice → Geographic Permissions comes back as a 403
-    // before the call ever rings. Stored here rather than only logged: the previous version left
-    // this failure completely silent to anyone without server log access, showing only "failed"
-    // with no way to tell a geo-permission block apart from bad credentials or a malformed number.
+    // e.g. a destination country blocked under Voice → Geographic Permissions comes back before
+    // the call ever rings. Stored so the run shows why, not just "failed".
     const errorMessage = [e?.status, e?.code, e?.message].filter(Boolean).join(" ") || String(e);
     console.error("[auto-dialer] failed to place call:", errorMessage, e?.moreInfo ?? "");
     await sb
@@ -100,16 +142,13 @@ export async function dialNextDialerTarget(sb: DbClient, sessionId: string): Pro
         status: "failed",
         error_message: errorMessage.slice(0, 500),
         ended_at: new Date().toISOString(),
-        advanced_at: new Date().toISOString(), // nothing will call us back for this leg — advance now
+        advanced_at: new Date().toISOString(), // nothing will call us back for this leg
         updated_at: new Date().toISOString(),
       })
       .eq("id", next.id);
-    await bumpStat(sb, sessionId, "failed");
-    // Recurse so a bad number doesn't stall the whole list.
-    await dialNextDialerTarget(sb, sessionId);
+    await bumpStat(sb, session.id, "failed");
+    // The caller's loop moves on to the next target, so one bad number doesn't stall the list.
   }
-
-  void routeNumbers; // referenced for documentation; actual ring list is built in dialer-connect
 }
 
 async function bumpStat(sb: DbClient, sessionId: string, key: "dialed" | "bridged" | "no_answer" | "failed") {

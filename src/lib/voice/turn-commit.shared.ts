@@ -4,7 +4,12 @@
  */
 
 import { isLikelyEnglishSttHallucination, isMostlyNonLatinScript } from "./language-lock.shared";
-import { looksLikeOwnerAnswer, looksLikePhoneAnswer, looksLikeTitleAnswer } from "./graph/router";
+import { looksLikePhoneAnswer } from "./graph/router";
+
+/** A bare salutation ("Mr.", "Dr") — a complete one-word answer to any "how should I address you". */
+function looksLikeTitleAnswer(text: string): boolean {
+  return /^(mr|mrs|miss|ms|mister|dr|doctor|mx|sir|madam)\b\.?$/i.test(text.trim());
+}
 
 const UK_POSTCODE = /\b[A-Z]{1,2}\d{1,2}[A-Z]?\s*\d[A-Z]{2}\b/i;
 
@@ -46,7 +51,6 @@ export function looksLikeCommitReadyPartial(text: string): boolean {
   if (isMostlyNonLatinScript(t) || isLikelyEnglishSttHallucination(t)) return false;
   if (looksLikeCompleteShortReply(t)) return true;
   if (looksLikeTitleAnswer(t)) return true;
-  if (looksLikeOwnerAnswer(t)) return true;
   if (looksLikeUkPostcode(t) && t.split(/\s+/).length <= 4) return true;
   if (looksLikeCompletePhoneAnswer(t)) return true;
   return false;

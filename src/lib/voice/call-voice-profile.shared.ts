@@ -6,6 +6,7 @@
  * entire call so TTS does not drift or switch mid-conversation.
  */
 
+import { voiceIdFor } from "../builder/agent-voice.shared";
 import { resolveFishTtsVoiceRequest } from "./fish-tts-prosody.shared";
 import { resolveOpenAiTtsVoice, resolveOpenAiTtsModel } from "./tts/openai.provider";
 import { CARTESIA_TTS_DEFAULT_VOICE, resolveCartesiaTtsModel } from "./tts/cartesia.provider";
@@ -72,7 +73,7 @@ export function lockCallVoiceProfile(input: {
   ttsProvider?: "fish" | "openai" | "cartesia";
 }): CallVoiceProfile {
   if (input.ttsProvider === "openai") {
-    const voiceId = resolveOpenAiTtsVoice(String(input.settings?.openaiVoice ?? ""));
+    const voiceId = resolveOpenAiTtsVoice(voiceIdFor(input.settings, "openai"));
     const req: TtsVoiceRequest = {
       voiceId,
       sampleRate: input.sampleRate,
@@ -82,7 +83,7 @@ export function lockCallVoiceProfile(input: {
   }
 
   if (input.ttsProvider === "cartesia") {
-    const voiceId = String(input.settings?.cartesiaVoice ?? "").trim() || CARTESIA_TTS_DEFAULT_VOICE;
+    const voiceId = voiceIdFor(input.settings, "cartesia") || CARTESIA_TTS_DEFAULT_VOICE;
     const req: TtsVoiceRequest = {
       voiceId,
       sampleRate: input.sampleRate,

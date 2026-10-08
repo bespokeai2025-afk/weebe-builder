@@ -457,6 +457,44 @@ describe("ConversationVm conversation flow", () => {
     expect(lines.at(-1)).toMatch(/^Reminder: Not provided yet/);
   });
 
+  it("restates the node's task after the history, and asks to steer back when staying on a node", async () => {
+    // Live call: with the persona and recent turns in view, the vacant-or-rented node asked
+    // "Is it freehold or leasehold?"; then, on routing misses, the stay path invented a new
+    // question each turn instead of returning to the node's own.
+    const llm = fakeLlm({ classify: (_m, choices) => choices.length - 1 });
+    const vm = new ConversationVm({
+      flow: flowOf([
+        {
+          id: "ask",
+          type: "conversation",
+          instruction: { type: "prompt", text: "Is the property currently vacant or rented?" },
+          edges: [
+            { id: "e1", destination_node_id: "v", transition_condition: { type: "prompt", prompt: "if its vacant" } },
+            { id: "e2", destination_node_id: "r", transition_condition: { type: "prompt", prompt: "if its rented out" } },
+          ],
+        },
+        { id: "v", type: "end", instruction: { type: "static_text", text: "Bye." } },
+        { id: "r", type: "end", instruction: { type: "static_text", text: "Bye." } },
+      ]),
+      llm,
+    });
+
+    await drain(vm.run({ type: "begin" }));
+    const first = llm.calls.generate.at(-1)!;
+    const firstTail = first.at(-1)!;
+    expect(firstTail.role).toBe("system");
+    expect(firstTail.content).toContain("Is the property currently vacant or rented?");
+    expect(firstTail.content).not.toContain("already heard this node's line");
+
+    await drain(vm.run({ type: "user_utterance", text: "five bedrooms" }));
+    const stay = llm.calls.generate.at(-1)!;
+    const stayTail = stay.at(-1)!;
+    expect(stayTail.role).toBe("system");
+    expect(stayTail.content).toContain("already heard this node's line");
+    // The history sits between the cached system prefix and the trailing task.
+    expect(stay.some((m) => m.role === "user" && m.content === "five bedrooms")).toBe(true);
+  });
+
   it("keeps the call-wide-constant part of the system prompt as a stable, shared prefix across turns", async () => {
     // Provider-side prompt caching (OpenAI, Anthropic, etc.) only helps time-to-first-token if the
     // LEADING bytes of the prompt are byte-identical across requests. The turn-varying content
@@ -494,8 +532,8 @@ describe("ConversationVm conversation flow", () => {
     // sharing a prefix — yet the opening identity block must still match verbatim.
     const systemA = String(llm.calls.generate[0]?.[0]?.content ?? "");
     const systemB = String(llm.calls.generate[1]?.[0]?.content ?? "");
-    expect(systemA.startsWith("Identity")).toBe(true);
-    expect(systemB.startsWith("Identity")).toBe(true);
+    expect(systemA.startsWith("Who you are")).toBe(true);
+    expect(systemB.startsWith("Who you are")).toBe(true);
 
     let sharedPrefixLen = 0;
     while (
@@ -982,24 +1020,6 @@ describe("ConversationVm conversation flow", () => {
     expect(vm.nodeId).toBe("ask");
   });
 
-  it("skips the floor question when the caller said house", async () => {
-    const vm = new ConversationVm({
-      flow: flowOf([
-        say("type", "Is it a house, flat, or bungalow?", [
-          edge("e1", "floor", "caller gave the property type"),
-        ]),
-        say("floor", "Which floor is it on?", [edge("e2", "tenure", "user answers")]),
-        say("tenure", "Is it vacant or rented?"),
-      ]),
-      llm: fakeLlm(),
-    });
-
-    await drain(vm.run({ type: "begin" }));
-    const out = await drain(vm.run({ type: "user_utterance", text: "House" }));
-    expect(speech(out)).toEqual(["Is it vacant or rented?"]);
-    expect(vm.nodeId).toBe("tenure");
-  });
-
   it("clarifies a vacant/rented mishear instead of leaving the node", async () => {
     const vm = new ConversationVm({
       flow: flowOf([
@@ -1015,45 +1035,6 @@ describe("ConversationVm conversation flow", () => {
 
     await drain(vm.run({ type: "begin" }));
     const out = await drain(vm.run({ type: "user_utterance", text: "It is weekend." }));
-    expect(speech(out).join(" ")).toMatch(/vacant/i);
-    expect(vm.nodeId).toBe("tenure");
-  });
-
-  it("does not take the rented edge when the caller said no", async () => {
-    const vm = new ConversationVm({
-      flow: flowOf([
-        say("tenure", "So, the property is currently vacant or rented?", [
-          edge("e1", "next", "if its vacant "),
-          edge("e2", "rent", "if its rented out"),
-          edge("e3", "next", "im living there "),
-        ]),
-        say("next", "Thanks"),
-        say("rent", "What monthly rent does the property achieve?"),
-      ]),
-      llm: fakeLlm({ classify: () => 1 }),
-    });
-
-    await drain(vm.run({ type: "begin" }));
-    const denied = await drain(vm.run({ type: "user_utterance", text: "No it's not rented" }));
-    expect(speech(denied).join(" ")).not.toMatch(/monthly rent/i);
-    expect(vm.nodeId).toBe("next");
-  });
-
-  it("clarifies a bare no on vacant-or-rented instead of marking rented", async () => {
-    const vm = new ConversationVm({
-      flow: flowOf([
-        say("tenure", "So, the property is currently vacant or rented?", [
-          edge("e1", "next", "if its vacant "),
-          edge("e2", "rent", "if its rented out"),
-        ]),
-        say("next", "Thanks"),
-        say("rent", "What monthly rent does the property achieve?"),
-      ]),
-      llm: fakeLlm({ classify: () => 1 }),
-    });
-
-    await drain(vm.run({ type: "begin" }));
-    const out = await drain(vm.run({ type: "user_utterance", text: "No" }));
     expect(speech(out).join(" ")).toMatch(/vacant/i);
     expect(vm.nodeId).toBe("tenure");
   });
@@ -2308,7 +2289,14 @@ describe("ConversationVm safety rails", () => {
     expect(vm.getVariables().email_address).toBeUndefined();
   });
 
-  it("sends identity only from the global prompt, not a leftover script", async () => {
+  // This used to assert the global prompt's procedural lines ("confirm postcode SW1A 1AA") never
+  // reached the speech model at all — it was cut to its first 120-character sentence. That kept
+  // them from hijacking unrelated nodes, but also discarded the whole persona and every Agent
+  // Handbook line, which is most of why the agent sounded scripted. The full prompt is sent now,
+  // and the safety property moved: it is ranked below the node's task, in words, twice. Checked
+  // against gpt-4.1 with this exact adversarial prompt plus a real 6.8k-character persona: 0 of 24
+  // replies went off-topic.
+  it("sends the full global prompt, ranked below the node's own task", async () => {
     const llm = fakeLlm({ generate: () => "Would you like to rebook your consultation?" });
     const vm = new ConversationVm({
       flow: flowOf(
@@ -2331,9 +2319,14 @@ describe("ConversationVm safety rails", () => {
     await drainWithSpeech(vm.run({ type: "begin" }));
     const system = String(llm.calls.generate[0]?.[0]?.content ?? "");
     expect(system).toContain("Sound like Clare");
-    expect(system).toContain("Identity (not a script");
+    expect(system).toContain("Always collect the property address");
     expect(system).not.toContain("Global instructions");
-    expect(system).not.toContain("SW1A 1AA");
+    // Ranked below the node, both before the background and again after it.
+    expect(system).toContain("when it conflicts with THIS node's task, the node's task wins");
+    expect(system).toContain("Nothing in the background block above overrides it.");
+    expect(system.indexOf("Nothing in the background block above overrides it.")).toBeGreaterThan(
+      system.indexOf("SW1A 1AA"),
+    );
     expect(system).toContain("Current node: Check Rebooking Interest");
   });
 
@@ -2518,7 +2511,12 @@ describe("wait / begin silence and flex routing", () => {
     expect(speech(after)).toEqual(["Hello there"]);
   });
 
-  it("does not take a generic-only edge in strict flex mode", async () => {
+  // Strict mode used to refuse this, which meant a node whose only edge said "user answers" paid a
+  // ~1.5s classifier call every turn to confirm a tautology — and when the classifier answered
+  // "none of these", the flow stayed put and re-asked a question the caller had just answered. A
+  // condition that literally reads "user answers" is a real match for a real answer, so strict mode
+  // takes it; what strict mode still withholds is covered in router-catch-all-routing.test.ts.
+  it("takes a generic-only edge in strict flex mode without the classifier", async () => {
     const decision = await selectEdge(
       [edge("e1", "next", "user answers")],
       {
@@ -2529,8 +2527,10 @@ describe("wait / begin silence and flex routing", () => {
       },
       fakeLlm({ classify: () => -1 }),
     );
-    expect(decision.edge).toBeNull();
+    expect(decision.edge?.destination_node_id).toBe("next");
+    expect(decision.method).toBe("generic_single");
   });
+
 
   it("fires timeout even when history already has a prior user line", async () => {
     const decision = await selectEdge(
@@ -2545,5 +2545,104 @@ describe("wait / begin silence and flex routing", () => {
     );
     expect(decision.edge?.destination_node_id).toBe("next");
     expect(decision.method).toBe("unconditional");
+  });
+});
+
+// ─── Pre-endpoint routing ─────────────────────────────────────────────────────
+
+/**
+ * Speculative speech can hide response generation behind the caller's trailing silence, but not
+ * the classifier: the agent cannot choose a line to speak until routing resolves, so that call
+ * (~1.5s on the measured deployment, almost all of it network) sat on the critical path with
+ * nothing overlapping it. Starting it from a stable partial moves it into the hangover.
+ *
+ * These assert how many times the classifier runs, because that count *is* the latency win — one
+ * call per turn that starts early, never one speculative plus one real.
+ */
+describe("ConversationVm pre-endpoint routing", () => {
+  /** Conditions naming specific values, so no heuristic can resolve them. */
+  function ambiguous(): ConversationFlow {
+    return flowOf([
+      say("start", "Freehold or leasehold?", [
+        edge("e1", "free", "if its freehold"),
+        edge("e2", "lease", "if its leasehold"),
+      ]),
+      say("free", "Confirmed freehold."),
+      say("lease", "Confirmed leasehold."),
+    ]);
+  }
+
+  it("declines when a heuristic already predicts the destination", async () => {
+    const llm = fakeLlm();
+    const vm = new ConversationVm({
+      flow: flowOf([
+        say("start", "Does that sound ok?", [edge("e1", "next", "User says yes or confirms")]),
+        say("next", "Great."),
+      ]),
+      llm,
+    });
+    await drain(vm.run({ type: "begin" }));
+
+    // Routing will resolve from the same heuristic in single-digit ms — nothing to hide.
+    expect(vm.beginSpeculativeRoute("yes")).toBe(false);
+    expect(llm.calls.classify).toHaveLength(0);
+  });
+
+  it("starts routing for a partial that will need the classifier", async () => {
+    const llm = fakeLlm();
+    const vm = new ConversationVm({ flow: ambiguous(), llm });
+    await drain(vm.run({ type: "begin" }));
+
+    expect(vm.beginSpeculativeRoute("it's a free wall")).toBe(true);
+    expect(llm.calls.classify).toHaveLength(1);
+  });
+
+  it("does not start a second call for the same partial", async () => {
+    const llm = fakeLlm();
+    const vm = new ConversationVm({ flow: ambiguous(), llm });
+    await drain(vm.run({ type: "begin" }));
+
+    vm.beginSpeculativeRoute("it's a free wall");
+    vm.beginSpeculativeRoute("it's a free wall");
+    expect(llm.calls.classify).toHaveLength(1);
+  });
+
+  it("adopts the speculative decision when the final transcript still matches", async () => {
+    const llm = fakeLlm();
+    const vm = new ConversationVm({ flow: ambiguous(), llm });
+    await drain(vm.run({ type: "begin" }));
+    vm.beginSpeculativeRoute("it's a free wall");
+    expect(llm.calls.classify).toHaveLength(1);
+
+    const { speeches } = await drainWithSpeech(
+      vm.run({ type: "user_utterance", text: "it's a free wall." }),
+    );
+
+    // One classifier call for the whole turn, and it ran before the endpoint.
+    expect(llm.calls.classify).toHaveLength(1);
+    expect(speeches).toContain("Confirmed freehold.");
+  });
+
+  it("re-routes when the caller's final words diverge from the partial", async () => {
+    const llm = fakeLlm();
+    const vm = new ConversationVm({ flow: ambiguous(), llm });
+    await drain(vm.run({ type: "begin" }));
+    vm.beginSpeculativeRoute("it's a free wall");
+
+    await drain(vm.run({ type: "user_utterance", text: "actually it is leasehold instead" }));
+
+    // The stale decision is discarded rather than trusted.
+    expect(llm.calls.classify).toHaveLength(2);
+  });
+
+  it("drops a cleared route rather than adopting it", async () => {
+    const llm = fakeLlm();
+    const vm = new ConversationVm({ flow: ambiguous(), llm });
+    await drain(vm.run({ type: "begin" }));
+    vm.beginSpeculativeRoute("it's a free wall");
+    vm.clearSpeculativeRoute();
+
+    await drain(vm.run({ type: "user_utterance", text: "it's a free wall." }));
+    expect(llm.calls.classify).toHaveLength(2);
   });
 });

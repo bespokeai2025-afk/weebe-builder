@@ -66,7 +66,8 @@ export function SaveAsTemplateDialog({
           name: name.trim(),
           description: description.trim(),
           flowData: { nodes: s.nodes, edges: s.edges } as never,
-          settings: s.settings as never,
+          // A template starts fresh: no version history or live snapshot of the source agent.
+          settings: { ...s.settings, flowHistory: [], publishedSnapshot: null } as never,
           variables: s.variables as never,
         },
       });

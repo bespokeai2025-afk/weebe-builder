@@ -60,7 +60,31 @@ function firstSpeakableBoundary(buf: string): boolean {
   return /[.!?][\s"'”’]/.test(buf) || /[.!?]$/.test(buf);
 }
 
-/** Drop wrap-up speech on non-end nodes, swapping in the node's script. */
+/**
+ * Complete sentences at the front of `buf` (each with its trailing space) and what is left.
+ * A sentence ends at . ! or ? followed by whitespace or a closing quote.
+ */
+function takeSentences(buf: string): { sentences: string[]; rest: string } {
+  const sentences: string[] = [];
+  const re = /[.!?]+["'”’)]*\s+/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(buf))) {
+    sentences.push(buf.slice(last, m.index + m[0].length));
+    last = m.index + m[0].length;
+  }
+  return { sentences, rest: buf.slice(last) };
+}
+
+/**
+ * Drop wrap-up speech on non-end nodes, swapping in the node's script.
+ *
+ * After the first sentence this used to watch the whole accumulated reply and stop the stream the
+ * moment a wrap-up phrase appeared anywhere — so "Perfect, thank you. You're all set on the
+ * details, so what's your timeframe?" reached the caller as "Perfect, thank you." and the node's
+ * actual question was never spoken. It now works sentence by sentence: a sentence that is a
+ * premature goodbye is dropped, and every other sentence — including the question — is kept.
+ */
 export async function* guardPrematureWrapUpStream(
   stream: AsyncIterable<string>,
   fallback: string,
@@ -73,17 +97,27 @@ export async function* guardPrematureWrapUpStream(
 
   let buf = "";
   let released = false;
+  let pending = "";
   for await (const delta of stream) {
-    buf += delta;
     if (released) {
-      if (looksLikePrematureWrapUp(buf)) return;
-      yield delta;
+      pending += delta;
+      const { sentences, rest } = takeSentences(pending);
+      pending = rest;
+      for (const sentence of sentences) {
+        if (!isDroppableWrapUp(sentence)) yield sentence;
+        // Keep the separator a dropped sentence carried, so the next one is not glued on.
+        else if (/^\s/.test(sentence)) yield " ";
+      }
       continue;
     }
+    buf += delta;
     if (!firstSpeakableBoundary(buf)) continue;
     const replacement = replacePrematureWrapUp(buf, fallback);
     released = true;
-    if (replacement !== buf) {
+    // Compare trimmed: `replacePrematureWrapUp` trims, so a first sentence that merely ended in a
+    // space or newline (a token like ". " or "?\n") used to count as "replaced" — and the stream
+    // stopped after the first sentence, silently cutting off the rest of the reply.
+    if (replacement.trim() !== buf.trim()) {
       if (replacement) yield replacement;
       return;
     }
@@ -92,5 +126,12 @@ export async function* guardPrematureWrapUpStream(
   if (!released) {
     const replacement = replacePrematureWrapUp(buf, fallback);
     if (replacement) yield replacement;
+    return;
   }
+  if (pending.trim() && !isDroppableWrapUp(pending)) yield pending;
+}
+
+/** A goodbye sentence worth dropping — never one that also asks the caller something. */
+function isDroppableWrapUp(sentence: string): boolean {
+  return looksLikePrematureWrapUp(sentence) && !sentence.includes("?");
 }

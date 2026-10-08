@@ -168,3 +168,95 @@ describe("streamSpeculativeTokens", () => {
     expect(seen.join("")).toBe("Hello there.");
   });
 });
+
+/**
+ * Pre-endpoint fanout. `peekSpeechWarmTarget` only answers when a heuristic predicts one
+ * destination; on every other turn nothing used to start until after the endpoint, leaving the
+ * ~800ms VAD hangover idle while the whole LLM round trip waited behind it.
+ */
+describe("speechWarmFanout", () => {
+  /** Two prompt destinations behind conditions no heuristic can resolve. */
+  function ambiguousFlow(): ConversationFlow {
+    return {
+      start_node_id: "start",
+      start_speaker: "agent",
+      nodes: [
+        {
+          id: "start",
+          type: "conversation",
+          // Static so the node is not also a self-candidate — keeps the assertion about edges.
+          instruction: { type: "static_text", text: "Freehold or leasehold?" },
+          edges: [
+            {
+              id: "e1",
+              destination_node_id: "free",
+              transition_condition: { type: "prompt", prompt: "if its freehold" },
+            },
+            {
+              id: "e2",
+              destination_node_id: "lease",
+              transition_condition: { type: "prompt", prompt: "if its leasehold" },
+            },
+          ],
+        },
+        {
+          id: "free",
+          type: "conversation",
+          instruction: { type: "prompt", text: "Confirm freehold and ask the next question." },
+        },
+        {
+          id: "lease",
+          type: "conversation",
+          instruction: { type: "prompt", text: "Confirm leasehold and ask the next question." },
+        },
+      ],
+    };
+  }
+
+  function startedVm(flow: ConversationFlow = ambiguousFlow()) {
+    const vm = new ConversationVm({ flow, llm: noopLlm });
+    vm.run({ type: "begin" });
+    return vm;
+  }
+
+  it("warms every plausible destination when no single one is predicted", () => {
+    const vm = startedVm();
+    // Confirms the premise: this partial is exactly the case that needs the classifier.
+    expect(vm.peekSpeechWarmTarget("It's a free wall.")).toBeNull();
+
+    const fanout = vm.speechWarmFanout("It's a free wall.");
+    expect(fanout.map((t) => t.nodeId).sort()).toEqual(["free", "lease"]);
+    expect(fanout.every((t) => t.kind === "prompt")).toBe(true);
+  });
+
+  it("skips a destination that already has a run in flight, so a growing partial cannot stack duplicates", () => {
+    const vm = startedVm();
+    vm.setSpeculativeSpeech("free", {
+      partial: "it's a free",
+      ctrl: new AbortController(),
+      tokens: [],
+      done: Promise.resolve(""),
+    } as SpeculativeSpeechRun);
+
+    expect(vm.speechWarmFanout("It's a free wall.").map((t) => t.nodeId)).toEqual(["lease"]);
+  });
+
+  it("honours the candidate limit", () => {
+    const vm = startedVm();
+    expect(vm.speechWarmFanout("It's a free wall.", 1)).toHaveLength(1);
+  });
+
+  it("returns nothing when the provider cannot stream", () => {
+    const vm = new ConversationVm({
+      flow: ambiguousFlow(),
+      llm: { classify: async () => 0, generate: async () => "ok" },
+    });
+    vm.run({ type: "begin" });
+    expect(vm.speechWarmFanout("It's a free wall.")).toEqual([]);
+  });
+
+  it("leaves static destinations alone — they need no LLM call", () => {
+    const vm = startedVm(flowWithStaticEdge());
+    expect(vm.speechWarmFanout("something ambiguous entirely")).toEqual([]);
+  });
+});

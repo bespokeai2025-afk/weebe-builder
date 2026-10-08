@@ -78,4 +78,38 @@ describe("AudioPlaybackController", () => {
     await playback.enqueueAudio(pcm, 1);
     expect(playback.queueLength).toBe(0);
   });
+
+  it("queues a new response after audio still playing instead of cutting it off", async () => {
+    const starts: number[] = [];
+    let stopped = 0;
+    const ctx = {
+      state: "running",
+      currentTime: 0,
+      createBuffer: (_c: number, len: number) => ({ duration: len / 24000, copyToChannel: () => {} }),
+      createBufferSource: () => ({
+        buffer: null as unknown,
+        onended: null as (() => void) | null,
+        connect: () => {},
+        start: (at: number) => starts.push(at),
+        stop: () => {
+          stopped += 1;
+        },
+      }),
+      resume: async () => {},
+    } as unknown as AudioContext;
+    const playback = new AudioPlaybackController(() => ctx, () => ctx.destination, { sampleRate: 24000 });
+    const oneSecond = Buffer.alloc(48000).toString("base64");
+
+    playback.setActiveResponse(1);
+    await playback.enqueueAudio(oneSecond, 1);
+    playback.setActiveResponse(2);
+    await playback.enqueueAudio(oneSecond, 2);
+
+    expect(stopped).toBe(0);
+    expect(starts).toHaveLength(2);
+    expect(starts[1]).toBeCloseTo(starts[0]! + 1, 5);
+
+    playback.cancelCurrentAudio("barge_in");
+    expect(stopped).toBe(2);
+  });
 });

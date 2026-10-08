@@ -45,7 +45,7 @@ export function ExportJsonDialog({
     }
   }, [settings.conversationFlowId, setSettings]);
 
-  const issues = validateFlow(nodes, edges, variables);
+  const issues = validateFlow(nodes, edges, variables, { phoneCountryCode: settings.phoneCountryCode });
   let json = "";
   let exportError: string | null = null;
   try {

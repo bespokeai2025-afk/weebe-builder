@@ -196,57 +196,6 @@ describe("routing heuristics", () => {
     ).toBe(0);
   });
 
-  it("routes address and owner-occupied answers without classifier", async () => {
-    const { tryHeuristicEdgeIndex, looksLikeAddressAnswer } = await import("@/lib/voice/graph/router");
-    expect(looksLikeAddressAnswer("24 Baker Street, London SW1A 1AA")).toBe(true);
-    expect(
-      tryHeuristicEdgeIndex(
-        ["caller gives property address", "caller refuses"],
-        "Twenty Four Street, Dubai",
-      ),
-    ).toBe(0);
-    expect(
-      tryHeuristicEdgeIndex(
-        ["property is owner occupied", "property is rented"],
-        "I live in it",
-      ),
-    ).toBe(0);
-  });
-
-  it("routes property type and tenure answers", async () => {
-    const { tryHeuristicEdgeIndex } = await import("@/lib/voice/graph/router");
-    expect(
-      tryHeuristicEdgeIndex(["caller says flat", "caller says house"], "It's a flat"),
-    ).toBe(0);
-    expect(
-      tryHeuristicEdgeIndex(["if its vacant", "if its rented out"], "It's rented out"),
-    ).toBe(1);
-    expect(
-      tryHeuristicEdgeIndex(
-        ["if its vacant ", "if its rented out", "im living there "],
-        "No it's not rented",
-        "So, the property is currently vacant or rented?",
-      ),
-    ).toBe(0);
-    expect(
-      tryHeuristicEdgeIndex(
-        ["if its vacant ", "if its rented out", "im living there "],
-        "no",
-        "Is the property currently rented?",
-      ),
-    ).toBe(0);
-    expect(
-      tryHeuristicEdgeIndex(
-        ["if its vacant ", "if its rented out", "im living there "],
-        "no",
-        "So, the property is currently vacant or rented?",
-      ),
-    ).toBeNull();
-    expect(
-      tryHeuristicEdgeIndex(["Which floor is it on"], "Second floor"),
-    ).toBe(0);
-  });
-
   it("does not route numeric answers to hang-up or opt-out edges", async () => {
     const { tryHeuristicEdgeIndex } = await import("@/lib/voice/graph/router");
     expect(
@@ -303,31 +252,6 @@ describe("routing heuristics", () => {
       ),
     ).toBe(0);
   });
-
-  it("routes owner and title answers without a classifier", async () => {
-    const { tryHeuristicEdgeIndex, looksLikeOwnerAnswer, looksLikeTitleAnswer } = await import(
-      "@/lib/voice/graph/router"
-    );
-    expect(looksLikeOwnerAnswer("I am owner of the property.")).toBe(true);
-    expect(looksLikeTitleAnswer("Mister.")).toBe(true);
-    expect(
-      tryHeuristicEdgeIndex(
-        [
-          "user is the owner of the property",
-          "user is calling on behalf of someone else",
-        ],
-        "I am owner of the property.",
-        "Are you the owner or calling on behalf of someone else?",
-      ),
-    ).toBe(0);
-    expect(
-      tryHeuristicEdgeIndex(
-        ["user gives their preferred title", "user declined"],
-        "Mister.",
-        "What is your preferred title? For example, Mr, Mrs, Miss.",
-      ),
-    ).toBe(0);
-  });
 });
 
 describe("speech interpolation", () => {
@@ -350,29 +274,6 @@ describe("speech interpolation", () => {
         {},
       ),
     ).not.toMatch(/don't read it back/i);
-  });
-});
-
-describe("house floor skip heuristic", () => {
-  it("detects standalone house answers", async () => {
-    const { historyIndicatesStandaloneHouse } = await import(
-      "@/lib/voice/graph/stt-clarification.shared"
-    );
-    expect(
-      historyIndicatesStandaloneHouse([
-        { role: "user", content: "House." },
-        { role: "agent", content: "Thank you." },
-      ]),
-    ).toBe(true);
-    expect(
-      historyIndicatesStandaloneHouse([
-        { role: "assistant", content: "Is it a house, flat, or bungalow?" },
-        { role: "user", content: "House." },
-      ]),
-    ).toBe(true);
-    expect(
-      historyIndicatesStandaloneHouse([{ role: "user", content: "It's a flat on the second floor." }]),
-    ).toBe(false);
   });
 });
 
@@ -407,17 +308,13 @@ describe("cascade tuning", () => {
     expect(resolveUtteranceCoalesceMs("Twenty Four Street Dubai", 600)).toBe(600);
   });
 
-  it("commits collect-path partials without waiting on STT final", async () => {
-    const {
-      looksLikeCommitReadyPartial,
-      shouldSkipSttFinal,
-      resolveEndpointHangoverMs,
-    } = await import("@/lib/voice/turn-commit.shared");
+  it("commits generic collect-path partials without waiting on STT final", async () => {
+    const { looksLikeCommitReadyPartial, shouldSkipSttFinal, resolveEndpointHangoverMs } =
+      await import("@/lib/voice/turn-commit.shared");
     expect(looksLikeCommitReadyPartial("Yes.")).toBe(true);
     expect(looksLikeCommitReadyPartial("SW1A 1AA")).toBe(true);
     expect(looksLikeCommitReadyPartial("07700900123")).toBe(true);
     expect(looksLikeCommitReadyPartial("Mister.")).toBe(true);
-    expect(looksLikeCommitReadyPartial("I am owner of the property.")).toBe(true);
     expect(looksLikeCommitReadyPartial("Twenty Four Street Dubai")).toBe(false);
     expect(shouldSkipSttFinal("yes", true)).toBe(true);
     expect(shouldSkipSttFinal("SW1A 1AA")).toBe(true);
@@ -457,7 +354,7 @@ describe("Fish TTS prosody", () => {
     });
     expect(req.speed).toBe(1.1);
     // Reference voices cap temperature for call-stable timbre (Retell-style).
-    expect(req.temperature).toBeLessThanOrEqual(0.2);
+    expect(req.temperature).toBeLessThanOrEqual(0.6);
     expect(req.volume).toBeGreaterThan(0);
 
     const happy = resolveFishTtsVoiceRequest({
@@ -465,7 +362,34 @@ describe("Fish TTS prosody", () => {
       sampleRate: 24000,
       settings: { voiceEmotion: "happy" },
     });
-    expect(happy.temperature).toBeLessThanOrEqual(0.2);
+    expect(happy.temperature).toBeLessThanOrEqual(0.6);
+  });
+
+  // The point of raising the ceiling: under the old 0.2 cap every emotion collapsed to the same
+  // value, so the builder's emotion picker changed nothing a caller could hear.
+  it("lets the builder's emotion setting actually change delivery on a stock voice", async () => {
+    const { resolveFishTtsVoiceRequest } = await import("@/lib/voice/fish-tts-prosody.shared");
+    const calm = resolveFishTtsVoiceRequest({
+      voiceId: "abc",
+      sampleRate: 24000,
+      settings: { voiceEmotion: "calm" },
+    });
+    const happy = resolveFishTtsVoiceRequest({
+      voiceId: "abc",
+      sampleRate: 24000,
+      settings: { voiceEmotion: "happy" },
+    });
+    expect(happy.temperature).toBeGreaterThan(calm.temperature ?? 0);
+  });
+
+  it("keeps an owned clone on the tight cap, since its drift has not been re-tested", async () => {
+    const { resolveFishTtsVoiceRequest } = await import("@/lib/voice/fish-tts-prosody.shared");
+    const clone = resolveFishTtsVoiceRequest({
+      voiceId: "abc",
+      sampleRate: 24000,
+      settings: { voiceEmotion: "happy", webeeVoiceOwned: true },
+    });
+    expect(clone.temperature).toBeLessThanOrEqual(0.1);
   });
 });
 

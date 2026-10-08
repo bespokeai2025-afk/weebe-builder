@@ -1,3 +1,4 @@
+import { useBuilderStore } from "@/lib/builder/store";
 import { useEffect, useMemo, useState } from "react";
 import { Phone, Search, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,8 @@ export interface TestCallPrepResult {
   startSpeaker: TestCallStartSpeaker;
 }
 
+// Identity fields only. Pre-filling industry-specific names (property type, bedrooms, postcodes)
+// would seed values into any flow that happens to share a variable name, whatever its industry.
 const SAMPLE_LEAD: Record<string, string> = {
   first_name: "Sarah",
   First_name: "Sarah",
@@ -32,11 +35,6 @@ const SAMPLE_LEAD: Record<string, string> = {
   mobile: "+447700900123",
   phone: "+447700900123",
   user_number: "+447700900123",
-  bedrooms: "3",
-  property_type: "Semi-detached",
-  city: "Manchester",
-  postcode_property: "M14 5PQ",
-  postcode_contact: "M1 4BT",
 };
 
 const GROUP_LABEL: Record<TestCallField["group"], string> = {
@@ -95,7 +93,19 @@ export function TestCallPrepDialog({
   agentId: string;
   onStart: (result: TestCallPrepResult) => void;
 }) {
-  const fields = useMemo(() => collectTestCallFields(nodes, declared), [nodes, declared]);
+  const settings = useBuilderStore((s) => s.settings);
+  const where = useMemo(
+    () => ({
+      locale: settings.speechLanguages?.[0] ?? settings.language,
+      timezone: settings.timezone,
+      phoneCountryCode: settings.phoneCountryCode,
+    }),
+    [settings.speechLanguages, settings.language, settings.timezone, settings.phoneCountryCode],
+  );
+  const fields = useMemo(
+    () => collectTestCallFields(nodes, declared, new Date(), where),
+    [nodes, declared, where],
+  );
   const [values, setValues] = useState<Record<string, string>>({});
   const [startSpeaker, setStartSpeaker] = useState<TestCallStartSpeaker>("agent");
   const [query, setQuery] = useState("");
