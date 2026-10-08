@@ -59,8 +59,40 @@ async function apiFetch<T>(
     if (res.status === 204) return { ok: true, status: 204, data: null };
     const text = await res.text();
     let data: T | null = null;
-    try { data = JSON.parse(text) as T; } catch { /* non-JSON */ }
-    return { ok: res.ok, status: res.status, data, error: res.ok ? undefined : text.slice(0, 300) };
+    let parsed = false;
+    try { data = JSON.parse(text) as T; parsed = true; } catch { /* non-JSON */ }
+    if (res.ok) return { ok: true, status: res.status, data };
+
+    // A non-JSON error body means we never reached this API. Whatever is on the
+    // configured host answered instead — a proxy, a locale redirect, a login
+    // page, a 404. `error` is rendered verbatim by callers (the Data page's
+    // "Could not load data" panel prints it straight into the DOM), so handing
+    // back that markup put a wall of raw HTML on screen and buried the real
+    // cause. Describe the shape of the response instead and keep the body in
+    // the server log, where it is actually useful.
+    //
+    // Only the unparseable case changes: when the body IS JSON the error text is
+    // passed through byte-for-byte as before, because callers pattern-match on
+    // it (see isTestLeadSyncDisabledError in wbah-campaign-sync.types.ts).
+    if (!parsed && text.trim()) {
+      console.error(
+        `[webespoke-api] non-JSON ${res.status} from ${url} — first 500 chars:`,
+        text.slice(0, 500),
+      );
+      let host = "the configured host";
+      try { host = new URL(url).origin; } catch { /* keep the fallback */ }
+      const shape = /^\s*(?:<!doctype|<html|<\?xml)/i.test(text) ? "an HTML page" : "a non-JSON body";
+      return {
+        ok: false,
+        status: res.status,
+        data: null,
+        error:
+          `The WeeBespoke API returned ${shape} instead of JSON (HTTP ${res.status}) from ` +
+          `${host}. Check WEBESPOKE_API_BASE_URL — it is pointing at something that is ` +
+          `not the API. The response body is in the server log.`,
+      };
+    }
+    return { ok: res.ok, status: res.status, data, error: text.slice(0, 300) };
   } catch (err: any) {
     return { ok: false, status: 0, data: null, error: err?.message ?? "Network error" };
   }
