@@ -192,6 +192,8 @@ const WORKSPACE_NAV_ITEMS: NavItem[] = [
   { title: "Knowledge", url: "/knowledge-centre", icon: BookOpen },
   { title: "Webforms",  url: "/leads/webforms",   icon: FormInput },
   { title: "Workflows", url: "/workflow-engine",  icon: GitBranch },
+  { title: "Numbers",  url: "/numbers",          icon: PhoneCall },
+
 ];
 
 // Workspace-level administration (team/integrations/billing/settings) —

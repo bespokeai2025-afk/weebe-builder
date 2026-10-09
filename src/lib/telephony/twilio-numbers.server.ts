@@ -25,11 +25,7 @@ export {
   type TwilioCredentials,
 };
 
-async function client(workspaceId?: string): Promise<Twilio> {
-  const { accountSid, authToken } = await resolveTwilioCredentialsForWorkspace(
-    supabaseAdmin,
-    workspaceId,
-  );
+async function clientFromCredentials(credentials: TwilioCredentials): Promise<Twilio> {
   // `twilio` is CommonJS (`export =`): at runtime the callable factory arrives on
   // `default`, but its types describe the bare namespace, so the cast is needed
   // to reach it. Calling the namespace directly typechecks and then fails at
@@ -37,7 +33,12 @@ async function client(workspaceId?: string): Promise<Twilio> {
   const mod = (await import("twilio")) as unknown as {
     default: (sid: string, token: string) => Twilio;
   };
-  return mod.default(accountSid, authToken);
+  return mod.default(credentials.accountSid, credentials.authToken);
+}
+
+async function client(workspaceId?: string): Promise<Twilio> {
+  const credentials = await resolveTwilioCredentialsForWorkspace(supabaseAdmin, workspaceId);
+  return clientFromCredentials(credentials);
 }
 
 export interface AvailableNumber {
@@ -136,8 +137,20 @@ export async function purchaseNumber(args: {
   workspaceId?: string;
   /** ISO country of the number, from the search result — enables the address lookup above. */
   isoCountry?: string;
+  credentials?: TwilioCredentials;
 }): Promise<OwnedNumber> {
-  const twilioClient = await client(args.workspaceId);
+  if (process.env.TWILIO_DRY_RUN === "true") {
+    return {
+      sid: `DRYRUN_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      phoneNumber: args.phoneNumber,
+      friendlyName: args.friendlyName ?? null,
+      voiceUrl: buildNumberWebhooks().voiceUrl,
+    };
+  }
+
+  const twilioClient = args.credentials
+    ? await clientFromCredentials(args.credentials)
+    : await client(args.workspaceId);
   const addressSid = args.isoCountry
     ? await findAddressSidForCountry(twilioClient, args.isoCountry)
     : undefined;
@@ -185,6 +198,10 @@ export async function savePhoneNumberRow(args: {
   friendlyName?: string | null;
   agentId?: string | null;
   capabilities?: { voice: boolean; sms: boolean };
+  /** Purchase-time snapshot — never recomputed after the fact. Omitted for imported/BYOK numbers. */
+  twilioSubaccountSid?: string | null;
+  costUsdCentsMonthly?: number | null;
+  priceGbpPenceMonthly?: number | null;
 }): Promise<string> {
   const { data: config } = await supabaseAdmin
     .from("telephony_configs")
@@ -210,6 +227,9 @@ export async function savePhoneNumberRow(args: {
     capabilities: args.capabilities ?? { voice: true, sms: false },
     is_active: true,
     updated_at: new Date().toISOString(),
+    twilio_subaccount_sid: args.twilioSubaccountSid ?? null,
+    cost_usd_cents_monthly: args.costUsdCentsMonthly ?? null,
+    price_gbp_pence_monthly: args.priceGbpPenceMonthly ?? null,
   };
 
   if (existing?.id) {
