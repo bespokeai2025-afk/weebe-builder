@@ -1,5 +1,7 @@
 import { EngineSupportNote, useSettingSupported } from "./EngineSupportNote";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
 import {
   ChevronDown,
   RefreshCw,
@@ -9,6 +11,8 @@ import {
   Trash2,
   Plus,
   Globe,
+  Play,
+  Loader2,
 } from "lucide-react";
 import {
   Collapsible,
@@ -40,6 +44,14 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useBuilderStore } from "@/lib/builder/store";
+import { resolveDeploymentMode } from "@/lib/runtime/adapter";
+import { getAgentVoice } from "@/lib/builder/agent-voice.shared";
+import { previewPronunciation } from "@/lib/builder/pronunciation-preview.functions";
+import {
+  renderPronunciation,
+  validatePronunciationEntry,
+  type PronunciationEntry,
+} from "@/lib/voice/tts/pronunciation-dictionary.shared";
 import type { BuilderSettings } from "@/lib/builder/types";
 
 function SpeechSlider({
@@ -83,26 +95,110 @@ function SpeechSlider({
   );
 }
 
-type PronEntry = { word: string; alphabet: "ipa" | "cmu"; phoneme: string };
+type PronEntry = PronunciationEntry;
+
+const ALPHABET_LABEL: Record<PronEntry["alphabet"], string> = {
+  respell: "Sounds like",
+  ipa: "IPA",
+  cmu: "CMU",
+};
+
+const ALPHABET_HELP: Record<PronEntry["alphabet"], string> = {
+  respell: "Spell it the way it sounds, e.g. “ZEER-oh”. Works with every voice.",
+  ipa: "International Phonetic Alphabet. Needs a Fish Audio or Cartesia voice (or Retell).",
+  cmu: "Space-separated CMU symbols; digits mark stress. Needs a Fish Audio or Cartesia voice (or Retell).",
+};
+
+const ALPHABET_PLACEHOLDER: Record<PronEntry["alphabet"], string> = {
+  respell: "e.g. WEE-bee",
+  ipa: "e.g. ˈwiːbiː",
+  cmu: "e.g. W IY1 B IY0",
+};
+
+/** Why this entry won't be spoken as written on the agent's current engine/voice, or null. */
+function pronunciationIssue(
+  entry: PronEntry,
+  settings: ReturnType<typeof useBuilderStore.getState>["settings"],
+): string | null {
+  const invalid = validatePronunciationEntry(entry);
+  if (invalid) return invalid;
+  const mode = resolveDeploymentMode(settings);
+  if (mode === "RETELL") {
+    return entry.alphabet === "respell"
+      ? "Retell voices take IPA or CMU only — “Sounds like” entries are skipped."
+      : null;
+  }
+  if (mode !== "WEBEE_NATIVE") return "Pronunciations aren't applied on this engine.";
+  const provider = settings.webeeTtsProvider ?? "fish";
+  if (renderPronunciation(entry, { provider }) === null) {
+    return `${provider === "openai" ? "OpenAI" : provider} voices can't take phonemes — rewrite it as “Sounds like”.`;
+  }
+  return null;
+}
+
+/** Plays a sample line through the agent's real voice with the given entries applied. */
+function usePronunciationPlayer() {
+  const preview = useServerFn(previewPronunciation);
+  const settings = useBuilderStore((s) => s.settings);
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const canPreview = resolveDeploymentMode(settings) === "WEBEE_NATIVE";
+
+  async function play(key: string, entries: PronEntry[], text: string) {
+    if (busyKey) return;
+    setBusyKey(key);
+    try {
+      const voice = getAgentVoice(settings as unknown as Record<string, unknown>);
+      const out = await preview({
+        data: {
+          text,
+          entries,
+          provider: settings.webeeTtsProvider ?? "fish",
+          voiceId: voice.id,
+          model: settings.webeeTtsModel,
+        },
+      });
+      audioRef.current?.pause();
+      const audio = new Audio(`data:${out.mimeType};base64,${out.audio}`);
+      audioRef.current = audio;
+      await audio.play();
+    } catch (err) {
+      toast.error("Couldn't play preview", {
+        description: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
+  return { play, busyKey, canPreview };
+}
 
 function PronunciationDialog({
   open,
   initial,
   onSave,
   onClose,
+  player,
 }: {
   open: boolean;
   initial?: PronEntry;
   onSave: (e: PronEntry) => void;
   onClose: () => void;
+  player: ReturnType<typeof usePronunciationPlayer>;
 }) {
+  const settings = useBuilderStore((s) => s.settings);
   const [word, setWord] = useState(initial?.word ?? "");
-  const [alphabet, setAlphabet] = useState<"ipa" | "cmu">(initial?.alphabet ?? "ipa");
+  const [alphabet, setAlphabet] = useState<PronEntry["alphabet"]>(initial?.alphabet ?? "respell");
   const [phoneme, setPhoneme] = useState(initial?.phoneme ?? "");
 
+  const draft: PronEntry = { word: word.trim(), alphabet, phoneme: phoneme.trim() };
+  const problem = word.trim() || phoneme.trim() ? validatePronunciationEntry(draft) : null;
+  const engineIssue = !problem && draft.word && draft.phoneme ? pronunciationIssue(draft, settings) : null;
+
   function handleSave() {
-    if (!word.trim()) return;
-    onSave({ word: word.trim(), alphabet, phoneme: phoneme.trim() });
+    if (validatePronunciationEntry(draft)) return;
+    onSave(draft);
     onClose();
   }
 
@@ -123,29 +219,52 @@ function PronunciationDialog({
             />
           </div>
           <div>
-            <Label className="text-xs mb-1 block">Alphabet</Label>
-            <Select value={alphabet} onValueChange={(v) => setAlphabet(v as "ipa" | "cmu")}>
+            <Label className="text-xs mb-1 block">Write it as</Label>
+            <Select value={alphabet} onValueChange={(v) => setAlphabet(v as PronEntry["alphabet"])}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="respell">Sounds like</SelectItem>
                 <SelectItem value="ipa">IPA</SelectItem>
                 <SelectItem value="cmu">CMU</SelectItem>
               </SelectContent>
             </Select>
+            <p className="mt-1 text-[10px] leading-snug text-muted-foreground">{ALPHABET_HELP[alphabet]}</p>
           </div>
           <div>
-            <Label className="text-xs mb-1 block">Phoneme</Label>
+            <Label className="text-xs mb-1 block">How it sounds</Label>
             <Input
               value={phoneme}
               onChange={(e) => setPhoneme(e.target.value)}
-              placeholder={alphabet === "ipa" ? "e.g. wɪˈbiː" : "e.g. W IH0 B IY1"}
+              placeholder={ALPHABET_PLACEHOLDER[alphabet]}
             />
+            {problem && <p className="mt-1 text-[10px] text-destructive">{problem}</p>}
+            {engineIssue && (
+              <p className="mt-1 text-[10px] text-amber-600 dark:text-amber-400">{engineIssue}</p>
+            )}
           </div>
         </div>
         <DialogFooter>
+          {player.canPreview && (
+            <Button
+              variant="outline"
+              className="mr-auto gap-1.5"
+              disabled={!!problem || !draft.word || !draft.phoneme || !!player.busyKey}
+              onClick={() =>
+                void player.play("dialog", [draft], `Hi, this is ${draft.word}. Nice to meet you.`)
+              }
+            >
+              {player.busyKey === "dialog" ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Play className="h-3.5 w-3.5" />
+              )}
+              Hear it
+            </Button>
+          )}
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSave} disabled={!word.trim()}>
+          <Button onClick={handleSave} disabled={!!problem || !draft.word || !draft.phoneme}>
             {initial ? "Save" : "Add"}
           </Button>
         </DialogFooter>
@@ -158,10 +277,11 @@ export function SpeechSettingsSection({ isRetell }: { isRetell: boolean }) {
   const settings = useBuilderStore((s) => s.settings);
   const setSettings = useBuilderStore((s) => s.setSettings);
 
-  const [pronDialog, setPronDialog] = useState<{ open: boolean; index?: number }>({
+  const [pronDialog, setPronDialog] = useState<{ open: boolean; index?: number; seq?: number }>({
     open: false,
   });
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const player = usePronunciationPlayer();
   const backchannelSupported = useSettingSupported("enableBackchannel");
 
   const pronunciationDictionary = settings.pronunciationDictionary ?? [];
@@ -189,15 +309,15 @@ export function SpeechSettingsSection({ isRetell }: { isRetell: boolean }) {
   }
 
   function savePron(entry: PronEntry, index?: number) {
-    if (index === undefined) {
-      setSettings({ pronunciationDictionary: [...pronunciationDictionary, entry] });
-    } else {
-      setSettings({
-        pronunciationDictionary: pronunciationDictionary.map((e, i) =>
-          i === index ? entry : e,
-        ),
-      });
-    }
+    // Read the list at save time, not from this render's closure, so a save can never write back
+    // a stale copy over entries added or edited since.
+    const current = useBuilderStore.getState().settings.pronunciationDictionary ?? [];
+    setSettings({
+      pronunciationDictionary:
+        index === undefined
+          ? [...current, entry]
+          : current.map((e, i) => (i === index ? entry : e)),
+    });
   }
 
   const reminderSec = Math.round((settings.reminderTriggerMs ?? 10000) / 1000);
@@ -213,12 +333,13 @@ export function SpeechSettingsSection({ isRetell }: { isRetell: boolean }) {
 
         <CollapsibleContent className="space-y-4 px-3 pb-4 pt-1">
 
-          {/* Background Sound (Retell-only) */}
-          {isRetell && (
+          {/* Background Sound — Retell, and WEBEE Native phone calls */}
+          {(
             <div>
               <div className="flex items-center gap-2 mb-1.5">
                 <span className="text-[11px] font-medium text-foreground">Background Sound</span>
               </div>
+              <div className="mb-1.5"><EngineSupportNote setting="ambientSound" /></div>
               <div className="flex items-center gap-1.5">
                 <Select
                   value={settings.ambientSound ?? "none"}
@@ -411,7 +532,7 @@ export function SpeechSettingsSection({ isRetell }: { isRetell: boolean }) {
           <div className="space-y-2">
             <span className="text-[11px] font-medium text-foreground">Pronunciation</span>
             <p className="text-[10px] text-muted-foreground leading-relaxed -mt-1">
-              Guide the model to pronounce a word, name, or phrase in a specific way.
+              Say a word, name, or phrase your way. Write it as “sounds like” text, or exact IPA/CMU phonemes.
             </p>
 
             {pronunciationDictionary.length > 0 && (
@@ -424,10 +545,43 @@ export function SpeechSettingsSection({ isRetell }: { isRetell: boolean }) {
                     <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-border dark:border-white/[0.10] bg-muted dark:bg-white/[0.04]">
                       <Globe className="h-2.5 w-2.5 text-muted-foreground" />
                     </div>
-                    <span className="flex-1 text-[11px] text-foreground truncate">{entry.word}</span>
+                    <span className="min-w-0 flex-1 truncate text-[11px] text-foreground">
+                      {entry.word}
+                      <span className="ml-1.5 text-muted-foreground">
+                        → {entry.phoneme || "—"}
+                      </span>
+                    </span>
+                    <span className="shrink-0 rounded border border-white/[0.10] px-1 text-[9px] uppercase tracking-wider text-muted-foreground">
+                      {ALPHABET_LABEL[entry.alphabet] ?? entry.alphabet}
+                    </span>
+                    {pronunciationIssue(entry, settings) && (
+                      <span title={pronunciationIssue(entry, settings) ?? undefined}>
+                        <AlertTriangle className="h-3 w-3 shrink-0 text-amber-500" />
+                      </span>
+                    )}
+                    {player.canPreview && !pronunciationIssue(entry, settings) && (
+                      <button
+                        className="text-muted-foreground hover:text-foreground transition-colors p-0.5 disabled:opacity-50"
+                        disabled={!!player.busyKey}
+                        onClick={() =>
+                          void player.play(
+                            `row-${i}`,
+                            [entry],
+                            `Hi, this is ${entry.word}. Nice to meet you.`,
+                          )
+                        }
+                        title="Hear it"
+                      >
+                        {player.busyKey === `row-${i}` ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Play className="h-3 w-3" />
+                        )}
+                      </button>
+                    )}
                     <button
                       className="text-muted-foreground hover:text-foreground transition-colors p-0.5"
-                      onClick={() => setPronDialog({ open: true, index: i })}
+                      onClick={() => setPronDialog({ open: true, index: i, seq: Date.now() })}
                       title="Edit"
                     >
                       <Pencil className="h-3 w-3" />
@@ -452,7 +606,7 @@ export function SpeechSettingsSection({ isRetell }: { isRetell: boolean }) {
               size="sm"
               variant="outline"
               className="h-7 gap-1.5 text-[11px]"
-              onClick={() => setPronDialog({ open: true, index: undefined })}
+              onClick={() => setPronDialog({ open: true, index: undefined, seq: Date.now() })}
             >
               <Plus className="h-3 w-3" />
               Add
@@ -534,6 +688,54 @@ export function SpeechSettingsSection({ isRetell }: { isRetell: boolean }) {
                 </div>
               </div>
 
+              {/* Voicemail */}
+              <div className="space-y-1.5 rounded-md border border-white/[0.06] bg-white/[0.02] p-2">
+                <Label className="text-[9px]">If voicemail answers</Label>
+                <Select
+                  value={settings.voicemailAction ?? "none"}
+                  onValueChange={(v) => set({ voicemailAction: v as BuilderSettings["voicemailAction"] })}
+                >
+                  <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Keep talking</SelectItem>
+                    <SelectItem value="hangup">Hang up</SelectItem>
+                    <SelectItem value="leave_message">Leave a message</SelectItem>
+                  </SelectContent>
+                </Select>
+                {settings.voicemailAction === "leave_message" && (
+                  <textarea
+                    value={settings.voicemailMessage ?? ""}
+                    onChange={(e) => set({ voicemailMessage: e.target.value })}
+                    placeholder="Hi {{first_name}}, this is Clare from We Buy Any House. Please call us back on…"
+                    rows={3}
+                    className="w-full rounded-md border border-white/[0.08] bg-transparent px-2 py-1 text-[10px]"
+                  />
+                )}
+                {(settings.voicemailAction === "hangup" || settings.voicemailAction === "leave_message") && (
+                  <div>
+                    <Label className="text-[9px]">Listen for voicemail for (ms)</Label>
+                    <Input
+                      type="number"
+                      step="1000"
+                      min={5000}
+                      max={180000}
+                      value={settings.voicemailDetectionTimeoutMs ?? 30000}
+                      onChange={(e) => numeric("voicemailDetectionTimeoutMs", e.target.value, 30000)}
+                      className="h-6 text-[10px]"
+                    />
+                  </div>
+                )}
+                <p className="text-[9px] leading-snug text-muted-foreground">
+                  Phone calls only. The agent hears the greeting, then{" "}
+                  {settings.voicemailAction === "leave_message"
+                    ? "waits for it to finish and speaks your message"
+                    : settings.voicemailAction === "hangup"
+                      ? "hangs up"
+                      : "carries on as if a person answered"}
+                  .
+                </p>
+              </div>
+
               {/* Toggles */}
               <div className="space-y-2">
                 {([
@@ -558,12 +760,16 @@ export function SpeechSettingsSection({ isRetell }: { isRetell: boolean }) {
 
       {/* Pronunciation dialog */}
       <PronunciationDialog
+        // A new key per opening gives every Add/Edit a fresh form; the dialog reads its starting
+        // values once, so without it an edit showed (and saved) the previous form's data.
+        key={pronDialog.seq ?? "closed"}
         open={pronDialog.open}
         initial={
           pronDialog.index !== undefined ? pronunciationDictionary[pronDialog.index] : undefined
         }
         onSave={(entry) => savePron(entry, pronDialog.index)}
-        onClose={() => setPronDialog({ open: false })}
+        onClose={() => setPronDialog((d) => ({ ...d, open: false }))}
+        player={player}
       />
     </>
   );

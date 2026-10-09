@@ -1,3 +1,4 @@
+import { EngineSupportNote } from "./EngineSupportNote";
 import { Mic2, Info } from "lucide-react";
 import { ChevronDown } from "lucide-react";
 import {
@@ -100,6 +101,7 @@ function RetellTranscriptionSettings() {
             info="Pass audio through without processing"
           />
         </RadioGroup>
+        <div className="mt-1"><EngineSupportNote setting="denoisingMode" /></div>
       </div>
 
       {/* Transcription Mode */}

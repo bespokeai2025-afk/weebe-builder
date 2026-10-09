@@ -458,6 +458,7 @@ export function importAgentJson(raw: string): {
     denoisingMode: data.denoising_mode,
     maxCallDurationMs: data.max_call_duration_ms,
     ringDurationMs: data.ring_duration_ms,
+    ...voicemailFromRetell(data),
     enableDynamicVoiceSpeed: data.enable_dynamic_voice_speed,
     enableDynamicResponsiveness: data.enable_dynamic_responsiveness,
     normalizeForSpeech: data.normalize_for_speech,
@@ -491,4 +492,19 @@ export function importAgentJson(raw: string): {
   });
 
   return { nodes, edges, settings, variables, warnings };
+}
+
+/** Retell's `voicemail_option` → the builder's own fields. */
+function voicemailFromRetell(data: Record<string, any>): Partial<BuilderSettings> {
+  const action = data.voicemail_option?.action as { type?: string; text?: string } | undefined;
+  const out: Partial<BuilderSettings> = {};
+  if (action?.type === "hangup") out.voicemailAction = "hangup";
+  else if (action?.type === "static_text") {
+    out.voicemailAction = "leave_message";
+    out.voicemailMessage = String(action.text ?? "");
+  }
+  if (typeof data.voicemail_detection_timeout_ms === "number") {
+    out.voicemailDetectionTimeoutMs = data.voicemail_detection_timeout_ms;
+  }
+  return out;
 }

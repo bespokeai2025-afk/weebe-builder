@@ -122,6 +122,13 @@ async function placeDialerCall(
       statusCallback: `${host}/api/public/telephony/dialer-lead-status/${next.id}`,
       statusCallbackMethod: "POST",
       statusCallbackEvent: ["initiated", "ringing", "answered", "completed"],
+      // Voicemail screening: Twilio listens for a few seconds after the lead picks up and reports
+      // `AnsweredBy` to dialer-connect, which hangs up on a machine instead of ringing our people.
+      // Off unless enabled (AUTO_DIALER_AMD=on): it is billed per call and adds a few seconds
+      // before a real person is connected.
+      ...(process.env.AUTO_DIALER_AMD === "on"
+        ? { machineDetection: "Enable" as const, machineDetectionTimeout: 8 }
+        : {}),
     });
 
     await sb

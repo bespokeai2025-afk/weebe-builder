@@ -235,8 +235,12 @@ export function exportAgentJson(
   agent.boosted_keywords = settings.boostedKeywords?.length
     ? settings.boostedKeywords
     : (rawAgent.boosted_keywords ?? null);
-  agent.pronunciation_dictionary = settings.pronunciationDictionary?.length
-    ? settings.pronunciationDictionary
+  // Retell's dictionary is phonemes only; "sounds like" entries are WEBEE Native-only.
+  const retellPronunciations = (settings.pronunciationDictionary ?? []).filter(
+    (e) => e.alphabet === "ipa" || e.alphabet === "cmu",
+  );
+  agent.pronunciation_dictionary = retellPronunciations.length
+    ? retellPronunciations
     : (rawAgent.pronunciation_dictionary ?? null);
   agent.end_call_after_silence_ms =
     settings.endCallAfterSilenceMs ?? rawAgent.end_call_after_silence_ms ?? 600000;
@@ -270,6 +274,20 @@ export function exportAgentJson(
     (!hasRawAgent && settings.ringDurationMs !== undefined)
   ) {
     agent.ring_duration_ms = settings.ringDurationMs ?? rawAgent.ring_duration_ms;
+  }
+
+  // Voicemail handling: the builder owns these once set; otherwise the imported option passes through.
+  if (settings.voicemailAction === "hangup") {
+    agent.voicemail_option = { action: { type: "hangup" } };
+  } else if (settings.voicemailAction === "leave_message" && settings.voicemailMessage?.trim()) {
+    agent.voicemail_option = {
+      action: { type: "static_text", text: settings.voicemailMessage.trim() },
+    };
+  } else if (settings.voicemailAction === "none") {
+    agent.voicemail_option = null;
+  }
+  if (settings.voicemailDetectionTimeoutMs !== undefined) {
+    agent.voicemail_detection_timeout_ms = settings.voicemailDetectionTimeoutMs;
   }
 
   // handbook_config is only emitted if raw already had it.

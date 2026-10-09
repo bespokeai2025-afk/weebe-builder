@@ -79,3 +79,13 @@ describe("who an answered lead rings", () => {
     expect(statusLabel("connected")).toBe("On call");
   });
 });
+
+describe("isMachineAnswer", () => {
+  it("is true only for a positive machine or fax answer", async () => {
+    const { isMachineAnswer } = await import("@/lib/telephony/auto-dialer.shared");
+    for (const v of ["machine_start", "machine_end_beep", "machine_end_silence", "machine_end_other", "fax", "Machine_Start"]) {
+      expect(isMachineAnswer(v)).toBe(true);
+    }
+    for (const v of ["human", "unknown", "", undefined, null]) expect(isMachineAnswer(v as never)).toBe(false);
+  });
+});

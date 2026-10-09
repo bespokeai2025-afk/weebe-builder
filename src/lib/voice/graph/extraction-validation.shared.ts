@@ -16,6 +16,7 @@
  */
 
 import type { VariableValue } from "./types";
+import { normaliseSpokenEmails } from "./spoken-identifiers.shared";
 
 export type ExtractField = {
   name: string;
@@ -112,7 +113,7 @@ export function validateExtractedValue(field: ExtractField, value: VariableValue
   switch (inferFieldKind(field)) {
     case "email": {
       // Speech-to-text often writes "jane at acme dot com". Normalise that before judging.
-      const spoken = text
+      const spoken = normaliseSpokenEmails(text)
         .toLowerCase()
         .replace(/\s+at\s+/g, "@")
         .replace(/\s+dot\s+/g, ".")

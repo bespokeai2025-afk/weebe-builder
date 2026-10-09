@@ -78,7 +78,19 @@ import { DEFAULT_REMINDER_TEXT, resolveReminderSettings } from "../lifecycle/rem
 import { shouldAcceptDtmf } from "../lifecycle/dtmf-policy.shared";
 import { resolveDynamicSilenceTimeoutMs } from "../lifecycle/dynamic-responsiveness.shared";
 import { normalizeForSpeech } from "../tts/speech-normalization.shared";
-import { applyPronunciationDictionary } from "../tts/pronunciation-dictionary.shared";
+import { normaliseSpokenIdentifiers } from "../graph/spoken-identifiers.shared";
+import { interpolateStaticSpeech } from "../graph/flow";
+import { resolveDenoiseMode, StreamingDenoiser } from "../audio/denoise";
+import {
+  detectVoicemailGreeting,
+  resolveVoicemailPolicy,
+  type VoicemailPolicy,
+} from "../voicemail.shared";
+import {
+  applyPronunciationDictionary,
+  applyPronunciationDictionaryStream,
+  type PronunciationEntry,
+} from "../tts/pronunciation-dictionary.shared";
 import { resolveDynamicSpeed } from "../tts/dynamic-voice-speed.shared";
 import { resolveDeepgramModel } from "../stt/stt-tuning.shared";
 import { CallTurnTrace, type LatencyMark } from "../graph/latency-trace";
@@ -278,6 +290,23 @@ export class CascadeSession {
   private silenceTimer: ReturnType<typeof setTimeout> | null = null;
   /** Hard cap on total call length — `settings.maxCallDurationMs`, armed once at start. */
   private maxDurationTimer: ReturnType<typeof setTimeout> | null = null;
+  /**
+   * Live answering-machine handling. Null unless the agent configured it, and only ever armed on
+   * a phone call — a browser test has no machine to hear.
+   */
+  private voicemail: {
+    policy: VoicemailPolicy;
+    state: "listening" | "greeting" | "done";
+    /** What the other end has said so far (the greeting arrives in several finals). */
+    heard: string;
+    detectedAt: number;
+    timer: ReturnType<typeof setInterval> | null;
+  } | null = null;
+  private voicemailWindowStartAt = 0;
+  /** Cleans the caller's audio before speech detection and transcription (builder `denoisingMode`). */
+  private denoiser: StreamingDenoiser | null = null;
+  /** Last time the other end made a sound the VAD called speech. */
+  private lastCallerVoiceAt = 0;
   /** Whole-call dead-air watchdog — `settings.endCallAfterSilenceMs`, reset on every caller turn. */
   private deadAirTimer: ReturnType<typeof setTimeout> | null = null;
   /** `settings.reminderTriggerMs` / `reminderMaxCount` — proactive "are you still there?" nudges. */
@@ -290,6 +319,8 @@ export class CascadeSession {
   private readonly sttLanguage?: string;
   /** English word-pattern turn-taking rules apply only to English-only agents. */
   private readonly englishTurnRules: boolean;
+  /** UK postcode shapes are only recognised for agents that work in the UK. */
+  private readonly ukPostcodes: boolean;
   private sttName = "fish";
   private readonly fishTtsModel: string;
   private readonly vadTuning: import("../vad/types").EndpointingOptions;
@@ -401,6 +432,23 @@ export class CascadeSession {
     this.languageLock = buildLanguageLockInstruction(config.speechLanguages);
     this.sttLanguage = resolveSttLanguageCode(config.speechLanguages);
     this.englishTurnRules = isEnglishOnlyAgent(config.speechLanguages);
+    {
+      const st = (config.settings ?? {}) as Record<string, unknown>;
+      const locale = String(
+        (Array.isArray(st.speechLanguages) ? st.speechLanguages[0] : undefined) ?? st.language ?? "",
+      );
+      this.ukPostcodes =
+        /^en[-_]gb$/i.test(locale.trim()) ||
+        String(st.phoneCountryCode ?? "").replace(/\D/g, "") === "44" ||
+        /^Europe\/London$/i.test(String(st.timezone ?? ""));
+      // Opt-in at the deployment: every builder agent has `denoisingMode` saved as the strongest
+      // option by default, so honouring it unconditionally would change the audio of every
+      // existing native agent the moment this ships. Set WEBEE_DENOISE=on to apply it.
+      const denoise = process.env.WEBEE_DENOISE === "on" ? resolveDenoiseMode(st.denoisingMode) : "off";
+      if (denoise !== "off") {
+        this.denoiser = new StreamingDenoiser({ mode: denoise, sampleRate: this.sampleRate });
+      }
+    }
     this.backchannel =
       config.settings?.enableBackchannel === true
         ? new BackchannelScheduler({ frequency: Number(config.settings?.backchannelFrequency ?? 0.3) })
@@ -670,6 +718,7 @@ export class CascadeSession {
   /** Telephony: prepare + greet in one step (caller is already on the line). */
   async start(): Promise<CascadeSessionBanner> {
     const banner = await this.prepare();
+    this.armVoicemailWatch();
     this.armMaxDurationTimer();
     this.armDeadAirTimer();
     await this.beginConversation();
@@ -680,6 +729,14 @@ export class CascadeSession {
   pushCallerAudio(chunk: Buffer): void {
     const detector = this.vad;
     if (!detector || this.closed || chunk.byteLength === 0) return;
+
+    // The recording keeps what the caller actually sent; detection and transcription get the
+    // cleaned audio.
+    const rawChunk = chunk;
+    if (this.denoiser) {
+      const cleaned = this.denoiser.process(pcm16View(chunk));
+      chunk = Buffer.from(cleaned.buffer, cleaned.byteOffset, cleaned.byteLength);
+    }
 
     // Full duplex: audio is processed while the agent speaks, which is what makes
     // barge-in possible at all.
@@ -708,7 +765,7 @@ export class CascadeSession {
       this.withheldSttFrames.push(chunk);
       if (this.withheldSttFrames.length > WITHHELD_STT_FRAMES_MAX) this.withheldSttFrames.shift();
     }
-    this.lifecycleRef?.recordCaller(pcm16View(chunk), this.sampleRate);
+    this.lifecycleRef?.recordCaller(pcm16View(rawChunk), this.sampleRate);
     this.framePump = this.framePump
       .then(async () => {
         const event = await detector.push(chunk);
@@ -872,6 +929,122 @@ export class CascadeSession {
     this.close();
   }
 
+  // ── Live voicemail handling ─────────────────────────────────────────────────
+
+  /** Start watching for an answering machine, if this agent is set up for it and this is a phone call. */
+  private armVoicemailWatch(): void {
+    if (this.playbackTracking !== "reported") return; // phone calls only (Twilio reports playback)
+    const policy = resolveVoicemailPolicy(this.config.settings);
+    if (!policy) return;
+    this.voicemailWindowStartAt = Date.now();
+    this.voicemail = { policy, state: "listening", heard: "", detectedAt: 0, timer: null };
+    console.log(`${this.log} voicemail watch armed action=${policy.action} window=${policy.timeoutMs}ms`);
+  }
+
+  /**
+   * Whether this caller-side text was swallowed because it is (part of) an answering machine.
+   * Routing must not see it: a recorded greeting is not an answer to anything.
+   */
+  private consumeAsVoicemail(userText: string): boolean {
+    const vm = this.voicemail;
+    if (!vm || vm.state === "done") return false;
+
+    if (vm.state === "greeting") {
+      // The rest of the greeting — keep it in the transcript, never route it.
+      this.lifecycleRef?.addTurn("user", userText);
+      this.transport.onTranscript?.("user", userText);
+      return true;
+    }
+
+    if (Date.now() - this.voicemailWindowStartAt > vm.policy.timeoutMs) {
+      vm.state = "done"; // past the window: whoever is talking now is a person
+      return false;
+    }
+
+    vm.heard = `${vm.heard} ${userText}`.trim().slice(-800);
+    const verdict = detectVoicemailGreeting(vm.heard);
+    if (!verdict) return false;
+
+    vm.state = "greeting";
+    vm.detectedAt = Date.now();
+    console.log(`${this.log} voicemail detected cues=[${verdict.cues.join(", ")}] action=${vm.policy.action}`);
+    this.lifecycleRef?.addTurn("user", userText);
+    this.transport.onTranscript?.("user", userText);
+
+    // Stop talking to a recording, and stop every timer that would speak for the flow.
+    this.cancelTurn("voicemail");
+    this.clearSilenceTimer();
+    this.clearReminderTimer();
+    this.clearDeadAirTimer();
+    this.awaitingCallerInput = false;
+
+    if (vm.policy.action === "hangup") {
+      this.finishVoicemailCall(0);
+      return true;
+    }
+    this.waitForGreetingEnd();
+    return true;
+  }
+
+  /**
+   * A message left over the greeting is lost; one left after the beep is heard. The greeting is
+   * over when the line has been quiet for a moment — the beep itself is a tone, not speech.
+   */
+  private waitForGreetingEnd(): void {
+    const vm = this.voicemail;
+    if (!vm) return;
+    const QUIET_MS = 1_300;
+    const MIN_WAIT_MS = 1_200;
+    const MAX_WAIT_MS = 30_000;
+    vm.timer = setInterval(() => {
+      if (this.closed || vm.state !== "greeting") {
+        if (vm.timer) clearInterval(vm.timer);
+        return;
+      }
+      const now = Date.now();
+      const quietFor = now - Math.max(this.lastCallerVoiceAt, vm.detectedAt);
+      const waited = now - vm.detectedAt;
+      if ((quietFor >= QUIET_MS && waited >= MIN_WAIT_MS) || waited >= MAX_WAIT_MS) {
+        if (vm.timer) clearInterval(vm.timer);
+        vm.timer = null;
+        void this.leaveVoicemailMessage();
+      }
+    }, 250);
+  }
+
+  private async leaveVoicemailMessage(): Promise<void> {
+    const vm = this.voicemail;
+    if (!vm || this.closed) return;
+    vm.state = "done";
+    const variables = (this.graphVm?.getVariables() ?? {}) as Record<string, VariableValue>;
+    const text = interpolateStaticSpeech(vm.policy.message, variables).trim();
+    if (!text) {
+      this.finishVoicemailCall(0);
+      return;
+    }
+    try {
+      const t = this.beginTurn(Date.now());
+      const responseId = this.responses.begin(t.id);
+      this.transport.onResponseStart?.({ responseId, turnId: t.id });
+      this.queueAgentTranscript(text);
+      await this.streamTts(text, t, responseId);
+    } catch (err) {
+      console.error(`${this.log} voicemail message failed: ${(err as Error).message}`);
+    }
+    // Twilio buffers what we sent; hang up only once it has had time to play.
+    this.finishVoicemailCall(Math.max(0, this.playheadAt - Date.now()) + 800);
+  }
+
+  private finishVoicemailCall(afterMs: number): void {
+    setTimeout(() => {
+      if (this.closed) return;
+      console.log(`${this.log} voicemail reached — ending call`);
+      void this.lifecycleRef?.ended("voicemail_reached");
+      this.transport.onEnd?.("voicemail_reached");
+      this.close();
+    }, afterMs);
+  }
+
   private armMaxDurationTimer(): void {
     const ms = resolveMaxCallDurationMs(this.config.settings);
     if (ms == null) return;
@@ -930,6 +1103,7 @@ export class CascadeSession {
     this.clearSilenceTimer();
     this.clearDeadAirTimer();
     this.clearReminderTimer();
+    if (this.voicemail?.timer) clearInterval(this.voicemail.timer);
     if (this.maxDurationTimer) {
       clearTimeout(this.maxDurationTimer);
       this.maxDurationTimer = null;
@@ -1456,6 +1630,10 @@ export class CascadeSession {
 
     this.sttMissCount = 0;
     userText = applyKeywordBoost(userText, this.config.boostedKeywords);
+    // Emails, spelled names and addresses arrive as they sound ("j o e at gmail dot com"); turn
+    // them into the text they stand for so the model reads and repeats them correctly.
+    userText = normaliseSpokenIdentifiers(userText, { ukPostcodes: this.ukPostcodes });
+    if (this.consumeAsVoicemail(userText)) return;
 
     // Said before the caller could have heard the agent's reply — and nothing but "yeah" / a repeat
     // of their last answer. Routing it would answer a question they never heard (the node gets
@@ -1586,15 +1764,20 @@ export class CascadeSession {
     );
     this.agentPcmBytesThisUtterance = 0;
     this.agentAudioStartedAt = 0;
+    // Both paths get the same treatment: symbol/abbreviation spelling-out, then the agent's
+    // pronunciation dictionary rendered for this voice. A streamed reply used to skip both.
+    const pronunciation = (this.config.settings?.pronunciationDictionary ?? []) as PronunciationEntry[];
+    const pronTarget = { provider: tts.name };
     const normalized =
       typeof source === "string"
         ? applyPronunciationDictionary(
             normalizeForSpeech(normalizeSpeechText(source), this.config.settings),
-            this.config.settings?.pronunciationDictionary as
-              | { word: string; alphabet: "ipa" | "cmu"; phoneme: string }[]
-              | undefined,
+            pronunciation,
+            pronTarget,
           )
-        : source;
+        : applyPronunciationDictionaryStream(source, pronunciation, pronTarget, (text) =>
+            normalizeForSpeech(text, this.config.settings),
+          );
     if (typeof normalized === "string") {
       req.speed = resolveDynamicSpeed(req.speed, normalized, this.config.settings);
     }
@@ -1844,6 +2027,7 @@ export class CascadeSession {
     if (this.closed || !userText.trim()) return;
     this.clearSilenceTimer();
     console.log(`${this.log} processing buffered duplex reply: "${userText.slice(0, 80)}"`);
+    if (this.consumeAsVoicemail(userText)) return;
 
     const t = this.beginTurn(Date.now());
     t.sttAt = Date.now();
@@ -2150,6 +2334,7 @@ export class CascadeSession {
           this.utteranceCoalesceTimer = null;
         }
         this.callerSpeaking = true;
+        this.lastCallerVoiceAt = Date.now();
         this.speechFrames = 1;
         this.lastSpeechRms = event.rms;
         if (this.utteranceSpeechStartAt === null) this.utteranceSpeechStartAt = Date.now();
@@ -2177,6 +2362,7 @@ export class CascadeSession {
         this.warmTts();
         break;
       case "speech":
+        this.lastCallerVoiceAt = Date.now();
         this.lastSpeechRms = event.rms;
         if (this.bargeInActive && event.rms < this.runtime.interruption.bargeInMinRms) {
           break;

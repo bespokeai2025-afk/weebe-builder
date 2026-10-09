@@ -35,13 +35,19 @@ export const SETTING_ENGINE_RULES: Partial<
   voiceEmotion: { WEBEE_NATIVE: FISH_ONLY_NATIVE },
   voiceTemperature: { WEBEE_NATIVE: FISH_ONLY_NATIVE },
   ambientSound: {
-    WEBEE_NATIVE: { support: "none", note: "Background sound is Retell-only." },
+    WEBEE_NATIVE: {
+      support: "partial",
+      note: "Phone calls only (not the browser test). Beds are generated approximations of Retell's recordings.",
+    },
   },
   ambientSoundVolume: {
-    WEBEE_NATIVE: { support: "none", note: "Background sound is Retell-only." },
+    WEBEE_NATIVE: { support: "partial", note: "Phone calls only (not the browser test)." },
   },
   denoisingMode: {
-    WEBEE_NATIVE: { support: "none", note: "Denoising mode is Retell-only." },
+    WEBEE_NATIVE: {
+      support: "partial",
+      note: "Reduces steady noise (hiss, hum, fans); the background-speech option only removes voices much quieter than the caller. Applied only when enabled for the deployment.",
+    },
   },
 };
 

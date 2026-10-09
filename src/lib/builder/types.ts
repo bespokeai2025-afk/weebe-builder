@@ -328,7 +328,11 @@ export interface BuilderSettings {
     | "call-center";
   ambientSoundVolume?: number;
   boostedKeywords?: string[];
-  pronunciationDictionary?: { word: string; alphabet: "ipa" | "cmu"; phoneme: string }[];
+  /**
+   * Per-word pronunciation overrides. "ipa"/"cmu" are real phonemes (Retell, and WEBEE Native on
+   * Fish/Cartesia); "respell" is plain "sounds like" text, which only WEBEE Native can use.
+   */
+  pronunciationDictionary?: { word: string; alphabet: "ipa" | "cmu" | "respell"; phoneme: string }[];
   endCallAfterSilenceMs?: number;
   beginMessageDelayMs?: number;
   sttMode?: "fast" | "accurate" | "custom";
@@ -338,6 +342,15 @@ export interface BuilderSettings {
   denoisingMode?: "no-denoise" | "noise-cancellation" | "noise-and-background-speech-cancellation";
   maxCallDurationMs?: number;
   ringDurationMs?: number;
+  /**
+   * What to do when an outbound call is answered by a voicemail greeting. "none" (default) keeps
+   * talking as before. Maps to Retell's `voicemail_option`; WEBEE Native acts on it live.
+   */
+  voicemailAction?: "none" | "hangup" | "leave_message";
+  /** Spoken after the greeting when `voicemailAction` is "leave_message". */
+  voicemailMessage?: string;
+  /** Only the first N ms of a call are checked for an answering machine (5000–180000). */
+  voicemailDetectionTimeoutMs?: number;
   enableDynamicVoiceSpeed?: boolean;
   enableDynamicResponsiveness?: boolean;
   normalizeForSpeech?: boolean;

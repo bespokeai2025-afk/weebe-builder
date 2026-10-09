@@ -45,8 +45,10 @@ describe("native speech model", () => {
 });
 
 describe("engine capability table", () => {
-  it("flags settings the native engine ignores, and not on Retell", () => {
-    expect(settingSupport("ambientSound", { ...base, deploymentMode: "WEBEE_NATIVE" }).support).toBe("none");
+  it("flags settings the native engine only partly honours, and not on Retell", () => {
+    // Background sound now plays on native phone calls, but not in the browser test.
+    expect(settingSupport("ambientSound", { ...base, deploymentMode: "WEBEE_NATIVE" }).support).toBe("partial");
+    expect(settingSupport("voiceEmotion", { ...base, deploymentMode: "WEBEE_NATIVE", webeeTtsProvider: "openai" }).support).toBe("none");
     expect(settingSupport("ambientSound", { ...base, deploymentMode: "RETELL" }).support).toBe("full");
     expect(settingSupport("enableBackchannel", { ...base, deploymentMode: "WEBEE_NATIVE" }).support).toBe("full");
   });

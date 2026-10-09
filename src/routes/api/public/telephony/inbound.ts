@@ -111,6 +111,12 @@ export const Route = createFileRoute("/api/public/telephony/inbound")({
           .select("id, workspace_id, agent_id, is_active")
           .eq("phone_number", to)
           .eq("is_active", true)
+          // One Twilio number can be connected to several workspaces (e.g. a shared
+          // dialer caller ID). Route to the copy that has an agent, else the oldest,
+          // instead of failing the lookup on duplicates.
+          .order("agent_id", { ascending: true, nullsFirst: false })
+          .order("created_at", { ascending: true })
+          .limit(1)
           .maybeSingle();
 
         if (!numberRow) {

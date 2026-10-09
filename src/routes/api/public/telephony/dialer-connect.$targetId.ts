@@ -15,7 +15,9 @@ import {
   IN_FLIGHT_TARGET_STATUSES,
   buildSimulRingTwiml,
   chooseRouteNumbers,
+  isMachineAnswer,
 } from "@/lib/telephony/auto-dialer.shared";
+import { recordTargetOutcome } from "@/lib/telephony/auto-dialer-engine.server";
 
 function verifyTwilioSignature(
   authToken: string,
@@ -81,6 +83,17 @@ export const Route = createFileRoute("/api/public/telephony/dialer-connect/$targ
             console.warn("[dialer-connect] Invalid Twilio signature — rejected");
             return new Response("Forbidden", { status: 403 });
           }
+        }
+
+        // Answering-machine screening (AUTO_DIALER_AMD=on): never ring our people for a voicemail.
+        // Recorded as a no-answer; the lead's own "completed" callback then moves the queue on.
+        const answeredBy = twilioParams["AnsweredBy"];
+        if (isMachineAnswer(answeredBy)) {
+          console.log(`[dialer-connect] target=${targetId} answered by ${answeredBy} — hanging up`);
+          await recordTargetOutcome(supabaseAdmin as any, targetId, "no_answer", {
+            error_message: `Voicemail detected (${answeredBy})`,
+          });
+          return twimlResponse(`<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>`);
         }
 
         // 1 route number is a plain bridge, 2 is the simul-ring race — see validateRouteNumbers.

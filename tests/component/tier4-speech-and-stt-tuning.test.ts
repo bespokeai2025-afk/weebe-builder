@@ -36,14 +36,14 @@ describe("normalizeForSpeech", () => {
 describe("applyPronunciationDictionary", () => {
   it("substitutes whole-word, case-insensitively", () => {
     const out = applyPronunciationDictionary("Xero is great, xero really is", [
-      { word: "Xero", alphabet: "cmu", phoneme: "ZEE-ro" },
+      { word: "Xero", alphabet: "respell", phoneme: "ZEE-ro" },
     ]);
     expect(out).toBe("ZEE-ro is great, ZEE-ro really is");
   });
 
   it("does not clobber a longer word sharing a shorter entry's letters", () => {
     const out = applyPronunciationDictionary("Adam met Ada", [
-      { word: "Ada", alphabet: "ipa", phoneme: "AY-da" },
+      { word: "Ada", alphabet: "respell", phoneme: "AY-da" },
     ]);
     expect(out).toBe("Adam met AY-da");
   });

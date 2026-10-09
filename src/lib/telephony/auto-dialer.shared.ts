@@ -79,6 +79,17 @@ export function chooseRouteNumbers(params: {
   return [free[0]!];
 }
 
+/**
+ * Whether Twilio's answering-machine detection says a machine (or fax) picked up. `AnsweredBy` is
+ * `human`, `unknown`, `fax` or one of the `machine_*` values; only a positive machine answer counts —
+ * `unknown` is treated as a person, because ringing a colleague for nothing beats hanging up on a
+ * customer.
+ */
+export function isMachineAnswer(answeredBy: string | null | undefined): boolean {
+  const v = String(answeredBy ?? "").trim().toLowerCase();
+  return v.startsWith("machine") || v === "fax";
+}
+
 /** Terminal states — the target's call has finished, one way or another. */
 export const TERMINAL_TARGET_STATUSES: DialerTargetStatus[] = [
   "bridged",

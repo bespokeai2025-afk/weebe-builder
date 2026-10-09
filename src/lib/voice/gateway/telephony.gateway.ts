@@ -45,6 +45,13 @@ import type { TwilioCredentials } from "../../telephony/twilio-env";
 import { resolveTwilioCredentialsForWorkspace } from "../../telephony/twilio-credentials.server";
 import { resolvePublicHost } from "../../telephony/twilio-env";
 import type { TransferDirective } from "../graph/types";
+import {
+  AmbientMixer,
+  AmbientPacer,
+  clampAmbientVolume,
+  loadAmbientBed,
+  parseAmbientKind,
+} from "../audio/ambient";
 
 const STREAM_PATH = /^\/api\/telephony\/stream\/([a-zA-Z0-9-]+)$/;
 const LOG = "[tel-stream]";
@@ -335,8 +342,43 @@ async function runCascadeBridge(
   const persist = () => void persistTranscript(sb, callId, transcript).catch(() => {});
   const marks = createTwilioPlaybackMarks(ws, () => streamSid, () => session?.playbackDone());
 
+  // Background sound (builder `ambientSound`): when set, every frame goes through a pacer that
+  // mixes the bed under the agent's voice and keeps it playing while the agent is silent. Without
+  // it the original direct path below is untouched.
+  let ambient: AmbientPacer | null = null;
+  const ambientKind = process.env.WEBEE_AMBIENT === "off" ? null : parseAmbientKind(config.settings?.ambientSound);
+  const ambientVolume = clampAmbientVolume(config.settings?.ambientSoundVolume);
+  if (ambientKind && ambientVolume > 0) {
+    let framesSinceMark = 0;
+    ambient = new AmbientPacer({
+      mixer: new AmbientMixer(loadAmbientBed(ambientKind, TWILIO_RATE), ambientVolume),
+      sampleRate: TWILIO_RATE,
+      send: (frame, hasAgent) => {
+        if (ws.readyState !== WebSocket.OPEN || !streamSid) return;
+        ws.send(
+          JSON.stringify({
+            event: "media",
+            streamSid,
+            media: { payload: pcm16ToMulawBase64(frame) },
+          }),
+        );
+        // One playback mark per ~200 ms of speech, and one when the speech runs out, instead of a
+        // mark per 20 ms frame.
+        if (hasAgent && (++framesSinceMark >= 10 || (ambient?.queuedSamples ?? 0) === 0)) {
+          framesSinceMark = 0;
+          marks.afterAudio();
+        }
+      },
+    });
+    console.log(`${LOG} background sound "${ambientKind}" at volume ${ambientVolume} call=${callId}`);
+  }
+
   const transport: CascadeTransport = {
     sendAudio: (pcm, _meta) => {
+      if (ambient) {
+        ambient.pushAgent(pcm16View(pcm));
+        return;
+      }
       if (ws.readyState !== WebSocket.OPEN || !streamSid) return;
       ws.send(
         JSON.stringify({
@@ -350,12 +392,15 @@ async function runCascadeBridge(
     // Twilio buffers everything we send, so silencing the agent means telling it
     // to drop that buffer; stopping the stream at our end does nothing.
     clearAudio: () => {
+      ambient?.clearAgent();
       marks.clear();
       if (ws.readyState === WebSocket.OPEN && streamSid) {
         ws.send(JSON.stringify({ event: "clear", streamSid }));
       }
     },
-    onResponseDone: () => marks.onResponseDone(),
+    // With a background bed, the response is only done once the pacer has sent all of its speech.
+    onResponseDone: () =>
+      ambient ? ambient.afterAgentDrained(() => marks.onResponseDone()) : marks.onResponseDone(),
     onTranscript: (role, text) => {
       transcript.push({ role, text, ts: Date.now() });
       persist();
@@ -397,6 +442,7 @@ async function runCascadeBridge(
       streamSid = readStreamSid(msg);
       const start = msg.start as Record<string, unknown> | undefined;
       callSid = String(start?.callSid ?? "");
+      ambient?.start();
       void markCallAnswered(sb, callId);
 
       lifecycle = createCallLifecycle(sb, callId, config, { logPrefix: LOG });
@@ -449,6 +495,7 @@ async function runCascadeBridge(
 
     if (msg.event === "stop") {
       console.log(`${LOG} cascade stream stopped call=${callId}`);
+      ambient?.stop();
       session?.close();
       void finalizeCall(sb, callId, config.workspaceId, transcript);
       void lifecycle?.ended("user_hangup");
@@ -456,6 +503,7 @@ async function runCascadeBridge(
   });
 
   ws.on("close", () => {
+    ambient?.stop();
     session?.close();
     // A socket that drops without `stop` still has to produce the post-call
     // events, otherwise the call never reaches analytics. Both calls are
