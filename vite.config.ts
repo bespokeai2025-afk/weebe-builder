@@ -20,6 +20,7 @@ import { providerHealthSweepPlugin } from "./provider-health-sweep.plugin";
 import { adsSyncPlugin } from "./ads-sync.plugin";
 import { trendScoutPlugin } from "./trend-scout.plugin";
 import { accountsMindSchedulerPlugin } from "./accountsmind-scheduler.plugin";
+import { stripPreloadPlugin } from "./strip-preload.plugin";
 // WBAH background sync plugins (leads/calls/category) are intentionally disabled.
 // They each logged into WeeBespoke with the shared admin account every few minutes,
 // and WeeBespoke only allows ONE active session — so the constant background churn
@@ -146,6 +147,13 @@ export default defineConfig({
                   return "vendor-supabase";
                 }
 
+                // three.js + R3F. Only the lazily-imported HiveField reaches
+                // these, so this chunk is fetched after first paint, on
+                // desktop only, and never by the rest of the app.
+                if (/\/node_modules\/(three|@react-three)\//.test(n)) return "vendor-three";
+                // GSAP. Reached only from the lazily-imported shader scenes,
+                // so it rides along with vendor-three rather than the entry.
+                if (/\/node_modules\/gsap\//.test(n)) return "vendor-gsap";
                 // Collapse the per-icon chunks into one cacheable file.
                 if (/\/node_modules\/lucide-react\//.test(n)) return "vendor-icons";
 
@@ -162,7 +170,7 @@ export default defineConfig({
         },
       },
     },
-    plugins: [voiceGatewayPlugin(), campaignSchedulerPlugin(), videoJobPollerPlugin(), providerHealthSweepPlugin(), adsSyncPlugin(), trendScoutPlugin(), accountsMindSchedulerPlugin()],
+    plugins: [voiceGatewayPlugin(), campaignSchedulerPlugin(), videoJobPollerPlugin(), providerHealthSweepPlugin(), adsSyncPlugin(), trendScoutPlugin(), accountsMindSchedulerPlugin(), stripPreloadPlugin([/vendor-three-.*.js$/])],
     resolve: {
       alias: {
         "entities/lib/decode.js": entitiesDecodePath,
