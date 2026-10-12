@@ -61,6 +61,31 @@ export interface CallAgentConfig {
   deploymentMode: DeploymentMode;
   /** Raw agent settings, for engine-specific options. */
   settings: Record<string, unknown>;
+  /**
+   * Values for the agent's {{variables}} on this call: Retell-style system variables (user_number,
+   * agent_number, direction, call_id) plus whatever the dialer or the inbound webhook passed.
+   */
+  dynamicVariables: Record<string, string>;
+  /** Tags the dialer or inbound webhook attached, reported back on the call's webhook events. */
+  callMetadata: Record<string, unknown>;
+}
+
+/**
+ * Retell's system variables for a phone call. `user_number` is always the other party and
+ * `agent_number` ours, whichever way the call goes.
+ */
+export function phoneCallSystemVariables(args: {
+  callId: string;
+  direction: "inbound" | "outbound";
+  fromNumber: string | null;
+  toNumber: string | null;
+}): Record<string, string> {
+  const user = args.direction === "inbound" ? args.fromNumber : args.toNumber;
+  const agent = args.direction === "inbound" ? args.toNumber : args.fromNumber;
+  const out: Record<string, string> = { call_id: args.callId, direction: args.direction };
+  if (user) out.user_number = user;
+  if (agent) out.agent_number = agent;
+  return out;
 }
 
 /** Service-role client: gateways run outside any user session. */
@@ -98,11 +123,13 @@ export async function loadCallAgentConfig(
     successCriteria: null,
     deploymentMode: "RETELL",
     settings: {},
+    dynamicVariables: {},
+    callMetadata: {},
   };
 
   const { data: callRow } = await sb
     .from("telephony_calls")
-    .select("agent_id, workspace_id, direction, from_number, to_number, campaign_id")
+    .select("agent_id, workspace_id, direction, from_number, to_number, campaign_id, metadata")
     .eq("id", callId)
     .maybeSingle();
 
@@ -112,6 +139,29 @@ export async function loadCallAgentConfig(
   config.fromNumber = (callRow?.from_number as string | null) ?? null;
   config.toNumber = (callRow?.to_number as string | null) ?? null;
   config.campaignId = (callRow?.campaign_id as string | null) ?? null;
+  const callMeta = ((callRow?.metadata ?? {}) as Record<string, unknown>) ?? {};
+  const passed = callMeta.dynamic_variables;
+  config.dynamicVariables = {
+    ...phoneCallSystemVariables({
+      callId,
+      direction: config.direction,
+      fromNumber: config.fromNumber,
+      toNumber: config.toNumber,
+    }),
+    ...(passed && typeof passed === "object" && !Array.isArray(passed)
+      ? Object.fromEntries(
+          Object.entries(passed as Record<string, unknown>)
+            .filter(([, v]) => v !== null && v !== undefined && typeof v !== "object")
+            .map(([k, v]) => [k, String(v)]),
+        )
+      : {}),
+  };
+  for (const key of ["call_metadata", "webhook_metadata"] as const) {
+    const extra = callMeta[key];
+    if (extra && typeof extra === "object" && !Array.isArray(extra)) {
+      Object.assign(config.callMetadata, extra as Record<string, unknown>);
+    }
+  }
   if (!config.agentId) return config;
 
   const { data: agentRow } = await sb
@@ -165,7 +215,19 @@ export async function loadCallAgentConfig(
     if (textNodes) config.systemPrompt = String(textNodes);
   }
 
+  // The Realtime bridge runs off this prompt rather than the graph, so fill in the call's
+  // {{variables}} here (the native cascade does the same through the graph's variable store).
+  config.systemPrompt = fillKnownVariables(config.systemPrompt, config.dynamicVariables);
+
   return config;
+}
+
+/** Replace {{name}} with known values; unknown placeholders are left for the agent to handle. */
+export function fillKnownVariables(text: string, values: Record<string, string>): string {
+  if (!text || !Object.keys(values).length) return text;
+  return text.replace(/\{\{\s*([\w.-]+)\s*\}\}/g, (match, key: string) =>
+    Object.prototype.hasOwnProperty.call(values, key) ? values[key]! : match,
+  );
 }
 
 /**
@@ -260,7 +322,14 @@ export function createCallLifecycle(
       direction: config.direction,
       fromNumber: config.fromNumber,
       toNumber: config.toNumber,
-      metadata: config.campaignId ? { campaign_id: config.campaignId } : undefined,
+      metadata:
+        config.campaignId || Object.keys(config.callMetadata).length
+          ? {
+              ...config.callMetadata,
+              ...(config.campaignId ? { campaign_id: config.campaignId } : {}),
+            }
+          : undefined,
+      dynamicVariables: Object.keys(config.dynamicVariables).length ? config.dynamicVariables : undefined,
       analysisSchema: config.analysisSchema,
       analysisModel: config.analysisModel,
       successCriteria: config.successCriteria,

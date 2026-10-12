@@ -727,12 +727,20 @@ export const startQualificationCallsForLeads = createServerFn({ method: "POST" }
         let dialedFrom = fromNumber;
 
         if (dialNative) {
+          // Same variables the Retell path sends as retell_llm_dynamic_variables.
+          const nativeVars: Record<string, string> = { full_name: lead.full_name ?? "" };
+          for (const [placeholder, leadField] of Object.entries(preCallMappings)) {
+            const val = (lead as Record<string, unknown>)[leadField];
+            if (val != null && val !== "") nativeVars[placeholder] = String(val);
+          }
           const dial = await placeNativeOutboundCall({
             sb: supabaseAdmin as never,
             workspaceId,
             agentId: agent.id,
             to: lead.phone,
             fromNumber: data.fromNumber?.trim() || null,
+            dynamicVariables: nativeVars,
+            metadata: { lead_id: lead.id, workspace_id: workspaceId },
           });
           providerCallId = dial.callId;
           dialedFrom = dial.fromNumber;
@@ -953,12 +961,19 @@ export const fireScheduledCalls = createServerFn({ method: "POST" })
         let dialedFrom = fromNumber;
 
         if (dialNative) {
+          const nativeVars: Record<string, string> = { full_name: lead.full_name ?? "" };
+          for (const [placeholder, leadField] of Object.entries(preCallMappings)) {
+            const val = (lead as Record<string, unknown>)[leadField as string];
+            if (val != null && val !== "") nativeVars[placeholder] = String(val);
+          }
           const dial = await placeNativeOutboundCall({
             sb: supabaseAdmin as never,
             workspaceId,
             agentId,
             to: lead.phone,
             fromNumber: (lead.scheduled_from_number as string | null) ?? null,
+            dynamicVariables: nativeVars,
+            metadata: { lead_id: lead.id, workspace_id: workspaceId },
           });
           providerCallId = dial.callId;
           dialedFrom = dial.fromNumber;

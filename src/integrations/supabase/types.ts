@@ -12541,12 +12541,18 @@ export type Database = {
       phone_numbers: {
         Row: {
           agent_id: string | null
+          allowed_inbound_countries: string[] | null
+          allowed_outbound_countries: string[] | null
           capabilities: Json
           cost_usd_cents_monthly: number | null
           created_at: string
+          fallback_number: string | null
           friendly_name: string | null
           id: string
+          inbound_agents: Json | null
+          inbound_webhook_url: string | null
           is_active: boolean
+          outbound_agents: Json | null
           phone_number: string
           price_gbp_pence_monthly: number | null
           provider: string
@@ -12558,12 +12564,18 @@ export type Database = {
         }
         Insert: {
           agent_id?: string | null
+          allowed_inbound_countries?: string[] | null
+          allowed_outbound_countries?: string[] | null
           capabilities?: Json
           cost_usd_cents_monthly?: number | null
           created_at?: string
+          fallback_number?: string | null
           friendly_name?: string | null
           id?: string
+          inbound_agents?: Json | null
+          inbound_webhook_url?: string | null
           is_active?: boolean
+          outbound_agents?: Json | null
           phone_number: string
           price_gbp_pence_monthly?: number | null
           provider?: string
@@ -12575,12 +12587,18 @@ export type Database = {
         }
         Update: {
           agent_id?: string | null
+          allowed_inbound_countries?: string[] | null
+          allowed_outbound_countries?: string[] | null
           capabilities?: Json
           cost_usd_cents_monthly?: number | null
           created_at?: string
+          fallback_number?: string | null
           friendly_name?: string | null
           id?: string
+          inbound_agents?: Json | null
+          inbound_webhook_url?: string | null
           is_active?: boolean
+          outbound_agents?: Json | null
           phone_number?: string
           price_gbp_pence_monthly?: number | null
           provider?: string

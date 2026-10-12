@@ -427,6 +427,11 @@ export async function runCampaignTick(opts?: {
               agentId: campaign.agent_id,
               to: record.phone,
               campaignId: campaign.id,
+              metadata: {
+                campaign_id: campaign.id,
+                workspace_id: campaign.workspace_id,
+                [record.tableSource === "leads" ? "lead_id" : "data_record_id"]: record.id,
+              },
             });
             ok = true;
             // The `telephony_calls` row id is what the native lifecycle reports

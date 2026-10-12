@@ -339,6 +339,7 @@ import { Route as ApiPublicTelephonyDialerLeadStatusTargetIdRouteImport } from '
 import { Route as ApiPublicTelephonyDialerResultTargetIdRouteImport } from './routes/api/public/telephony/dialer-result.$targetId'
 import { Route as ApiPublicTelephonyInboundHealthRouteImport } from './routes/api/public/telephony/inbound.health'
 import { Route as ApiPublicTelephonyStatusHealthRouteImport } from './routes/api/public/telephony/status.health'
+import { Route as ApiPublicTelephonyStreamEndedCallIdRouteImport } from './routes/api/public/telephony/stream-ended.$callId'
 import { Route as ApiPublicTelephonyWarmTransferBriefCallIdRouteImport } from './routes/api/public/telephony/warm-transfer-brief.$callId'
 import { Route as ApiPublicTelephonyWarmTransferStatusCallIdRouteImport } from './routes/api/public/telephony/warm-transfer-status.$callId'
 import { Route as ApiRuntimeAgentIdExportRouteImport } from './routes/api/runtime/agent.$id.export'
@@ -2221,6 +2222,12 @@ const ApiPublicTelephonyStatusHealthRoute =
     path: '/health',
     getParentRoute: () => ApiPublicTelephonyStatusRoute,
   } as any)
+const ApiPublicTelephonyStreamEndedCallIdRoute =
+  ApiPublicTelephonyStreamEndedCallIdRouteImport.update({
+    id: '/api/public/telephony/stream-ended/$callId',
+    path: '/api/public/telephony/stream-ended/$callId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicTelephonyWarmTransferBriefCallIdRoute =
   ApiPublicTelephonyWarmTransferBriefCallIdRouteImport.update({
     id: '/api/public/telephony/warm-transfer-brief/$callId',
@@ -2650,6 +2657,7 @@ export interface FileRoutesByFullPath {
   '/api/public/telephony/dialer-result/$targetId': typeof ApiPublicTelephonyDialerResultTargetIdRoute
   '/api/public/telephony/inbound/health': typeof ApiPublicTelephonyInboundHealthRoute
   '/api/public/telephony/status/health': typeof ApiPublicTelephonyStatusHealthRoute
+  '/api/public/telephony/stream-ended/$callId': typeof ApiPublicTelephonyStreamEndedCallIdRoute
   '/api/public/telephony/warm-transfer-brief/$callId': typeof ApiPublicTelephonyWarmTransferBriefCallIdRoute
   '/api/public/telephony/warm-transfer-status/$callId': typeof ApiPublicTelephonyWarmTransferStatusCallIdRoute
   '/api/runtime/agent/$id/export': typeof ApiRuntimeAgentIdExportRoute
@@ -2988,6 +2996,7 @@ export interface FileRoutesByTo {
   '/api/public/telephony/dialer-result/$targetId': typeof ApiPublicTelephonyDialerResultTargetIdRoute
   '/api/public/telephony/inbound/health': typeof ApiPublicTelephonyInboundHealthRoute
   '/api/public/telephony/status/health': typeof ApiPublicTelephonyStatusHealthRoute
+  '/api/public/telephony/stream-ended/$callId': typeof ApiPublicTelephonyStreamEndedCallIdRoute
   '/api/public/telephony/warm-transfer-brief/$callId': typeof ApiPublicTelephonyWarmTransferBriefCallIdRoute
   '/api/public/telephony/warm-transfer-status/$callId': typeof ApiPublicTelephonyWarmTransferStatusCallIdRoute
   '/api/runtime/agent/$id/export': typeof ApiRuntimeAgentIdExportRoute
@@ -3338,6 +3347,7 @@ export interface FileRoutesById {
   '/api/public/telephony/dialer-result/$targetId': typeof ApiPublicTelephonyDialerResultTargetIdRoute
   '/api/public/telephony/inbound/health': typeof ApiPublicTelephonyInboundHealthRoute
   '/api/public/telephony/status/health': typeof ApiPublicTelephonyStatusHealthRoute
+  '/api/public/telephony/stream-ended/$callId': typeof ApiPublicTelephonyStreamEndedCallIdRoute
   '/api/public/telephony/warm-transfer-brief/$callId': typeof ApiPublicTelephonyWarmTransferBriefCallIdRoute
   '/api/public/telephony/warm-transfer-status/$callId': typeof ApiPublicTelephonyWarmTransferStatusCallIdRoute
   '/api/runtime/agent/$id/export': typeof ApiRuntimeAgentIdExportRoute
@@ -3688,6 +3698,7 @@ export interface FileRouteTypes {
     | '/api/public/telephony/dialer-result/$targetId'
     | '/api/public/telephony/inbound/health'
     | '/api/public/telephony/status/health'
+    | '/api/public/telephony/stream-ended/$callId'
     | '/api/public/telephony/warm-transfer-brief/$callId'
     | '/api/public/telephony/warm-transfer-status/$callId'
     | '/api/runtime/agent/$id/export'
@@ -4026,6 +4037,7 @@ export interface FileRouteTypes {
     | '/api/public/telephony/dialer-result/$targetId'
     | '/api/public/telephony/inbound/health'
     | '/api/public/telephony/status/health'
+    | '/api/public/telephony/stream-ended/$callId'
     | '/api/public/telephony/warm-transfer-brief/$callId'
     | '/api/public/telephony/warm-transfer-status/$callId'
     | '/api/runtime/agent/$id/export'
@@ -4375,6 +4387,7 @@ export interface FileRouteTypes {
     | '/api/public/telephony/dialer-result/$targetId'
     | '/api/public/telephony/inbound/health'
     | '/api/public/telephony/status/health'
+    | '/api/public/telephony/stream-ended/$callId'
     | '/api/public/telephony/warm-transfer-brief/$callId'
     | '/api/public/telephony/warm-transfer-status/$callId'
     | '/api/runtime/agent/$id/export'
@@ -4530,6 +4543,7 @@ export interface RootRouteChildren {
   ApiPublicTelephonyDialerConnectTargetIdRoute: typeof ApiPublicTelephonyDialerConnectTargetIdRoute
   ApiPublicTelephonyDialerLeadStatusTargetIdRoute: typeof ApiPublicTelephonyDialerLeadStatusTargetIdRoute
   ApiPublicTelephonyDialerResultTargetIdRoute: typeof ApiPublicTelephonyDialerResultTargetIdRoute
+  ApiPublicTelephonyStreamEndedCallIdRoute: typeof ApiPublicTelephonyStreamEndedCallIdRoute
   ApiPublicTelephonyWarmTransferBriefCallIdRoute: typeof ApiPublicTelephonyWarmTransferBriefCallIdRoute
   ApiPublicTelephonyWarmTransferStatusCallIdRoute: typeof ApiPublicTelephonyWarmTransferStatusCallIdRoute
   ApiPublicTelephonyDialerLegAnsweredTargetIdRouteRoute: typeof ApiPublicTelephonyDialerLegAnsweredTargetIdRouteRoute
@@ -6852,6 +6866,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicTelephonyStatusHealthRouteImport
       parentRoute: typeof ApiPublicTelephonyStatusRoute
     }
+    '/api/public/telephony/stream-ended/$callId': {
+      id: '/api/public/telephony/stream-ended/$callId'
+      path: '/api/public/telephony/stream-ended/$callId'
+      fullPath: '/api/public/telephony/stream-ended/$callId'
+      preLoaderRoute: typeof ApiPublicTelephonyStreamEndedCallIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/telephony/warm-transfer-brief/$callId': {
       id: '/api/public/telephony/warm-transfer-brief/$callId'
       path: '/api/public/telephony/warm-transfer-brief/$callId'
@@ -7993,6 +8014,8 @@ const rootRouteChildren: RootRouteChildren = {
     ApiPublicTelephonyDialerLeadStatusTargetIdRoute,
   ApiPublicTelephonyDialerResultTargetIdRoute:
     ApiPublicTelephonyDialerResultTargetIdRoute,
+  ApiPublicTelephonyStreamEndedCallIdRoute:
+    ApiPublicTelephonyStreamEndedCallIdRoute,
   ApiPublicTelephonyWarmTransferBriefCallIdRoute:
     ApiPublicTelephonyWarmTransferBriefCallIdRoute,
   ApiPublicTelephonyWarmTransferStatusCallIdRoute:

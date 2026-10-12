@@ -130,14 +130,15 @@ export async function triggerAutoCallForNewLead(
     let dialedFrom = fromNumber;
 
     if (dialNative) {
-      // Pre-call variables are seeded from the flow itself on the native engine,
-      // so there is no dynamic-variable payload to pass here; the lead fields the
-      // mappings point at are read by the graph when it needs them.
+      // Same lead variables the Retell path sends, so {{full_name}} and the mapped fields are
+      // filled on the native engine too.
       const dial = await placeNativeOutboundCall({
         sb,
         workspaceId,
         agentId: agent.id,
         to: lead.phone,
+        dynamicVariables: dynamicVars,
+        metadata: { lead_id: lead.id, workspace_id: workspaceId, trigger: "auto_new_lead" },
       });
       callId = dial.callId;
       dialedFrom = dial.fromNumber;
@@ -265,6 +266,12 @@ export const callWbahDelayedLead = createServerFn({ method: "POST" })
         workspaceId,
         agentId: agent.id,
         to: data.phone,
+        dynamicVariables: dynamicVars,
+        metadata: {
+          workspace_id: workspaceId,
+          trigger: "manual_delayed_new_lead",
+          external_lead_id: data.externalLeadId ?? null,
+        },
       });
       callId = dial.callId;
       dialedFrom = dial.fromNumber;

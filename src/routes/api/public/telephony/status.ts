@@ -7,25 +7,10 @@
  * We map to our CallState enum and update telephony_calls + call_events.
  */
 import { createFileRoute } from "@tanstack/react-router";
-import { createHmac, timingSafeEqual } from "node:crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { CallState } from "@/lib/telephony/types";
-
-function verifyTwilioSignature(
-  authToken: string,
-  twilioSignature: string | null,
-  url: string,
-  params: Record<string, string>,
-): boolean {
-  if (!twilioSignature) return false;
-  const sortedKeys = Object.keys(params).sort();
-  const data = sortedKeys.reduce((acc, k) => acc + k + params[k], url);
-  const expected = createHmac("sha1", authToken).update(data).digest("base64");
-  const a = Buffer.from(twilioSignature);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length) return false;
-  try { return timingSafeEqual(a, b); } catch { return false; }
-}
+import { verifyTwilioRequestForWorkspace } from "@/lib/telephony/inbound-routing.server";
+import { reportUnansweredCall } from "@/lib/telephony/unanswered-call.server";
 
 function jsonOk(body: unknown) {
   return new Response(JSON.stringify(body), {
@@ -58,18 +43,6 @@ export const Route = createFileRoute("/api/public/telephony/status")({
         const params: Record<string, string> = {};
         try { new URLSearchParams(rawBody).forEach((v, k) => { params[k] = v; }); } catch {}
 
-        const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN ?? "";
-        if (twilioAuthToken) {
-          const sigHeader = request.headers.get("X-Twilio-Signature");
-          const proto     = request.headers.get("x-forwarded-proto") ?? "https";
-          const host      = request.headers.get("host") ?? "";
-          const fullUrl   = `${proto}://${host}/api/public/telephony/status`;
-          if (!verifyTwilioSignature(twilioAuthToken, sigHeader, fullUrl, params)) {
-            console.warn("[telephony/status] Invalid Twilio signature — rejected");
-            return new Response("Forbidden", { status: 403 });
-          }
-        }
-
         const callSid      = params["CallSid"]      ?? "";
         const twilioStatus = params["CallStatus"]   ?? "";
         const duration     = params["CallDuration"] ?? null;
@@ -80,13 +53,28 @@ export const Route = createFileRoute("/api/public/telephony/status")({
 
         const { data: callRow } = await supabaseAdmin
           .from("telephony_calls")
-          .select("id, workspace_id, status")
+          .select("id, workspace_id, status, agent_id, direction, from_number, to_number, campaign_id, started_at, metadata")
           .eq("call_sid", callSid)
           .maybeSingle();
 
         if (!callRow) {
           console.log("[telephony/status] call not found for sid:", callSid);
           return jsonOk({ ok: false, reason: "call not found" });
+        }
+
+        // Verified against the Twilio account that owns this call's workspace — the account that
+        // placed or received it. Checking only the platform env token rejected every callback for
+        // calls on a workspace's own Twilio account, so call outcomes were never recorded.
+        const verified = await verifyTwilioRequestForWorkspace(
+          supabaseAdmin,
+          callRow.workspace_id as string,
+          request,
+          "/api/public/telephony/status",
+          params,
+        );
+        if (!verified.ok) {
+          console.warn(`[telephony/status] rejected (${verified.reason}) for sid:`, callSid);
+          return new Response("Forbidden", { status: 403 });
         }
 
         const patch: Record<string, unknown> = {
@@ -124,6 +112,13 @@ export const Route = createFileRoute("/api/public/telephony/status")({
             duration: duration ?? null,
           },
         });
+
+        // An outbound call that never connected has no voice-engine lifecycle to report it; send
+        // the Retell-shaped no-answer / busy / failed events so leads and campaigns see the outcome.
+        // Not awaited: Twilio only needs a quick 200 here.
+        void reportUnansweredCall(callRow as never, twilioStatus).catch((err) =>
+          console.warn("[telephony/status] unanswered-call report failed:", err instanceof Error ? err.message : err),
+        );
 
         console.log(`[telephony/status] ${callSid}: ${callRow.status} → ${status}`);
         return jsonOk({ ok: true });

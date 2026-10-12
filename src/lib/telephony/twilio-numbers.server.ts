@@ -168,10 +168,21 @@ export async function purchaseNumber(args: {
   };
 }
 
-/** Repoint an existing number at our endpoints. */
-export async function configureNumberWebhooks(sid: string, workspaceId?: string): Promise<void> {
+/**
+ * Repoint an existing number at our endpoints.
+ *
+ * Returns the Elastic SIP trunk the number is attached to, if any: Twilio sends a trunk number's
+ * calls to the trunk and ignores its Voice URL, so callers must not report routing as configured.
+ * The trunk is deliberately not detached here — it may be carrying live calls for another system
+ * (e.g. a Retell SIP import), and moving a number off it is the owner's decision.
+ */
+export async function configureNumberWebhooks(
+  sid: string,
+  workspaceId?: string,
+): Promise<{ trunkSid: string | null }> {
   const twilioClient = await client(workspaceId);
-  await twilioClient.incomingPhoneNumbers(sid).update(buildNumberWebhooks());
+  const updated = await twilioClient.incomingPhoneNumbers(sid).update(buildNumberWebhooks());
+  return { trunkSid: (updated as { trunkSid?: string | null }).trunkSid || null };
 }
 
 /**

@@ -14,6 +14,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { resolvePublicHost } from "./twilio-env";
 import { resolveTwilioCredentialsForWorkspace } from "./twilio-credentials.server";
+import {
+  agentsOnNumber,
+  countriesForE164,
+  isCountryAllowed,
+  type NumberRoutingRow,
+} from "./number-routing.shared";
 
 export interface NativeDialParams {
   /** Service-role client; this runs from schedulers with no user session. */
@@ -24,6 +30,13 @@ export interface NativeDialParams {
   campaignId?: string | null;
   /** Overrides number selection. Must be a number we own. */
   fromNumber?: string | null;
+  /**
+   * Values for the agent's {{variables}} on this call — Retell's `retell_llm_dynamic_variables`
+   * (lead name, address, …). Coerced to strings, as Retell does.
+   */
+  dynamicVariables?: Record<string, unknown> | null;
+  /** Free-form tags carried to the call's webhook events (Retell's `metadata`), e.g. lead_id. */
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface NativeDialResult {
@@ -45,30 +58,48 @@ async function resolveFromNumber(
   sb: NativeDialParams["sb"],
   workspaceId: string,
   agentId: string,
-): Promise<{ number: string; id: string | null } | null> {
-  const { data: own } = await sb
+): Promise<{ number: string; id: string | null; routing: NumberRoutingRow } | null> {
+  const { data } = await sb
     .from("phone_numbers")
-    .select("id, phone_number")
+    .select("*")
     .eq("workspace_id", workspaceId)
-    .eq("agent_id", agentId)
     .eq("is_active", true)
-    .limit(1)
-    .maybeSingle();
-  if (own?.phone_number) {
-    return { number: own.phone_number as string, id: (own.id as string) ?? null };
-  }
+    .order("created_at", { ascending: true });
+  const rows = (data ?? []) as Array<NumberRoutingRow & { id: string; phone_number: string; provider?: string }>;
+  // A Retell SIP import can't be dialled through Twilio here.
+  const usable = rows.filter((r) => r.provider !== "retell_sip");
+  const own =
+    usable.find((r) => agentsOnNumber(r, "outbound").includes(agentId)) ??
+    usable.find((r) => r.agent_id === agentId);
+  const pick = own ?? usable[0];
+  return pick ? { number: pick.phone_number, id: pick.id ?? null, routing: pick } : null;
+}
 
-  const { data: any_ } = await sb
+async function loadNumberRouting(
+  sb: NativeDialParams["sb"],
+  workspaceId: string,
+  phoneNumber: string,
+): Promise<{ id: string | null; routing: NumberRoutingRow }> {
+  const { data } = await sb
     .from("phone_numbers")
-    .select("id, phone_number")
+    .select("*")
     .eq("workspace_id", workspaceId)
-    .eq("is_active", true)
+    .eq("phone_number", phoneNumber)
     .limit(1)
     .maybeSingle();
-  if (any_?.phone_number) {
-    return { number: any_.phone_number as string, id: (any_.id as string) ?? null };
+  return { id: (data?.id as string | undefined) ?? null, routing: (data ?? {}) as NumberRoutingRow };
+}
+
+/** Retell requires dynamic variables to be strings; objects and empty values are dropped. */
+export function toDynamicVariables(input: Record<string, unknown> | null | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(input ?? {})) {
+    const key = k.trim();
+    if (!key || v === null || v === undefined || typeof v === "object") continue;
+    const value = String(v);
+    if (value !== "") out[key] = value;
   }
-  return null;
+  return out;
 }
 
 export async function placeNativeOutboundCall(
@@ -76,8 +107,8 @@ export async function placeNativeOutboundCall(
 ): Promise<NativeDialResult> {
   const { sb, workspaceId, agentId, to } = params;
 
-  let from: { number: string; id: string | null } | null = params.fromNumber
-    ? { number: params.fromNumber, id: null }
+  let from: { number: string; id: string | null; routing: NumberRoutingRow } | null = params.fromNumber
+    ? { number: params.fromNumber, ...(await loadNumberRouting(sb, workspaceId, params.fromNumber)) }
     : null;
   if (!from) from = await resolveFromNumber(sb, workspaceId, agentId);
   if (!from) {
@@ -85,6 +116,17 @@ export async function placeNativeOutboundCall(
       "No active phone number for this workspace — buy or import one before dialling on the native engine.",
     );
   }
+  // The number's allowed outbound countries (Retell's allowed_outbound_country_list).
+  const destination = countriesForE164(to);
+  if (!isCountryAllowed(from.routing.allowed_outbound_countries, destination)) {
+    throw new Error(
+      `${from.number} is not allowed to call ${destination.join("/") || "this destination"}. Change the number's allowed outbound countries to dial it.`,
+    );
+  }
+  const dynamicVariables = toDynamicVariables(params.dynamicVariables);
+  const callMetadata: Record<string, unknown> = {};
+  if (Object.keys(dynamicVariables).length) callMetadata.dynamic_variables = dynamicVariables;
+  if (params.metadata && Object.keys(params.metadata).length) callMetadata.call_metadata = params.metadata;
 
   const host = resolvePublicHost();
   const credentials = await resolveTwilioCredentialsForWorkspace(sb, workspaceId);
@@ -117,6 +159,7 @@ export async function placeNativeOutboundCall(
       to_number: to,
       status: "initiated",
       provider: "twilio",
+      metadata: callMetadata,
     })
     .select("id")
     .single();

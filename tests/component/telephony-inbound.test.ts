@@ -49,42 +49,52 @@ describe("verifyTwilioSignature", () => {
 });
 
 describe("resolveAndVerifyInboundSignature", () => {
-  it("accepts when the subaccount resolves and the signature is valid", async () => {
-    const resolveSubaccount = vi.fn().mockResolvedValue({ accountSid: "ACsub", authToken: FAKE_TOKEN });
+  // The number may live in a WEBEE subaccount, the workspace's own Twilio account, or the platform
+  // account — the request is accepted only if one of those accounts' tokens produced the signature.
+  it("accepts when the signature matches one of the workspace's Twilio accounts", async () => {
+    const candidates = vi.fn().mockResolvedValue(["other_account_token", FAKE_TOKEN]);
     const sig = computeTwilioSignature(FAKE_TOKEN, URL, PARAMS);
     const request = fakeRequest({ "X-Twilio-Signature": sig, host: "webee.example.com" });
 
-    const result = await resolveAndVerifyInboundSignature("ws-1", request, PARAMS, resolveSubaccount);
+    const result = await resolveAndVerifyInboundSignature("ws-1", request, PARAMS, candidates);
 
     expect(result).toEqual({ ok: true });
-    expect(resolveSubaccount).toHaveBeenCalledWith({}, "ws-1");
+    expect(candidates).toHaveBeenCalledWith({}, "ws-1");
   });
 
-  it("rejects with invalid_signature when the subaccount resolves but the signature is wrong", async () => {
-    const resolveSubaccount = vi.fn().mockResolvedValue({ accountSid: "ACsub", authToken: FAKE_TOKEN });
+  it("rejects with invalid_signature when no account's token produced the signature", async () => {
+    const candidates = vi.fn().mockResolvedValue([FAKE_TOKEN, "another_token"]);
     const request = fakeRequest({ "X-Twilio-Signature": "not-a-real-signature", host: "webee.example.com" });
 
-    const result = await resolveAndVerifyInboundSignature("ws-1", request, PARAMS, resolveSubaccount);
+    const result = await resolveAndVerifyInboundSignature("ws-1", request, PARAMS, candidates);
 
     expect(result).toEqual({ ok: false, reason: "invalid_signature" });
   });
 
-  it("fails closed with credentials_unavailable when subaccount resolution throws — never falls back, never skips verification", async () => {
-    const resolveSubaccount = vi.fn().mockRejectedValue(new Error("no subaccount for this workspace"));
-    // Even a perfectly well-formed signature must not matter here — resolution
-    // failing must short-circuit before verification is ever attempted.
+  it("fails closed with credentials_unavailable when the workspace has no Twilio account at all", async () => {
+    const candidates = vi.fn().mockResolvedValue([]);
     const request = fakeRequest({ "X-Twilio-Signature": "irrelevant", host: "webee.example.com" });
 
-    const result = await resolveAndVerifyInboundSignature("ws-missing", request, PARAMS, resolveSubaccount);
+    const result = await resolveAndVerifyInboundSignature("ws-missing", request, PARAMS, candidates);
 
     expect(result).toEqual({ ok: false, reason: "credentials_unavailable" });
   });
 
-  it("fails closed even with no signature header at all, once credentials are available", async () => {
-    const resolveSubaccount = vi.fn().mockResolvedValue({ accountSid: "ACsub", authToken: FAKE_TOKEN });
+  it("fails closed when looking up the accounts throws — never skips verification", async () => {
+    const candidates = vi.fn().mockRejectedValue(new Error("db down"));
+    const sig = computeTwilioSignature(FAKE_TOKEN, URL, PARAMS);
+    const request = fakeRequest({ "X-Twilio-Signature": sig, host: "webee.example.com" });
+
+    const result = await resolveAndVerifyInboundSignature("ws-1", request, PARAMS, candidates);
+
+    expect(result).toEqual({ ok: false, reason: "credentials_unavailable" });
+  });
+
+  it("fails closed with no signature header at all", async () => {
+    const candidates = vi.fn().mockResolvedValue([FAKE_TOKEN]);
     const request = fakeRequest({ host: "webee.example.com" }); // no X-Twilio-Signature header
 
-    const result = await resolveAndVerifyInboundSignature("ws-1", request, PARAMS, resolveSubaccount);
+    const result = await resolveAndVerifyInboundSignature("ws-1", request, PARAMS, candidates);
 
     expect(result).toEqual({ ok: false, reason: "invalid_signature" });
   });

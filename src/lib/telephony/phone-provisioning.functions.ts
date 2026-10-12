@@ -326,10 +326,19 @@ export const assignVoiceNumberToAgent = createServerFn({ method: "POST" })
     if (!row) throw new Error("Phone number not found in this workspace.");
 
     let webhooksConfigured = false;
+    let routingWarning: string | null = null;
+    if (row.provider === "twilio" && !row.provider_sid) {
+      routingWarning =
+        "This number has no Twilio ID on record, so its call routing could not be refreshed. Re-import it from Twilio.";
+    }
     if (row.provider === "twilio" && row.provider_sid) {
       try {
-        await configureNumberWebhooks(row.provider_sid as string, workspaceId);
-        webhooksConfigured = true;
+        const { trunkSid } = await configureNumberWebhooks(row.provider_sid as string, workspaceId);
+        if (trunkSid) {
+          routingWarning = `This number is attached to an Elastic SIP trunk (${trunkSid}) in Twilio, so its calls go to the trunk, not to this agent. Remove it from the trunk in Twilio to answer calls here.`;
+        } else {
+          webhooksConfigured = true;
+        }
       } catch (err) {
         // Assignment is a DB fact and still worth saving; the caller is told the
         // routing half did not land.
@@ -347,7 +356,7 @@ export const assignVoiceNumberToAgent = createServerFn({ method: "POST" })
       .eq("workspace_id", workspaceId);
     if (updateError) throw new Error(updateError.message);
 
-    return { success: true, webhooksConfigured, ...buildNumberWebhooks() };
+    return { success: true, webhooksConfigured, routingWarning, ...buildNumberWebhooks() };
   });
 
 export interface ReleaseVoiceNumberDeps {

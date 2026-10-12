@@ -31,6 +31,10 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { PhoneNumberDetail } from "@/components/telephony/PhoneNumberDetail";
 import { assignVoiceNumberToAgent } from "@/lib/telephony/phone-provisioning.functions";
+import {
+  placeCallFromNumber,
+  updatePhoneNumberRouting,
+} from "@/lib/telephony/phone-number-settings.functions";
 
 export const Route = createFileRoute("/_authenticated/phone-numbers")({
   validateSearch: (search: Record<string, unknown>): { numberId?: string } => ({
@@ -44,6 +48,8 @@ function PhoneNumbersPage() {
   const { numberId } = Route.useSearch();
   const navigate = Route.useNavigate();
   const assignFn = useServerFn(assignVoiceNumberToAgent);
+  const routingFn = useServerFn(updatePhoneNumberRouting);
+  const placeCallFn = useServerFn(placeCallFromNumber);
   const closeDetail = () => {
     void navigate({ search: {} });
   };
@@ -190,7 +196,30 @@ function PhoneNumbersPage() {
           await qc.invalidateQueries({ queryKey: ["phone-numbers"] });
           return result.webhooksConfigured
             ? "Agent assignment saved and provider routing refreshed."
-            : "Agent assignment saved. Provider routing was not refreshed; check your provider configuration before relying on inbound calls.";
+            : `Agent assignment saved. ${result.routingWarning ?? "Provider routing was not refreshed; check your provider configuration before relying on inbound calls."}`;
+        }}
+        onSaveRouting={async (patch) => {
+          // The primary inbound agent also goes through the assignment path, which re-points the
+          // number's Twilio webhooks at this app — routing settings are useless if calls never arrive.
+          let routingNote = "";
+          if (patch.inboundAgents) {
+            const primary =
+              [...patch.inboundAgents].sort((a, b) => b.weight - a.weight)[0]?.agent_id ?? null;
+            const assigned = await assignFn({ data: { phoneNumberId: number.id, agentId: primary } });
+            if (!assigned.webhooksConfigured) {
+              routingNote = ` ${assigned.routingWarning ?? "Provider routing was not refreshed; check the number's Voice URL in Twilio before relying on inbound calls."}`;
+            }
+          }
+          await routingFn({ data: { phoneNumberId: number.id, ...patch } });
+          await qc.invalidateQueries({ queryKey: ["phone-numbers"] });
+          return `Settings saved.${routingNote}`;
+        }}
+        onPlaceCall={async ({ to, dynamicVariables }) => {
+          const result = await placeCallFn({
+            data: { phoneNumberId: number.id, to, dynamicVariables },
+          });
+          const agentName = agents.find((a: { id: string }) => a.id === result.agentId)?.name;
+          return `Calling ${to} from ${result.fromNumber}${agentName ? ` with ${agentName}` : ""}.`;
         }}
       />
     );

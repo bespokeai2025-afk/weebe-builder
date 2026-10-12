@@ -462,6 +462,8 @@ async function runCascadeBridge(
         supabase: sb,
         settings: config.settings,
         workspaceId: config.workspaceId,
+        // Lead details from the dialer / inbound webhook, plus Retell's system variables.
+        variables: config.dynamicVariables,
         ...nativeCascadeOptionsFromSettings(config.settings),
         resolveLifecycle: () => lifecycle,
       });
@@ -469,7 +471,9 @@ async function runCascadeBridge(
       session.start().catch((err: Error) => {
         console.error(`${LOG} cascade start failed call=${callId}: ${err.message}`);
         void lifecycle?.failed("error_llm_websocket_open", err.message);
-        ws.close(1011, "engine unavailable");
+        // Recorded before the socket closes, so the stream-ended callback can forward the caller
+        // to the number's fallback instead of dropping them.
+        void markEngineFailed(sb, callId, err.message).finally(() => ws.close(1011, "engine unavailable"));
       });
       console.log(`${LOG} cascade stream started streamSid=${streamSid} call=${callId}`);
       return;
@@ -628,6 +632,19 @@ async function runRealtimeBridge(
   });
 }
 
+/** Flag a call the voice engine could not take (read by the stream-ended fallback route). */
+async function markEngineFailed(sb: SupabaseClient, callId: string, reason: string): Promise<void> {
+  try {
+    const { data } = await sb.from("telephony_calls").select("metadata").eq("id", callId).maybeSingle();
+    const metadata = { ...((data?.metadata as Record<string, unknown> | null) ?? {}) };
+    metadata.engine_failed = true;
+    metadata.engine_error = reason.slice(0, 300);
+    await sb.from("telephony_calls").update({ metadata }).eq("id", callId);
+  } catch (err) {
+    console.warn(`${LOG} could not record engine failure call=${callId}:`, err instanceof Error ? err.message : err);
+  }
+}
+
 async function handleTwilioStream(ws: WebSocket, callId: string): Promise<void> {
   console.log(`${LOG} Twilio connected callId=${callId}`);
   const sb = makeSupabaseAdmin();
@@ -653,7 +670,8 @@ export const telephonyRoute: VoiceGatewayRoute = {
   onConnection: (ws: WebSocket, ctx: VoiceGatewayContext) => {
     handleTwilioStream(ws, ctx.params.callId).catch((err) => {
       console.error(`${LOG} handler error:`, err);
-      ws.close(1011, "gateway error");
+      void markEngineFailed(makeSupabaseAdmin(), ctx.params.callId, err instanceof Error ? err.message : String(err))
+        .finally(() => ws.close(1011, "gateway error"));
     });
   },
 };
