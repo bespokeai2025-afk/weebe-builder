@@ -45,6 +45,7 @@ import type { TwilioCredentials } from "../../telephony/twilio-env";
 import { resolveTwilioCredentialsForWorkspace } from "../../telephony/twilio-credentials.server";
 import { resolvePublicHost } from "../../telephony/twilio-env";
 import type { TransferDirective } from "../graph/types";
+import { holdEarlyMessages } from "./early-messages";
 import {
   AmbientMixer,
   AmbientPacer,
@@ -320,6 +321,7 @@ async function runCascadeBridge(
   callId: string,
   sb: SupabaseClient,
   config: CallAgentConfig,
+  releaseEarlyMessages: () => void = () => {},
 ): Promise<void> {
   let streamSid = "";
   let callSid = "";
@@ -506,6 +508,9 @@ async function runCascadeBridge(
     }
   });
 
+  // Replay anything Twilio sent while the call was being looked up (its `start` frame).
+  releaseEarlyMessages();
+
   ws.on("close", () => {
     ambient?.stop();
     session?.close();
@@ -528,6 +533,7 @@ async function runRealtimeBridge(
   callId: string,
   sb: SupabaseClient,
   config: CallAgentConfig,
+  releaseEarlyMessages: () => void = () => {},
 ): Promise<void> {
   const transcript: TranscriptEntry[] = [];
   let streamSid = "";
@@ -617,6 +623,8 @@ async function runRealtimeBridge(
     }
   });
 
+  releaseEarlyMessages();
+
   ws.on("close", () => {
     console.log(`${LOG} Twilio WS closed callId=${callId}`);
     connected = false;
@@ -647,14 +655,16 @@ async function markEngineFailed(sb: SupabaseClient, callId: string, reason: stri
 
 async function handleTwilioStream(ws: WebSocket, callId: string): Promise<void> {
   console.log(`${LOG} Twilio connected callId=${callId}`);
+  // Twilio's `start` frame arrives during the lookups below; keep it until a handler exists.
+  const release = holdEarlyMessages(ws);
   const sb = makeSupabaseAdmin();
   const config = await loadCallAgentConfig(sb, callId, LOG);
 
   if (isWebeeNativeMode(config.deploymentMode)) {
     console.log(`${LOG} engine=webee_native callId=${callId}`);
-    return runCascadeBridge(ws, callId, sb, config);
+    return runCascadeBridge(ws, callId, sb, config, release);
   }
-  return runRealtimeBridge(ws, callId, sb, config);
+  return runRealtimeBridge(ws, callId, sb, config, release);
 }
 
 export const telephonyRoute: VoiceGatewayRoute = {
