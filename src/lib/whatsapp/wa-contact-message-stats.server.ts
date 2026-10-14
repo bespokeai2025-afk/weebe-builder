@@ -107,7 +107,10 @@ export function aggregateWaMessageStatsByPhone(
         stats.last_campaign_name = prev.last_campaign_name;
         stats.last_campaign_type = prev.last_campaign_type;
       }
-      stats.messaged = true;
+      // A message WhatsApp rejected never reached the person. Counting it as "messaged" made the
+      // campaign builder skip contacts who had never received anything (every send after a
+      // number change failed, yet those contacts showed as already messaged).
+      if (st !== "failed") stats.messaged = true;
     } else if (row.direction === "inbound") {
       stats.inbound_count = prev.inbound_count + 1;
       stats.last_inbound_at = bumpMax(prev.last_inbound_at, row.sent_at);

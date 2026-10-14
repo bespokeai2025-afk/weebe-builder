@@ -4,7 +4,7 @@
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { watiApiV1Base, watiApiV3Base } from "@/lib/whatsapp/wati-api-base.shared";
-import { normalizeWhatsAppPhone, phoneTail } from "@/lib/whatsapp/wati-campaign.server";
+import { normalizeWhatsAppPhone, phoneMatchKey } from "@/lib/whatsapp/wati-campaign.server";
 
 const STATUS_ORDER: Record<string, number> = {
   failed: -1,
@@ -93,18 +93,50 @@ async function findRecentOutboundByPhone(
     .limit(1);
   if (exact?.[0]) return exact[0];
 
-  const tail = phoneTail(normalized);
-  if (!tail) return null;
-
-  const { data: recent } = await base()
+  // The same person is stored as "0556665255" (local) and reported by WATI as "971556665255":
+  // match on the last 9 digits, across all sends — the old check compared 10 digits (which differ
+  // between those two forms) and only looked at the 30 most recent rows, so in a 200-message
+  // broadcast almost no delivery/read/failed update could be linked to its message.
+  const key = phoneMatchKey(normalized);
+  if (!key) return null;
+  const { data: byKey } = await base()
+    .like("contact_phone", `%${key}`)
     .in("status", ["sent", "delivered"])
     .order("sent_at", { ascending: false })
-    .limit(30);
-  return (
-    (recent ?? []).find((r: { contact_phone: string }) =>
-      normalizeWhatsAppPhone(r.contact_phone).endsWith(tail),
-    ) ?? null
-  );
+    .limit(1);
+  return byKey?.[0] ?? null;
+}
+
+/**
+ * A contact the campaign marked "contacted" at send time, but whose messages all failed, was never
+ * reached — put them back to "new" so they are offered for the next campaign.
+ */
+export async function releaseContactsNeverReached(
+  workspaceId: string,
+  phones: Array<string | null | undefined>,
+): Promise<number> {
+  const keys = [...new Set(phones.map((p) => phoneMatchKey(p)).filter(Boolean) as string[])];
+  let released = 0;
+  for (const key of keys) {
+    const { data: delivered } = await sb()
+      .from("whatsapp_messages")
+      .select("id")
+      .eq("workspace_id", workspaceId)
+      .eq("direction", "outbound")
+      .like("contact_phone", `%${key}`)
+      .neq("status", "failed")
+      .limit(1);
+    if (delivered?.length) continue;
+    const { data: updated } = await sb()
+      .from("whatsapp_contacts")
+      .update({ lead_status: "new", updated_at: new Date().toISOString() })
+      .eq("workspace_id", workspaceId)
+      .like("phone", `%${key}`)
+      .eq("lead_status", "contacted")
+      .select("id");
+    released += updated?.length ?? 0;
+  }
+  return released;
 }
 
 /**
@@ -225,10 +257,16 @@ export async function applyWatiMessageStatusToRow(opts: {
   if (wamid) patch.whatsapp_message_id = wamid;
   if (opts.failedDetail) patch.wati_status = opts.failedDetail;
 
-  await sb()
+  const { data: updatedRow } = await sb()
     .from("whatsapp_messages")
     .update(patch)
-    .eq("id", opts.messageId);
+    .eq("id", opts.messageId)
+    .select("contact_phone")
+    .maybeSingle();
+
+  if (opts.newStatus === "failed" && updatedRow?.contact_phone) {
+    await releaseContactsNeverReached(opts.workspaceId, [updatedRow.contact_phone]).catch(() => 0);
+  }
 
   if (opts.campaignId) {
     await refreshCampaignStatsForMessage(opts.workspaceId, opts.campaignId);

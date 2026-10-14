@@ -135,6 +135,17 @@ export function countriesForE164(phone: string | null | undefined): string[] {
   return [];
 }
 
+/** The ITU calling code an international number starts with ("971" for +971…), or null. */
+export function callingCodeOf(phone: string | null | undefined): string | null {
+  const digits = String(phone ?? "").trim().replace(/^\+/, "").replace(/\D/g, "");
+  if (!digits) return null;
+  for (let len = 3; len >= 1; len--) {
+    const code = digits.slice(0, len);
+    if (CALLING_CODES[code]) return code;
+  }
+  return null;
+}
+
 export function normaliseCountryList(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return [

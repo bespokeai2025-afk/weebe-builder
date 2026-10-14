@@ -10,6 +10,7 @@ export type CampaignAudienceFilter = {
   lead_ids?: string[];
 };
 
+import { callingCodeOf } from "../telephony/number-routing.shared";
 import { watiApiRoot, watiApiV3Base } from "@/lib/whatsapp/wati-api-base.shared";
 import { defaultParamSample } from "@/lib/whatsapp/wati-template-create.shared";
 import { describeWatiNonTextBody } from "@/lib/whatsapp/wati-message-content.shared";
@@ -31,6 +32,71 @@ export function digitsOnly(phone: string | null | undefined): string {
 export function normalizeWhatsAppPhone(phone: string | null | undefined): string {
   const d = digitsOnly(phone);
   return d || String(phone ?? "").trim();
+}
+
+/**
+ * The country code most of a workspace's numbers use (e.g. "971" for a Dubai agency), when one
+ * clearly dominates: at least 60% of its international-format numbers and at least 10 of them.
+ * Null when the list is mixed — then local numbers are left as they are rather than guessed.
+ */
+export function inferDefaultCallingCode(phones: Array<string | null | undefined>): string | null {
+  const counts = new Map<string, number>();
+  let international = 0;
+  for (const p of phones) {
+    const d = digitsOnly(p);
+    if (d.length < 10 || d.startsWith("0")) continue;
+    const code = callingCodeOf(d);
+    if (!code) continue;
+    international++;
+    counts.set(code, (counts.get(code) ?? 0) + 1);
+  }
+  if (international < 10) return null;
+  const [best, n] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0] ?? [null, 0];
+  return best && n / international >= 0.6 ? best : null;
+}
+
+/**
+ * WhatsApp only accepts international numbers. Contacts are often imported in local form —
+ * "0556665255" or "556665255" for +971 55 666 5255 — and sent like that, WhatsApp cannot deliver
+ * them. With the workspace's country code known, the trunk 0 is replaced by it, and a short number
+ * with no code gets it prefixed. Anything already international is returned unchanged.
+ */
+export function toInternationalWhatsAppPhone(
+  phone: string | null | undefined,
+  defaultCallingCode: string | null,
+): string {
+  const d = digitsOnly(phone);
+  if (!d) return normalizeWhatsAppPhone(phone);
+  if (d.startsWith("00")) return d.slice(2);
+  if (!defaultCallingCode) return d;
+  if (d.startsWith("0") && d.length >= 8 && d.length <= 11) return `${defaultCallingCode}${d.slice(1)}`;
+  if (d.length >= 7 && d.length <= 9) return `${defaultCallingCode}${d}`;
+  return d;
+}
+
+const callingCodeCache = new Map<string, { at: number; code: string | null }>();
+
+/** `inferDefaultCallingCode` over the workspace's contacts, cached for 10 minutes. */
+export async function resolveWorkspaceCallingCode(
+  sb: { from: (t: string) => any },
+  workspaceId: string,
+): Promise<string | null> {
+  const hit = callingCodeCache.get(workspaceId);
+  if (hit && Date.now() - hit.at < 10 * 60_000) return hit.code;
+  const phones: string[] = [];
+  for (let from = 0; from < 5000; from += 1000) {
+    const { data } = await sb
+      .from("whatsapp_contacts")
+      .select("phone")
+      .eq("workspace_id", workspaceId)
+      .range(from, from + 999);
+    const rows = (data ?? []) as Array<{ phone: string | null }>;
+    phones.push(...rows.map((r) => String(r.phone ?? "")));
+    if (rows.length < 1000) break;
+  }
+  const code = inferDefaultCallingCode(phones);
+  callingCodeCache.set(workspaceId, { at: Date.now(), code });
+  return code;
 }
 
 /** Last 10 digits — common match key for UK/mobile tails. */

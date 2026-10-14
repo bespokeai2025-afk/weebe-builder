@@ -11,6 +11,8 @@ import {
   getWatiConnectionForWorkspace,
   normalizeWhatsAppPhone,
   resolveCampaignAudienceLeads,
+  resolveWorkspaceCallingCode,
+  toInternationalWhatsAppPhone,
   sendWatiSessionMessage,
   sendWatiTemplateMessage,
   sendWatiTemplateMessagesBatch,
@@ -2412,9 +2414,15 @@ export async function launchWatiCampaignFromWebee(
   let failed = 0;
   const errors: string[] = [];
 
+  // Local-format numbers ("0556665255") can't be delivered by WhatsApp; send in international form
+  // using the workspace's own country code. The stored contact keeps its original form.
+  const callingCode = await resolveWorkspaceCallingCode(sb, workspaceId).catch(() => null);
+  const originalPhoneBySendPhone = new Map<string, string>();
   const sendItems = leads
     .map((lead) => {
-      const phone = normalizeWhatsAppPhone(String(lead.phone ?? ""));
+      const original = normalizeWhatsAppPhone(String(lead.phone ?? ""));
+      const phone = toInternationalWhatsAppPhone(original, callingCode);
+      if (phone && original && phone !== original) originalPhoneBySendPhone.set(phone, original);
       if (!phone) return null;
       const parameters = buildWatiTemplateParams(lead, mapping, paramSlots);
       const bodyPreview = resolveWatiTemplateMessageBody(
@@ -2520,7 +2528,9 @@ export async function launchWatiCampaignFromWebee(
     }
   }
 
-  const sentPhones = allSendResults.filter((r) => r.ok).map((r) => r.phone);
+  const sentPhones = allSendResults
+    .filter((r) => r.ok)
+    .flatMap((r) => [r.phone, originalPhoneBySendPhone.get(r.phone)].filter(Boolean) as string[]);
   if (sentPhones.length > 0) {
     await markWhatsappContactsMessaged(sb, workspaceId, sentPhones);
   }
@@ -3007,8 +3017,12 @@ export const sendLeadWhatsappTemplate = createServerFn({ method: "POST" })
       lead = await findLeadByPhone(sb, workspaceId, normalizeWhatsAppPhone(data.phone));
     }
 
-    const phone = normalizeWhatsAppPhone(String(lead?.phone ?? data.phone ?? ""));
-    if (!phone) throw new Error("No phone number to send to");
+    const originalPhone = normalizeWhatsAppPhone(String(lead?.phone ?? data.phone ?? ""));
+    if (!originalPhone) throw new Error("No phone number to send to");
+    const phone = toInternationalWhatsAppPhone(
+      originalPhone,
+      await resolveWorkspaceCallingCode(sb, workspaceId).catch(() => null),
+    );
 
     const mapping = data.templateParams ?? {};
     const templateName = data.templateName.trim();
@@ -3079,7 +3093,7 @@ export const sendLeadWhatsappTemplate = createServerFn({ method: "POST" })
       await applyOutboundCampaignStage(sb, workspaceId, String(lead.id));
     }
 
-    await markWhatsappContactsMessaged(sb, workspaceId, [phone]);
+    await markWhatsappContactsMessaged(sb, workspaceId, [...new Set([phone, originalPhone])]);
 
     return { ok: true, message: row };
   });

@@ -142,6 +142,12 @@ async function applyMessageStatusUpdate(
     newStatus: status,
     campaignId: row.campaign_id,
     whatsappMessageId,
+    // WATI's reason ("Template name does not exist…", "Business Account locked") — kept on the row
+    // and in the campaign's error list, so a failed send explains itself.
+    failedDetail:
+      status === "failed" && payload.failedDetail != null && String(payload.failedDetail).trim()
+        ? String(payload.failedDetail).slice(0, 300)
+        : null,
   });
 
   if (!applied) return;
