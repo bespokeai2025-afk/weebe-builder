@@ -119,11 +119,36 @@ function emailPiece(t: Tok): { text: string; consumed: number } | null {
   return null;
 }
 
+/** Common mailbox providers, written the way speech-to-text spells them out ("gmail.com"). */
+const MAIL_PROVIDERS = [
+  "gmail.com", "googlemail.com", "yahoo.com", "yahoo.co.uk", "hotmail.com", "hotmail.co.uk",
+  "outlook.com", "live.com", "live.co.uk", "icloud.com", "me.com", "aol.com", "msn.com",
+  "protonmail.com", "proton.me", "btinternet.com", "sky.com", "virginmedia.com",
+];
+const PROVIDER_RE = new RegExp(
+  `([a-z0-9._-]+)\\s+(${MAIL_PROVIDERS.map((d) => d.replace(/\./g, "\\.")).join("|")})(?=$|[\\s,!?]|\\.(?:\\s|$))`,
+  "gi",
+);
+
+/**
+ * Callers often skip the "at": "arjun virani 123 gmail.com". When a well-known provider follows
+ * an email-ish word directly, put the "at" back so the address is parsed — but only then: "I use
+ * gmail.com" is left alone because "use" can't end a mailbox name.
+ */
+function restoreMissingAt(text: string): string {
+  return text.replace(PROVIDER_RE, (match, prev: string, domain: string) => {
+    if (LEAD_STOP.has(prev.toLowerCase())) return match;
+    return `${prev} at ${domain.split(".").join(" dot ")}`;
+  });
+}
+
 function normalisedAtPhrases(text: string): string {
-  return text
-    .replace(/\bat\s+the\s+rate(?:\s+of)?\b/gi, "at")
-    .replace(/\bfull\s+stop\b/gi, "dot")
-    .replace(/\bunder\s+score\b/gi, "underscore");
+  return restoreMissingAt(
+    text
+      .replace(/\bat\s+the\s+rate(?:\s+of)?\b/gi, "at")
+      .replace(/\bfull\s+stop\b/gi, "dot")
+      .replace(/\bunder\s+score\b/gi, "underscore"),
+  );
 }
 
 /** Domain starting at `from`: labels joined by "dot", ending in a real TLD. */
@@ -226,8 +251,9 @@ function mergeRepeats(toks: Tok[]): Tok[] {
 
 /** Rewrite every spoken email in the text as `local@domain`. */
 export function normaliseSpokenEmails(input: string): string {
-  if (!input || !/\bat\b|@/i.test(input)) return input;
+  if (!input) return input;
   let text = normalisedAtPhrases(input);
+  if (!/\bat\b|@/i.test(text)) return input;
   const toks = mergeRepeats(tokenize(text));
   const edits: Array<{ start: number; end: number; value: string; trail: string }> = [];
   let i = 0;

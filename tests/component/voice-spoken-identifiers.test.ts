@@ -30,6 +30,17 @@ describe("normaliseSpokenEmails", () => {
     expect(normaliseSpokenEmails("call me at five")).toBe("call me at five");
   });
 
+  it.each([
+    ["Arjun Virani 123 gmail.com", "arjunvirani123@gmail.com"],
+    ["my email is jane smith hotmail.co.uk.", "my email is janesmith@hotmail.co.uk."],
+  ])("restores a missing 'at' before a known provider: %s", (input, expected) => {
+    expect(normaliseSpokenEmails(input)).toBe(expected);
+  });
+
+  it("does not invent an email from a sentence that mentions a provider", () => {
+    expect(normaliseSpokenEmails("I use gmail.com mostly")).toBe("I use gmail.com mostly");
+  });
+
   it("handles two emails in one reply", () => {
     expect(normaliseSpokenEmails("joe at bt dot com or sue at b2 dot org")).toBe("joe@bt.com or sue@b2.org");
   });

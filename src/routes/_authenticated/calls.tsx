@@ -1055,7 +1055,9 @@ function CallsPage() {
                         : null;
                       return (
                         <Fragment key={c.id}>
-                          <tr onClick={() => openPanel(c)} className={cn("group border-b border-border/60 dark:border-white/[0.04] last:border-0 align-middle hover:bg-muted/40 dark:hover:bg-white/[0.02] transition-colors cursor-pointer", isVmMode ? "h-auto" : "h-8", isVmMode && "bg-amber-500/[0.015]")}>
+                          {/* The row opens the full call detail (latency, cost, variables, tools, transcript);
+                              notes & booking keep their own button in the last column. */}
+                          <tr onClick={() => setDetailCall(c as CallDetailRow)} className={cn("group border-b border-border/60 dark:border-white/[0.04] last:border-0 align-middle hover:bg-muted/40 dark:hover:bg-white/[0.02] transition-colors cursor-pointer", isVmMode ? "h-auto" : "h-8", isVmMode && "bg-amber-500/[0.015]")}>
                             <td className={cn("px-2 py-0.5 text-[11px] font-medium whitespace-nowrap", isVmMode && "border-l-2 border-l-amber-500/50")}>
                               <button
                                 type="button"
@@ -1106,7 +1108,7 @@ function CallsPage() {
                             <td className="px-2 py-0.5" onClick={(e) => e.stopPropagation()}>
                               {wbahTranscriptLoadable(c)
                                 ? <button onClick={() => openWbahTranscript(c, contact)} className="inline-flex items-center gap-1 text-[11px] rounded bg-primary/20 text-primary px-2 py-0.5 hover:bg-primary/30 whitespace-nowrap font-medium">Transcript</button>
-                                : <span className="text-[11px] text-muted-foreground">—</span>}
+                                : <button onClick={() => setDetailCall(c as CallDetailRow)} className="inline-flex items-center gap-1 text-[11px] rounded bg-primary/20 text-primary px-2 py-0.5 hover:bg-primary/30 whitespace-nowrap font-medium">Details</button>}
                             </td>
                             <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">
                               {c.disconnection_reason ? String(c.disconnection_reason).replace(/_/g, " ") : "—"}

@@ -80,6 +80,7 @@ import { resolveDynamicSilenceTimeoutMs } from "../lifecycle/dynamic-responsiven
 import { normalizeForSpeech } from "../tts/speech-normalization.shared";
 import { normaliseSpokenIdentifiers } from "../graph/spoken-identifiers.shared";
 import { interpolateStaticSpeech } from "../graph/flow";
+import { shouldNudgeOnEmptyTranscript } from "../empty-transcript.shared";
 import { resolveDenoiseMode, StreamingDenoiser } from "../audio/denoise";
 import {
   detectVoicemailGreeting,
@@ -402,6 +403,8 @@ export class CascadeSession {
   private recentResponseGapsMs: number[] = [];
   /** The effective silence-timeout for the current wait, cached so a false-start (VAD `discarded`) can re-arm it. */
   private currentSilenceTimeoutMs: number | undefined;
+  /** When the agent's audio last finished playing — sound right after it is usually echo. */
+  private lastPlaybackEndAt = 0;
   /** Set when `onAwaitUser` fires while the agent's own line is still draining — armed for real once `endPlayback` confirms playback actually finished. */
   private pendingWaitArm: { silenceTimeoutMs: number | undefined } | null = null;
   /** Last spoken agent line — used to ignore speaker-echo STT. */
@@ -1608,6 +1611,27 @@ export class CascadeSession {
         // cause (a provider hiccup, a dropped few hundred ms of audio, a bad connection) the right
         // behaviour is the same one a human agent falls back to: say so, and ask them to repeat —
         // not silently keep listening as if nothing happened.
+        const utteranceMs =
+          (frames.reduce((n, f) => n + f.byteLength, 0) / (this.sampleRate * 2)) * 1000;
+        if (
+          !shouldNudgeOnEmptyTranscript({
+            utteranceMs,
+            speechStartAt,
+            lastPlaybackEndAt: this.lastPlaybackEndAt,
+          })
+        ) {
+          // A breath, line noise or the echo of the agent's own last words — not lost speech.
+          // Keep listening, and restart the wait timers the sound paused.
+          console.log(
+            `${this.log} empty STT ignored (${Math.round(utteranceMs)}ms, ${speechStartAt && this.lastPlaybackEndAt ? speechStartAt - this.lastPlaybackEndAt : "?"}ms after agent) — likely noise/echo`,
+          );
+          this.callerBargeIn = false;
+          if (this.awaitingCallerInput) {
+            this.armSilenceTimer(this.currentSilenceTimeoutMs);
+            this.armReminderTimer();
+          }
+          return;
+        }
         console.warn(
           `${this.log} empty STT after caller utterance — stt=${this.sttName} frames=${frames.length} misses=${this.sttMissCount + 1}`,
         );
@@ -1986,6 +2010,7 @@ export class CascadeSession {
   }
 
   private endPlayback(): void {
+    if (this.speakingFlag || this.playheadAt > 0) this.lastPlaybackEndAt = Date.now();
     if (this.playbackTimer) {
       clearTimeout(this.playbackTimer);
       this.playbackTimer = null;
