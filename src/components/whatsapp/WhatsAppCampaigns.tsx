@@ -215,6 +215,18 @@ function StepTitle({ n, title }: { n: number; title: string }) {
   );
 }
 
+/**
+ * The server's "already messaged" decision for a contact (`already_messaged`, which respects the
+ * number-change cut-off). Falls back to the older rule if the server predates that field.
+ */
+function alreadyMessaged(c: Record<string, unknown>): boolean {
+  if (typeof c.already_messaged === "boolean") return c.already_messaged;
+  return (
+    Boolean((c.wa_stats as { messaged?: boolean } | undefined)?.messaged) ||
+    String(c.lead_status ?? "").toLowerCase() === "contacted"
+  );
+}
+
 export function WhatsAppCampaigns() {
   const qc = useQueryClient();
   const listFn = useServerFn(listWACampaigns);
@@ -287,6 +299,7 @@ export function WhatsAppCampaigns() {
   const [errorsCampaign, setErrorsCampaign] = useState<any>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [showOldNumber, setShowOldNumber] = useState(false);
   const [launchId, setLaunchId] = useState<string | null>(null);
   const [launchCampaign, setLaunchCampaign] = useState<any>(null);
   const [launchAllowOverlap, setLaunchAllowOverlap] = useState(false);
@@ -336,9 +349,7 @@ export function WhatsAppCampaigns() {
     });
     let sent = 0;
     for (const c of inScope) {
-      const stats = c.wa_stats as { messaged?: boolean } | undefined;
-      const status = String(c.lead_status ?? "").toLowerCase();
-      if (stats?.messaged || status === "contacted") sent++;
+      if (alreadyMessaged(c)) sent++;
     }
     return { total: inScope.length, sent, unsent: inScope.length - sent };
   }, [waContacts, audienceUploadType]);
@@ -352,10 +363,7 @@ export function WhatsAppCampaigns() {
       if (!key || c.do_not_contact === true || !String(c.phone ?? "").trim()) continue;
       const entry = (out[key] ??= { total: 0, unsent: 0 });
       entry.total += 1;
-      const messaged =
-        (c.wa_stats as { messaged?: boolean } | undefined)?.messaged ||
-        String(c.lead_status ?? "").toLowerCase() === "contacted";
-      if (!messaged) entry.unsent += 1;
+      if (!alreadyMessaged(c)) entry.unsent += 1;
     }
     return out;
   }, [waContacts]);
@@ -369,11 +377,7 @@ export function WhatsAppCampaigns() {
       if (c.do_not_contact === true || !String(c.phone ?? "").trim()) return false;
       const meta = (c.import_meta as Record<string, unknown> | null) ?? {};
       if (want && String(meta.upload_type ?? "").trim() !== want) return false;
-      if (skipAlreadySent) {
-        const stats = c.wa_stats as { messaged?: boolean } | undefined;
-        const status = String(c.lead_status ?? "").toLowerCase();
-        if (stats?.messaged || status === "contacted") return false;
-      }
+      if (skipAlreadySent && alreadyMessaged(c)) return false;
       if (q) {
         const hay = `${c.name ?? ""} ${c.phone ?? ""}`.toLowerCase();
         if (!hay.includes(q)) return false;
@@ -605,7 +609,14 @@ export function WhatsAppCampaigns() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // After a number change, campaigns from the old number are history — hidden unless asked for.
+  const historyStartAt = (waContactsPayload as { historyStartAt?: string | null } | undefined)
+    ?.historyStartAt;
+  const isOldNumberCampaign = (c: { created_at?: string; status?: string }) =>
+    Boolean(historyStartAt && c.created_at && c.created_at < historyStartAt);
+  const oldNumberCount = (campaigns as any[]).filter(isOldNumberCampaign).length;
   const filteredCampaigns = (campaigns as any[]).filter((c) => {
+    if (!showOldNumber && isOldNumberCampaign(c)) return false;
     if (statusFilter !== "all" && c.status !== statusFilter) return false;
     if (typeFilter !== "all" && (c.campaign_type ?? "listing_acquisition") !== typeFilter)
       return false;
@@ -827,6 +838,16 @@ export function WhatsAppCampaigns() {
               Clear filters
             </Button>
           )}
+          {oldNumberCount > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs text-muted-foreground"
+              onClick={() => setShowOldNumber((v) => !v)}
+            >
+              {showOldNumber ? "Hide" : "Show"} {oldNumberCount} from the previous number
+            </Button>
+          )}
           <span className="ml-auto text-xs text-muted-foreground">
             {filteredCampaigns.length} of {(campaigns as any[]).length}
           </span>
@@ -878,6 +899,8 @@ export function WhatsAppCampaigns() {
                   "Template",
                   "Status",
                   "Sent",
+                  "Delivered",
+                  "Read",
                   "Failed",
                   "Replied",
                   "When",
@@ -923,6 +946,22 @@ export function WhatsAppCampaigns() {
                       </Badge>
                     </td>
                     <td className="px-4 py-2.5 text-xs tabular-nums">{stats.sent ?? 0}</td>
+                    {/* "Sent" only means WATI accepted the request; delivered / read are what reached
+                        people, so a campaign that worked is visible next to its failures. */}
+                    <td className="px-4 py-2.5 text-xs tabular-nums">
+                      {(stats.delivered ?? 0) > 0 ? (
+                        <span className="text-emerald-500">{stats.delivered}</span>
+                      ) : (
+                        <span className="text-muted-foreground">0</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs tabular-nums">
+                      {(stats.read ?? 0) > 0 ? (
+                        <span className="text-blue-500">{stats.read}</span>
+                      ) : (
+                        <span className="text-muted-foreground">0</span>
+                      )}
+                    </td>
                     <td className="px-4 py-2.5 text-xs tabular-nums">
                       {failedCount > 0 ? (
                         <button

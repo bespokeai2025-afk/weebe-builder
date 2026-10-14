@@ -221,6 +221,43 @@ export async function fetchAllRows<T>(
 }
 const STATS_CACHE_TTL_MS = 20_000;
 
+/**
+ * When the workspace started on its current WhatsApp number (wati_connections.history_start_at), or
+ * null. Messages before it came from the old number and no longer decide who is "already messaged";
+ * the CRM's `lead_status = contacted` from that era is ignored for the same reason.
+ */
+export async function loadMessagingHistoryStart(
+  sb: { from: (t: string) => any },
+  workspaceId: string,
+): Promise<string | null> {
+  try {
+    const { data, error } = await sb
+      .from("wati_connections")
+      .select("history_start_at")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+    if (error) return null; // column not migrated yet
+    return (data?.history_start_at as string | null) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The one rule for "skip this contact, they were already messaged": a delivered/read/sent message
+ * in the counted history, or — only when no number-change cut-off is set — the CRM status
+ * "contacted". After a number change the status reflects the old number, so it no longer counts.
+ */
+export function countsAsAlreadyMessaged(
+  stats: { messaged?: boolean } | null | undefined,
+  leadStatus: unknown,
+  historyStart: string | null,
+): boolean {
+  if (stats?.messaged) return true;
+  if (historyStart) return false;
+  return String(leadStatus ?? "").toLowerCase() === "contacted";
+}
+
 export async function fetchWorkspaceMessageStatsMaps(
   sb: { from: (t: string) => any },
   workspaceId: string,
@@ -230,13 +267,17 @@ export async function fetchWorkspaceMessageStatsMaps(
     return cached.data;
   }
 
+  // After a number change only the new number's history counts (see loadMessagingHistoryStart).
+  const historyStart = await loadMessagingHistoryStart(sb, workspaceId);
   const rows = await fetchAllRows<MessageRow>(
-    () =>
-      sb
+    () => {
+      let q = sb
         .from("whatsapp_messages")
         .select("contact_phone, direction, sent_at, status, campaign_id")
-        .eq("workspace_id", workspaceId)
-        .order("sent_at", { ascending: false }),
+        .eq("workspace_id", workspaceId);
+      if (historyStart) q = q.gte("sent_at", historyStart);
+      return q.order("sent_at", { ascending: false });
+    },
     25_000,
   );
   const campaignIds = rows

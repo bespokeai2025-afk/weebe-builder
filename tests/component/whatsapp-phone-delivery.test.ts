@@ -52,3 +52,21 @@ describe("message stats", async () => {
     expect(stats.get("971556665255")?.messaged).toBe(true);
   });
 });
+
+describe("fresh start after a number change", async () => {
+  const { countsAsAlreadyMessaged } = await import("@/lib/whatsapp/wa-contact-message-stats.server");
+  const { dailyCapForWarmupDay, parseWatiWarmupConfig } = await import("@/lib/whatsapp/wati-warmup.shared");
+
+  it("ignores the old CRM 'contacted' status once a history cut-off is set", () => {
+    expect(countsAsAlreadyMessaged({ messaged: false }, "contacted", null)).toBe(true);
+    expect(countsAsAlreadyMessaged({ messaged: false }, "contacted", "2026-09-30T08:42:54Z")).toBe(false);
+    expect(countsAsAlreadyMessaged({ messaged: true }, "new", "2026-09-30T08:42:54Z")).toBe(true);
+  });
+
+  it("never lets the warm-up schedule exceed the daily maximum", () => {
+    const capped = parseWatiWarmupConfig({ enabled: true, targetDaily: 250 });
+    expect([1, 3, 5, 7, 9, 30].map((d) => dailyCapForWarmupDay(capped, d))).toEqual([50, 100, 200, 250, 250, 250]);
+    const open = parseWatiWarmupConfig({ enabled: true });
+    expect(dailyCapForWarmupDay(open, 9)).toBe(1000);
+  });
+});

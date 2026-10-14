@@ -132,14 +132,23 @@ export function warmupDayNumber(startedAt: string | null, now = new Date()): num
   return Math.max(1, diff);
 }
 
-/** Daily outbound cap for a given warm-up day (stepped schedule). */
-export function dailyCapForWarmupDay(_config: WatiWarmupConfig, day: number): number {
+/**
+ * Daily outbound cap for a given warm-up day: the stepped schedule, never above the workspace's
+ * `targetDaily`. A new WhatsApp number starts on Meta's 250-a-day messaging tier; the schedule's
+ * later steps (500, 1000) would push sends past it and they would fail, so `targetDaily` is the
+ * ceiling until the number's tier is raised.
+ */
+export function dailyCapForWarmupDay(config: WatiWarmupConfig, day: number): number {
   const d = Math.max(1, day);
+  const ceiling =
+    Number.isFinite(config?.targetDaily) && config.targetDaily > 0
+      ? config.targetDaily
+      : WATI_WARMUP_MAX_DAILY_CAP;
   for (const step of WATI_WARMUP_SCHEDULE) {
     const end = step.toDay ?? Number.POSITIVE_INFINITY;
-    if (d >= step.fromDay && d <= end) return step.cap;
+    if (d >= step.fromDay && d <= end) return Math.min(step.cap, ceiling);
   }
-  return WATI_WARMUP_MAX_DAILY_CAP;
+  return Math.min(WATI_WARMUP_MAX_DAILY_CAP, ceiling);
 }
 
 export function formatWarmupScheduleDayRange(step: WatiWarmupScheduleStep): string {

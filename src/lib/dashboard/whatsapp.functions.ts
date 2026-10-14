@@ -31,6 +31,8 @@ import {
 } from "@/lib/whatsapp/contact-bulk-delete.shared";
 import {
   fetchWorkspaceMessageStatsMaps,
+  countsAsAlreadyMessaged,
+  loadMessagingHistoryStart,
   fetchAllRows,
   lookupWaContactMessageStats,
   markWhatsappContactsMessaged,
@@ -1249,6 +1251,7 @@ export const listWAContacts = createServerFn({ method: "GET" })
     );
 
     const { byExact, byTail } = await fetchWorkspaceMessageStatsMaps(sb, workspaceId);
+    const historyStartAt = await loadMessagingHistoryStart(sb, workspaceId);
     let messaged = 0;
     let replied = 0;
     let dnc = 0;
@@ -1261,10 +1264,13 @@ export const listWAContacts = createServerFn({ method: "GET" })
       return {
         ...row,
         wa_stats: stats,
+        /** The campaign builder's "skip already messaged" decision, computed once, here. */
+        already_messaged: countsAsAlreadyMessaged(stats, row.lead_status, historyStartAt),
       };
     });
 
     return {
+      historyStartAt,
       contacts,
       summary: {
         total: contacts.length,
@@ -2813,6 +2819,7 @@ export const prepareCampaignAudienceFromContacts = createServerFn({ method: "POS
     }
 
     const { byExact, byTail } = await fetchWorkspaceMessageStatsMaps(sb, workspaceId);
+    const historyStartAt = await loadMessagingHistoryStart(sb, workspaceId);
     let skippedMessaged = 0;
     const eligible = (
       scoped as Array<{
@@ -2824,8 +2831,7 @@ export const prepareCampaignAudienceFromContacts = createServerFn({ method: "POS
     ).filter((c) => {
       if (!skipMessaged) return true;
       const stats = lookupWaContactMessageStats(c.phone, byExact, byTail);
-      const status = String(c.lead_status ?? "").toLowerCase();
-      if (stats.messaged || status === "contacted") {
+      if (countsAsAlreadyMessaged(stats, c.lead_status, historyStartAt)) {
         skippedMessaged++;
         return false;
       }
