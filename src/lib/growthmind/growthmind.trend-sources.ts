@@ -88,7 +88,7 @@ export const listMonitoredSources = createServerFn({ method: "GET" })
       .order("created_at", { ascending: true })
       .limit(500);
     if (error) throw new Error(`Failed to load sources: ${error.message}`);
-    return { sources: (data ?? []).map(mapRow) };
+    return { sources: ((data ?? []) as any[]).map(mapRow) };
   });
 
 // ── Add ────────────────────────────────────────────────────────────────────────

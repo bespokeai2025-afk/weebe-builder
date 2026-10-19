@@ -197,6 +197,8 @@ export function extractExecutionParams(def: AgentRuntimeDefinition): AnyExecutio
       return { provider: "CLAUDE_NATIVE", agentId: def.agentId, agentName: def.agentName };
     case "GEMINI_NATIVE":
       return { provider: "GEMINI_NATIVE", agentId: def.agentId, agentName: def.agentName };
+    default:
+      throw new Error(`Unsupported runtime provider: ${String((def as { provider?: unknown }).provider)}`);
   }
 }
 

@@ -229,7 +229,7 @@ export function GrowthMindPlaybooks() {
 
   async function handleGenerateBriefing() {
     setBriefingLoading(true);
-    try { setBriefingData(await briefingFn({ data: {} })); } catch {} finally { setBriefingLoading(false); }
+    try { setBriefingData(await briefingFn()); } catch {} finally { setBriefingLoading(false); }
   }
 
   return (

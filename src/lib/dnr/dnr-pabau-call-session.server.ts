@@ -95,7 +95,7 @@ export async function hydrateDnrPabauCallSession(
   try {
     const callId = dbCallId(retellCallId);
     const { data, error } = await supabaseAdmin
-      .from("dnr_pabau_call_sessions" as never)
+      .from("dnr_pabau_call_sessions")
       .select("session, updated_at")
       .eq("workspace_id", workspaceId)
       .eq("retell_call_id", callId)
@@ -104,7 +104,7 @@ export async function hydrateDnrPabauCallSession(
     if (error || !data) {
       if (callId !== WORKSPACE_FALLBACK_CALL_ID) {
         const { data: fallback } = await supabaseAdmin
-          .from("dnr_pabau_call_sessions" as never)
+          .from("dnr_pabau_call_sessions")
           .select("session, updated_at")
           .eq("workspace_id", workspaceId)
           .eq("retell_call_id", WORKSPACE_FALLBACK_CALL_ID)
@@ -176,7 +176,7 @@ function persistDnrPabauCallSession(
     slots: session.slots ?? [],
   };
   void supabaseAdmin
-    .from("dnr_pabau_call_sessions" as never)
+    .from("dnr_pabau_call_sessions")
     .upsert(
       {
         workspace_id: workspaceId,

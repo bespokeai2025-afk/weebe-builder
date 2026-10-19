@@ -23,6 +23,7 @@ import {
   registerWatiInboundWebhook,
 } from "@/lib/whatsapp/wati-webhook.server";
 
+import type { WatiWarmupChannelState } from "@/lib/whatsapp/wati-warmup.shared";
 function adminClient() {
   const url = process.env["SUPABASE_URL"] || process.env["VITE_SUPABASE_URL"];
   const key = process.env["SUPABASE_SERVICE_ROLE_KEY"];
@@ -737,7 +738,7 @@ export const updateWatiWarmupConfig = createServerFn({ method: "POST" })
           : current.channelPhone
             ? [current.channelPhone]
             : [];
-      const channels: Record<string, { startedAt: string }> = { ...current.channels };
+      const channels: Record<string, WatiWarmupChannelState> = { ...current.channels };
       for (const p of phones) {
         channels[p] = { startedAt: today };
       }

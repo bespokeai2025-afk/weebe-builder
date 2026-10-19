@@ -14,7 +14,7 @@
  * POST application/json  { object: "whatsapp_business_account", entry: [...] }
  */
 import { createFileRoute } from "@tanstack/react-router";
-import { createHmac, timingSafeEqual } from "crypto";
+import { verifyTwilioSignature } from "@/lib/telephony/inbound-routing.server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { processWhatsAppMessage } from "@/lib/whatsapp/runtime";
 import { emitCampaignNotification } from "@/lib/notifications/notification-engine.shared";
@@ -29,22 +29,6 @@ const CORS = {
 
 const TWIML_OK = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
 const TWIML_HEADERS = { "Content-Type": "text/xml", ...CORS } as const;
-
-function verifyTwilio(
-  url: string,
-  params: Record<string, string>,
-  header: string | null,
-  authToken: string,
-): boolean {
-  if (!header) return false;
-  const sortedKeys = Object.keys(params).sort();
-  const data = sortedKeys.reduce((acc, k) => acc + k + params[k], url);
-  const expected = createHmac("sha1", authToken).update(data).digest("base64");
-  const a = Buffer.from(header);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length) return false;
-  try { return timingSafeEqual(a, b); } catch { return false; }
-}
 
 function stripWhatsappPrefix(v: string | undefined): string | null {
   if (!v) return null;
@@ -212,7 +196,7 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook/$workspaceId"
         const signedUrl = `${proto}://${host}${url.pathname}${url.search}`;
 
         const sig = request.headers.get("x-twilio-signature");
-        if (!verifyTwilio(signedUrl, params2, sig, authToken)) {
+        if (!verifyTwilioSignature(authToken, sig, signedUrl, params2)) {
           console.error("[whatsapp-webhook] invalid Twilio signature", { signedUrl });
           return new Response("Invalid signature", { status: 401, headers: CORS });
         }

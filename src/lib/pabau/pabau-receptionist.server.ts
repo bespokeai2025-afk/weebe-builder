@@ -12,10 +12,8 @@ import {
 
 export type { PabauApiError };
 
-export interface PabauClientConfig {
-  apiKey: string;
-  baseUrl?: string | null;
-}
+export type { PabauClientConfig } from "./pabau-api.shared";
+import type { PabauClientConfig } from "./pabau-api.shared";
 
 export interface PabauCreateAppointmentInput {
   contact_id: number | string;

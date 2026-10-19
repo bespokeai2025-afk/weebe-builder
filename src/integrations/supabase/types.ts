@@ -12538,6 +12538,68 @@ export type Database = {
         }
         Relationships: []
       }
+      phone_number_markup_rules: {
+        Row: {
+          created_at: string
+          fx_rate_usd_to_gbp: number
+          id: string
+          is_active: boolean
+          markup_type: string
+          markup_value: number
+          scope: string
+          updated_at: string
+          workspace_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          fx_rate_usd_to_gbp: number
+          id?: string
+          is_active?: boolean
+          markup_type: string
+          markup_value: number
+          scope?: string
+          updated_at?: string
+          workspace_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          fx_rate_usd_to_gbp?: number
+          id?: string
+          is_active?: boolean
+          markup_type?: string
+          markup_value?: number
+          scope?: string
+          updated_at?: string
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "phone_number_markup_rules_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      phone_number_purchase_locks: {
+        Row: {
+          created_at: string
+          phone_number: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          phone_number: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          phone_number?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       phone_numbers: {
         Row: {
           agent_id: string | null
@@ -16525,6 +16587,33 @@ export type Database = {
           },
         ]
       }
+      twilio_number_price_cache: {
+        Row: {
+          base_price_usd: number
+          current_price_usd: number
+          fetched_at: string
+          iso_country: string
+          number_type: string
+          price_unit: string
+        }
+        Insert: {
+          base_price_usd: number
+          current_price_usd: number
+          fetched_at?: string
+          iso_country: string
+          number_type: string
+          price_unit?: string
+        }
+        Update: {
+          base_price_usd?: number
+          current_price_usd?: number
+          fetched_at?: string
+          iso_country?: string
+          number_type?: string
+          price_unit?: string
+        }
+        Relationships: []
+      }
       usage_events: {
         Row: {
           agent_id: string | null
@@ -16714,6 +16803,7 @@ export type Database = {
           api_key: string
           created_at: string | null
           error_message: string | null
+          history_start_at: string | null
           id: string
           inbound_webhook_url: string | null
           last_tested_at: string | null
@@ -16732,6 +16822,7 @@ export type Database = {
           api_key: string
           created_at?: string | null
           error_message?: string | null
+          history_start_at?: string | null
           id?: string
           inbound_webhook_url?: string | null
           last_tested_at?: string | null
@@ -16750,6 +16841,7 @@ export type Database = {
           api_key?: string
           created_at?: string | null
           error_message?: string | null
+          history_start_at?: string | null
           id?: string
           inbound_webhook_url?: string | null
           last_tested_at?: string | null
@@ -19877,6 +19969,7 @@ export type Database = {
           whatsapp_provider: string | null
           working_hours: Json
           workspace_id: string
+          workspace_status: string
         }
         Insert: {
           active_modules?: string[]
@@ -19974,6 +20067,7 @@ export type Database = {
           whatsapp_provider?: string | null
           working_hours?: Json
           workspace_id: string
+          workspace_status?: string
         }
         Update: {
           active_modules?: string[]
@@ -20071,6 +20165,7 @@ export type Database = {
           whatsapp_provider?: string | null
           working_hours?: Json
           workspace_id?: string
+          workspace_status?: string
         }
         Relationships: [
           {
@@ -20186,6 +20281,44 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "workspace_subscriptions_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspace_twilio_subaccounts: {
+        Row: {
+          created_at: string
+          friendly_name: string | null
+          status: string
+          twilio_subaccount_auth_token: string
+          twilio_subaccount_sid: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          friendly_name?: string | null
+          status?: string
+          twilio_subaccount_auth_token: string
+          twilio_subaccount_sid: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          friendly_name?: string | null
+          status?: string
+          twilio_subaccount_auth_token?: string
+          twilio_subaccount_sid?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_twilio_subaccounts_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: true
             referencedRelation: "workspaces"
@@ -20574,6 +20707,8 @@ export type Database = {
         }
         Returns: Json
       }
+      cron_post: { Args: { url_key: string }; Returns: undefined }
+      current_user_workspace_ids: { Args: never; Returns: string[] }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
@@ -20623,6 +20758,10 @@ export type Database = {
         }
         Returns: number
       }
+      prune_operational_logs: {
+        Args: { batch_size?: number; keep_days?: number; max_batches?: number }
+        Returns: Json
+      }
       read_email_batch: {
         Args: { batch_size: number; queue_name: string; vt: number }
         Returns: {
@@ -20638,6 +20777,24 @@ export type Database = {
       trigger_ads_sync: { Args: never; Returns: undefined }
       trigger_campaign_executor: { Args: never; Returns: undefined }
       trigger_provider_health_sweep: { Args: never; Returns: undefined }
+      wbah_calls_aggregate_rows: {
+        Args: { p_workspace_id: string }
+        Returns: Json
+      }
+      wbah_calls_list_rows: { Args: { p_workspace_id: string }; Returns: Json }
+      wbah_calls_page: {
+        Args: {
+          p_filters: Json
+          p_limit: number
+          p_offset: number
+          p_workspace_id: string
+        }
+        Returns: Json
+      }
+      wbah_calls_summary: {
+        Args: { p_voicemail: string; p_workspace_id: string }
+        Returns: Json
+      }
       workspace_role_of: {
         Args: { _user_id: string; _workspace_id: string }
         Returns: Database["public"]["Enums"]["workspace_role"]

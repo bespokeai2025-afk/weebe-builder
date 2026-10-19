@@ -6,6 +6,7 @@ import { maskRecord } from "@/lib/systemmind/call-runtime/executions.server";
 import type { NodeExecutionRecord } from "../executor/execution.types";
 import type { ExecutionMode } from "../runtime/execution-modes";
 import { resolveExecutionModeFlags } from "../runtime/execution-modes";
+import { capStepPayload } from "./step-payload.shared";
 
 const sb = supabaseAdmin as any;
 
@@ -57,8 +58,8 @@ export async function appendExecutionStep(args: {
     branch: args.entry.branch ?? null,
     started_at: args.entry.startedAt,
     completed_at: args.entry.finishedAt ?? null,
-    input_masked: maskRecord(args.input ?? {}),
-    output_masked: maskRecord(args.entry.output ?? {}),
+    input_masked: capStepPayload(maskRecord(args.input ?? {})),
+    output_masked: capStepPayload(maskRecord(args.entry.output ?? {})),
     logs: args.logs ?? [],
     duration_ms: args.durationMs ?? null,
     error: args.entry.error ?? null,

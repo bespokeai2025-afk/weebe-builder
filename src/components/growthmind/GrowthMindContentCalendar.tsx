@@ -577,7 +577,7 @@ export function GrowthMindContentCalendar() {
 
   const { data: calData, isLoading } = useQuery({
     queryKey: ["growthmind-calendar", startDate, endDate, filterStatus, filterType],
-    queryFn:  () => getCalendarEntries({ startDate, endDate, status: filterStatus || undefined, contentType: filterType || undefined }),
+    queryFn:  () => getCalendarEntries({ data: { startDate, endDate, status: filterStatus || undefined, contentType: filterType || undefined } }),
     staleTime: 60_000,
     throwOnError: false,
   });

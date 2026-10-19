@@ -405,7 +405,7 @@ export async function runMarketingAction(
   // Every transition to "failed" must also sync linked change requests —
   // an approved action that fails pre-execution must never leave its
   // originating change request stuck at "submitted".
-  const failAndSync = async (fromStatus: string, msg: string): Promise<SubmitResult> => {
+  const failAndSync = async (fromStatus: MarketingActionStatus, msg: string): Promise<SubmitResult> => {
     await transitionMarketingAction(sbAdmin, action.id, fromStatus, "failed", { error_message: msg });
     await syncLinkedChangeRequests(sbAdmin, workspaceId, action.id, "failed", msg);
     return { outcome: "failed", detail: msg };

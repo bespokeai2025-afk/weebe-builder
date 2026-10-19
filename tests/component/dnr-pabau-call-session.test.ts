@@ -1,4 +1,17 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it, beforeEach, vi } from "vitest";
+
+// The session store falls back to the database; these cases only exercise the in-memory path.
+vi.mock("@/integrations/supabase/client.server", () => {
+  // Any query chain (.from().upsert().eq()…) resolves to an empty result.
+  const chain: any = new Proxy(() => chain, {
+    get: (_t, prop) =>
+      prop === "then"
+        ? (resolve: (v: unknown) => void) => resolve({ data: null, error: null })
+        : chain,
+    apply: () => chain,
+  });
+  return { supabaseAdmin: chain };
+});
 import {
   applyDnrBookSession,
   clearDnrPabauSessions,

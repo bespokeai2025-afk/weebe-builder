@@ -2,6 +2,11 @@
 
 export const DEFAULT_PABAU_API_BASE = "https://api.oauth.pabau.com";
 
+export interface PabauClientConfig {
+  apiKey: string;
+  baseUrl?: string | null;
+}
+
 export function normalizePabauApiKey(input: string): string {
   return input.replace(/^Bearer\s+/i, "").trim();
 }

@@ -88,7 +88,7 @@ function WebhookPanel() {
             <p className="text-[11px] text-muted-foreground/50">Add your Resend API key in HexMail → Settings to auto-register the webhook.</p>
           </div>
         </div>
-        <Link to="/hexmail/settings" className="shrink-0 rounded-lg border border-border dark:border-white/[0.08] bg-muted/20 dark:bg-white/[0.03] px-3 py-1.5 text-xs hover:bg-muted/50 dark:hover:bg-white/[0.06] transition-colors">
+        <Link to="/hexmail" search={{ tab: "settings" }} className="shrink-0 rounded-lg border border-border dark:border-white/[0.08] bg-muted/20 dark:bg-white/[0.03] px-3 py-1.5 text-xs hover:bg-muted/50 dark:hover:bg-white/[0.06] transition-colors">
           Add API Key
         </Link>
       </div>

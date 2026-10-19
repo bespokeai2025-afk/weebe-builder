@@ -5,12 +5,8 @@
 
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-
-function requireWorkspaceId(workspaceId: string | undefined): string {
-  if (!workspaceId) throw new Error("No workspace selected — join or create a workspace first.");
-  return workspaceId;
-}
+import { requireSupabaseAuth, requireWorkspaceId } from "@/integrations/supabase/auth-middleware";
+import { jsonResult } from "@/lib/server-fn-json.shared";
 
 export const scanAgentForSetup = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -20,7 +16,7 @@ export const scanAgentForSetup = createServerFn({ method: "POST" })
       agentId:   z.string().uuid().nullable().optional(),
     }).parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(jsonResult(async ({ data, context }) => {
     {
       const { requireSystemMindEdit } = await import("@/lib/systemmind/systemmind-access.server");
       await requireSystemMindEdit(context.workspaceId, context.userId);
@@ -32,14 +28,14 @@ export const scanAgentForSetup = createServerFn({ method: "POST" })
       sessionId: data.sessionId,
       agentId: data.agentId ?? null,
     });
-  });
+  }));
 
 export const getSetupState = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
     z.object({ sessionId: z.string().uuid() }).parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(jsonResult(async ({ data, context }) => {
     {
       const { requireSystemMindView } = await import("@/lib/systemmind/systemmind-access.server");
       await requireSystemMindView(context.workspaceId, context.userId);
@@ -47,7 +43,7 @@ export const getSetupState = createServerFn({ method: "GET" })
     const { getSetupStateServer, computeRequiredInputs, computeContextCompleteness } = await import("@/lib/systemmind/setup-console.server");
     const state = await getSetupStateServer(requireWorkspaceId(context.workspaceId), data.sessionId);
     return { state, requiredInputs: computeRequiredInputs(state), contextCompleteness: computeContextCompleteness(state) };
-  });
+  }));
 
 const NO_SECRET_STRING = z.string().max(400);
 const MappingPatchSchema = z.object({
@@ -95,7 +91,7 @@ export const updateSetupState = createServerFn({ method: "POST" })
       triggers:       z.array(TriggerRuleInputSchema).max(40).optional(),
     }).parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(jsonResult(async ({ data, context }) => {
     {
       const { requireSystemMindEdit } = await import("@/lib/systemmind/systemmind-access.server");
       await requireSystemMindEdit(context.workspaceId, context.userId);
@@ -110,14 +106,14 @@ export const updateSetupState = createServerFn({ method: "POST" })
       triggers: data.triggers,
     });
     return { state, requiredInputs: computeRequiredInputs(state), contextCompleteness: computeContextCompleteness(state) };
-  });
+  }));
 
 export const refreshSetupCrmStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
     z.object({ sessionId: z.string().uuid() }).parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(jsonResult(async ({ data, context }) => {
     {
       const { requireSystemMindEdit } = await import("@/lib/systemmind/systemmind-access.server");
       await requireSystemMindEdit(context.workspaceId, context.userId);
@@ -129,14 +125,14 @@ export const refreshSetupCrmStatus = createServerFn({ method: "POST" })
       sessionId: data.sessionId,
     });
     return { state, requiredInputs: computeRequiredInputs(state), contextCompleteness: computeContextCompleteness(state) };
-  });
+  }));
 
 export const generateSetupTestPayload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
     z.object({ sessionId: z.string().uuid() }).parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(jsonResult(async ({ data, context }) => {
     {
       const { requireSystemMindEdit } = await import("@/lib/systemmind/systemmind-access.server");
       await requireSystemMindEdit(context.workspaceId, context.userId);
@@ -148,14 +144,14 @@ export const generateSetupTestPayload = createServerFn({ method: "POST" })
       sessionId: data.sessionId,
     });
     return { state, requiredInputs: computeRequiredInputs(state), contextCompleteness: computeContextCompleteness(state) };
-  });
+  }));
 
 export const runSetupTest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
     z.object({ sessionId: z.string().uuid() }).parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(jsonResult(async ({ data, context }) => {
     {
       const { requireSystemMindEdit } = await import("@/lib/systemmind/systemmind-access.server");
       await requireSystemMindEdit(context.workspaceId, context.userId);
@@ -167,14 +163,14 @@ export const runSetupTest = createServerFn({ method: "POST" })
       sessionId: data.sessionId,
     });
     return { state, requiredInputs: computeRequiredInputs(state), contextCompleteness: computeContextCompleteness(state) };
-  });
+  }));
 
 export const approveSetup = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
     z.object({ sessionId: z.string().uuid() }).parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(jsonResult(async ({ data, context }) => {
     {
       const { requireSystemMindEdit } = await import("@/lib/systemmind/systemmind-access.server");
       await requireSystemMindEdit(context.workspaceId, context.userId);
@@ -186,7 +182,7 @@ export const approveSetup = createServerFn({ method: "POST" })
       sessionId: data.sessionId,
     });
     return { state, requiredInputs: computeRequiredInputs(state), contextCompleteness: computeContextCompleteness(state) };
-  });
+  }));
 
 // ── Required Context fns ──────────────────────────────────────────────────────
 // Schema duplicated inline (keep in sync with ContextPatchSchema in
@@ -240,7 +236,7 @@ export const saveSetupContext = createServerFn({ method: "POST" })
   .validator((input: unknown) =>
     z.object({ sessionId: z.string().uuid(), patch: ContextPatchInputSchema }).parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(jsonResult(async ({ data, context }) => {
     {
       const { requireSystemMindEdit } = await import("@/lib/systemmind/systemmind-access.server");
       await requireSystemMindEdit(context.workspaceId, context.userId);
@@ -254,14 +250,14 @@ export const saveSetupContext = createServerFn({ method: "POST" })
       patch: data.patch,
     });
     return { state, requiredInputs: computeRequiredInputs(state), contextCompleteness: computeContextCompleteness(state) };
-  });
+  }));
 
 export const autoSuggestSetupContext = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
     z.object({ sessionId: z.string().uuid() }).parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(jsonResult(async ({ data, context }) => {
     {
       const { requireSystemMindEdit } = await import("@/lib/systemmind/systemmind-access.server");
       await requireSystemMindEdit(context.workspaceId, context.userId);
@@ -274,14 +270,14 @@ export const autoSuggestSetupContext = createServerFn({ method: "POST" })
       sessionId: data.sessionId,
     });
     return { state, requiredInputs: computeRequiredInputs(state), contextCompleteness: computeContextCompleteness(state) };
-  });
+  }));
 
 export const confirmSetupContext = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
     z.object({ sessionId: z.string().uuid() }).parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(jsonResult(async ({ data, context }) => {
     {
       const { requireSystemMindEdit } = await import("@/lib/systemmind/systemmind-access.server");
       await requireSystemMindEdit(context.workspaceId, context.userId);
@@ -294,7 +290,7 @@ export const confirmSetupContext = createServerFn({ method: "POST" })
       sessionId: data.sessionId,
     });
     return { state, requiredInputs: computeRequiredInputs(state), contextCompleteness: computeContextCompleteness(state) };
-  });
+  }));
 
 // Lightweight agent list for the "Change Agent" picker (workspace-scoped).
 export const listAgentsForSetup = createServerFn({ method: "GET" })

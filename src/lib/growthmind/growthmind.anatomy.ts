@@ -5,6 +5,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { jsonResult } from "@/lib/server-fn-json.shared";
 
 async function assertMember(sb: any, workspaceId: string, userId: string): Promise<void> {
   const { data: member, error } = await sb
@@ -51,7 +52,7 @@ const ItemInput = z.object({ itemId: z.string().uuid() });
 export const getContentAnatomyBundle = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .validator((i: z.infer<typeof ItemInput>) => ItemInput.parse(i))
-  .handler(async ({ data, context }) => {
+  .handler(jsonResult(async ({ data, context }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
@@ -85,7 +86,7 @@ export const getContentAnatomyBundle = createServerFn({ method: "GET" })
         model: a.model, costEstimate: Number(a.cost_estimate ?? 0), errorMessage: a.error_message,
         createdAt: a.created_at, updatedAt: a.updated_at,
       } satisfies ContentAnatomy) : null,
-      adaptations: (adaptRes.data ?? []).map((x: any): AdaptationRecord => ({
+      adaptations: ((adaptRes.data ?? []) as any[]).map((x: any): AdaptationRecord => ({
         id: x.id, title: x.title, brief: x.brief, angle: x.angle,
         targetPlatform: x.target_platform, status: x.status,
         riskFlags: Array.isArray(x.risk_flags) ? x.risk_flags.map(String) : [],
@@ -96,7 +97,7 @@ export const getContentAnatomyBundle = createServerFn({ method: "GET" })
         usedToday:  runsRes.count ?? 0,
       },
     };
-  });
+  }));
 
 /** Run the multimodal deep analysis for one item (user-triggered, daily-capped). */
 export const runDeepVideoAnalysis = createServerFn({ method: "POST" })

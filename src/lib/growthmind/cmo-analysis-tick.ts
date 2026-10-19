@@ -11,7 +11,7 @@
  * GrowthMind usage).  Workspaces with no DNA row are skipped silently.
  */
 
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 export type CMOTickResult = {
   workspaceId: string;
@@ -33,7 +33,7 @@ export type CMOTickReport = {
 };
 
 async function tickWorkspace(
-  sb: ReturnType<typeof createClient>,
+  sb: SupabaseClient<any, "public", "public", any, any>,
   workspaceId: string,
 ): Promise<CMOTickResult> {
   const base = { workspaceId };

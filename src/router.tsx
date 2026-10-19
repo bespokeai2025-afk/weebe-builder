@@ -13,6 +13,10 @@ export const getRouter = () => {
         // crash the app; components surface their own error states.
         throwOnError: false,
         retry: 2,
+        // React Query's default is 0 — every mount, route change and tab refocus re-ran every
+        // query on screen. 30s keeps navigation and refocus instant; pages that need fresher
+        // data set their own staleTime / refetchInterval, and mutations still invalidate.
+        staleTime: 30_000,
       },
     },
   });
@@ -21,6 +25,8 @@ export const getRouter = () => {
     routeTree,
     context: { queryClient },
     scrollRestoration: true,
+    // Hovering (or touching) a link starts loading that page's code, so most clicks feel instant.
+    defaultPreload: "intent",
     defaultPreloadStaleTime: 0,
   });
 

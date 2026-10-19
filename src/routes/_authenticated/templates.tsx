@@ -124,7 +124,7 @@ function TemplatesPage() {
 
       // Strip identifiers and admin-specific credentials so a fresh agent is
       // created and the user's own Retell API key / Cal.com webhooks are used.
-      const cleanSettings = {
+      const cleanSettings: Record<string, unknown> = {
         ...settings,
         agentId: undefined,
         conversationFlowId: undefined,

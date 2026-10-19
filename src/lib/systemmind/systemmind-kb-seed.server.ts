@@ -230,7 +230,7 @@ export async function seedSystemMindKnowledgeBases(
           .select("id")
           .single();
         if (error || !doc) throw new Error(error?.message ?? "insert failed");
-        docId = doc.id;
+        docId = doc.id as string;
       }
 
       await indexTextDocument(sb, { documentId: docId, workspaceId, text: content, apiKey });

@@ -121,7 +121,7 @@ function WebuyanyhouseAdminPanel() {
   const getSyncStateFn = useServerFn(getSyncState);
   const { data: syncState, isLoading: syncStateLoading } = useQuery({
     queryKey: ["wbah-sync-state", status?.workspaceId],
-    queryFn:  () => getSyncStateFn({ data: { workspaceId: status?.workspaceId } }),
+    queryFn:  () => getSyncStateFn({ data: { workspaceId: status?.workspaceId ?? undefined } }),
     enabled:  !!status?.workspaceId,
     refetchInterval: 30_000,
     throwOnError: false,

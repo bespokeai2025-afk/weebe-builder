@@ -6,7 +6,13 @@ import { EmailViewer } from "@/components/hexmail/EmailViewer";
 import { EmailAnalytics } from "@/components/hexmail/EmailAnalytics";
 import { EmailTemplatesPanel } from "@/components/hexmail/EmailTemplatesPanel";
 
+const TABS = ["templates", "viewer", "analytics", "settings"] as const;
+type HexmailTab = (typeof TABS)[number];
+
 export const Route = createFileRoute("/_authenticated/hexmail/")({
+  validateSearch: (search: Record<string, unknown>): { tab?: HexmailTab } => ({
+    tab: TABS.find((t) => t === search.tab),
+  }),
   head: () => ({
     meta: [
       { title: "HexMail — Webee" },
@@ -17,6 +23,7 @@ export const Route = createFileRoute("/_authenticated/hexmail/")({
 });
 
 function HexmailPage() {
+  const { tab } = Route.useSearch();
   return (
     <div className="flex flex-col h-full p-6 gap-4">
       <div>
@@ -26,7 +33,7 @@ function HexmailPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="templates" className="flex-1 flex flex-col min-h-0">
+      <Tabs defaultValue={tab ?? "templates"} className="flex-1 flex flex-col min-h-0">
         <TabsList className="w-fit">
           <TabsTrigger value="templates" className="gap-2">
             <Mail className="h-4 w-4" />

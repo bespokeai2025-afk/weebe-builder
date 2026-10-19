@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { maskRecord } from "@/lib/systemmind/call-runtime/executions.server";
 import type { WorkflowExecutionResult } from "../executor/execution.types";
 import type { ExecutionStatus } from "../types/execution.schema";
+import { capStepPayload } from "./step-payload.shared";
 
 const sb = supabaseAdmin as any;
 
@@ -132,7 +133,7 @@ export async function persistWorkflowExecution(args: {
       branch: entry.branch ?? null,
       started_at: entry.startedAt,
       completed_at: entry.finishedAt ?? null,
-      output_masked: maskRecord(entry.output ?? {}),
+      output_masked: capStepPayload(maskRecord(entry.output ?? {})),
       error: entry.error ?? null,
     }));
 

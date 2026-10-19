@@ -308,7 +308,7 @@ export const Route = createFileRoute("/api/builder/script-template")({
 
         const buffer = await Packer.toBuffer(doc);
 
-        return new Response(buffer, {
+        return new Response(new Uint8Array(buffer), {
           status: 200,
           headers: {
             "Content-Type":

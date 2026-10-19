@@ -1,14 +1,14 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireSupabaseAuth, requireWorkspaceId } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { routeGenerate } from "./model-router.server";
 import {
   parseJobSentinel, isJobPending, archiveVideoToStorage,
 } from "./video-job-poller";
 import { optimiseVideoPrompt } from "./video-prompt-engine.server";
-import { VeoProvider, resolveVeoConfig, isAudioCapableModel, type VeoConfig } from "@/lib/video/providers/veo.provider";
+import { VeoProvider, resolveVeoConfig, isAudioCapableModel, type VeoConfig, type VeoGenerateParams } from "@/lib/video/providers/veo.provider";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -764,7 +764,8 @@ export const generateVideo = createServerFn({ method: "POST" })
     // ── Save to growthmind_video_assets ────────────────────────────────────
     // has_audio = true when Veo 3+ is the provider and native audio was requested.
     // On the Gemini API path, Veo 3 always generates audio regardless; on Vertex AI it is user-controllable.
-    const hasNativeAudio = provider === "veo3" && data.generateVeoAudio;
+    // `provider` is also set inside submitVeo3(), which TypeScript's narrowing can't see.
+    const hasNativeAudio = (provider as VideoProvider | null) === "veo3" && data.generateVeoAudio;
 
     const guidedInsertRow = {
       workspace_id:           workspaceId,
@@ -839,7 +840,7 @@ export const generateVideo = createServerFn({ method: "POST" })
         throw new Error(
           "Video Studio database table is not set up yet. " +
           "Apply the migration: supabase/migrations/20260704000000_growthmind_video_assets.sql " +
-          "or run: node scripts/apply-video-studio-migration.mjs"
+          "(node scripts/apply-migration.mjs <that file>)"
         );
       }
       throw new Error(insertErr.message);
@@ -936,7 +937,7 @@ async function submitMultiClipJobs(
         const veo    = new VeoProvider(veoCfg);
         const result = await veo.generateVideo({
           prompt:          scenePrompt,
-          aspectRatio,
+          aspectRatio: aspectRatio as VeoGenerateParams["aspectRatio"],
           durationSeconds: clipDuration,
           generateAudio,
         });
@@ -1513,6 +1514,11 @@ Return ONLY valid JSON:
 }`,
       user: `Score this ${asset.video_type} video:\n\nTitle: ${asset.title}\nScript: ${asset.script}\n\nStoryboard:\n${storyboardText}`,
       contentType: "analysis",
+      maxTokens:   800,
+      mode:        "smart",
+      settings:    {},
+      workspaceId: requireWorkspaceId(workspaceId),
+      sb,
     });
 
     let scores: CreativeScore;
@@ -1597,12 +1603,22 @@ export const generateVideoVariants = createServerFn({ method: "POST" })
           system: `You are an expert video strategist. Create a ${angle.label} variant strategy for a ${data.videoType} video for ${companyName}. Focus on the hook style: ${angle.type}. ${valuePoint ? `Lead with this value point: ${valuePoint}` : ""}`,
           user:   `Target: ${data.targetAudience || "ideal customer"}\nOffer: ${data.offer || "our product"}\nTone: ${data.tone}\nCTA: ${data.cta || "Contact us"}`,
           contentType: "strategy",
+          maxTokens:   800,
+          mode:        "smart",
+          settings:    wsSettings,
+          workspaceId: requireWorkspaceId(workspaceId),
+          sb,
         });
 
         const script = await routeGenerate({
           system: `You are an expert video scriptwriter creating a ${angle.label} variant. Hook style: ${angle.type}. Strategy: ${strategy.text}`,
           user:   `Write a complete video script for this ${data.videoType}. Include hook, body, CTA. Target: ${data.targetAudience}. Offer: ${data.offer}.`,
           contentType: "script",
+          maxTokens:   1200,
+          mode:        "smart",
+          settings:    wsSettings,
+          workspaceId: requireWorkspaceId(workspaceId),
+          sb,
         });
 
         const storyboard = [{
@@ -1917,7 +1933,8 @@ export const pollVideoJob = createServerFn({ method: "POST" })
       const veo = new VeoProvider(resolveVeoConfig(pollVeoCreds));
       if (!veo.authMode) return { status: "pending" as const, videoUrl };
       const veoStatus = await veo.getStatus(job.jobId);
-      if (veoStatus.status === "processing") {
+      if (veoStatus.status === "processing" || veoStatus.status === "pending") {
+        // "pending" (queued, not started) used to fall through to the failure branch.
         pollResult = { done: false };
       } else if (veoStatus.status === "completed") {
         pollResult = { done: true, videoUrl: veoStatus.videoUrl };

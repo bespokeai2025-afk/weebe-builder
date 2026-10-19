@@ -5,6 +5,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { jsonResult } from "@/lib/server-fn-json.shared";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -385,7 +386,7 @@ async function detectOpportunities(sb: any, workspaceId: string): Promise<{
 
 export const runOpportunityEngine = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(jsonResult(async ({ context }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
@@ -427,13 +428,13 @@ export const runOpportunityEngine = createServerFn({ method: "POST" })
       await logAudit(sb, workspaceId, "opportunity_engine_run", "error", Date.now() - t0, err.message);
       throw err;
     }
-  });
+  }));
 
 // ── Server fn: get stored opportunities ───────────────────────────────────────
 
 export const getOpportunities = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(jsonResult(async ({ context }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
@@ -469,7 +470,7 @@ export const getOpportunities = createServerFn({ method: "GET" })
     }));
 
     return { opportunities };
-  });
+  }));
 
 // ── Server fn: send opportunity to HiveMind for approval ──────────────────────
 

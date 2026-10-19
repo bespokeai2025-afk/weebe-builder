@@ -7,7 +7,7 @@
  * Twilio's native behaviour for this, no conference needed.
  */
 import { createFileRoute } from "@tanstack/react-router";
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { verifyTwilioSignature } from "@/lib/telephony/inbound-routing.server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { resolveTwilioCredentialsForWorkspace } from "@/lib/telephony/twilio-credentials.server";
 import { resolvePublicHost } from "@/lib/telephony/twilio-env";
@@ -18,22 +18,6 @@ import {
   isMachineAnswer,
 } from "@/lib/telephony/auto-dialer.shared";
 import { recordTargetOutcome } from "@/lib/telephony/auto-dialer-engine.server";
-
-function verifyTwilioSignature(
-  authToken: string,
-  twilioSignature: string | null,
-  url: string,
-  params: Record<string, string>,
-): boolean {
-  if (!twilioSignature) return false;
-  const sortedKeys = Object.keys(params).sort();
-  const data = sortedKeys.reduce((acc, k) => acc + k + params[k], url);
-  const expected = createHmac("sha1", authToken).update(data).digest("base64");
-  const a = Buffer.from(twilioSignature);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length) return false;
-  try { return timingSafeEqual(a, b); } catch { return false; }
-}
 
 function twimlResponse(xml: string) {
   return new Response(xml, { status: 200, headers: { "Content-Type": "text/xml; charset=utf-8" } });

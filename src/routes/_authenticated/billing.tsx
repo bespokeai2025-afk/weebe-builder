@@ -23,7 +23,7 @@ import { StripeEmbeddedCheckout } from "@/components/billing/StripeEmbeddedCheck
 import { PageHeader } from "@/components/dashboard/PageShell";
 
 export const Route = createFileRoute("/_authenticated/billing")({
-  validateSearch: (search: Record<string, unknown>) => ({
+  validateSearch: (search: Record<string, unknown>): { checkout?: string } => ({
     checkout: typeof search.checkout === "string" ? search.checkout : undefined,
   }),
   component: BillingPage,

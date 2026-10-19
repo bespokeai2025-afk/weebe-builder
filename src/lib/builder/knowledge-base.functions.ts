@@ -3,6 +3,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { htmlToText, isSafeResearchUrl } from "@/lib/leads/sales-assistant.shared";
 
+import { jsonResult } from "@/lib/server-fn-json.shared";
 const RETELL_BASE = "https://api.retellai.com";
 
 export async function resolveRetellKey(workspaceId: string | undefined): Promise<string> {
@@ -93,7 +94,7 @@ async function retellKbFileFetch(
 
 export const listRetellKnowledgeBases = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(jsonResult(async ({ context }) => {
     const key = await resolveRetellKey((context as any).workspaceId);
     const data = await retellKbFetch("/v2/list-knowledge-bases", null, "GET", key);
     const items = Array.isArray(data) ? data : ((data.knowledge_bases ?? []) as unknown[]);
@@ -103,7 +104,7 @@ export const listRetellKnowledgeBases = createServerFn({ method: "GET" })
       status?: string;
       sources?: unknown[];
     }>;
-  });
+  }));
 
 export const createRetellKnowledgeBase = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -129,26 +130,26 @@ export const deleteRetellKnowledgeBase = createServerFn({ method: "POST" })
 export const addTextToRetellKb = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((d: { kbId: string; text: string; sourceId: string }) => d)
-  .handler(async ({ context, data }) => {
+  .handler(jsonResult(async ({ context, data }) => {
     const key = await resolveRetellKey((context as any).workspaceId);
     const result = await retellKbFetch("/v2/add-knowledge-base-sources", {
       knowledge_base_id: data.kbId,
       sources: [{ type: "text", source_id: data.sourceId, text: data.text }],
     }, "POST", key);
     return result;
-  });
+  }));
 
 export const addUrlToRetellKb = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((d: { kbId: string; url: string; sourceId: string }) => d)
-  .handler(async ({ context, data }) => {
+  .handler(jsonResult(async ({ context, data }) => {
     const key = await resolveRetellKey((context as any).workspaceId);
     const result = await retellKbFetch("/v2/add-knowledge-base-sources", {
       knowledge_base_id: data.kbId,
       sources: [{ type: "url", source_id: data.sourceId, url: data.url }],
     }, "POST", key);
     return result;
-  });
+  }));
 
 export const addFileToRetellKb = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -158,7 +159,7 @@ export const addFileToRetellKb = createServerFn({ method: "POST" })
     fileName: string;
     mimeType: string;
   }) => d)
-  .handler(async ({ context, data }) => {
+  .handler(jsonResult(async ({ context, data }) => {
     const key = await resolveRetellKey((context as any).workspaceId);
     const result = await retellKbFileFetch(
       "/v2/add-knowledge-base-sources",
@@ -169,7 +170,7 @@ export const addFileToRetellKb = createServerFn({ method: "POST" })
       key,
     );
     return result;
-  });
+  }));
 
 
 const KB_URL_TIMEOUT_MS = 10_000;

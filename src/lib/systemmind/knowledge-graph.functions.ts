@@ -8,6 +8,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requirePlatformAdmin } from "@/lib/auth/require-platform-admin";
+import { jsonResult } from "@/lib/server-fn-json.shared";
 
 export const buildKnowledgeGraphFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
@@ -38,24 +39,24 @@ export const listKnowledgeGraphNodesFn = createServerFn({ method: "POST" })
       })
       .parse(input ?? {}),
   )
-  .handler(async ({ context, data }) => {
+  .handler(jsonResult(async ({ context, data }) => {
     const { workspaceId } = context as any;
     if (!workspaceId) throw new Error("No workspace");
     const { listKnowledgeGraphNodes } = await import("@/lib/systemmind/knowledge-graph.server");
     return listKnowledgeGraphNodes(workspaceId, data);
-  });
+  }));
 
 export const getKnowledgeGraphViewFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
   .validator((input) =>
     z.object({ limit: z.number().int().positive().max(1000).optional() }).parse(input ?? {}),
   )
-  .handler(async ({ context, data }) => {
+  .handler(jsonResult(async ({ context, data }) => {
     const { workspaceId } = context as any;
     if (!workspaceId) throw new Error("No workspace");
     const { getKnowledgeGraphView } = await import("@/lib/systemmind/knowledge-graph.server");
     return getKnowledgeGraphView(workspaceId, data.limit ?? 400);
-  });
+  }));
 
 export const getNodeDependenciesFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
@@ -67,9 +68,9 @@ export const getNodeDependenciesFn = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ context, data }) => {
+  .handler(jsonResult(async ({ context, data }) => {
     const { workspaceId } = context as any;
     if (!workspaceId) throw new Error("No workspace");
     const { getNodeDependencies } = await import("@/lib/systemmind/knowledge-graph.server");
     return getNodeDependencies(workspaceId, data.nodeId, data.depth ?? 2);
-  });
+  }));

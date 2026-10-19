@@ -145,7 +145,7 @@ function LibraryTab({ initialHealth = "all" }: { initialHealth?: string }) {
 
   const { data: intellData } = useQuery({
     queryKey: ["sm-intel"],
-    queryFn: () => intellFn({ data: {} }),
+    queryFn: () => intellFn(),
     enabled: !isLoading,
     throwOnError: false,
   });
@@ -163,7 +163,7 @@ function LibraryTab({ initialHealth = "all" }: { initialHealth?: string }) {
   async function handleScan() {
     setScanning(true);
     try {
-      const res: any = await scanFn({ data: {} });
+      const res: any = await scanFn();
       const parts = [`${res.scanned} agent${res.scanned !== 1 ? "s" : ""}`];
       if (res.live > 0) parts.push(`${res.live} live`);
       parts.push(`${res.stored} stored`);
@@ -326,7 +326,7 @@ function ScoreHealthTab() {
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["sm-intel"],
-    queryFn: () => intellFn({ data: {} }),
+    queryFn: () => intellFn(),
     throwOnError: false,
   });
 
@@ -335,7 +335,7 @@ function ScoreHealthTab() {
   async function handleScan() {
     setScanning(true);
     try {
-      const res: any = await scanFn({ data: {} });
+      const res: any = await scanFn();
       const parts = [`${res.scanned} agent${res.scanned !== 1 ? "s" : ""}`];
       if (res.live > 0) parts.push(`${res.live} live`);
       parts.push(`${res.stored} stored`);
@@ -580,7 +580,7 @@ function GenerateTab({
 
   const { data: drafts, isLoading, refetch } = useQuery({
     queryKey: ["sm-drafts"],
-    queryFn: () => listFn({ data: {} }),
+    queryFn: () => listFn(),
     throwOnError: false,
   });
   const draftList: any[] = (drafts as any[]) ?? [];
@@ -842,7 +842,7 @@ function CompareTab() {
 
   const { data: agents } = useQuery({
     queryKey: ["sm-agent-list"],
-    queryFn: () => agentListFn({ data: {} }),
+    queryFn: () => agentListFn(),
     throwOnError: false,
   });
   const agentList: any[] = (agents as any[]) ?? [];
@@ -1184,7 +1184,7 @@ function RepairTab() {
 
   const { data: agents } = useQuery({
     queryKey: ["sm-agent-list"],
-    queryFn: () => agentListFn({ data: {} }),
+    queryFn: () => agentListFn(),
     throwOnError: false,
   });
   const agentList: any[] = (agents as any[]) ?? [];

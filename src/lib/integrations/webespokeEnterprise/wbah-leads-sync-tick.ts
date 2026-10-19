@@ -5,7 +5,7 @@
  * ads-sync-tick.ts). Uses createClient directly and relative paths only.
  *
  * Called by:
- *  - wbah-leads-sync.plugin.ts  (dev: every 30 min via Vite plugin)
+ *  - nothing on a schedule since the dev sync plugin was removed (see vite.config.ts)
  */
 import { createClient } from "@supabase/supabase-js";
 import { isWbahRecordBooked, isWbahBookingStatus, phoneDigits } from "../../dashboard/wbah-booking-meta";
@@ -1193,11 +1193,15 @@ export async function syncWbahBookedContactsFromCalls(opts?: { force?: boolean }
     let from = 0;
 
     for (;;) {
+      // Only confirmed Calendly bookings qualify (isWbahRecordBooked: a reschedulings/ URL), so
+      // filter in the database — this used to page through every call, transcripts included.
       const { data, error } = await (sb as any)
         .from("wbah_calls")
         .select(COLS)
         .eq("workspace_id", workspaceId)
+        .like("calendly_booking_url", "%reschedulings/%")
         .order("started_at", { ascending: false, nullsFirst: false })
+        .order("id", { ascending: true })
         .range(from, from + PAGE - 1);
       if (error) {
         console.error("[wbah-booked-calls-sync] read error:", error.message);

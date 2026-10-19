@@ -165,13 +165,13 @@ export function SystemMindPlaybooksPage() {
 
   // Auto-seed on first mount
   useEffect(() => {
-    (async () => { try { await seedFn({ data: {} }); refetch(); } catch { /* graceful */ } })();
+    (async () => { try { await seedFn(); refetch(); } catch { /* graceful */ } })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSeed() {
     setSeeding(true);
     try {
-      const res = await seedFn({ data: {} }) as any;
+      const res = await seedFn() as any;
       toast.success(res.seeded > 0 ? `${res.seeded} playbooks seeded` : "All playbooks already seeded");
       refetch();
     } catch (e: any) {

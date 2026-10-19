@@ -755,7 +755,7 @@ export function GrowthMindStrategyCentre() {
     throwOnError: false,
   });
 
-  const strategies     = data?.strategies ?? [];
+  const strategies     = data?.strategies ?? ([] as NonNullable<typeof data>["strategies"]);
   const selectedStrategy = selectedStrategyId
     ? strategies.find(s => s.id === selectedStrategyId) ?? null
     : strategies[0] ?? null;

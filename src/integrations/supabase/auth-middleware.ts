@@ -93,3 +93,9 @@ export const requireSupabaseAuth = createMiddleware({ type: "function" }).server
     });
   },
 );
+
+/** The middleware leaves workspaceId undefined for a user with no workspace yet. */
+export function requireWorkspaceId(workspaceId: string | undefined): string {
+  if (!workspaceId) throw new Error("No workspace selected — join or create a workspace first.");
+  return workspaceId;
+}

@@ -180,7 +180,7 @@ export function HiveMindWorkflowIntelligence() {
                   </div>
                   <div className="text-xs text-muted-foreground mt-0.5">
                     {agg.total} run{agg.total !== 1 ? "s" : ""}
-                    {agg.last_run_at && ` · Last ${formatDistanceToNow(new Date(agg.lastRun!), { addSuffix: true })}`}
+                    {agg.lastRun && ` · Last ${formatDistanceToNow(new Date(agg.lastRun), { addSuffix: true })}`}
                   </div>
                 </div>
                 <div className="text-right shrink-0">

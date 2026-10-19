@@ -2,7 +2,17 @@ import { createFileRoute } from "@tanstack/react-router";
 import { SystemMindBuildConsolePage } from "@/components/systemmind/SystemMindBuildConsolePage";
 
 export const Route = createFileRoute("/_authenticated/systemmind/build")({
-  validateSearch: (search: Record<string, unknown>) => ({
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): {
+    tab?: string;
+    wfTab?: string;
+    health?: string;
+    session?: string;
+    workflow?: string;
+    agent?: string;
+    convert?: string;
+  } => ({
     tab:      (search.tab as string | undefined) || undefined,
     wfTab:    (search.wfTab as string | undefined) || undefined,
     health:   (search.health as string | undefined) || undefined,

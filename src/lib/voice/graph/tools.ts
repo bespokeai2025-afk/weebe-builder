@@ -63,7 +63,7 @@ export function createVmHooks(options: VmHooksOptions = {}): VmHooks {
         const networkFail = /fetch failed|timed out|ECONNREFUSED|ENOTFOUND|getaddrinfo/i.test(
           http.output,
         );
-        if (networkFail) {
+        if (networkFail && registered) {
           const cal = await tryNativeCalcom(registered, invocation.args, true, options.defaultTimezone);
           if (cal) {
             options.log?.(

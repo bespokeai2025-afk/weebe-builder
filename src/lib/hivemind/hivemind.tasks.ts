@@ -4,6 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { isHumanTaskRow } from "@/lib/minds/intelligence-packet.shared";
 import { EXECUTIVE_TASK_TYPES } from "@/lib/executives/executive-council";
 
+import { jsonResult } from "@/lib/server-fn-json.shared";
 // ── Types ───────────────────────────────────────────────────────────────────
 export type TaskStatus   = "suggested" | "approved" | "in_progress" | "completed";
 export type TaskPriority = "low" | "medium" | "high" | "critical";
@@ -930,7 +931,7 @@ export async function getHiveMindTasksAndEventsCore(
 
 export const getHiveMindTasksAndEvents = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(jsonResult(async ({ context }) => {
     const workspaceId = context.workspaceId;
     const userId = (context as any).userId;
     if (!workspaceId) throw new Error("No workspace");
@@ -938,14 +939,12 @@ export const getHiveMindTasksAndEvents = createServerFn({ method: "GET" })
     const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
     await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
 
-    // Cast: TanStack's serializable validator rejects Record<string, unknown>
-    // metadata; the payload is plain JSON (same shape as before extraction).
-    return (await getHiveMindTasksAndEventsCore({
+    return getHiveMindTasksAndEventsCore({
       sb: context.supabase as any,
       workspaceId,
       userId: context.userId,
-    })) as any;
-  });
+    });
+  }));
 
 // ── updateHiveMindTask ────────────────────────────────────────────────────────
 export const updateHiveMindTask = createServerFn({ method: "POST" })

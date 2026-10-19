@@ -1086,7 +1086,7 @@ export function GrowthMindContentStudio() {
     queryFn:  () => {
       const filter = libraryFilter;
       if (filter === "all")        return getAssetsFn({});
-      if (filter === "favourites") return getAssetsFn({ favourites: true });
+      if (filter === "favourites") return getAssetsFn({ data: { favourites: true } });
       const types = CATEGORY_TYPES[filter];
       if (!types) return getAssetsFn({});
       return getAssetsFn({});

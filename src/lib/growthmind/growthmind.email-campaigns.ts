@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { formatDnaAsContext } from "./growthmind.business-dna";
+import { jsonResult } from "@/lib/server-fn-json.shared";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -143,7 +144,7 @@ function buildWarmupSchedule(totalDays: number): WarmupDayEntry[] {
 
 export const listEmailCampaigns = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(jsonResult(async ({ context }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
@@ -159,15 +160,15 @@ export const listEmailCampaigns = createServerFn({ method: "GET" })
       .limit(100);
 
     if (error && error.code !== "42P01") throw new Error(error.message);
-    return { campaigns: (data ?? []).map(mapCampaignRow) };
-  });
+    return { campaigns: ((data ?? []) as any[]).map(mapCampaignRow) };
+  }));
 
 export const getEmailCampaign = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
     z.object({ id: z.string().uuid() }).parse(input)
   )
-  .handler(async ({ context, data }) => {
+  .handler(jsonResult(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
@@ -185,7 +186,7 @@ export const getEmailCampaign = createServerFn({ method: "GET" })
     if (error) throw new Error(error.message);
     if (!row) throw new Error("Campaign not found");
     return { campaign: mapCampaignRow(row) };
-  });
+  }));
 
 export const saveEmailCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -566,7 +567,7 @@ export const listDomainWarmups = createServerFn({ method: "GET" })
       .limit(50);
 
     if (error && error.code !== "42P01") throw new Error(error.message);
-    return { warmups: (data ?? []).map(mapWarmupRow) };
+    return { warmups: ((data ?? []) as any[]).map(mapWarmupRow) };
   });
 
 export const createDomainWarmup = createServerFn({ method: "POST" })

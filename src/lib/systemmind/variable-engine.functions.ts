@@ -5,6 +5,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { jsonResult } from "@/lib/server-fn-json.shared";
 
 async function gate(context: any, mode: "view" | "edit") {
   const { requireSystemMindView, requireSystemMindEdit } = await import("@/lib/systemmind/systemmind-access.server");
@@ -89,11 +90,11 @@ export const reviewDynamicVariableFn = createServerFn({ method: "POST" })
 
 export const listTransformationRulesFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }: any) => {
+  .handler(jsonResult(async ({ context }: any) => {
     await gate(context, "view");
     const { listTransformationRulesServer } = await import("@/lib/systemmind/variable-engine.server");
     return listTransformationRulesServer({ workspaceId: context.workspaceId });
-  });
+  }));
 
 export const saveTransformationRuleFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -110,7 +111,7 @@ export const saveTransformationRuleFn = createServerFn({ method: "POST" })
       isActive: z.boolean().optional(),
     }).parse(i),
   )
-  .handler(async ({ context, data }: any) => {
+  .handler(jsonResult(async ({ context, data }: any) => {
     await gate(context, "edit");
     const { saveTransformationRuleServer } = await import("@/lib/systemmind/variable-engine.server");
     return saveTransformationRuleServer({
@@ -118,7 +119,7 @@ export const saveTransformationRuleFn = createServerFn({ method: "POST" })
       userId: context.userId ?? null,
       ...data,
     });
-  });
+  }));
 
 export const deleteTransformationRuleFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -198,8 +199,8 @@ export const testTransformationFn = createServerFn({ method: "POST" })
       fallbackValue: z.unknown().optional(),
     }).parse(i),
   )
-  .handler(async ({ context, data }: any) => {
+  .handler(jsonResult(async ({ context, data }: any) => {
     await gate(context, "view");
     const { testTransformationRuleServer } = await import("@/lib/systemmind/variable-engine.server");
     return testTransformationRuleServer({ workspaceId: context.workspaceId, ...data });
-  });
+  }));

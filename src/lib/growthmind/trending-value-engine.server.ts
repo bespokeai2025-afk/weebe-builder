@@ -3,7 +3,7 @@
 
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { formatDnaAsContext } from "./growthmind.business-dna";
+import { formatDnaAsContext, mapBusinessDnaRow } from "./growthmind.business-dna";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -162,19 +162,7 @@ export const runTrendingValueEngine = createServerFn({ method: "POST" })
         dnaCompletedFields: dna ? Object.values(dna).filter(v => v && String(v).trim().length > 0).length : 0,
       };
 
-      const dnaContext = dna ? formatDnaAsContext({
-        id: dna.id, workspaceId, companyName: dna.company_name ?? "", website: dna.website ?? "",
-        industry: dna.industry ?? "", products: dna.products ?? "", services: dna.services ?? "",
-        pricing: dna.pricing ?? "", offers: dna.offers ?? "", locations: dna.locations ?? "",
-        idealCustomerProfiles: dna.ideal_customer_profiles ?? "", targetMarkets: dna.target_markets ?? "",
-        uniqueSellingPoints: dna.unique_selling_points ?? "", competitorsSummary: dna.competitors_summary ?? "",
-        revenueGoals: dna.revenue_goals ?? "", monthlyMarketingBudget: dna.monthly_marketing_budget ?? null,
-        mainGrowthObjective: dna.main_growth_objective ?? "", salesProcess: dna.sales_process ?? "",
-        averageDealValue: dna.average_deal_value ?? null, profitMarginPct: dna.profit_margin_pct ?? null,
-        bestCustomers: dna.best_customers ?? "", worstCustomers: dna.worst_customers ?? "",
-        caseStudies: dna.case_studies ?? "", brandVoice: dna.brand_voice ?? "",
-        complianceNotes: dna.compliance_notes ?? "", updatedAt: dna.updated_at ?? "",
-      }) : "## Business DNA\nNot yet configured.";
+      const dnaContext = dna ? formatDnaAsContext(mapBusinessDnaRow(dna)) : "## Business DNA\nNot yet configured.";
 
       const prompt = buildPrompt(snapshot, dnaContext);
 

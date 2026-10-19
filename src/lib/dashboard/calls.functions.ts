@@ -37,8 +37,9 @@ export const listCalls = createServerFn({ method: "POST" })
         .eq("workspace_id", workspaceId)
         .eq("assigned_to", userId)
         .limit(1000);
-      assignedLeadIds = (myLeads ?? []).map((l: any) => l.id);
-      if (assignedLeadIds.length === 0) return [];
+      const ids: string[] = (myLeads ?? []).map((l: any) => l.id);
+      if (ids.length === 0) return [];
+      assignedLeadIds = ids;
     }
     const cacheKey = `webee:calls:${workspaceId}:${assignedOnly ? `au:${userId}:` : ""}vm:${data.voicemailFilter}:st:${data.status ?? ""}:dir:${data.direction ?? ""}:lim:${data.limit}:from:${data.dateFrom ?? ""}:to:${data.dateTo ?? ""}`;
     return cacheWrap(cacheKey, CALLS_TTL, async () => {

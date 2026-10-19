@@ -9,7 +9,7 @@
  * and creates a hivemind_actions approval item.
  */
 
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 // ── helpers copied locally to avoid importing a server-fn module ──────────────
 
@@ -129,7 +129,7 @@ export type BlogDraftTickResult = {
 };
 
 async function tickWorkspace(
-  sb: ReturnType<typeof createClient>,
+  sb: SupabaseClient<any, "public", "public", any, any>,
   workspaceId: string,
   geminiKey: string | null,
   openaiKey: string | null,

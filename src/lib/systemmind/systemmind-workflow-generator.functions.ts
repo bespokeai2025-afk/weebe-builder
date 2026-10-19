@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireSupabaseAuth, requireWorkspaceId } from "@/integrations/supabase/auth-middleware";
 
 // ── generateWorkflowDraft ─────────────────────────────────────────────────────
 export const generateWorkflowDraft = createServerFn({ method: "POST" })
@@ -17,13 +17,13 @@ export const generateWorkflowDraft = createServerFn({ method: "POST" })
       const { requireSystemMindEdit } = await import(
         "@/lib/systemmind/systemmind-access.server"
       );
-      await requireSystemMindEdit(context.workspaceId, context.userId);
+      await requireSystemMindEdit(requireWorkspaceId(context.workspaceId), context.userId);
     }
     const { generateWorkflowDraftFromDescription } = await import(
       "@/lib/systemmind/systemmind-workflow-generator.server"
     );
     return generateWorkflowDraftFromDescription(
-      context.workspaceId,
+      requireWorkspaceId(context.workspaceId),
       context.userId,
       data.description,
       data.workflowType as any,
@@ -39,12 +39,12 @@ export const listGeneratorDrafts = createServerFn({ method: "GET" })
       const { requireSystemMindView } = await import(
         "@/lib/systemmind/systemmind-access.server"
       );
-      await requireSystemMindView(context.workspaceId, context.userId);
+      await requireSystemMindView(requireWorkspaceId(context.workspaceId), context.userId);
     }
     const { listWorkflowDraftsServer } = await import(
       "@/lib/systemmind/systemmind-workflow-generator.server"
     );
-    return listWorkflowDraftsServer(context.workspaceId);
+    return listWorkflowDraftsServer(requireWorkspaceId(context.workspaceId));
   });
 
 // ── getWorkflowDraftById ──────────────────────────────────────────────────────
@@ -56,12 +56,12 @@ export const getGeneratorDraftById = createServerFn({ method: "GET" })
       const { requireSystemMindView } = await import(
         "@/lib/systemmind/systemmind-access.server"
       );
-      await requireSystemMindView(context.workspaceId, context.userId);
+      await requireSystemMindView(requireWorkspaceId(context.workspaceId), context.userId);
     }
     const { getWorkflowDraftByIdServer } = await import(
       "@/lib/systemmind/systemmind-workflow-generator.server"
     );
-    return getWorkflowDraftByIdServer(context.workspaceId, data.draftId);
+    return getWorkflowDraftByIdServer(requireWorkspaceId(context.workspaceId), data.draftId);
   });
 
 // ── updateWorkflowDraftStatus ─────────────────────────────────────────────────
@@ -73,12 +73,12 @@ export const updateGeneratorDraftStatus = createServerFn({ method: "POST" })
       const { requireSystemMindEdit } = await import(
         "@/lib/systemmind/systemmind-access.server"
       );
-      await requireSystemMindEdit(context.workspaceId, context.userId);
+      await requireSystemMindEdit(requireWorkspaceId(context.workspaceId), context.userId);
     }
     const { updateWorkflowDraftStatusServer } = await import(
       "@/lib/systemmind/systemmind-workflow-generator.server"
     );
-    await updateWorkflowDraftStatusServer(context.workspaceId, data.draftId, data.status);
+    await updateWorkflowDraftStatusServer(requireWorkspaceId(context.workspaceId), data.draftId, data.status);
     return { ok: true };
   });
 
@@ -100,13 +100,13 @@ export const proposeSendDraftToBuilder = createServerFn({ method: "POST" })
       const { requireSystemMindEdit } = await import(
         "@/lib/systemmind/systemmind-access.server"
       );
-      await requireSystemMindEdit(context.workspaceId, context.userId);
+      await requireSystemMindEdit(requireWorkspaceId(context.workspaceId), context.userId);
     }
     const { proposeSendDraftToBuilderServer } = await import(
       "@/lib/systemmind/systemmind-workflow-generator.server"
     );
     const actionId = await proposeSendDraftToBuilderServer(
-      context.workspaceId,
+      requireWorkspaceId(context.workspaceId),
       data.draftId,
       data.draftTitle,
       data.nodeCount,

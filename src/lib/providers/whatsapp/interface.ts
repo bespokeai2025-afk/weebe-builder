@@ -8,6 +8,8 @@ export interface WhatsAppMessage {
 export interface WhatsAppTemplate {
   to: string;
   templateName: string;
+  /** Template language, e.g. "en_GB". Defaults to "en_US". */
+  languageCode?: string;
   parameters?: string[];
   from?: string;
 }

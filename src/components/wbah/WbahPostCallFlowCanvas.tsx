@@ -456,7 +456,7 @@ function FlowCanvasBody({
   );
 
   const onNodeDragStop = useCallback(
-    (_: React.MouseEvent, __: Node, snapshot: Node[]) => {
+    (_: React.MouseEvent | MouseEvent | TouchEvent, __: Node, snapshot: Node[]) => {
       setEdges((eds) => {
         emitChange(snapshot, eds);
         return eds;
@@ -506,9 +506,7 @@ function FlowCanvasBody({
         maxZoom={2}
         proOptions={{ hideAttribution: true }}
         deleteKeyCode={["Backspace", "Delete"]}
-        nodesDeletable
         nodesFocusable
-        edgesDeletable
         edgesFocusable
         elementsSelectable
         defaultEdgeOptions={{ interactionWidth: 24, deletable: true, type: "smoothstep" }}

@@ -588,8 +588,7 @@ export const useBuilderStore = create<State>()(
           edges: componentBackup.edges,
           selectedNodeId: null,
           flowVersion: get().flowVersion + 1,
-          canUndo: false,
-          canRedo: false,
+          // History was just reset, so this also clears canUndo / canRedo.
           ...dirtyFields(get().editRevision),
         });
         componentBackup = null;
@@ -698,7 +697,8 @@ export const useBuilderStore = create<State>()(
       deleteSelection: () => {
         const selected = get().nodes.filter((n) => n.selected);
         const ids = new Set(selected.map((n) => n.id));
-        if (ids.size === 0 && get().selectedNodeId) ids.add(get().selectedNodeId);
+        const selectedId = get().selectedNodeId;
+        if (ids.size === 0 && selectedId) ids.add(selectedId);
         const selectedEdges = get().edges.filter((e) => e.selected || ids.has(e.source) || ids.has(e.target));
         if (ids.size === 0 && selectedEdges.length === 0) return;
         pushHistory(get().nodes, get().edges);
@@ -710,8 +710,7 @@ export const useBuilderStore = create<State>()(
         set({
           nodes,
           edges: get().edges.filter((e) => !e.selected && live.has(e.source) && live.has(e.target)),
-          selectedNodeId:
-            get().selectedNodeId && ids.has(get().selectedNodeId) ? null : get().selectedNodeId,
+          selectedNodeId: selectedId && ids.has(selectedId) ? null : selectedId,
           ...dirtyFields(get().editRevision),
         });
       },

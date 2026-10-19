@@ -12,6 +12,7 @@ import {
   getAllBuyers,
   getAllDealers,
 } from "./client.server";
+import { jsonResult } from "@/lib/server-fn-json.shared";
 
 const INTEGRATION_KEY = "webespoke_enterprise";
 const CLIENT_NAME = "Webuyanyhouse";
@@ -154,7 +155,7 @@ export const verifyWebespokeEnterpriseOtp = createServerFn({ method: "POST" })
     const d = res.data;
     const accessToken  = d.accessToken ?? d.token;
     const refreshToken = d.refreshToken ?? "";
-    const user         = d.user ?? null;
+    const user         = (d as { user?: unknown }).user ?? null;
 
     if (!accessToken) {
       throw new Error("Verification succeeded but no access token was returned.");
@@ -252,15 +253,15 @@ export const syncWebespokeEnterpriseDealers = createServerFn({ method: "POST" })
 
 export const getWebespokeEnterpriseCars = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .handler(async () => readCache("cars"));
+  .handler(jsonResult(async () => readCache("cars")));
 
 export const getWebespokeEnterpriseBuyers = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .handler(async () => readCache("buyers"));
+  .handler(jsonResult(async () => readCache("buyers")));
 
 export const getWebespokeEnterpriseDealers = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .handler(async () => readCache("dealers"));
+  .handler(jsonResult(async () => readCache("dealers")));
 
 // ── Admin override — connect using platform-stored credentials ────────────────
 // Reads WEBESPOKE_ADMIN_EMAIL + WEBESPOKE_ADMIN_PASSWORD from server env vars.

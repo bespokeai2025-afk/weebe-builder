@@ -41,6 +41,8 @@ export type CampaignReportInput = {
   recommendedActions?: Array<{ action: string; detail?: string }>;
   createdBySystemMind?: boolean;
   userId?: string | null;
+  /** Provider call id, for call-scoped reports — dedupes webhook redelivery. */
+  callId?: string | null;
 };
 
 const FAILURE_TYPES: ReadonlySet<string> = new Set([
@@ -230,7 +232,7 @@ export async function writeCampaignReport(sb: Sb, input: CampaignReportInput): P
         objective: `Investigate campaign failure: ${input.reportType} for "${input.campaignName ?? "campaign"}"`,
         intentSource: `campaign_reports:${input.reportType}`,
         targets: [{
-          domain: "campaigns",
+          domain: "voice",
           entity_type: "campaign_report",
           entity_id: reportId,
           entity_name: input.campaignName ?? "campaign",

@@ -287,6 +287,8 @@ export interface VmErrorDirective {
 
 export type EndReason =
   | "flow_ended"
+  /** The caller said goodbye / declined and the flow has no end node to route to. */
+  | "user_hangup"
   | "transferred"
   | "agent_swapped"
   | "dead_end"

@@ -60,6 +60,7 @@ import { useWorkspaceAgentOptions, rowMatchesAgent, agentTypeLabel } from "@/com
 import { wbahDateTimeOptions, WBAH_TIMEZONE } from "@/lib/dashboard/wbah-timezone";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 
+import { formatCallMs as fmtDuration } from "@/lib/format/duration.shared";
 function QualifiedErrorFallback() {
   // No hooks — called in error-recovery context where hooks may be invalid.
   // Trigger reload via setTimeout in render body (safe: no state mutation).
@@ -194,16 +195,6 @@ function urgencyBadge(v: string | null) {
       {v}
     </StatusBadge>
   );
-}
-
-
-
-function fmtDuration(ms: number | null): string {
-  if (ms == null) return "—";
-  const totalSec = Math.floor(ms / 1000);
-  const m = Math.floor(totalSec / 60);
-  const s = totalSec % 60;
-  return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
 function callStatusBadge(status: string | null) {
@@ -462,7 +453,6 @@ function QualifiedPage() {
     () => (isWbah ? wbahAgentColorMapFromLeads(rows) : new Map()),
     [isWbah, rows],
   );
-
 
   async function handleSetStatus(id: string, status: typeof STATUS_ACTIONS[number]["value"]) {
     try {

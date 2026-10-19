@@ -217,7 +217,27 @@ export function listWbahBookedContacts(aggregate: {
   return rows;
 }
 
-export async function loadWbahCrmBookingByDigits(
+// Both booking maps are whole-workspace scans (thousands of rows, read 1,000 at a time) and change
+// rarely, but the Calls page needs them for every 25-row page. Keep each for a minute per workspace.
+const BOOKING_MAP_TTL_MS = 60_000;
+const bookingMapCache = new Map<string, { at: number; value: Promise<Map<string, any>> }>();
+function cachedBookingMap<T extends Map<string, any>>(key: string, load: () => Promise<T>): Promise<T> {
+  const hit = bookingMapCache.get(key);
+  if (hit && Date.now() - hit.at < BOOKING_MAP_TTL_MS) return hit.value as Promise<T>;
+  const value = load();
+  bookingMapCache.set(key, { at: Date.now(), value });
+  value.catch(() => bookingMapCache.delete(key));
+  return value;
+}
+
+export function loadWbahCrmBookingByDigits(
+  supabaseAdmin: { from: (t: string) => any },
+  workspaceId: string,
+): Promise<Map<string, WbahBookingFields & { name?: string | null; phone?: string | null }>> {
+  return cachedBookingMap(`crm:${workspaceId}`, () => loadWbahCrmBookingByDigitsUncached(supabaseAdmin, workspaceId));
+}
+
+async function loadWbahCrmBookingByDigitsUncached(
   supabaseAdmin: { from: (t: string) => any },
   workspaceId: string,
 ): Promise<Map<string, WbahBookingFields & { name?: string | null; phone?: string | null }>> {
@@ -248,7 +268,14 @@ export async function loadWbahCrmBookingByDigits(
 }
 
 /** Load Calendly URLs from any wbah_calls row for each phone (newest first). */
-export async function loadWbahCallCalendlyByDigits(
+export function loadWbahCallCalendlyByDigits(
+  supabaseAdmin: { from: (t: string) => any },
+  workspaceId: string,
+): Promise<Map<string, string>> {
+  return cachedBookingMap(`calendly:${workspaceId}`, () => loadWbahCallCalendlyByDigitsUncached(supabaseAdmin, workspaceId));
+}
+
+async function loadWbahCallCalendlyByDigitsUncached(
   supabaseAdmin: { from: (t: string) => any },
   workspaceId: string,
 ): Promise<Map<string, string>> {

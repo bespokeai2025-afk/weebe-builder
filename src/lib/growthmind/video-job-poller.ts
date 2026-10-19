@@ -11,7 +11,7 @@
  * if storage is unavailable.
  *
  * Called from:
- *   - video-job-poller.plugin.ts  (Vite dev — every 30 s)
+ *   - dev-plugins/video-job-poller.plugin.ts  (Vite dev — every 30 s)
  *   - src/routes/api/public/video-job-poller.ts  (pg_cron / production)
  */
 
@@ -251,7 +251,11 @@ export async function runVideoJobPoller(): Promise<PollerResult> {
         sb.from("growthmind_video_assets")
           .update({ video_url: "[error:Job timed out after 2 hours]" })
           .eq("id", r.id)
-          .catch(() => {}),
+          // The query builder is a thenable without .catch().
+          .then(
+            () => undefined,
+            () => undefined,
+          ),
       ),
     );
     console.warn(`[video-poller] Expired ${timedOut.length} stuck job(s) older than 2 hours`);

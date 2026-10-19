@@ -304,24 +304,26 @@ export const runWebhookAutoUpdate = createServerFn()
       }
 
       // ── WATI workspaces ─────────────────────────────────────────────────────
+      // WATI has no API for setting the webhook — it is entered in the WATI dashboard — so this
+      // only reports the URL each workspace should use. (It used to call a function that never
+      // existed and filter on a column wati_connections doesn't have, so it reported nothing.)
       if (provider === "whatsapp") {
         const { data: watiConns } = await supabaseAdmin
           .from("wati_connections")
-          .select("workspace_id, tenant_id")
-          .eq("is_active", true);
+          .select("workspace_id, inbound_webhook_url");
 
-        for (const conn of (watiConns ?? [])) {
-          const newUrl = `${base}/api/public/whatsapp-webhook/${conn.workspace_id}`;
-          try {
-            const { updateWatiWebhook } = await import("@/lib/whatsapp/wati.functions");
-            const res = await updateWatiWebhook(conn.workspace_id, conn.tenant_id, newUrl);
-            const status = res.ok ? "success" : "failed";
-            await logUpdate({ provider: "whatsapp-wati", workspaceId: conn.workspace_id, oldUrl: null, newUrl, status, error: res.ok ? undefined : res.message });
-            results.push({ provider: "whatsapp-wati", workspaceId: conn.workspace_id, status, oldUrl: null, newUrl, error: res.ok ? undefined : res.message });
-          } catch (err: any) {
-            await logUpdate({ provider: "whatsapp-wati", workspaceId: conn.workspace_id, oldUrl: null, newUrl, status: "failed", error: err.message });
-            results.push({ provider: "whatsapp-wati", workspaceId: conn.workspace_id, status: "failed", oldUrl: null, newUrl, error: err.message });
-          }
+        const { buildWatiInboundWebhookUrl } = await import("@/lib/whatsapp/wati-webhook.server");
+        for (const conn of (watiConns ?? []) as Array<{ workspace_id: string; inbound_webhook_url: string | null }>) {
+          const newUrl = buildWatiInboundWebhookUrl(conn.workspace_id, base);
+          const oldUrl = conn.inbound_webhook_url ?? null;
+          results.push({
+            provider: "whatsapp-wati",
+            workspaceId: conn.workspace_id,
+            status: "skipped",
+            oldUrl,
+            newUrl,
+            error: oldUrl === newUrl ? undefined : "Set this URL in the WATI dashboard (Webhooks) — WATI can't be updated through its API.",
+          });
         }
       }
 

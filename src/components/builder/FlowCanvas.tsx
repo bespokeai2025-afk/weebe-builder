@@ -10,6 +10,7 @@ import {
 } from "react";
 import {
   ReactFlow,
+  BackgroundVariant,
   Background,
   Controls,
   ConnectionLineType,
@@ -457,8 +458,8 @@ function CanvasInner({
         labelBgBorderRadius: 4,
       }}
     >
-      <Background id="flow-lines" variant="lines" gap={72} color="var(--flow-grid-major)" />
-      <Background id="flow-dots" variant="dots" gap={18} size={1.4} color="var(--flow-grid)" />
+      <Background id="flow-lines" variant={BackgroundVariant.Lines} gap={72} color="var(--flow-grid-major)" />
+      <Background id="flow-dots" variant={BackgroundVariant.Dots} gap={18} size={1.4} color="var(--flow-grid)" />
       <Controls
         showInteractive={false}
         className="!bg-primary !text-primary-foreground !border-primary [&>button]:!bg-primary [&>button]:!text-primary-foreground [&>button]:!border-primary/40 [&>button:hover]:!bg-primary/80"

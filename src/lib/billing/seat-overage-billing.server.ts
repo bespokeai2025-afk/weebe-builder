@@ -82,7 +82,11 @@ export async function billSeatOverage(opts: {
         stripe_invoice_item_id:  invoiceItem.id,
         billed_at:               new Date().toISOString(),
       }, { onConflict: "workspace_id,period_start" })
-      .catch(() => {});
+      // The query builder is a thenable without .catch().
+      .then(
+        () => undefined,
+        () => undefined,
+      );
 
     console.log(
       `[seat-overage] billed workspace=${workspaceId} extraSeats=${extraSeats} amount=£${overageGBP.toFixed(2)} invoiceItem=${invoiceItem.id}`,

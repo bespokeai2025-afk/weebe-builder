@@ -753,8 +753,9 @@ export function OnboardingTour() {
     if (!mounted || !visible || state.step !== 3) return;
     let attempts = 0;
     function attach() {
-      const el = document.querySelector('[data-tour="agent-name-input"]') as HTMLInputElement | null;
-      if (!el) { if (++attempts < 30) setTimeout(attach, 250); return; }
+      const found = document.querySelector('[data-tour="agent-name-input"]') as HTMLInputElement | null;
+      if (!found) { if (++attempts < 30) setTimeout(attach, 250); return; }
+      const el: HTMLInputElement = found;
       if (el.value.trim().length >= 3) setState({ agentNameSet: true });
       function handler() { if (el.value.trim().length >= 3) setState({ agentNameSet: true }); }
       el.addEventListener("input", handler);

@@ -104,7 +104,6 @@ export const Route = createFileRoute("/api/builder/scan-pdf")({
             rawText = result.value;
           } else {
             const parser = new PDFParse({ data: buffer });
-            await parser.load();
             const extracted = await parser.getText();
             rawText = extracted.text;
           }

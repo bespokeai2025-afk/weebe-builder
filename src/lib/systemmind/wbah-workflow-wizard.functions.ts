@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireActiveWbahWorkspace } from "@/lib/wbah-exclusion.shared";
+import { jsonResult } from "@/lib/server-fn-json.shared";
 
 async function assertWbah(ctx: { workspaceId?: string | null; userId?: string }) {
   if (!ctx.workspaceId) throw new Error("No workspace");
@@ -213,7 +214,7 @@ export const saveWbahPipelineFn = createServerFn({ method: "POST" })
 export const getWbahWorkflowSessionFn = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .validator(z.object({ sessionId: z.string().uuid() }))
-  .handler(async ({ data, context }) => {
+  .handler(jsonResult(async ({ data, context }) => {
     const ctx = context as any;
     await assertWbah(ctx);
     const { getBuildSessionServer } = await import("@/lib/systemmind/build-workspace.server");
@@ -244,7 +245,7 @@ export const getWbahWorkflowSessionFn = createServerFn({ method: "GET" })
       })),
       versionNumber: typeof current?.version_number === "number" ? current.version_number : null,
     };
-  });
+  }));
 
 export const getWbahPostCallQueueStatsFn = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -306,7 +307,7 @@ export const listWbahPostCallExecutionsFn = createServerFn({ method: "GET" })
 export const getWbahPostCallExecutionFn = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .validator(z.object({ jobId: z.string().uuid() }))
-  .handler(async ({ data, context }) => {
+  .handler(jsonResult(async ({ data, context }) => {
     const ctx = context as any;
     await assertWbah(ctx);
     const { getWbahPostCallExecution } = await import(
@@ -315,7 +316,7 @@ export const getWbahPostCallExecutionFn = createServerFn({ method: "GET" })
     const row = await getWbahPostCallExecution(ctx.workspaceId, data.jobId);
     if (!row) throw new Error("Execution not found");
     return row;
-  });
+  }));
 
 /**
  * Replay one finished execution from its stored webhook payload.
@@ -366,7 +367,7 @@ export const executeWbahNodeStepFn = createServerFn({ method: "POST" })
       dryRun: z.boolean().optional(),
     }),
   )
-  .handler(async ({ data, context }) => {
+  .handler(jsonResult(async ({ data, context }) => {
     const ctx = context as any;
     await assertWbah(ctx);
     const { executeWbahWorkflowNodeStep } = await import(
@@ -378,4 +379,4 @@ export const executeWbahNodeStepFn = createServerFn({ method: "POST" })
       pinData: data.pinData,
       dryRun: data.dryRun ?? true,
     });
-  });
+  }));

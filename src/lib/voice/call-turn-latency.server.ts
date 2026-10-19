@@ -7,7 +7,7 @@
  * latency row is an inconvenience; adding a blocking round trip to a live
  * conversation is the exact problem this data exists to solve.
  */
-// Relative, not the "@/" alias: voice-gateway.plugin.ts statically imports
+// Relative, not the "@/" alias: dev-plugins/voice-gateway.plugin.ts statically imports
 // gateway/mount, so everything reachable from it gets bundled into
 // vite.config.ts, where "@/" does not resolve and the config fails to load.
 import { supabaseAdmin } from "../../integrations/supabase/client.server";

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 
 const PAGE_SIZES = [10, 25, 50, 75, 100] as const;
 export type PageSize = typeof PAGE_SIZES[number];
@@ -31,10 +31,12 @@ interface TablePagBarProps {
   total:          number;
   setPage:        (p: number) => void;
   changePageSize: (s: PageSize) => void;
+  /** Server-paged tables: a page is being fetched. */
+  loading?:       boolean;
 }
 
 export function TablePagBar({
-  page, pageSize, totalPages, total, setPage, changePageSize,
+  page, pageSize, totalPages, total, setPage, changePageSize, loading = false,
 }: TablePagBarProps) {
   const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const to   = Math.min(page * pageSize, total);
@@ -52,6 +54,11 @@ export function TablePagBar({
         </select>
       </div>
       <div className="flex items-center gap-3">
+        {loading && (
+          <span role="status" className="flex items-center gap-1 text-foreground/80">
+            <Loader2 className="h-3 w-3 animate-spin" /> Loading…
+          </span>
+        )}
         <span className="tabular-nums">{from}–{to} of {total.toLocaleString()}</span>
         <div className="flex items-center gap-0.5">
           <button

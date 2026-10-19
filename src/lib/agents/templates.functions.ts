@@ -3,6 +3,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { Database } from "@/integrations/supabase/types";
 
+import { jsonResult } from "@/lib/server-fn-json.shared";
 type Json = Database["public"]["Tables"]["agents"]["Row"]["flow_data"];
 
 export type TemplateScope = "global" | "personal";
@@ -44,7 +45,7 @@ async function isAdmin(
 /** List all templates the current user can see (global + their personal). */
 export const listAgentTemplates = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(jsonResult(async ({ context }) => {
     const { supabase } = context;
     const { data, error } = await supabase
       .from("agent_templates")
@@ -61,7 +62,7 @@ export const listAgentTemplates = createServerFn({ method: "GET" })
       updated_at: string;
       created_at: string;
     }>;
-  });
+  }));
 
 /** Load a single template by id. */
 export const getAgentTemplate = createServerFn({ method: "POST" })

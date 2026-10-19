@@ -48,7 +48,7 @@ export async function transitionProjectStatus(
   workspaceId: string,
   projectId: string,
   to: string,
-  by: string,
+  by: string | null,
   note?: string,
   extra?: Record<string, any>,
 ): Promise<Record<string, any>> {
@@ -538,7 +538,7 @@ const VoiceoverInput = z.object({
 
 export const generateProjectVoiceover = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((i: z.infer<typeof VoiceoverInput>) => VoiceoverInput.parse(i))
+  .validator((i: z.input<typeof VoiceoverInput>) => VoiceoverInput.parse(i))
   .handler(async ({ data, context }) => {
     const workspaceId = context.workspaceId!;
     const admin = await getAdmin();

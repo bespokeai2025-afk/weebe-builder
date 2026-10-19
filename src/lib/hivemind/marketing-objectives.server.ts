@@ -18,6 +18,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { jsonResult } from "@/lib/server-fn-json.shared";
 
 type Sb = any;
 
@@ -450,7 +451,7 @@ export const listMarketingObjectives = createServerFn({ method: "GET" })
 export const getMarketingObjectiveStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ objectiveId: z.string().uuid() }).parse(input))
-  .handler(async ({ context, data }) => {
+  .handler(jsonResult(async ({ context, data }) => {
     const workspaceId = context.workspaceId;
     const userId = (context as any).userId;
     if (!workspaceId) throw new Error("No workspace");
@@ -460,7 +461,7 @@ export const getMarketingObjectiveStatus = createServerFn({ method: "POST" })
 
     const sbAdmin = await getAdmin();
     return await buildObjectiveStatusCore(sbAdmin, workspaceId, data.objectiveId);
-  });
+  }));
 
 export const setMarketingObjectiveStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

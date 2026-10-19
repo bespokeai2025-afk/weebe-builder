@@ -92,7 +92,7 @@ function PhoneNumbersPage() {
   });
 
   const saveMut = useMutation({
-    mutationFn: (v: Parameters<typeof saveFn>[0]["data"]) => saveFn({ data: v }),
+    mutationFn: (v: NonNullable<Parameters<typeof saveFn>[0]>["data"]) => saveFn({ data: v }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["phone-numbers"] });
       setShowAdd(false);

@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { type GrowthMindExecutiveSummary } from "@/lib/executives/executive-council";
+import { jsonResult } from "@/lib/server-fn-json.shared";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 export interface BIPeriod {
@@ -60,7 +61,7 @@ const PIPELINE_LABELS: Record<string, string> = {
 // ── getExecutiveBriefing ──────────────────────────────────────────────────────
 export const getExecutiveBriefing = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(jsonResult(async ({ context }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
     const userId      = (context as any).userId;
@@ -308,4 +309,4 @@ export const getExecutiveBriefing = createServerFn({ method: "GET" })
       topAgent, topCampaign, agentRankings, pipelineHealth, followUpGaps,
       risks, recommendations, growthMind,
     } as ExecutiveBriefing;
-  });
+  }));

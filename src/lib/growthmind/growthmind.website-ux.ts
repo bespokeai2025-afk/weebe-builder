@@ -103,7 +103,7 @@ export const executeWebsiteChange = createServerFn({ method: "POST" })
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
     const { requireAction } = await import("@/lib/permissions/permissions.server");
-    await requireAction(workspaceId, context.user?.id ?? null, "campaign_activation");
+    await requireAction(workspaceId, context.userId ?? null, "campaign_activation");
 
     // RLS read proves membership + visibility.
     const { data: change, error } = await sb
@@ -133,7 +133,7 @@ export const executeWebsiteChange = createServerFn({ method: "POST" })
 
     const action = await createMarketingAction(sbAdmin, workspaceId, {
       source: "website_change_queue",
-      requested_by: context.user?.id ?? null,
+      requested_by: context.userId ?? null,
       objective: change.title,
       platform: "website",
       action_type: WEBSITE_CHANGE_ACTION_TYPE,

@@ -108,9 +108,10 @@ export class GraphSession {
     switch (directive.type) {
       case "speak": {
         if (directive.textStream) {
+          const textStream = directive.textStream;
           let transcript = "";
           async function* tap(): AsyncGenerator<string> {
-            for await (const chunk of directive.textStream!) {
+            for await (const chunk of textStream) {
               transcript += chunk;
               yield chunk;
             }

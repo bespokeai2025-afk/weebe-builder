@@ -420,7 +420,7 @@ export async function seedPlatformKnowledge(
         text = doc.content;
       } else {
         if (!apiKey) throw new Error("OPENAI_API_KEY not configured — required for generated docs.");
-        text = await generatePlatformDoc(doc.prompt, doc.title, apiKey);
+        text = await generatePlatformDoc(doc.prompt ?? "", doc.title, apiKey);
       }
 
       // Remove any stale failed row so the unique index doesn't block.

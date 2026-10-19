@@ -57,7 +57,7 @@ export const Route = createFileRoute("/api/v1/notifications/catalogue")({
               category: def?.category ?? "core",
               capability: def?.capability ?? "core",
               severity: severityForEvent(key),
-              applicable: applicable.has(key),
+              applicable: (applicable as Set<string>).has(key),
               policy: {
                 enabled: saved ? saved.enabled !== false : defaults.enabled,
                 email_enabled: saved ? saved.email_enabled !== false : defaults.emailEnabled,

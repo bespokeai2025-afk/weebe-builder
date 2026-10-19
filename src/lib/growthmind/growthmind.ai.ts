@@ -393,7 +393,7 @@ Rules:
       let tools: any[] | undefined;
       if (workspaceId && !isLast) {
         const { CHAT_TOOL_SCHEMAS } = await import("@/lib/growthmind/growthmind-chat-tools.server");
-        tools = CHAT_TOOL_SCHEMAS;
+        tools = [...CHAT_TOOL_SCHEMAS];
       }
 
       let msg: any;

@@ -1,5 +1,5 @@
 import { createFileRoute, useSearch } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { checkCanSeeCallCost } from "@/lib/voice/call-cost.functions";
 import { Fragment, useState, useEffect, useMemo } from "react";
@@ -28,7 +28,7 @@ import { RecordingPlayerDialog, PlayRecordingButton } from "@/components/Recordi
 import { DashboardPage, KpiCard, SummaryTooltip, stickyCell, stickyHead } from "@/components/dashboard/PageShell";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { WbahCallCountBadge, WbahBookedStickyBadge, wbahAgentColorMapFromLeads } from "@/components/dashboard/WbahNotesButton";
+import { WbahCallCountBadge, WbahBookedStickyBadge } from "@/components/dashboard/WbahNotesButton";
 import { WbahCallCalendlyLink } from "@/components/dashboard/WbahCallCalendlyLink";
 import { WbahContactCallHistoryTable } from "@/components/dashboard/WbahContactCallHistoryTable";
 import type { WbahContactCallHistoryItem } from "@/lib/dashboard/wbah-call-history.types";
@@ -45,13 +45,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { listWbahCallsLive, getWbahCallDetail, getWbahContactCallHistory } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { listWbahCallsPage, getWbahCallsSummary, getWbahCallDetail, getWbahContactCallHistory } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { buildWbahAgentColorMap } from "@/lib/dashboard/wbah-agent-colors";
 import { CallDetailSheet, type CallDetailRow } from "@/components/calls/CallDetailSheet";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { supabase } from "@/integrations/supabase/client";
-import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
+import { useTablePagination, TablePagBar, type PageSize } from "@/components/ui/table-pagination";
 import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
 import { useWorkspaceAgentOptions, rowMatchesAgent, agentTypeLabel } from "@/components/shared/AgentFilterSelect";
 import { WBAH_TIMEZONE } from "@/lib/dashboard/wbah-timezone";
@@ -62,20 +63,14 @@ import {
   resolveWbahDisplaySentiment,
 } from "@/lib/dashboard/wbah-call-booking-display";
 
+import { formatCallSeconds as fmtDuration } from "@/lib/format/duration.shared";
 export const Route = createFileRoute("/_authenticated/calls")({
   head: () => ({ meta: [{ title: "Calls — Webee" }] }),
-  validateSearch: (search: Record<string, unknown>) => ({
+  validateSearch: (search: Record<string, unknown>): { vm?: "exclude" | "all" | "only" } => ({
     vm: (search.vm as "exclude" | "all" | "only" | undefined) ?? undefined,
   }),
   component: CallsPage,
 });
-
-function fmtDuration(s?: number | null) {
-  if (!s) return "—";
-  const m = Math.floor(s / 60);
-  const r = s % 60;
-  return `${m}m ${r}s`;
-}
 
 function fmtWbahSentiment(c: Record<string, unknown>): string {
   const s = resolveWbahDisplaySentiment(c) ?? String(c.sentiment ?? "");
@@ -347,24 +342,24 @@ function CallsPage() {
     retry:                0,
   });
 
-  // WeeBespoke calls — pulled LIVE from WeeBespoke on open (incremental + capped),
-  // then read from the freshly-updated wbah_calls table. staleTime 60s keeps it
-  // fresh on open without a background timer repeatedly touching the single
-  // WeeBespoke session while the tab sits idle.
-  const wbahFn = useServerFn(listWbahCallsLive);
-  const wbahQ = useQuery({
-    queryKey: ["wbah-calls"],
-    queryFn: () => wbahFn(),
+  // WeeBespoke calls — filtered, counted and paged in the database (wbah_calls_page /
+  // wbah_calls_summary); the browser only receives the current page. The summary call also
+  // pulls the newest calls from WeeBespoke on open (incremental + throttled server-side).
+  const wbahSummaryFn = useServerFn(getWbahCallsSummary);
+  const wbahSummaryQ = useQuery({
+    queryKey: ["wbah-calls-summary", voicemailFilter],
+    queryFn: () => wbahSummaryFn({ data: { voicemail: voicemailFilter } }),
     enabled: isWbah,
-    staleTime:            180_000,
+    staleTime: 180_000,
     refetchOnWindowFocus: false,
     retry: 0,
     throwOnError: false,
   });
+  const wbahSummary = wbahSummaryQ.data;
 
   // Auto-reload on stale server-fn ID error. Timestamp guard: max once per 20s.
   useEffect(() => {
-    const anyError = (!isWbah && q.isError) || (isWbah && wbahQ.isError);
+    const anyError = (!isWbah && q.isError) || (isWbah && wbahSummaryQ.isError);
     if (anyError) {
       const key = "calls-autoreload-ts";
       const last = parseInt(sessionStorage.getItem(key) ?? "0");
@@ -373,36 +368,15 @@ function CallsPage() {
         window.location.reload();
       }
     }
-  }, [isWbah, q.isError, wbahQ.isError]);
+  }, [isWbah, q.isError, wbahSummaryQ.isError]);
 
-  // Sort newest-first for display; freshness is handled server-side by the live fn.
-  const wbahRows = useMemo(() => {
-    return ((wbahQ.data ?? []) as any[]).slice().sort((a, b) => {
-      const ta = a.started_at ? new Date(a.started_at).getTime() : 0;
-      const tb = b.started_at ? new Date(b.started_at).getTime() : 0;
-      return tb - ta;
-    });
-  }, [wbahQ.data]);
-
-  // WBAH calls live in wbah_calls, which has no is_voicemail flag — the "voicemail"
-  // result is encoded in disconnection_reason / end_reason ("voicemail_reached").
-  // Native calls are already voicemail-filtered server-side by listCalls, so the
-  // client-side voicemail filter only applies to WBAH here. Filtering at the `rows`
-  // level keeps the KPI counts and the table consistent with the filter pill.
-  const rows = useMemo<any[]>(() => {
-    const base = (isWbah ? wbahRows : (q.data ?? [])) as any[];
-    if (!isWbah || voicemailFilter === "all") return base;
-    const isVoicemail = (r: any) =>
-      /voicemail/i.test(String(r.disconnection_reason ?? "")) ||
-      /voicemail/i.test(String(r.end_reason ?? ""));
-    return voicemailFilter === "only"
-      ? base.filter(isVoicemail)
-      : base.filter((r) => !isVoicemail(r));
-  }, [isWbah, wbahRows, q.data, voicemailFilter]);
+  // Native calls are voicemail-filtered server-side by listCalls; WBAH rows come back already
+  // filtered and paged (see wbahPageQ below).
+  const rows = useMemo<any[]>(() => (isWbah ? [] : ((q.data ?? []) as any[])), [isWbah, q.data]);
 
   const wbahAgentNamesFromData = useMemo(
-    () => rows.map((r) => r.agent_name as string | undefined),
-    [rows],
+    () => (isWbah ? (wbahSummary?.agentNames ?? []) : rows.map((r) => r.agent_name as string | undefined)),
+    [isWbah, wbahSummary, rows],
   );
   const { options: wbahAgentOptions } = useWbahAgentOptions(wbahAgentNamesFromData, isWbah);
 
@@ -449,9 +423,16 @@ function CallsPage() {
     },
   });
 
-  const completed = rows.filter((r) => r.call_status === "completed").length;
-  const failed = rows.filter((r) => ["failed", "no_answer", "busy"].includes(r.call_status)).length;
-  const totalSec = rows.reduce((a: number, r: any) => a + (r.duration_seconds ?? 0), 0);
+  const totalCalls = isWbah ? (wbahSummary?.total ?? 0) : rows.length;
+  const completed = isWbah
+    ? (wbahSummary?.completed ?? 0)
+    : rows.filter((r) => r.call_status === "completed").length;
+  const failed = isWbah
+    ? (wbahSummary?.failed ?? 0)
+    : rows.filter((r) => ["failed", "no_answer", "busy"].includes(r.call_status)).length;
+  const totalSec = isWbah
+    ? (wbahSummary?.totalSec ?? 0)
+    : rows.reduce((a: number, r: any) => a + (r.duration_seconds ?? 0), 0);
 
   const [recordingPlayer, setRecordingPlayer] = useState<{ url: string; contact: string } | null>(null);
   const [panel, setPanel] = useState<PanelTarget | null>(null);
@@ -485,9 +466,10 @@ function CallsPage() {
       },
     };
   }
+  // Built from every agent with a booking (not just this page) so colours stay put across pages.
   const wbahAgentColorMap = useMemo(
-    () => (isWbah ? wbahAgentColorMapFromLeads(rows.map(wbahBadgeLead)) : new Map()),
-    [isWbah, rows],
+    () => (isWbah ? buildWbahAgentColorMap(wbahSummary?.bookedAgentNames ?? []) : new Map()),
+    [isWbah, wbahSummary],
   );
 
   async function openCallHistory(c: any) {
@@ -550,7 +532,59 @@ function CallsPage() {
   const workspaceAgents = useWorkspaceAgentOptions();
   const selectedAgent = agentFilter !== "all" ? workspaceAgents.find((a) => a.id === agentFilter) ?? null : null;
 
+  // ── WBAH: the same filters, applied in the database ──────────────────────────
+  const [wbahPage, setWbahPage] = useState(1);
+  const [wbahPageSize, setWbahPageSize] = useState<PageSize>(25);
+  const [wbahSearch, setWbahSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setWbahSearch(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+  const wbahFilters = useMemo(
+    () => ({
+      voicemail: voicemailFilter,
+      search: wbahSearch || undefined,
+      status: statusFilter || undefined,
+      callType: callTypeFilter || undefined,
+      sentiment: sentimentFilter || undefined,
+      agentName: wbahAgentFilter !== "all" ? wbahAgentFilter : undefined,
+      minDuration: durationFilter ? parseInt(durationFilter, 10) || undefined : undefined,
+      outcome: (outcomeFilter || undefined) as "" | "successful" | "unsuccessful" | undefined,
+      ...effectiveDateRange,
+    }),
+    [voicemailFilter, wbahSearch, statusFilter, callTypeFilter, sentimentFilter, wbahAgentFilter, durationFilter, outcomeFilter, effectiveDateRange],
+  );
+  const wbahFiltersKey = JSON.stringify(wbahFilters);
+  useEffect(() => { setWbahPage(1); }, [wbahFiltersKey, wbahPageSize]);
+  const wbahPageFn = useServerFn(listWbahCallsPage);
+  const wbahPageQ = useQuery({
+    queryKey: ["wbah-calls-page", wbahFiltersKey, wbahPage, wbahPageSize],
+    queryFn: () => wbahPageFn({ data: { page: wbahPage, pageSize: wbahPageSize, filters: wbahFilters } }),
+    enabled: isWbah,
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
+    refetchOnWindowFocus: false,
+    retry: 0,
+    throwOnError: false,
+  });
+  const wbahPageRows = (wbahPageQ.data?.rows ?? []) as any[];
+  const wbahFilteredTotal = wbahPageQ.data?.total ?? 0;
+  // Showing the previous page while the next one loads.
+  const wbahPageLoading = isWbah && wbahPageQ.isFetching && wbahPageQ.isPlaceholderData;
+  // Prefetch the next page so "Next" is usually instant.
+  const qcCalls = useQueryClient();
+  useEffect(() => {
+    if (!isWbah || !wbahPageQ.data || wbahPageQ.isPlaceholderData) return;
+    if (wbahPage * wbahPageSize >= wbahFilteredTotal) return;
+    void qcCalls.prefetchQuery({
+      queryKey: ["wbah-calls-page", wbahFiltersKey, wbahPage + 1, wbahPageSize],
+      queryFn: () => wbahPageFn({ data: { page: wbahPage + 1, pageSize: wbahPageSize, filters: wbahFilters } }),
+      staleTime: 60_000,
+    });
+  }, [isWbah, wbahPageQ.data, wbahPageQ.isPlaceholderData, wbahPage, wbahPageSize, wbahFilteredTotal, wbahFiltersKey, wbahFilters, wbahPageFn, qcCalls]);
+
   const filteredRows = useMemo(() => {
+    if (isWbah) return wbahPageRows;
     const { dateFrom: cutFrom, dateTo: cutTo } = effectiveDateRange;
     const minDur = durationFilter ? parseInt(durationFilter, 10) : 0;
     return rows.filter((r: any) => {
@@ -580,9 +614,21 @@ function CallsPage() {
       }
       return true;
     });
-  }, [rows, search, effectiveDateRange, statusFilter, callTypeFilter, sentimentFilter, durationFilter, outcomeFilter, isWbah, wbahAgentFilter, selectedAgent]);
+  }, [rows, search, effectiveDateRange, statusFilter, callTypeFilter, sentimentFilter, durationFilter, outcomeFilter, isWbah, wbahAgentFilter, selectedAgent, wbahPageRows]);
 
-  const callsPag = useTablePagination(filteredRows);
+  const clientPag = useTablePagination(filteredRows);
+  // Same shape as useTablePagination, backed by the server page for WBAH.
+  const callsPag = isWbah
+    ? {
+        page: wbahPage,
+        pageSize: wbahPageSize,
+        totalPages: Math.max(1, Math.ceil(wbahFilteredTotal / wbahPageSize)),
+        sliced: wbahPageRows,
+        total: wbahFilteredTotal,
+        setPage: setWbahPage,
+        changePageSize: (size: PageSize) => setWbahPageSize(size),
+      }
+    : clientPag;
 
   const hasCallFilters = search.trim() || statusFilter || callTypeFilter || sentimentFilter || durationFilter || outcomeFilter || daysFilter === "custom" || wbahAgentFilter !== "all" || agentFilter !== "all";
 
@@ -603,7 +649,7 @@ function CallsPage() {
   }
 
   const isRefetching = tab === "live"
-    ? (isWbah ? wbahQ.isFetching : q.isRefetching)
+    ? (isWbah ? wbahPageQ.isFetching || wbahSummaryQ.isFetching : q.isRefetching)
     : testQ.isRefetching;
 
   return (
@@ -728,7 +774,10 @@ function CallsPage() {
             size="sm"
             className="h-7 gap-1 px-2.5 text-xs"
             onClick={() => {
-              if (tab === "live") isWbah ? wbahQ.refetch() : q.refetch();
+              if (tab === "live") {
+                if (isWbah) { void wbahSummaryQ.refetch(); void wbahPageQ.refetch(); }
+                else void q.refetch();
+              }
               else testQ.refetch();
             }}
             disabled={isRefetching}
@@ -743,7 +792,7 @@ function CallsPage() {
         <>
           {/* KPI strip */}
           <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-            <KpiCard label="Total Calls" value={rows.length} icon={Phone} iconBg="bg-blue-500/15" iconColor="text-blue-400" />
+            <KpiCard label="Total Calls" value={totalCalls} icon={Phone} iconBg="bg-blue-500/15" iconColor="text-blue-400" />
             <KpiCard label="Completed" value={completed} icon={Phone} iconBg="bg-emerald-500/15" iconColor="text-emerald-400" />
             <KpiCard label="Failed" value={failed} icon={Phone} iconBg="bg-red-500/15" iconColor="text-red-400" />
             <KpiCard label="Total Talk" value={fmtDuration(totalSec)} icon={Phone} iconBg="bg-violet-500/15" iconColor="text-violet-400" />
@@ -913,16 +962,16 @@ function CallsPage() {
             )}
             {hasCallFilters && (
               <span className="text-[11px] text-muted-foreground">
-                {filteredRows.length} of {rows.length}
+                {isWbah ? wbahFilteredTotal : filteredRows.length} of {totalCalls}
               </span>
             )}
           </div>
 
           {/* Calls table */}
           <div className="min-w-0 overflow-hidden rounded-xl border border-border dark:border-white/[0.06] bg-card/60">
-            {wbahQ.isFetching && isWbah && rows.length === 0 ? (
+            {isWbah && (wbahPageQ.isLoading || wbahSummaryQ.isLoading) ? (
               <LoadingProgress label="Loading calls" estimatedMs={9000} />
-            ) : rows.length === 0 ? (
+            ) : totalCalls === 0 ? (
               <div className="flex flex-col items-center gap-2 py-10">
                 <Phone className="h-7 w-7 text-muted-foreground" />
                 <p className="text-sm font-medium">No calls yet</p>
@@ -930,7 +979,10 @@ function CallsPage() {
               </div>
             ) : isWbah ? (
               /* ── WeeBespoke calls table ──────────────────────────────────── */
-              <div className="overflow-x-auto">
+              <div
+                className={cn("overflow-x-auto transition-opacity", wbahPageLoading && "pointer-events-none opacity-50")}
+                aria-busy={wbahPageLoading}
+              >
                 <table className="w-full text-[11px]">
                   <thead>
                     <tr className="border-b border-border dark:border-white/[0.06] bg-card/30">
@@ -957,7 +1009,7 @@ function CallsPage() {
                       const callType = c.call_type === "inbound" ? "Inbound" : "Outbound";
                       return (
                         <tr key={c.id} className="group h-8 border-b border-border/60 dark:border-white/[0.04] last:border-0 align-middle hover:bg-muted/40 dark:hover:bg-white/[0.02] transition-colors">
-                          <td className={cn("px-2 py-0.5 text-[10px] text-muted-foreground tabular-nums", stickyCell, "left-0 w-9")}>{idx + 1}</td>
+                          <td className={cn("px-2 py-0.5 text-[10px] text-muted-foreground tabular-nums", stickyCell, "left-0 w-9")}>{(callsPag.page - 1) * callsPag.pageSize + idx + 1}</td>
                           <td className={cn("px-2 py-0.5", stickyCell, "left-9 w-10")} onClick={(e) => e.stopPropagation()}>
                             {phone
                               ? <a href={`tel:${phone}`} className="inline-flex rounded p-0.5 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"><Phone className="h-3 w-3" /></a>
@@ -1020,7 +1072,7 @@ function CallsPage() {
                     })}
                   </tbody>
                 </table>
-                <TablePagBar page={callsPag.page} pageSize={callsPag.pageSize} totalPages={callsPag.totalPages} total={callsPag.total} setPage={callsPag.setPage} changePageSize={callsPag.changePageSize} />
+                <TablePagBar page={callsPag.page} pageSize={callsPag.pageSize} totalPages={callsPag.totalPages} total={callsPag.total} setPage={callsPag.setPage} changePageSize={callsPag.changePageSize} loading={wbahPageLoading} />
               </div>
             ) : (
               /* ── Standard WEBEE calls table ──────────────────────────────── */
@@ -1039,7 +1091,7 @@ function CallsPage() {
                       <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Transcript</th>
                       <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">End Reason</th>
                       <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Last Called At</th>
-                      <th className="sticky right-0 bg-card/80 px-2 py-1 w-20 backdrop-blur-sm"></th>
+                      <th className="sticky right-0 bg-card px-2 py-1 w-20"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1118,7 +1170,7 @@ function CallsPage() {
                                 ? new Date(c.started_at).toLocaleString(undefined, { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
                                 : "Not called yet"}
                             </td>
-                            <td className="sticky right-0 bg-card/80 backdrop-blur-sm px-2 py-0.5" onClick={(e) => e.stopPropagation()}>
+                            <td className="sticky right-0 bg-card px-2 py-0.5" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-center gap-1">
                                 {isVmMode && callbackPhone && (
                                   <div className="relative group/callback">

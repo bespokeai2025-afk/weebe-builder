@@ -431,7 +431,7 @@ export const Route = createFileRoute("/api/voice-copilot")({
         // ── 2. Transcribe via Whisper ─────────────────────────────────────────
         const formData = new FormData();
         const ext = mimeType.includes("mp4") ? "mp4" : mimeType.includes("ogg") ? "ogg" : "webm";
-        formData.append("file", new Blob([audioBuffer], { type: mimeType }), `audio.${ext}`);
+        formData.append("file", new Blob([new Uint8Array(audioBuffer)], { type: mimeType }), `audio.${ext}`);
         formData.append("model", "whisper-1");
         formData.append("language", "en");
 
@@ -501,7 +501,7 @@ export const Route = createFileRoute("/api/voice-copilot")({
           const whisperSecs = Math.max(1, Math.ceil((audio.length * 0.75) / 2000));
           const pt = helpRes.usage?.prompt_tokens ?? 0;
           const ct = helpRes.usage?.completion_tokens ?? 0;
-          const cost = calcVoiceCopilotCost({ whisperSeconds: pt + ct > 0 ? whisperSecs : 1, promptTokens: pt, completionTokens: ct });
+          const cost = calcVoiceCopilotCost(pt, ct, pt + ct > 0 ? whisperSecs : 1);
 
           return json({
             ok: true,

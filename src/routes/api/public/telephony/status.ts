@@ -12,6 +12,7 @@ import type { CallState } from "@/lib/telephony/types";
 import { verifyTwilioRequestForWorkspace } from "@/lib/telephony/inbound-routing.server";
 import { reportUnansweredCall } from "@/lib/telephony/unanswered-call.server";
 
+import type { Database } from "@/integrations/supabase/types";
 function jsonOk(body: unknown) {
   return new Response(JSON.stringify(body), {
     status: 200,
@@ -77,7 +78,7 @@ export const Route = createFileRoute("/api/public/telephony/status")({
           return new Response("Forbidden", { status: 403 });
         }
 
-        const patch: Record<string, unknown> = {
+        const patch: Database["public"]["Tables"]["telephony_calls"]["Update"] = {
           status,
           updated_at: new Date().toISOString(),
         };

@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { formatDnaAsContext } from "./growthmind.business-dna";
+import { formatDnaAsContext, mapBusinessDnaRow } from "./growthmind.business-dna";
 import {
   routeToEngines, buildStrategyGenerationPrompt,
   STRATEGY_TYPE_LABELS, ENGINE_LABELS,
@@ -164,33 +164,7 @@ async function collectBusinessContext(sb: any, workspaceId: string) {
     monthlyBudget:          settings?.monthly_marketing_budget ?? null,
   };
 
-  const dnaContext = dna ? formatDnaAsContext({
-    id: dna.id, workspaceId,
-    companyName: dna.company_name ?? "",
-    website: dna.website ?? "",
-    industry: dna.industry ?? "",
-    products: dna.products ?? "",
-    services: dna.services ?? "",
-    pricing: dna.pricing ?? "",
-    offers: dna.offers ?? "",
-    locations: dna.locations ?? "",
-    idealCustomerProfiles: dna.ideal_customer_profiles ?? "",
-    targetMarkets: dna.target_markets ?? "",
-    uniqueSellingPoints: dna.unique_selling_points ?? "",
-    competitorsSummary: dna.competitors_summary ?? "",
-    revenueGoals: dna.revenue_goals ?? "",
-    monthlyMarketingBudget: dna.monthly_marketing_budget ?? null,
-    mainGrowthObjective: dna.main_growth_objective ?? "",
-    salesProcess: dna.sales_process ?? "",
-    averageDealValue: dna.average_deal_value ?? null,
-    profitMarginPct: dna.profit_margin_pct ?? null,
-    bestCustomers: dna.best_customers ?? "",
-    worstCustomers: dna.worst_customers ?? "",
-    caseStudies: dna.case_studies ?? "",
-    brandVoice: dna.brand_voice ?? "",
-    complianceNotes: dna.compliance_notes ?? "",
-    updatedAt: dna.updated_at ?? "",
-  }) : "## Business DNA\nNot yet configured. Add DNA data in GrowthMind → Business DNA.";
+  const dnaContext = dna ? formatDnaAsContext(mapBusinessDnaRow(dna)) : "## Business DNA\nNot yet configured. Add DNA data in GrowthMind → Business DNA.";
 
   const valuePoint = (valuePointRes.data as any)?.current_highest_value ?? null;
 
@@ -463,7 +437,7 @@ export const listStrategyCentre = createServerFn({ method: "GET" })
       .limit(200);
 
     if (error) throw new Error(error.message);
-    return { strategies: (data ?? []).map(mapStrategy) };
+    return { strategies: ((data ?? []) as any[]).map(mapStrategy) };
   });
 
 // ── getStrategyCentre ───────────────────────────────────────────────────────────

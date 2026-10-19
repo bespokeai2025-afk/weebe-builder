@@ -96,9 +96,10 @@ export const extractTemplateDocumentText = createServerFn({ method: "POST" })
 
     // ── PDF ───────────────────────────────────────────────────────────────────
     if (ext === "pdf" || mime === "application/pdf") {
-      const pdfParse = (await import("pdf-parse")).default;
-      const result   = await pdfParse(buffer);
-      return { text: result.text.trim() };
+      // pdf-parse v2 has no default export — the old call threw on every PDF.
+      const { PDFParse } = await import("pdf-parse");
+      const result = await new PDFParse({ data: buffer }).getText();
+      return { text: (result.text ?? "").trim() };
     }
 
     // ── Plain text / CSV / RTF ─────────────────────────────────────────────────

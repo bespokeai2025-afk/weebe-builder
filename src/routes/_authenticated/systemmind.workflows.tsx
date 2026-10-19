@@ -1,7 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_authenticated/systemmind/workflows")({
-  validateSearch: (search: Record<string, unknown>) => ({
+  validateSearch: (search: Record<string, unknown>): { tab?: string; health?: string } => ({
     tab: (search.tab as string | undefined) ?? "Library",
     health: (search.health as string | undefined) ?? "all",
   }),

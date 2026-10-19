@@ -493,7 +493,7 @@ export function WorkflowBuilder({ initialFlow, onSave, onClose, workflowName }: 
             <Controls className="!border-border/50 !bg-card !shadow-lg" />
             <MiniMap
               className="!border-border/50 !bg-card/80"
-              nodeColor={n => COLOR_MAP[getStepMeta((n.data as any)?.step_type).color] + "60" ?? "#3b82f660"}
+              nodeColor={n => (COLOR_MAP[getStepMeta((n.data as any)?.step_type).color] ?? "#3b82f6") + "60"}
               maskColor="rgba(0,0,0,0.6)"
             />
             <Panel position="top-right" className="!m-2">

@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireSupabaseAuth, requireWorkspaceId } from "@/integrations/supabase/auth-middleware";
 import { createImageProvider, type ImageConfig } from "@/lib/providers/image";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -155,7 +155,7 @@ function buildImagePrompt(
 export const getImageStudioStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<ImageStudioStatus> => {
-    const { workspaceId } = context;
+    const workspaceId = requireWorkspaceId(context.workspaceId);
     const resolved = await resolveImageProvider(workspaceId);
     return {
       connected: !!resolved,
@@ -167,23 +167,21 @@ export const getImageStudioStatus = createServerFn({ method: "POST" })
 export const generateImageAsset = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((d: {
-    data: {
-      prompt: string;
-      assetType: AssetType;
-      platformHint: PlatformHint;
-      knowledgeContextType: KnowledgeContextType;
-      knowledgeContextId?: string;
-      customContext?: string;
-      campaignId?: string;
-      contentAssetId?: string;
-      width?: number;
-      height?: number;
-      style?: string;
-    };
+    prompt: string;
+    assetType: AssetType;
+    platformHint: PlatformHint;
+    knowledgeContextType: KnowledgeContextType;
+    knowledgeContextId?: string;
+    customContext?: string;
+    campaignId?: string;
+    contentAssetId?: string;
+    width?: number;
+    height?: number;
+    style?: string;
   }) => d)
   .handler(async ({ data, context }): Promise<ImageAsset> => {
-    const { workspaceId } = context;
-    const input = data.data;
+    const workspaceId = requireWorkspaceId(context.workspaceId);
+    const input = data;
     const sb = supabaseAdmin as any;
 
     const resolved = await resolveImageProvider(workspaceId);
@@ -249,10 +247,10 @@ export const generateImageAsset = createServerFn({ method: "POST" })
 
 export const editImageAsset = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((d: { data: { assetId: string; editInstruction: string } }) => d)
+  .validator((d: { assetId: string; editInstruction: string }) => d)
   .handler(async ({ data, context }): Promise<ImageAsset> => {
-    const { workspaceId } = context;
-    const { assetId, editInstruction } = data.data;
+    const workspaceId = requireWorkspaceId(context.workspaceId);
+    const { assetId, editInstruction } = data;
     const sb = supabaseAdmin as any;
 
     const { data: original } = await sb
@@ -306,10 +304,10 @@ export const editImageAsset = createServerFn({ method: "POST" })
 
 export const createImageVariation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((d: { data: { assetId: string; variationHint?: string } }) => d)
+  .validator((d: { assetId: string; variationHint?: string }) => d)
   .handler(async ({ data, context }): Promise<ImageAsset> => {
-    const { workspaceId } = context;
-    const { assetId, variationHint } = data.data;
+    const workspaceId = requireWorkspaceId(context.workspaceId);
+    const { assetId, variationHint } = data;
     const sb = supabaseAdmin as any;
 
     const { data: original } = await sb
@@ -364,19 +362,17 @@ export const createImageVariation = createServerFn({ method: "POST" })
 export const listImageAssets = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((d: {
-    data: {
-      campaignId?: string;
-      contentAssetId?: string;
-      assetType?: AssetType;
-      platformHint?: PlatformHint;
-      provider?: string;
-      limit?: number;
-      offset?: number;
-    };
+    campaignId?: string;
+    contentAssetId?: string;
+    assetType?: AssetType;
+    platformHint?: PlatformHint;
+    provider?: string;
+    limit?: number;
+    offset?: number;
   }) => d)
   .handler(async ({ data, context }): Promise<{ assets: ImageAsset[]; total: number }> => {
-    const { workspaceId } = context;
-    const input = data.data;
+    const workspaceId = requireWorkspaceId(context.workspaceId);
+    const input = data;
     const sb = supabaseAdmin as any;
 
     let q = sb
@@ -400,10 +396,10 @@ export const listImageAssets = createServerFn({ method: "POST" })
 
 export const attachImageToCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((d: { data: { assetId: string; campaignDraftId: string } }) => d)
+  .validator((d: { assetId: string; campaignDraftId: string }) => d)
   .handler(async ({ data, context }): Promise<{ ok: boolean }> => {
-    const { workspaceId } = context;
-    const { assetId, campaignDraftId } = data.data;
+    const workspaceId = requireWorkspaceId(context.workspaceId);
+    const { assetId, campaignDraftId } = data;
     const sb = supabaseAdmin as any;
 
     await sb
@@ -434,10 +430,10 @@ export const attachImageToCampaign = createServerFn({ method: "POST" })
 
 export const attachImageToContent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((d: { data: { assetId: string; contentCalendarId: string } }) => d)
+  .validator((d: { assetId: string; contentCalendarId: string }) => d)
   .handler(async ({ data, context }): Promise<{ ok: boolean }> => {
-    const { workspaceId } = context;
-    const { assetId, contentCalendarId } = data.data;
+    const workspaceId = requireWorkspaceId(context.workspaceId);
+    const { assetId, contentCalendarId } = data;
     const sb = supabaseAdmin as any;
 
     await sb
@@ -457,14 +453,14 @@ export const attachImageToContent = createServerFn({ method: "POST" })
 
 export const deleteImageAsset = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((d: { data: { assetId: string } }) => d)
+  .validator((d: { assetId: string }) => d)
   .handler(async ({ data, context }): Promise<{ ok: boolean }> => {
-    const { workspaceId } = context;
+    const workspaceId = requireWorkspaceId(context.workspaceId);
     const sb = supabaseAdmin as any;
     await sb
       .from("growthmind_image_assets")
       .update({ status: "deleted", updated_at: new Date().toISOString() })
-      .eq("id", data.data.assetId)
+      .eq("id", data.assetId)
       .eq("workspace_id", workspaceId);
     return { ok: true };
   });

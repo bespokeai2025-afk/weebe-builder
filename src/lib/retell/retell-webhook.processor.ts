@@ -199,36 +199,17 @@ export function getRetellWebhookDebugSnapshot(): RetellWebhookDebugSnapshot {
   return retellWebhookDebugSnapshot;
 }
 
+/**
+ * Kept in memory only. This used to insert a `debug_snapshot` row into retell_webhook_events on
+ * every webhook hit (OPTIONS and GET included) — over half a million rows nobody read except the
+ * latest one, which the in-memory copy already answers for this process.
+ */
 export async function saveRetellWebhookDebugSnapshot(snapshot: RetellWebhookDebugSnapshot) {
   updateRetellWebhookDebugSnapshot(snapshot);
-  try {
-    await supabaseAdmin.from("retell_webhook_events").insert({
-      event_type: "debug_snapshot",
-      signature_valid: null,
-      processing_status: "debug",
-      payload: snapshot as never,
-      processed_at: new Date().toISOString(),
-    } as never);
-  } catch (error) {
-    console.error("[RETELL WEBHOOK] Debug snapshot save failed", error);
-  }
 }
 
 export async function getDurableRetellWebhookDebugSnapshot(): Promise<RetellWebhookDebugSnapshot> {
-  try {
-    const { data, error } = await supabaseAdmin
-      .from("retell_webhook_events")
-      .select("payload")
-      .eq("event_type", "debug_snapshot")
-      .order("received_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (error || !data?.payload) return retellWebhookDebugSnapshot;
-    return data.payload as RetellWebhookDebugSnapshot;
-  } catch (error) {
-    console.error("[RETELL WEBHOOK] Debug snapshot lookup failed", error);
-    return retellWebhookDebugSnapshot;
-  }
+  return retellWebhookDebugSnapshot;
 }
 
 function safeCompareHex(aHex: string, bHex: string): boolean {
@@ -391,6 +372,25 @@ async function updateWebhookEvent(id: string | null, status: string, error?: str
   }
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function findAgentForWebhook(incomingAgentId: string) {
+  const id = incomingAgentId.trim();
+  if (!id || /[,()"\\]/.test(id)) return null;
+  const clauses = [
+    `retell_agent_id.eq.${id}`,
+    `retell_agent_id.eq.agents/${id}`,
+    `settings->>deployedRetellAgentId.eq.${id}`,
+  ];
+  if (UUID_RE.test(id)) clauses.unshift(`id.eq.${id}`);
+  const { data } = await supabaseAdmin
+    .from("agents")
+    .select("id, workspace_id, name, agent_type, retell_agent_id, settings")
+    .or(clauses.join(","))
+    .limit(1);
+  return data?.[0] ?? null;
+}
+
 async function resolveAgent(incomingAgentId: string, forcedWorkspaceId?: string) {
   if (forcedWorkspaceId) {
     const { data: agent } = await supabaseAdmin
@@ -410,21 +410,11 @@ async function resolveAgent(incomingAgentId: string, forcedWorkspaceId?: string)
     };
   }
 
-  const { data: agentMatches } = await supabaseAdmin
-    .from("agents")
-    .select("id, workspace_id, name, agent_type, retell_agent_id, settings");
-  const matched = (agentMatches ?? []).find((agent) => {
-    const s = (agent.settings ?? {}) as Record<string, unknown>;
-    // Match either the builder draft ID or the deployed clone ID stored in
-    // settings. The third case is the native engine, which has no Retell agent
-    // and identifies itself with the agent's own UUID; Retell ids are always
-    // `agent_<hex>`, so the two namespaces cannot collide.
-    return (
-      (agent.id as string) === incomingAgentId ||
-      stripPrefix((agent.retell_agent_id as string) ?? "") === incomingAgentId ||
-      (s.deployedRetellAgentId as string | undefined) === incomingAgentId
-    );
-  });
+  // Match either the builder draft ID or the deployed clone ID stored in settings. The third case
+  // is the native engine, which has no Retell agent and identifies itself with the agent's own
+  // UUID; Retell ids are always `agent_<hex>`, so the namespaces cannot collide. This used to load
+  // every agent (settings included) on every webhook event and match in JS.
+  const matched = await findAgentForWebhook(incomingAgentId);
   if (matched) {
     const s = (matched.settings ?? {}) as Record<string, unknown>;
     return {
@@ -1104,9 +1094,10 @@ export async function processRetellWebhook(
   }
 
   // ── No-answer / unanswered outbound lead status ───────────────────────────
-  // When a qualification call goes unanswered, set the lead to "no_answer" so
+  // When a qualification call goes unanswered, set the lead to "not_connected" so
   // the UI can display it clearly. The call_analyzed handler below will then
-  // reset it to "need_to_call" so it stays in the retry queue.
+  // reset it to "need_to_call" so it stays in the retry queue. ("no_answer" is
+  // not a lead_status value — writing it failed silently.)
   if (
     leadId &&
     callType === "outbound" &&
@@ -1117,9 +1108,9 @@ export async function processRetellWebhook(
   ) {
     await supabaseAdmin
       .from("leads")
-      .update({ status: "no_answer", updated_at: new Date().toISOString() })
+      .update({ status: "not_connected", updated_at: new Date().toISOString() })
       .eq("id", leadId);
-    console.log("[RETELL WEBHOOK] Lead marked no_answer", {
+    console.log("[RETELL WEBHOOK] Lead marked not_connected", {
       leadId,
       callStatus: call.call_status,
       disconnection: call.disconnection_reason,
@@ -1424,7 +1415,7 @@ export async function processRetellWebhook(
   ) {
     try {
       // No-answer / voicemail: skip AI analysis and reset lead back to need_to_call
-      // so it stays in the retry queue. The brief "no_answer" status set by the
+      // so it stays in the retry queue. The brief "not_connected" status set by the
       // call_ended handler above gives the UI a chance to show the outcome.
       if (isNoAnswerCall) {
         if (leadId) {

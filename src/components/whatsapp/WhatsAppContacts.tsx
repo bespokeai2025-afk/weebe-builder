@@ -126,6 +126,8 @@ type WaContactRow = {
     read_count?: number;
     failed_count?: number;
   };
+  /** Messaged on the current WhatsApp number (see countsAsAlreadyMessaged). */
+  already_messaged?: boolean;
 };
 
 function outboundStatusBadgeClass(status: string | null | undefined): string {
@@ -426,7 +428,8 @@ export function WhatsAppContacts() {
     staleTime: 60_000,
     throwOnError: false,
   });
-  const contacts = (contactsPayload?.contacts ?? []) as WaContactRow[];
+  // Rows are untyped contact rows plus wa_stats / already_messaged from the server.
+  const contacts = (contactsPayload?.contacts ?? []) as unknown as WaContactRow[];
   const summary = contactsPayload?.summary ?? {
     total: contacts.length,
     messaged: 0,

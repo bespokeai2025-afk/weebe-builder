@@ -4,7 +4,7 @@
 
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireSupabaseAuth, requireWorkspaceId } from "@/integrations/supabase/auth-middleware";
 
 async function gate(context: any, mode: "view" | "edit" | "approval") {
   const { requireSystemMindView, requireSystemMindEdit, requireSystemMindApproval } =
@@ -14,9 +14,9 @@ async function gate(context: any, mode: "view" | "edit" | "approval") {
   else await requireSystemMindView(context.workspaceId, context.userId);
 }
 
-async function noWbah(workspaceId: string) {
+async function noWbah(workspaceId: string | undefined) {
   const { assertNotWbahWorkspace } = await import("@/lib/wbah-exclusion.shared");
-  assertNotWbahWorkspace(workspaceId);
+  assertNotWbahWorkspace(requireWorkspaceId(workspaceId));
 }
 
 // ── Wizard status ─────────────────────────────────────────────────────────────
@@ -30,7 +30,7 @@ export const getWizardStatusFn = createServerFn({ method: "POST" })
     await noWbah(context.workspaceId);
     const { computeWizardStatus } = await import("@/lib/systemmind/call-runtime/setup-wizard.server");
     return computeWizardStatus({
-      workspaceId: context.workspaceId,
+      workspaceId: requireWorkspaceId(context.workspaceId),
       agentId: data.agentId ?? null,
       activationId: data.activationId ?? null,
     });
@@ -67,7 +67,7 @@ export const getOrCreateDraftActivationFn = createServerFn({ method: "POST" })
     await gate(context, "edit");
     const { getOrCreateDraftActivationServer } = await import("@/lib/systemmind/call-runtime/setup-wizard.server");
     return getOrCreateDraftActivationServer({
-      workspaceId: context.workspaceId,
+      workspaceId: requireWorkspaceId(context.workspaceId),
       userId: context.userId ?? null,
       agentId: data.agentId,
       name: data.name,
@@ -99,7 +99,7 @@ export const runWorkflowTestsFn = createServerFn({ method: "POST" })
     await gate(context, "edit");
     const { runWorkflowTestsServer } = await import("@/lib/systemmind/call-runtime/setup-wizard.server");
     return runWorkflowTestsServer({
-      workspaceId: context.workspaceId,
+      workspaceId: requireWorkspaceId(context.workspaceId),
       userId: context.userId ?? null,
       activationId: data.activationId,
     });
@@ -114,7 +114,7 @@ export const activateWorkflowFn = createServerFn({ method: "POST" })
     await gate(context, "approval");
     const { activateWorkflowServer } = await import("@/lib/systemmind/call-runtime/setup-wizard.server");
     return activateWorkflowServer({
-      workspaceId: context.workspaceId,
+      workspaceId: requireWorkspaceId(context.workspaceId),
       userId: context.userId ?? null,
       activationId: data.activationId,
       adminOverride: data.overrideReason ? { reason: data.overrideReason } : undefined,
@@ -130,7 +130,7 @@ export const setWorkflowStateFn = createServerFn({ method: "POST" })
     await gate(context, "approval");
     const { setWorkflowStateServer } = await import("@/lib/systemmind/call-runtime/setup-wizard.server");
     return setWorkflowStateServer({
-      workspaceId: context.workspaceId,
+      workspaceId: requireWorkspaceId(context.workspaceId),
       userId: context.userId ?? null,
       activationId: data.activationId,
       action: data.action,
@@ -144,7 +144,7 @@ export const getWorkflowHealthFn = createServerFn({ method: "POST" })
     await gate(context, "view");
     await noWbah(context.workspaceId);
     const { getWorkflowHealthServer } = await import("@/lib/systemmind/call-runtime/setup-wizard.server");
-    return getWorkflowHealthServer({ workspaceId: context.workspaceId, activationId: data.activationId });
+    return getWorkflowHealthServer({ workspaceId: requireWorkspaceId(context.workspaceId), activationId: data.activationId });
   });
 
 // ── Triggers CRUD (wizard step 10) ───────────────────────────────────────────
@@ -178,7 +178,7 @@ export const saveCallTriggerFn = createServerFn({ method: "POST" })
     await noWbah(context.workspaceId);
     const { saveCallTriggerServer } = await import("@/lib/systemmind/call-runtime/triggers.server");
     return saveCallTriggerServer({
-      workspaceId: context.workspaceId,
+      workspaceId: requireWorkspaceId(context.workspaceId),
       userId: context.userId ?? null,
       ...data,
       name: data.name ?? `${data.triggerType.replace(/_/g, " ")} trigger`,
@@ -194,7 +194,7 @@ export const setTriggerEnabledFn = createServerFn({ method: "POST" })
     await gate(context, "approval");
     await noWbah(context.workspaceId);
     const { setTriggerEnabledServer } = await import("@/lib/systemmind/call-runtime/triggers.server");
-    return setTriggerEnabledServer({ workspaceId: context.workspaceId, id: data.id, enabled: data.enabled });
+    return setTriggerEnabledServer({ workspaceId: requireWorkspaceId(context.workspaceId), id: data.id, enabled: data.enabled });
   });
 
 export const listCallTriggersFn = createServerFn({ method: "POST" })
@@ -247,7 +247,7 @@ export const controlQueueEntryFn = createServerFn({ method: "POST" })
     await gate(context, "approval");
     await noWbah(context.workspaceId);
     const { controlQueueEntryServer } = await import("@/lib/systemmind/call-runtime/queue.server");
-    return controlQueueEntryServer({ workspaceId: context.workspaceId, queueId: data.id, action: data.action });
+    return controlQueueEntryServer({ workspaceId: requireWorkspaceId(context.workspaceId), queueId: data.id, action: data.action });
   });
 
 export const listWorkflowExecutionsFn = createServerFn({ method: "POST" })

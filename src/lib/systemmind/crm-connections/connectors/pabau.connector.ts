@@ -106,8 +106,8 @@ export function buildPabauConnector(creds: Record<string, string>): CrmConnector
         step(
           "write",
           "Booking readiness",
-          apptRead && servicesRead,
-          apptRead && servicesRead
+          Boolean(apptRead && servicesRead),
+          Boolean(apptRead && servicesRead)
             ? "Appointments + services readable — ready for /appointments/create when Retell tools are wired."
             : "Enable Appointments (read/write) and Services (read) on the API key for live booking.",
           !(apptRead && servicesRead),

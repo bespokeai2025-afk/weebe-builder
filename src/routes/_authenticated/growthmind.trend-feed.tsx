@@ -74,7 +74,7 @@ function TrendFeedPage() {
     throwOnError: false,
   });
 
-  const items    = data?.items ?? [];
+  const items    = data?.items ?? ([] as NonNullable<typeof data>["items"]);
   const settings = data?.settings;
 
   const [dailyLimit, setDailyLimit] = useState<string>("");

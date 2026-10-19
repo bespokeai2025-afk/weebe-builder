@@ -7,7 +7,7 @@ import { ConversationVm } from "@/lib/voice/graph/vm";
 import { tryHeuristicEdgeIndex } from "@/lib/voice/graph/router";
 
 const templateLibrary = JSON.parse(
-  readFileSync("attached_assets/global_templates_1780815063937.json", "utf8"),
+  readFileSync("tests/fixtures/global_templates.json", "utf8"),
 ) as Array<{
   name?: string;
   settings: Record<string, unknown>;

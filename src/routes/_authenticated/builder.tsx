@@ -23,7 +23,7 @@ import { restartTour } from "@/components/onboarding/useOnboarding";
 import { useRelativeTime } from "@/lib/use-relative-time";
 
 export const Route = createFileRoute("/_authenticated/builder")({
-  validateSearch: (search: Record<string, unknown>) => ({
+  validateSearch: (search: Record<string, unknown>): { new?: "1" } => ({
     new: search.new === "1" || search.new === 1 ? ("1" as const) : undefined,
   }),
   head: () => ({
@@ -204,7 +204,7 @@ function BuilderPage() {
         {channelType === "whatsapp" ? (
           <Button
             size="sm"
-            onClick={handleSave}
+            onClick={() => void handleSave()}
             disabled={saving}
             title="Save & activate on WhatsApp (⌘S)"
             className="!h-8 gap-1.5 px-3 text-[11px] font-semibold bg-green-600 hover:bg-green-500 text-white border-0"
@@ -220,7 +220,7 @@ function BuilderPage() {
           <Button
             size="sm"
             variant="ghost"
-            onClick={handleSave}
+            onClick={() => void handleSave()}
             disabled={saving}
             title="Save agent (⌘S)"
             className={cn(

@@ -17,11 +17,16 @@ export function DashboardPage({ children, className }: { children: React.ReactNo
   );
 }
 
-/** Sticky left columns for wide WBAH tables (layout-only) */
+/**
+ * Sticky left columns for wide WBAH tables (layout-only).
+ * Opaque backgrounds, no backdrop-blur: a blur on every sticky cell (4 per row × 100 rows) made
+ * Chrome smear and flicker while scrolling, and the semi-transparent fill let scrolled columns
+ * show through. The hover colour matches the row hover (muted/40 light, white/2% dark).
+ */
 export const stickyHead =
-  "sticky z-20 bg-card/95 backdrop-blur-sm after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-muted dark:bg-white/[0.08]";
+  "sticky z-20 bg-card after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-muted dark:after:bg-white/[0.08]";
 export const stickyCell =
-  "sticky z-10 bg-card/95 backdrop-blur-sm group-hover:bg-[#141a24] after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-muted dark:bg-white/[0.06]";
+  "sticky z-10 bg-card group-hover:bg-[color-mix(in_srgb,var(--muted)_40%,var(--card))] dark:group-hover:bg-[color-mix(in_srgb,white_2%,var(--card))] after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-muted dark:after:bg-white/[0.06]";
 
 export function PageHeader({
   title,

@@ -59,7 +59,7 @@ function RadioRow({
             {badge}
           </span>
         )}
-        {info && <Info className="h-3 w-3 text-muted-foreground" title={info} />}
+        {info && <span title={info} className="inline-flex"><Info className="h-3 w-3 text-muted-foreground" aria-hidden /></span>}
       </label>
     </div>
   );

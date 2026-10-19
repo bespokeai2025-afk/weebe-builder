@@ -990,7 +990,7 @@ export async function runGadsAnalysis(workspaceId: string, accountRowId: string)
       (l.meta && typeof l.meta === "object" && (l.meta.gclid || l.meta.gclsrc)));
     if (paidLeads.length >= 5) {
       const qualifiedStatuses = new Set(["interested", "qualified", "sale_done", "completed", "contact_made"]);
-      const campaignList = [...active.entries()].map(([cid, c]) => ({ id: cid, name: c.name }));
+      const campaignList = active.map(([cid, c]) => ({ id: cid, name: c.name }));
       const attribution = attributePaidLeadsToCampaigns(paidLeads as any, campaignList);
       for (const [id, c] of active) {
         if (c.spend < 30) continue;
