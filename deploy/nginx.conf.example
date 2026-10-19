@@ -3,29 +3,10 @@
 #
 #   sudo ln -s /etc/nginx/sites-available/webespoke /etc/nginx/sites-enabled/
 #   sudo nginx -t && sudo systemctl reload nginx
-#
-# Three processes (see deploy/*.service):
-#   web    127.0.0.1:3000         — website, API, server functions
-#   voice  127.0.0.1:3001 + 3011  — live-call WebSockets (two, so deploys never drop calls)
-#   jobs   127.0.0.1:3002         — pg_cron job endpoints
-# Before the voice/jobs services exist, everything still works through `webespoke_app`.
 
 upstream webespoke_app {
     server 127.0.0.1:3000;
     keepalive 32;
-}
-
-# A worker that is draining answers new calls with 503, and one that isn't holding a call answers
-# its warm-transfer callback with 404 — both make nginx try the other worker.
-upstream webespoke_voice {
-    server 127.0.0.1:3001 max_fails=0;
-    server 127.0.0.1:3011 max_fails=0;
-}
-
-# Jobs fall back to the web app if the jobs service is down.
-upstream webespoke_jobs {
-    server 127.0.0.1:3002;
-    server 127.0.0.1:3000 backup;
 }
 
 server {
@@ -47,42 +28,6 @@ server {
 
     client_max_body_size 25m;
 
-    # ── Live calls → voice workers ─────────────────────────────────────────────
-    location ~ ^/api/(hyperstream-relay|el-voice-relay|telephony/stream/|frejun/stream/) {
-        proxy_pass http://webespoke_voice;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_next_upstream error timeout http_503;
-        proxy_read_timeout 3600s;
-        proxy_send_timeout 3600s;
-    }
-
-    # Warm-transfer status lives in the worker running the call.
-    location ^~ /api/public/telephony/warm-transfer-status/ {
-        proxy_pass http://webespoke_voice;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_next_upstream error timeout http_404 non_idempotent;
-    }
-
-    # ── pg_cron job endpoints → jobs process ──────────────────────────────────
-    location ~ ^/api/public/(campaign-executor|video-job-poller|provider-health-sweep|stale-call-sweep|ads-sync)$ {
-        proxy_pass http://webespoke_jobs;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 300s;
-    }
-
-    # ── Everything else → web app ─────────────────────────────────────────────
     location / {
         proxy_pass http://webespoke_app;
         proxy_http_version 1.1;

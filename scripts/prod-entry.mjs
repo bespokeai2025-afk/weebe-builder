@@ -104,13 +104,7 @@ const staticAndCacheHeaders = async (req, next) => {
 //
 // A missing/stale bundle must never take the whole site down, so every failure
 // here is logged and swallowed — HTTP keeps serving without voice.
-// VOICE_GATEWAY_MODE=external: calls run in the separate voice worker (scripts/voice-entry.mjs),
-// so this web process doesn't mount the relays and a web restart never drops a call.
 const voiceGatewayPlugin = (srvxServer) => {
-  if (process.env.VOICE_GATEWAY_MODE === "external") {
-    console.log("[prod-entry] voice relays run in the voice worker (VOICE_GATEWAY_MODE=external)");
-    return;
-  }
   srvxServer
     .ready()
     .then(async (ready) => {

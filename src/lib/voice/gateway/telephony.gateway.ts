@@ -174,11 +174,6 @@ const pendingWarmTransfers = new Map<string, (answered: boolean) => void>();
 /** Twilio call-status events that mean the destination leg is settled, one way or the other. */
 const TERMINAL_CALL_STATUSES = new Set(["completed", "busy", "no-answer", "failed", "canceled"]);
 
-/** Whether this process is the one waiting on that call's warm transfer (see voice-entry.mjs). */
-export function hasPendingWarmTransfer(callId: string): boolean {
-  return pendingWarmTransfers.has(callId);
-}
-
 /** The `answered` webhook event on the destination leg's own `<Number>`-equivalent status callback. */
 export function resolveWarmTransferAnswered(callId: string): void {
   pendingWarmTransfers.get(callId)?.(true);

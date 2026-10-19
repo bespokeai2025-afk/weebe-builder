@@ -55,14 +55,6 @@ export function registerLocalHttpServer(server: HttpServer): void {
   else server.once("listening", read);
 }
 
-/**
- * Separate voice worker (scripts/voice-entry.mjs): the worker's own HTTP server has no app routes,
- * so lifecycle webhooks must go to the web app instead (e.g. http://127.0.0.1:3000).
- */
-export function registerAppBaseUrl(url: string): void {
-  localBaseUrl = url.replace(/\/$/, "");
-}
-
 /** Test seam. */
 export function setLocalBaseUrlForTests(url: string | null): void {
   localBaseUrl = url;
