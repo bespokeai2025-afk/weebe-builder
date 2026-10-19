@@ -11,7 +11,11 @@ try {
   // Fall back to the environment.
 }
 
-const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+// Same guard as scripts/prod-entry.mjs: these env vars have been saved with a non-URL value
+// before, and the app silently falls back to the project URL.
+const CANONICAL_SUPABASE_URL = "https://ugrsdmmztnfgeajhwhzy.supabase.co";
+const isSupabaseUrl = (v) => typeof v === "string" && /^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/.test(v.trim());
+const url = [process.env.SUPABASE_URL, process.env.VITE_SUPABASE_URL].find(isSupabaseUrl)?.trim() ?? CANONICAL_SUPABASE_URL;
 const key = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "").trim();
 const token = process.env.SUPABASE_ACCESS_TOKEN;
 if (!url || !key || !token) {
