@@ -575,6 +575,19 @@ function CallsPage() {
   });
   const wbahPageRows = (wbahPageQ.data?.rows ?? []) as any[];
   const wbahFilteredTotal = wbahPageQ.data?.total ?? 0;
+  // Showing the previous page while the next one loads.
+  const wbahPageLoading = isWbah && wbahPageQ.isFetching && wbahPageQ.isPlaceholderData;
+  // Prefetch the next page so "Next" is usually instant.
+  const qcCalls = useQueryClient();
+  useEffect(() => {
+    if (!isWbah || !wbahPageQ.data || wbahPageQ.isPlaceholderData) return;
+    if (wbahPage * wbahPageSize >= wbahFilteredTotal) return;
+    void qcCalls.prefetchQuery({
+      queryKey: ["wbah-calls-page", wbahFiltersKey, wbahPage + 1, wbahPageSize],
+      queryFn: () => wbahPageFn({ data: { page: wbahPage + 1, pageSize: wbahPageSize, filters: wbahFilters } }),
+      staleTime: 60_000,
+    });
+  }, [isWbah, wbahPageQ.data, wbahPageQ.isPlaceholderData, wbahPage, wbahPageSize, wbahFilteredTotal, wbahFiltersKey, wbahFilters, wbahPageFn, qcCalls]);
 
   const filteredRows = useMemo(() => {
     if (isWbah) return wbahPageRows;
@@ -972,7 +985,10 @@ function CallsPage() {
               </div>
             ) : isWbah ? (
               /* ── WeeBespoke calls table ──────────────────────────────────── */
-              <div className="overflow-x-auto">
+              <div
+                className={cn("overflow-x-auto transition-opacity", wbahPageLoading && "pointer-events-none opacity-50")}
+                aria-busy={wbahPageLoading}
+              >
                 <table className="w-full text-[11px]">
                   <thead>
                     <tr className="border-b border-border dark:border-white/[0.06] bg-card/30">
@@ -999,7 +1015,7 @@ function CallsPage() {
                       const callType = c.call_type === "inbound" ? "Inbound" : "Outbound";
                       return (
                         <tr key={c.id} className="group h-8 border-b border-border/60 dark:border-white/[0.04] last:border-0 align-middle hover:bg-muted/40 dark:hover:bg-white/[0.02] transition-colors">
-                          <td className={cn("px-2 py-0.5 text-[10px] text-muted-foreground tabular-nums", stickyCell, "left-0 w-9")}>{idx + 1}</td>
+                          <td className={cn("px-2 py-0.5 text-[10px] text-muted-foreground tabular-nums", stickyCell, "left-0 w-9")}>{(callsPag.page - 1) * callsPag.pageSize + idx + 1}</td>
                           <td className={cn("px-2 py-0.5", stickyCell, "left-9 w-10")} onClick={(e) => e.stopPropagation()}>
                             {phone
                               ? <a href={`tel:${phone}`} className="inline-flex rounded p-0.5 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"><Phone className="h-3 w-3" /></a>
@@ -1062,7 +1078,7 @@ function CallsPage() {
                     })}
                   </tbody>
                 </table>
-                <TablePagBar page={callsPag.page} pageSize={callsPag.pageSize} totalPages={callsPag.totalPages} total={callsPag.total} setPage={callsPag.setPage} changePageSize={callsPag.changePageSize} />
+                <TablePagBar page={callsPag.page} pageSize={callsPag.pageSize} totalPages={callsPag.totalPages} total={callsPag.total} setPage={callsPag.setPage} changePageSize={callsPag.changePageSize} loading={wbahPageLoading} />
               </div>
             ) : (
               /* ── Standard WEBEE calls table ──────────────────────────────── */
@@ -1081,7 +1097,7 @@ function CallsPage() {
                       <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Transcript</th>
                       <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">End Reason</th>
                       <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Last Called At</th>
-                      <th className="sticky right-0 bg-card/80 px-2 py-1 w-20 backdrop-blur-sm"></th>
+                      <th className="sticky right-0 bg-card px-2 py-1 w-20"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1160,7 +1176,7 @@ function CallsPage() {
                                 ? new Date(c.started_at).toLocaleString(undefined, { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
                                 : "Not called yet"}
                             </td>
-                            <td className="sticky right-0 bg-card/80 backdrop-blur-sm px-2 py-0.5" onClick={(e) => e.stopPropagation()}>
+                            <td className="sticky right-0 bg-card px-2 py-0.5" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-center gap-1">
                                 {isVmMode && callbackPhone && (
                                   <div className="relative group/callback">

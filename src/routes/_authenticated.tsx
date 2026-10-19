@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
+import { RouteProgressBar } from "@/components/RouteProgressBar";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -145,6 +146,7 @@ function AuthenticatedLayout() {
 
   return (
     <SidebarProvider defaultOpen={false}>
+      <RouteProgressBar />
       <div className="app-shell-root relative flex min-h-screen w-full min-w-0">
         {/* Dashboard depth: soft dotted grid that fades toward the bottom */}
         <div
