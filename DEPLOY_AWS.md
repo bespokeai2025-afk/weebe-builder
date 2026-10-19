@@ -171,6 +171,66 @@ Put **Nginx** or an ALB in front for TLS, and keep the process alive with
 
 ---
 
+## Separate processes on EC2: web, voice, jobs
+
+One Node process used to serve the website, run every live call and run the background jobs, so a
+web deploy or a crash dropped every call. They now run as three services from the same build:
+
+| Service | Port | What it runs |
+|---|---|---|
+| `webespoke` | 3000 | Website, API, server functions (`VOICE_GATEWAY_MODE=external`) |
+| `webespoke-voice@3001`, `@3011` | 3001, 3011 | Live-call WebSockets (`scripts/voice-entry.mjs`) |
+| `webespoke-jobs` | 3002 | pg_cron job endpoints |
+
+A web or jobs restart never touches a call. Voice workers restart only when voice code changed,
+one at a time: the stopping worker refuses new calls (nginx sends them to the other) and waits for
+its live calls to finish (up to 15 minutes).
+
+### One-time setup (on the EC2 host, in the app folder)
+
+```bash
+# 1. Install the units (edit User / WorkingDirectory first if yours differ)
+sudo cp deploy/webespoke-voice@.service deploy/webespoke-jobs.service /etc/systemd/system/
+sudo systemctl daemon-reload
+
+# 2. Start the voice workers and jobs process
+sudo systemctl enable --now webespoke-voice@3001 webespoke-voice@3011 webespoke-jobs
+curl -s http://127.0.0.1:3001/healthz && curl -s http://127.0.0.1:3011/healthz   # {"ok":true,...}
+
+# 3. Route traffic: merge the voice + jobs blocks from deploy/nginx.conf.example into your site
+sudo nginx -t && sudo systemctl reload nginx
+
+# 4. Stop running calls in the web process
+sudo systemctl edit webespoke        # add:  [Service]
+                                     #       Environment=VOICE_GATEWAY_MODE=external
+sudo systemctl restart webespoke
+```
+
+Do step 4 outside calling hours (it's the last restart that drops calls). Afterwards, place a
+test call, then `sudo systemctl restart webespoke` during it — the call should carry on.
+
+**Check your web unit's start command:** it must use `scripts/prod-entry.mjs`
+(`srvx serve --prod --entry scripts/prod-entry.mjs ...`). Starting `dist/server/server.js`
+directly skips the static-file caching and, before this change, the voice relays.
+
+### Rolling back
+
+```bash
+sudo systemctl edit webespoke        # remove the VOICE_GATEWAY_MODE line
+sudo systemctl restart webespoke     # calls run in the web process again
+sudo systemctl disable --now webespoke-voice@3001 webespoke-voice@3011 webespoke-jobs
+# and restore the previous nginx site config
+```
+
+### Logs
+
+```bash
+journalctl -u webespoke -f
+journalctl -u 'webespoke-voice@*' -f
+journalctl -u webespoke-jobs -f
+journalctl -u 'webespoke-voice-rollout-*'     # voice restarts during a deploy
+```
+
 ## Post-deploy checklist
 
 - [ ] App loads at your HTTPS URL; the **sign-in page** renders.

@@ -14,12 +14,20 @@ import type { Server as HttpServer } from "node:http";
 import type { Duplex } from "node:stream";
 import type { IncomingMessage } from "node:http";
 import { WebSocketServer } from "ws";
-import { registerLocalHttpServer } from "../lifecycle/webhook";
+import { registerAppBaseUrl, registerLocalHttpServer } from "../lifecycle/webhook";
 import { cascadeRoute } from "./cascade.gateway";
 import { frejunRoute } from "./frejun.gateway";
 import { hyperStreamRoute } from "./hyperstream.gateway";
 import { telephonyRoute } from "./telephony.gateway";
 import type { VoiceGatewayRoute } from "./types";
+
+// The voice worker (scripts/voice-entry.mjs) answers Twilio's warm-transfer status callback
+// itself, because the transfer waits on an in-memory promise in the process running the call.
+export {
+  hasPendingWarmTransfer,
+  resolveWarmTransferAnswered,
+  resolveWarmTransferSettled,
+} from "./telephony.gateway";
 
 export const VOICE_GATEWAY_ROUTES: VoiceGatewayRoute[] = [
   hyperStreamRoute,
@@ -31,6 +39,11 @@ export const VOICE_GATEWAY_ROUTES: VoiceGatewayRoute[] = [
 export interface MountOptions {
   /** Port the app is listening on, used to build the internal base URL. */
   port?: number;
+  /**
+   * The web app's base URL when the gateway runs in its own process (scripts/voice-entry.mjs).
+   * Lifecycle webhooks and tool lookups go there instead of back into this server.
+   */
+  appBaseUrl?: string;
   routes?: VoiceGatewayRoute[];
 }
 
@@ -64,7 +77,8 @@ export function installVoiceProcessGuards(): void {
 }
 
 /** Base URL for server-to-server calls back into this app. */
-function resolveInternalBase(port: number): string {
+function resolveInternalBase(port: number, appBaseUrl?: string): string {
+  if (appBaseUrl) return appBaseUrl.replace(/\/$/, "");
   if (process.env.PUBLIC_BASE_URL) return process.env.PUBLIC_BASE_URL;
   if (process.env.REPLIT_DEV_DOMAIN) return `https://${process.env.REPLIT_DEV_DOMAIN}`;
   return `http://localhost:${port}`;
@@ -109,7 +123,8 @@ export function mountVoiceGateways(
   // know which port to reach. Loopback beats the public hostname here: it cannot
   // be broken by proxy or TLS config, and in a sandbox the public name often does
   // not resolve from inside the box.
-  registerLocalHttpServer(httpServer);
+  if (options.appBaseUrl) registerAppBaseUrl(options.appBaseUrl);
+  else registerLocalHttpServer(httpServer);
 
   // One WebSocketServer for all routes: it only performs the handshake, so
   // there is no per-route state to keep separate.
@@ -142,7 +157,7 @@ export function mountVoiceGateways(
             route.onConnection(ws, {
               url,
               params,
-              internalBaseUrl: () => resolveInternalBase(port),
+              internalBaseUrl: () => resolveInternalBase(port, options.appBaseUrl),
             });
           } catch (err) {
             console.error(`[voice-gateway] ${route.name} connection error:`, err);

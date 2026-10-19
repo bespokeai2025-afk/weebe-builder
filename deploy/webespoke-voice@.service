@@ -1,0 +1,43 @@
+# Voice worker — live calls (HyperStream, cascade, Twilio, FreJun WebSockets), apart from the web app.
+# Template unit: the instance name is the port. Run two so one keeps taking calls while the other
+# drains during a deploy:
+#   sudo cp deploy/webespoke-voice@.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now webespoke-voice@3001 webespoke-voice@3011
+#
+# On stop it refuses new calls (503 → nginx uses the other instance) and waits for live calls to
+# end, up to VOICE_DRAIN_TIMEOUT_MS (15 min); TimeoutStopSec is a little longer than that.
+
+[Unit]
+Description=Webespoke AI — voice worker on port %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/var/www/html/webespoke
+Environment=NODE_ENV=production
+EnvironmentFile=/var/www/html/webespoke/.env
+Environment=VOICE_PORT=%i
+Environment=VOICE_APP_BASE_URL=http://127.0.0.1:3000
+Environment=VOICE_DRAIN_TIMEOUT_MS=900000
+ExecStart=/usr/bin/env node scripts/voice-entry.mjs
+KillSignal=SIGTERM
+KillMode=mixed
+TimeoutStopSec=960
+Restart=always
+RestartSec=3
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/www/html/webespoke
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+[Install]
+WantedBy=multi-user.target

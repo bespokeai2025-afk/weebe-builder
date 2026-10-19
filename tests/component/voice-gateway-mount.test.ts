@@ -142,3 +142,29 @@ describe("production relay route matching", () => {
     expect(byName.frejun.match("/api/frejun/stream")).toBeNull();
   });
 });
+
+describe("mountVoiceGateways in a separate voice worker (appBaseUrl)", () => {
+  it("sends lifecycle webhooks and tool lookups to the web app, not back to the worker", async () => {
+    const { resolveWebhookUrl } = await import("@/lib/voice/lifecycle/webhook");
+    const worker = createServer((_req, res) => res.end("worker"));
+    let internalBase = "";
+    const route: VoiceGatewayRoute = {
+      name: "probe",
+      match: (pathname) => (pathname === "/api/probe" ? {} : null),
+      onConnection: (ws, ctx) => {
+        internalBase = ctx.internalBaseUrl();
+        ws.close();
+      },
+    };
+    mountVoiceGateways(worker, { routes: [route], appBaseUrl: "http://127.0.0.1:3000/" });
+    const port = await listen(worker);
+    try {
+      const ws = new WebSocket(`ws://127.0.0.1:${port}/api/probe`);
+      await new Promise((resolve) => ws.once("close", resolve));
+      expect(internalBase).toBe("http://127.0.0.1:3000");
+      expect(resolveWebhookUrl()).toBe("http://127.0.0.1:3000/api/public/voice-webhook");
+    } finally {
+      await new Promise<void>((resolve) => worker.close(() => resolve()));
+    }
+  });
+});

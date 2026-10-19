@@ -1,13 +1,17 @@
+# Web app (website, API, server functions).
 # Install:
 #   sudo cp deploy/webespoke.service /etc/systemd/system/webespoke.service
 #   sudo systemctl daemon-reload
 #   sudo systemctl enable --now webespoke
 #
+# With the voice worker installed (deploy/webespoke-voice@.service), set
+# VOICE_GATEWAY_MODE=external so calls never run in this process — a web restart then never
+# drops a call. Without the worker, leave it unset and calls run here as before.
+#
 # Adjust User, Group, WorkingDirectory, and EnvironmentFile for your host.
 
 [Unit]
-Description=Webespoke AI Builder (TanStack Start)
-Documentation=https://github.com/your-org/webespoke
+Description=Webespoke AI — web app
 After=network-online.target
 Wants=network-online.target
 
@@ -18,7 +22,9 @@ Group=ubuntu
 WorkingDirectory=/var/www/html/webespoke
 Environment=NODE_ENV=production
 EnvironmentFile=/var/www/html/webespoke/.env
-ExecStart=/var/www/html/webespoke/node_modules/.bin/srvx serve --prod --entry dist/server/server.js --static dist/client --host 127.0.0.1 --port 3000
+# Uncomment once the voice worker is running:
+# Environment=VOICE_GATEWAY_MODE=external
+ExecStart=/var/www/html/webespoke/node_modules/.bin/srvx serve --prod --entry scripts/prod-entry.mjs --host 127.0.0.1 --port 3000
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=30
