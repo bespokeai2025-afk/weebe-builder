@@ -45,7 +45,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { listWbahCallsPage, getWbahCallsSummary, getWbahCallDetail, getWbahContactCallHistory } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { listWbahCallsPage, getWbahCallsSummary, refreshWbahCallsLive, getWbahCallDetail, getWbahContactCallHistory } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { buildWbahAgentColorMap } from "@/lib/dashboard/wbah-agent-colors";
 import { CallDetailSheet, type CallDetailRow } from "@/components/calls/CallDetailSheet";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
@@ -342,20 +342,72 @@ function CallsPage() {
     retry:                0,
   });
 
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [callTypeFilter, setCallTypeFilter] = useState("");
+  const [sentimentFilter, setSentimentFilter] = useState("");
+  const [wbahAgentFilter, setWbahAgentFilter] = useState("all");
+  const [agentFilter, setAgentFilter] = useState("all");
+  const workspaceAgents = useWorkspaceAgentOptions();
+  const selectedAgent = agentFilter !== "all" ? workspaceAgents.find((a) => a.id === agentFilter) ?? null : null;
+
+  // ── WBAH: the same filters, applied in the database ──────────────────────────
+  const [wbahPage, setWbahPage] = useState(1);
+  const [wbahPageSize, setWbahPageSize] = useState<PageSize>(25);
+  const [wbahSearch, setWbahSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setWbahSearch(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+  const wbahFilters = useMemo(
+    () => ({
+      voicemail: voicemailFilter,
+      search: wbahSearch || undefined,
+      status: statusFilter || undefined,
+      callType: callTypeFilter || undefined,
+      sentiment: sentimentFilter || undefined,
+      agentName: wbahAgentFilter !== "all" ? wbahAgentFilter : undefined,
+      minDuration: durationFilter ? parseInt(durationFilter, 10) || undefined : undefined,
+      outcome: (outcomeFilter || undefined) as "" | "successful" | "unsuccessful" | undefined,
+      ...effectiveDateRange,
+    }),
+    [voicemailFilter, wbahSearch, statusFilter, callTypeFilter, sentimentFilter, wbahAgentFilter, durationFilter, outcomeFilter, effectiveDateRange],
+  );
+  const wbahFiltersKey = JSON.stringify(wbahFilters);
+
   // WeeBespoke calls — filtered, counted and paged in the database (wbah_calls_page /
-  // wbah_calls_summary); the browser only receives the current page. The summary call also
-  // pulls the newest calls from WeeBespoke on open (incremental + throttled server-side).
+  // wbah_calls_summary); the browser only receives the current page. The KPI cards use the same
+  // filters as the table.
   const wbahSummaryFn = useServerFn(getWbahCallsSummary);
   const wbahSummaryQ = useQuery({
-    queryKey: ["wbah-calls-summary", voicemailFilter],
-    queryFn: () => wbahSummaryFn({ data: { voicemail: voicemailFilter } }),
+    queryKey: ["wbah-calls-summary", wbahFiltersKey],
+    queryFn: () => wbahSummaryFn({ data: { filters: wbahFilters } }),
     enabled: isWbah,
-    staleTime: 180_000,
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
     refetchOnWindowFocus: false,
     retry: 0,
     throwOnError: false,
   });
   const wbahSummary = wbahSummaryQ.data;
+
+  // Pull the newest calls from WeeBespoke once per visit, then refresh the table and cards.
+  const wbahLiveFn = useServerFn(refreshWbahCallsLive);
+  const wbahLiveQ = useQuery({
+    queryKey: ["wbah-calls-live-refresh"],
+    queryFn: () => wbahLiveFn(),
+    enabled: isWbah,
+    staleTime: 3 * 60_000,
+    refetchOnWindowFocus: false,
+    retry: 0,
+    throwOnError: false,
+  });
+  const qcLive = useQueryClient();
+  useEffect(() => {
+    if (!wbahLiveQ.dataUpdatedAt) return;
+    void qcLive.invalidateQueries({ queryKey: ["wbah-calls-summary"] });
+    void qcLive.invalidateQueries({ queryKey: ["wbah-calls-page"] });
+  }, [wbahLiveQ.dataUpdatedAt, qcLive]);
 
   // Auto-reload on stale server-fn ID error. Timestamp guard: max once per 20s.
   useEffect(() => {
@@ -523,38 +575,6 @@ function CallsPage() {
       setWbahTranscript({ text: "Failed to load transcript.", name, summary: inlineSummary });
     }
   }
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [callTypeFilter, setCallTypeFilter] = useState("");
-  const [sentimentFilter, setSentimentFilter] = useState("");
-  const [wbahAgentFilter, setWbahAgentFilter] = useState("all");
-  const [agentFilter, setAgentFilter] = useState("all");
-  const workspaceAgents = useWorkspaceAgentOptions();
-  const selectedAgent = agentFilter !== "all" ? workspaceAgents.find((a) => a.id === agentFilter) ?? null : null;
-
-  // ── WBAH: the same filters, applied in the database ──────────────────────────
-  const [wbahPage, setWbahPage] = useState(1);
-  const [wbahPageSize, setWbahPageSize] = useState<PageSize>(25);
-  const [wbahSearch, setWbahSearch] = useState("");
-  useEffect(() => {
-    const t = setTimeout(() => setWbahSearch(search.trim()), 300);
-    return () => clearTimeout(t);
-  }, [search]);
-  const wbahFilters = useMemo(
-    () => ({
-      voicemail: voicemailFilter,
-      search: wbahSearch || undefined,
-      status: statusFilter || undefined,
-      callType: callTypeFilter || undefined,
-      sentiment: sentimentFilter || undefined,
-      agentName: wbahAgentFilter !== "all" ? wbahAgentFilter : undefined,
-      minDuration: durationFilter ? parseInt(durationFilter, 10) || undefined : undefined,
-      outcome: (outcomeFilter || undefined) as "" | "successful" | "unsuccessful" | undefined,
-      ...effectiveDateRange,
-    }),
-    [voicemailFilter, wbahSearch, statusFilter, callTypeFilter, sentimentFilter, wbahAgentFilter, durationFilter, outcomeFilter, effectiveDateRange],
-  );
-  const wbahFiltersKey = JSON.stringify(wbahFilters);
   useEffect(() => { setWbahPage(1); }, [wbahFiltersKey, wbahPageSize]);
   const wbahPageFn = useServerFn(listWbahCallsPage);
   const wbahPageQ = useQuery({
@@ -775,7 +795,7 @@ function CallsPage() {
             className="h-7 gap-1 px-2.5 text-xs"
             onClick={() => {
               if (tab === "live") {
-                if (isWbah) { void wbahSummaryQ.refetch(); void wbahPageQ.refetch(); }
+                if (isWbah) { void wbahLiveQ.refetch(); void wbahSummaryQ.refetch(); void wbahPageQ.refetch(); }
                 else void q.refetch();
               }
               else testQ.refetch();
@@ -962,7 +982,7 @@ function CallsPage() {
             )}
             {hasCallFilters && (
               <span className="text-[11px] text-muted-foreground">
-                {isWbah ? wbahFilteredTotal : filteredRows.length} of {totalCalls}
+                {isWbah ? `${wbahFilteredTotal.toLocaleString()} matching` : `${filteredRows.length} of ${totalCalls}`}
               </span>
             )}
           </div>
@@ -971,6 +991,12 @@ function CallsPage() {
           <div className="min-w-0 overflow-hidden rounded-xl border border-border dark:border-white/[0.06] bg-card/60">
             {isWbah && (wbahPageQ.isLoading || wbahSummaryQ.isLoading) ? (
               <LoadingProgress label="Loading calls" estimatedMs={9000} />
+            ) : isWbah && wbahFilteredTotal === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-10">
+                <Phone className="h-7 w-7 text-muted-foreground" />
+                <p className="text-sm font-medium">No calls match these filters</p>
+                <p className="text-xs text-muted-foreground">Widen the date range or clear a filter.</p>
+              </div>
             ) : totalCalls === 0 ? (
               <div className="flex flex-col items-center gap-2 py-10">
                 <Phone className="h-7 w-7 text-muted-foreground" />

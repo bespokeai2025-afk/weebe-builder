@@ -53,6 +53,7 @@ import { WBAH_WORKSPACE_ID, isPlatformAdmin, refreshWbahLiveData, requireWbahRet
 export {
   listWbahCallsPage,
   getWbahCallsSummary,
+  refreshWbahCallsLive,
   listWbahCallsCount,
   listWbahCallsPaged,
   getWbahContactCallHistory,

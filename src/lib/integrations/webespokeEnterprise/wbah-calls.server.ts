@@ -126,23 +126,16 @@ export const listWbahCallsPage = createServerFn({ method: "POST" })
     return { rows, total: Number(res?.total ?? 0), page: data.page, pageSize: data.pageSize };
   });
 
+// KPI cards for the Calls page — same filters as the table (see wbah_calls_summary).
 export const getWbahCallsSummary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator(z.object({ voicemail: z.enum(["exclude", "all", "only"]).default("exclude") }))
+  .validator(z.object({ filters: WbahCallsPageFilters.default({}) }))
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
-    // Same live refresh the old full-list read did on open (incremental, throttled).
-    void refreshWbahLiveData(workspaceId, { lightBackfill: true });
-    try {
-      const { refreshWbahAppointmentBackfill } = await import("./wbah-leads-sync-tick");
-      await refreshWbahAppointmentBackfill({ maxPages: 8 });
-    } catch (e: any) {
-      console.warn("[getWbahCallsSummary] appointment backfill:", e?.message ?? e);
-    }
     const { data: res, error } = await (supabase as any).rpc("wbah_calls_summary", {
       p_workspace_id: workspaceId,
-      p_voicemail: data.voicemail,
+      p_filters: data.filters,
     });
     if (error) throw new Error(error.message);
     return {
@@ -153,6 +146,23 @@ export const getWbahCallsSummary = createServerFn({ method: "POST" })
       agentNames: ((res?.agent_names ?? []) as string[]).filter(Boolean),
       bookedAgentNames: ((res?.booked_agent_names ?? []) as string[]).filter(Boolean),
     };
+  });
+
+// Pull the newest calls from WeeBespoke when the Calls page opens (incremental, throttled
+// server-side). Separate from the summary so changing a filter doesn't re-run it.
+export const refreshWbahCallsLive = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    void refreshWbahLiveData(workspaceId, { lightBackfill: true });
+    try {
+      const { refreshWbahAppointmentBackfill } = await import("./wbah-leads-sync-tick");
+      await refreshWbahAppointmentBackfill({ maxPages: 8 });
+    } catch (e: any) {
+      console.warn("[refreshWbahCallsLive] appointment backfill:", e?.message ?? e);
+    }
+    return { refreshedAt: new Date().toISOString() };
   });
 
 // Lightweight count for the Calls sub-tab badge — avoids downloading all
