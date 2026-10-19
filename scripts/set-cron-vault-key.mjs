@@ -18,8 +18,13 @@ if (!url || !key || !token) {
   console.error("Missing SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ACCESS_TOKEN");
   process.exit(1);
 }
-if (key.length < 100) {
-  console.error(`SUPABASE_SERVICE_ROLE_KEY looks wrong (${key.length} characters) — expected the long service_role key.`);
+// Either the legacy service_role JWT ("eyJ…", ~219 chars) or a new-format secret key
+// ("sb_secret_…", ~41 chars) — the app compares cron requests against whichever .env holds.
+const looksLikeKey = (key.startsWith("eyJ") && key.length > 100) || /^sb_secret_[A-Za-z0-9_-]{10,}$/.test(key);
+if (!looksLikeKey) {
+  console.error(
+    `SUPABASE_SERVICE_ROLE_KEY doesn't look like a service key (${key.length} characters, starts "${key.slice(0, 3)}…") — expected "eyJ…" or "sb_secret_…".`,
+  );
   process.exit(1);
 }
 
