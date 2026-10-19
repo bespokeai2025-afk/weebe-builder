@@ -183,7 +183,8 @@ export function buildWbahLeadCrmProfile(
     name ??
     (first || last ? [first, last].filter(Boolean).join(" ") : null);
 
-  const rows: Array<WbahLeadProfileField | null> = [
+  // Built with possibly-empty values; the filter at the end keeps only the filled ones.
+  const rows: Array<{ label: string; value: string | null | undefined } | null> = [
     displayName ? { label: "Name", value: displayName } : null,
     first ? { label: "First name", value: first } : null,
     last ? { label: "Last name", value: last } : null,
@@ -267,7 +268,7 @@ export function buildWbahLeadCrmProfile(
     },
   ];
 
-  return rows.filter((r): r is WbahLeadProfileField => Boolean(r?.value));
+  return rows.filter((r): r is WbahLeadProfileField => typeof r?.value === "string" && r.value !== "");
 }
 
 function formatProfileDurationMs(ms: unknown): string | null {
@@ -306,7 +307,8 @@ export function buildWbahLeadCallProfile(
   if (!call) return [];
   const src = call;
 
-  const rows: Array<WbahLeadProfileField | null> = [
+  // Built with possibly-empty values; the filter at the end keeps only the filled ones.
+  const rows: Array<{ label: string; value: string | null | undefined } | null> = [
     {
       label: "Agent",
       value: profilePick([src], "agentName", "AgentName", "agent_name"),
@@ -353,5 +355,5 @@ export function buildWbahLeadCallProfile(
     },
   ];
 
-  return rows.filter((r): r is WbahLeadProfileField => Boolean(r?.value));
+  return rows.filter((r): r is WbahLeadProfileField => typeof r?.value === "string" && r.value !== "");
 }

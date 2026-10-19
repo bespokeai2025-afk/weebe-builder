@@ -4,6 +4,7 @@
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
+import type { Json } from "@/integrations/supabase/types";
 // ── Types ──────────────────────────────────────────────────────────────────────
 export type WorkflowType =
   | "receptionist"
@@ -314,13 +315,14 @@ Produce a detailed, production-ready workflow with proper node types, transition
       description,
       workflow_type:             workflowType,
       status:                    "draft",
-      nodes,
-      edges,
-      variables,
-      tools,
+      // jsonb columns — plain JSON-shaped objects.
+      nodes:                     nodes as unknown as Json,
+      edges:                     edges as unknown as Json,
+      variables:                 variables as unknown as Json,
+      tools:                     tools as unknown as Json,
       required_integrations_json: requiredIntegrations,
-      missing_capabilities_json:  missingCapabilities,
-      validation_results_json:    validationResults,
+      missing_capabilities_json:  missingCapabilities as unknown as Json,
+      validation_results_json:    validationResults as unknown as Json,
       created_by:                userId,
       generated_by:              "systemmind_ai",
     })

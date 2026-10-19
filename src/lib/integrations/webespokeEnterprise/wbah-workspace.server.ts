@@ -46,6 +46,7 @@ import {
   type WbahLiveTransferSettingsState,
 } from "@/lib/integrations/webespokeEnterprise/wbah-campaign-sync.types";
 import { requirePageAccess } from "@/lib/permissions/permissions.server";
+import { jsonResult } from "@/lib/server-fn-json.shared";
 
 // ── Internal: require webuyanyhouse membership + get API token callbacks ───────
 
@@ -1252,7 +1253,7 @@ export const getWbahAgentsForCampaign = createServerFn({ method: "GET" })
 
 export const listWbahLeads = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(jsonResult(async ({ context }) => {
     // SECURITY: membership check MUST run before any data read (router or direct) —
     // engine-routed rows would otherwise leak to authenticated non-WBAH users (IDOR).
     await requireWbahView(context.userId, context.workspaceId);
@@ -1510,7 +1511,7 @@ export const listWbahLeads = createServerFn({ method: "GET" })
       return tb - ta;
     });
     return annotated;
-  });
+  }));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -1677,7 +1678,7 @@ function formatDurationMs(ms: number | null | undefined): string | null {
 
 export const listWbahCalls = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(jsonResult(async ({ context }) => {
     // SECURITY: membership check MUST run before any data read (router or direct) —
     // engine-routed rows would otherwise leak to authenticated non-WBAH users (IDOR).
     await requireWbahView(context.userId, context.workspaceId);
@@ -1904,7 +1905,7 @@ export const listWbahCalls = createServerFn({ method: "GET" })
       return tb - ta;
     });
     return calls;
-  });
+  }));
 
 // ── Latest 10 calls — page 1 of get-user-history — used for incremental polling ─
 
@@ -1928,7 +1929,7 @@ export const listWbahLatestCalls = createServerFn({ method: "GET" })
 
 export const listWbahCrmContacts = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(jsonResult(async ({ context }) => {
     // SECURITY: membership check MUST run before any data read (router or direct) —
     // engine-routed rows would otherwise leak to authenticated non-WBAH users (IDOR).
     await requireWbahView(context.userId, context.workspaceId);
@@ -1956,7 +1957,7 @@ export const listWbahCrmContacts = createServerFn({ method: "GET" })
       agentName: r.agentName ?? r.agent_name ?? null,
       createdAt: r.createdAt ?? r.created_at ?? null,
     }));
-  });
+  }));
 
 // ── All-call-data — GET /get-all-calldata (386 records, 8 pages) ──────────────
 //
@@ -2137,38 +2138,9 @@ function normaliseWbahCall(r: any, idx: number): Record<string, unknown> {
   };
 }
 
-// ── Read WBAH calls from DB (synced by wbah-calls-sync.plugin) ───────────────
-
-// Plain DB read of wbah_calls (paginated + shaped to the calls-table contract).
-// Kept OUTSIDE any cacheWrap so the "live" path can refresh THEN read without a
-// stale cached payload masking the just-upserted rows.
-// `lite` excludes the heavy transcript/call_summary fields so the full list
-// stays well under Upstash/browser limits (transcripts load on demand via
-// getWbahCallDetail). KPIs, filters and search do not need those fields.
-async function readWbahCallsRows(supabase: any, workspaceId: string, opts?: { lite?: boolean }) {
-  const sb = supabase as any;
-  const lite = opts?.lite ?? false;
-  const cols = lite
-    ? "id, customer_name, phone, agent_name, call_status, call_type, sentiment, duration_seconds, started_at, recording_url, disconnection_reason, end_reason, appointment_date, appointment_time, booking_status, calendly_booking_url, call_count, call_summary, transcript"
-    : "*";
-  // Supabase PostgREST caps rows at 1000 by default — paginate to fetch all.
-  const PAGE = 1000;
-  const allRows: any[] = [];
-  let from = 0;
-  while (true) {
-    const { data, error } = await sb
-      .from("wbah_calls")
-      .select(cols)
-      .eq("workspace_id", workspaceId)
-      .order("started_at", { ascending: false, nullsFirst: false })
-      .range(from, from + PAGE - 1);
-    if (error) throw new Error(error.message);
-    const rows = data ?? [];
-    allRows.push(...rows);
-    if (rows.length < PAGE) break;
-    from += PAGE;
-  }
-  const mapped = allRows.map((r: any) => ({
+/** One wbah_calls row → the Calls-table row shape (shared by the full list and the paged list). */
+function mapWbahCallRow(r: any, lite: boolean) {
+  return {
     id: r.id,
     agent_id: null,
     agent_name: r.agent_name,
@@ -2182,6 +2154,7 @@ async function readWbahCallsRows(supabase: any, workspaceId: string, opts?: { li
     // fetches it on demand. `hasTranscript` still drives the "View" button.
     transcript: lite ? null : r.transcript,
     hasTranscript:
+      r.has_transcript === true ||
       !!(r.transcript && String(r.transcript).trim()) ||
       (String(r.id).startsWith("call_") && r.call_status !== "ongoing"),
     call_summary: lite
@@ -2205,43 +2178,100 @@ async function readWbahCallsRows(supabase: any, workspaceId: string, opts?: { li
     calendly_booking_url: r.calendly_booking_url,
     end_reason: r.end_reason,
     call_count: r.call_count ?? 1,
-  }));
-  return enrichWbahCallRowsWithBookings(supabaseAdmin, workspaceId, mapped);
+  };
 }
 
-// NOTE: the full WBAH calls list is ~20MB (15k+ rows with transcripts) — far
-// over Upstash's 10MB request limit and against the "no full lists in Redis"
-// policy. Supabase is the source of truth and is read directly (indexed,
-// paginated). We do NOT cacheWrap the whole list.
-export const listWbahCallsFromDb = createServerFn({ method: "GET" })
+// ── Calls page: server-side pages + KPI summary ──────────────────────────────
+// The Calls page used to download every call (~138k rows) and filter / count / page in the
+// browser. wbah_calls_page() and wbah_calls_summary() (migration 20261017070000) do that in the
+// database; filter semantics match the old client-side code.
+
+const WbahCallsPageFilters = z.object({
+  voicemail: z.enum(["exclude", "all", "only"]).default("exclude"),
+  search: z.string().trim().max(120).optional(),
+  status: z.string().max(40).optional(),
+  callType: z.string().max(20).optional(),
+  sentiment: z.string().max(20).optional(),
+  agentName: z.string().max(200).optional(),
+  minDuration: z.coerce.number().int().min(0).max(86_400).optional(),
+  outcome: z.enum(["", "successful", "unsuccessful"]).optional(),
+  dateFrom: z.string().max(40).optional(),
+  dateTo: z.string().max(40).optional(),
+});
+export type WbahCallsPageFiltersInput = z.input<typeof WbahCallsPageFilters>;
+
+export const listWbahCallsPage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .validator(
+    z.object({
+      page: z.coerce.number().int().min(1).default(1),
+      pageSize: z.coerce.number().int().min(1).max(100).default(25),
+      filters: WbahCallsPageFilters.default({}),
+    }),
+  )
+  .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
-    return readWbahCallsRows(supabase, workspaceId);
+    const { data: res, error } = await (supabase as any).rpc("wbah_calls_page", {
+      p_workspace_id: workspaceId,
+      p_filters: data.filters,
+      p_limit: data.pageSize,
+      p_offset: (data.page - 1) * data.pageSize,
+    });
+    if (error) throw new Error(error.message);
+    const pageRows = ((res?.rows ?? []) as any[]).map((r) => mapWbahCallRow(r, true));
+
+    // Booking enrichment looks at the contact's other calls. On one page those may be missing,
+    // so pull the booking-relevant calls for the same phones and enrich them together.
+    const phones = [...new Set(pageRows.map((r) => r.phone).filter(Boolean))] as string[];
+    let siblings: any[] = [];
+    if (phones.length > 0) {
+      const { data: sib } = await (supabaseAdmin as any)
+        .from("wbah_calls")
+        .select(
+          "id, customer_name, phone, agent_name, call_status, call_type, sentiment, duration_seconds, started_at, recording_url, disconnection_reason, end_reason, appointment_date, appointment_time, booking_status, calendly_booking_url, call_count",
+        )
+        .eq("workspace_id", workspaceId)
+        .in("phone", phones)
+        .or("appointment_date.not.is.null,booking_status.not.is.null,calendly_booking_url.not.is.null")
+        .limit(500);
+      const pageIds = new Set(pageRows.map((r) => r.id));
+      siblings = ((sib ?? []) as any[]).filter((r) => !pageIds.has(r.id)).map((r) => mapWbahCallRow(r, true));
+    }
+    const enriched = await enrichWbahCallRowsWithBookings(supabaseAdmin, workspaceId, [...pageRows, ...siblings]);
+    const byId = new Map(enriched.map((r: any) => [r.id, r]));
+    const rows = pageRows.map((r) => byId.get(r.id) ?? r);
+
+    return { rows, total: Number(res?.total ?? 0), page: data.page, pageSize: data.pageSize };
   });
 
-// Live variant: pulls the newest calls from WeeBespoke on open (incremental,
-// stored-token, capped), upserts them, then reads the freshly-updated table
-// straight from Supabase. The incremental refresh has its own module-level
-// throttle; the full list is never cached in Redis (too large).
-export const listWbahCallsLive = createServerFn({ method: "GET" })
+export const getWbahCallsSummary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .validator(z.object({ voicemail: z.enum(["exclude", "all", "only"]).default("exclude") }))
+  .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
+    // Same live refresh the old full-list read did on open (incremental, throttled).
     void refreshWbahLiveData(workspaceId, { lightBackfill: true });
     try {
       const { refreshWbahAppointmentBackfill } = await import("./wbah-leads-sync-tick");
       await refreshWbahAppointmentBackfill({ maxPages: 8 });
     } catch (e: any) {
-      console.warn("[listWbahCallsLive] appointment backfill:", e?.message ?? e);
+      console.warn("[getWbahCallsSummary] appointment backfill:", e?.message ?? e);
     }
-    return cacheWrap(`webee:wbah-calls-live-lite:v4:${workspaceId}`, 120, async () => {
-      const rows = await readWbahCallsRows(supabase, workspaceId, { lite: true });
-      logWbahResponse("listWbahCallsLive", workspaceId, rows.length, rows);
-      return rows;
+    const { data: res, error } = await (supabase as any).rpc("wbah_calls_summary", {
+      p_workspace_id: workspaceId,
+      p_voicemail: data.voicemail,
     });
+    if (error) throw new Error(error.message);
+    return {
+      total: Number(res?.total ?? 0),
+      completed: Number(res?.completed ?? 0),
+      failed: Number(res?.failed ?? 0),
+      totalSec: Number(res?.total_sec ?? 0),
+      agentNames: ((res?.agent_names ?? []) as string[]).filter(Boolean),
+      bookedAgentNames: ((res?.booked_agent_names ?? []) as string[]).filter(Boolean),
+    };
   });
 
 // Lightweight count for the Calls sub-tab badge — avoids downloading all
@@ -2475,7 +2505,7 @@ export const getWbahContactCallHistory = createServerFn({ method: "POST" })
 export const getWbahCallDetail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator(z.object({ id: z.string().min(1) }))
-  .handler(async ({ context, data }) => {
+  .handler(jsonResult(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
     requireActiveWbahWorkspace(workspaceId);
@@ -2579,7 +2609,7 @@ export const getWbahCallDetail = createServerFn({ method: "POST" })
       postCall: Object.keys(postCall).length ? postCall : null,
       meta: row?.meta ?? null,
     };
-  });
+  }));
 
 // ── Retell helper — get WBAH workspace's Retell API key ───────────────────────
 
@@ -3377,7 +3407,7 @@ export const listWbahCategorizedLeads = createServerFn({ method: "POST" })
       search: z.string().optional(),
     }),
   )
-  .handler(async ({ data, context }) => {
+  .handler(jsonResult(async ({ data, context }) => {
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
     requireActiveWbahWorkspace(workspaceId);
@@ -3406,7 +3436,7 @@ export const listWbahCategorizedLeads = createServerFn({ method: "POST" })
       );
     }
     return { ...result, rows };
-  });
+  }));
 
 // ── Callback dashboard (UAT /call-output-data/callbacks/*) ────────────────────
 

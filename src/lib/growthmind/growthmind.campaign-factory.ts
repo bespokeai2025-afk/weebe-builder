@@ -1,7 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { formatDnaAsContext } from "./growthmind.business-dna";
+import { formatDnaAsContext, mapBusinessDnaRow } from "./growthmind.business-dna";
+import { jsonResult } from "@/lib/server-fn-json.shared";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -189,7 +190,7 @@ function mapRow(r: any): CampaignDraft {
 
 export const getCampaignDrafts = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(jsonResult(async ({ context }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
@@ -204,8 +205,8 @@ export const getCampaignDrafts = createServerFn({ method: "GET" })
       .order("created_at", { ascending: false });
 
     if (error && error.code !== "42P01") throw new Error(error.message);
-    return { drafts: (data ?? []).map(mapRow) };
-  });
+    return { drafts: ((data ?? []) as any[]).map(mapRow) };
+  }));
 
 export const generateCampaignDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -221,7 +222,7 @@ export const generateCampaignDraft = createServerFn({ method: "POST" })
       proposalContentPlan:  z.string().optional(),
     }).parse(data),
   )
-  .handler(async ({ context, data: input }) => {
+  .handler(jsonResult(async ({ context, data: input }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
@@ -258,29 +259,7 @@ export const generateCampaignDraft = createServerFn({ method: "POST" })
         averageDealValue: dna?.average_deal_value ?? null,
       };
 
-      const dnaContext = dna ? formatDnaAsContext({
-        id: dna.id, workspaceId,
-        companyName: dna.company_name ?? "", website: dna.website ?? "",
-        industry: dna.industry ?? "", products: dna.products ?? "",
-        services: dna.services ?? "", pricing: dna.pricing ?? "",
-        offers: dna.offers ?? "", locations: dna.locations ?? "",
-        idealCustomerProfiles: dna.ideal_customer_profiles ?? "",
-        targetMarkets: dna.target_markets ?? "",
-        uniqueSellingPoints: dna.unique_selling_points ?? "",
-        competitorsSummary: dna.competitors_summary ?? "",
-        revenueGoals: dna.revenue_goals ?? "",
-        monthlyMarketingBudget: dna.monthly_marketing_budget ?? null,
-        mainGrowthObjective: dna.main_growth_objective ?? "",
-        salesProcess: dna.sales_process ?? "",
-        averageDealValue: dna.average_deal_value ?? null,
-        profitMarginPct: dna.profit_margin_pct ?? null,
-        bestCustomers: dna.best_customers ?? "",
-        worstCustomers: dna.worst_customers ?? "",
-        caseStudies: dna.case_studies ?? "",
-        brandVoice: dna.brand_voice ?? "",
-        complianceNotes: dna.compliance_notes ?? "",
-        updatedAt: dna.updated_at ?? "",
-      }) : "## Business DNA\nNot yet configured.";
+      const dnaContext = dna ? formatDnaAsContext(mapBusinessDnaRow(dna)) : "## Business DNA\nNot yet configured.";
 
       const valuePoint = (valuePointRes.data as any)?.current_highest_value ?? null;
       const proposalContext = (input.proposalAudience || input.proposalChannels?.length || input.proposalContentPlan)
@@ -364,7 +343,7 @@ export const generateCampaignDraft = createServerFn({ method: "POST" })
       await logAudit(sb, workspaceId, input.campaignType, "error", Date.now() - t0, model, 0, 0, err.message);
       throw err;
     }
-  });
+  }));
 
 export const deleteCampaignDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

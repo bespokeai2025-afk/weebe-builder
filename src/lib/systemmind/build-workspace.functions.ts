@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requirePlatformAdmin } from "@/lib/auth/require-platform-admin";
+import { jsonResult } from "@/lib/server-fn-json.shared";
 
 function requireWorkspaceId(workspaceId: string | undefined): string {
   if (!workspaceId) throw new Error("No workspace selected — join or create a workspace first.");
@@ -453,7 +454,7 @@ export const getBuildTestCallState = createServerFn({ method: "GET" })
   .validator((input: unknown) =>
     z.object({ sessionId: z.string().uuid() }).parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(jsonResult(async ({ data, context }) => {
     {
       const { requireSystemMindView } = await import(
         "@/lib/systemmind/systemmind-access.server"
@@ -467,7 +468,7 @@ export const getBuildTestCallState = createServerFn({ method: "GET" })
       workspaceId: requireWorkspaceId(context.workspaceId),
       sessionId:   data.sessionId,
     });
-  });
+  }));
 
 export const listBuildTestCallCandidates = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])

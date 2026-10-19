@@ -10,6 +10,7 @@ import { timingSafeEqual } from "node:crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { CallState } from "@/lib/telephony/types";
 
+import type { Database } from "@/integrations/supabase/types";
 const FREJUN_WEBHOOK_SECRET = process.env.FREJUN_WEBHOOK_SECRET ?? "";
 
 function verifyFreJunSecret(request: Request): boolean {
@@ -89,7 +90,7 @@ export const Route = createFileRoute("/api/public/frejun/status")({
           return jsonOk({ ok: false, reason: "call not found" });
         }
 
-        const patch: Record<string, unknown> = {
+        const patch: Database["public"]["Tables"]["telephony_calls"]["Update"] = {
           status,
           updated_at: new Date().toISOString(),
         };

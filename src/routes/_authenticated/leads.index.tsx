@@ -135,7 +135,7 @@ import {
 import { wbahDateTimeOptions } from "@/lib/dashboard/wbah-timezone";
 
 export const Route = createFileRoute("/_authenticated/leads/")({
-  validateSearch: (search: Record<string, unknown>) => {
+  validateSearch: (search: Record<string, unknown>): { id?: string } => {
     const parsed = z.object({ id: z.string().uuid().optional() }).safeParse(search);
     return { id: parsed.success ? parsed.data.id : undefined };
   },

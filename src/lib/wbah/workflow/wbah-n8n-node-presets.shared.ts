@@ -34,6 +34,8 @@ export type WbahN8nNodeConfig = {
   expression?: string;
   /** WBAH HTTP body builder key (runtime uses native fn instead of inline IIFE). */
   wbahBodyBuilder?: string;
+  /** HTTP Request — GET / POST / PUT / PATCH / DELETE */
+  method?: string;
   url?: string;
   path?: string;
   authentication?: string;

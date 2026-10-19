@@ -8,6 +8,7 @@ import {
   isWbahPositiveOrNeutral,
 } from "@/lib/integrations/webespokeEnterprise/wbah-leads.server";
 
+import { getRequest } from "@tanstack/react-start/server";
 const HIVEMIND_PLATFORM_TTL = 5 * 60; // 5 minutes
 
 function hivemindPlatformKey(workspaceId: string) {
@@ -79,7 +80,7 @@ export const getHiveMindPlatformData = createServerFn({ method: "GET" })
     const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
     await requirePageAccessEntitled(workspaceId, userId, "hivemind", "view");
 
-    const url = context.request?.url ?? "";
+    const url = getRequest()?.url ?? "";
     const bust = process.env.NODE_ENV !== "production" && new URL(url, "http://x").searchParams.has("bust");
 
     return cacheWrap(

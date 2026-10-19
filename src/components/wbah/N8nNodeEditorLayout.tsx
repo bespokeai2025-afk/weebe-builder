@@ -78,7 +78,7 @@ export function N8nNodeEditorLayout({
           side="input"
           data={inputData}
           editable
-          onPinDataChange={(pin) => onUpdate({ config: { pinData: pin } })}
+          onPinDataChange={(pin) => onUpdate({ config: { pinData: pin as WbahN8nNodeConfig["pinData"] } })}
           emptyLabel="No input data yet. Pin test JSON in Form/JSON view, or run upstream nodes."
         />
       </div>
@@ -203,7 +203,7 @@ export function N8nNodeEditorLayout({
                 <code className="text-[10px] text-sky-300 break-all block">{impl.file}</code>
               </div>
             ) : null}
-            {(kind === "code" || config.code || config.codeHint) && (
+            {(kind === "code" || Boolean(config.code) || Boolean(config.codeHint)) && (
               <div className="space-y-1">
                 <Label className="text-[10px] text-gray-500">JavaScript</Label>
                 <Textarea

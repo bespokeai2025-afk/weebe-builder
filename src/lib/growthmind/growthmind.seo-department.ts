@@ -9,6 +9,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { jsonResult } from "@/lib/server-fn-json.shared";
 
 // ── Connection + system health overview ──────────────────────────────────────
 
@@ -128,23 +129,23 @@ export const getSeoIntelligence = createServerFn({ method: "POST" })
       days: z.number().int().min(7).max(480).default(90),
       limit: z.number().int().min(1).max(500).default(100),
     }).parse(input))
-  .handler(async ({ context, data }) => {
+  .handler(jsonResult(async ({ context, data }) => {
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
     const { analyseDimension } = await import("@/lib/growthmind/seo-intelligence.server");
     return await analyseDimension(workspaceId, data.dimension, { days: data.days, limit: data.limit });
-  });
+  }));
 
 export const getSeoOpportunities = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
     z.object({ kinds: z.array(z.string()).default([]) }).parse(input))
-  .handler(async ({ context, data }) => {
+  .handler(jsonResult(async ({ context, data }) => {
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
     const { detectOpportunities } = await import("@/lib/growthmind/seo-intelligence.server");
     return await detectOpportunities(workspaceId, data.kinds);
-  });
+  }));
 
 // ── Teachings (Teach GrowthMind SEO) ─────────────────────────────────────────
 
@@ -191,7 +192,7 @@ export const saveSeoTeaching = createServerFn({ method: "POST" })
       teaching_type: data.teachingType,
       content: data.content,
       source: "user",
-      owner_user_id: context.user?.id ?? null,
+      owner_user_id: context.userId ?? null,
       expires_at: data.expiresAt ?? null,
       updated_at: new Date().toISOString(),
     };
@@ -257,7 +258,7 @@ export const createSeoCampaign = createServerFn({ method: "POST" })
     const { createSeoCampaignCore } = await import("@/lib/growthmind/seo-blog-campaign.server");
     return await createSeoCampaignCore({
       workspaceId,
-      userId: context.user?.id ?? null,
+      userId: context.userId ?? null,
       ...data,
     });
   });
@@ -276,9 +277,9 @@ export const approveSeoCampaignStage = createServerFn({ method: "POST" })
     // entitlement the HiveMind Action Centre requires, so this direct path
     // cannot bypass approval controls (fail closed, audited).
     const { requireAction } = await import("@/lib/permissions/permissions.server");
-    await requireAction(workspaceId, context.user?.id ?? null, "campaign_activation");
+    await requireAction(workspaceId, context.userId ?? null, "campaign_activation");
     const { advanceSeoCampaign } = await import("@/lib/growthmind/seo-blog-campaign.server");
-    return await advanceSeoCampaign(workspaceId, data.campaignId, data.stage, context.user?.id ?? null);
+    return await advanceSeoCampaign(workspaceId, data.campaignId, data.stage, context.userId ?? null);
   });
 
 export const markSeoPackageDeployed = createServerFn({ method: "POST" })
@@ -378,7 +379,7 @@ export const executeSeoOpportunity = createServerFn({ method: "POST" })
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
     const { requireAction } = await import("@/lib/permissions/permissions.server");
-    await requireAction(workspaceId, context.user?.id ?? null, "campaign_activation");
+    await requireAction(workspaceId, context.userId ?? null, "campaign_activation");
 
     // RLS read proves membership + visibility.
     const { data: opp, error } = await sb
@@ -410,7 +411,7 @@ export const executeSeoOpportunity = createServerFn({ method: "POST" })
 
     const action = await createMarketingAction(sbAdmin, workspaceId, {
       source: "seo_opportunity_queue",
-      requested_by: context.user?.id ?? null,
+      requested_by: context.userId ?? null,
       objective: opp.title,
       platform: "seo",
       action_type: actionType,

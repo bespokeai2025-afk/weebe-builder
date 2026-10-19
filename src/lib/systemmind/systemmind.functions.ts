@@ -11,7 +11,19 @@ export type WorkflowHealthSummary = {
   topRiskCategories: string[];
 };
 
+export type SystemMindEmailHealth = {
+  totalDomains: number;
+  dnsFailures: number;
+  missingDmarc: number;
+  activePlans: number;
+  recentBounces: number;
+  recentComplaints: number;
+  warnings: string[];
+};
+
 export type SystemMindData = {
+  /** HexMail sender-domain health; absent when it couldn't be read. */
+  emailHealth?: SystemMindEmailHealth;
   generatedAt: string;
   systemHealth: Record<string, boolean>;
   integrations: { connected: number; total: number };
@@ -110,15 +122,7 @@ export async function computeSystemMindData(workspaceId: string): Promise<System
   } catch { /* graceful — table not yet migrated */ }
 
   // Email deliverability health — graceful; tables may not exist yet
-  let emailHealth: {
-    totalDomains: number;
-    dnsFailures: number;
-    missingDmarc: number;
-    activePlans: number;
-    recentBounces: number;
-    recentComplaints: number;
-    warnings: string[];
-  } | undefined;
+  let emailHealth: SystemMindEmailHealth | undefined;
   try {
     const [domRes, evRes] = await Promise.all([
       sb.from("email_sender_domains").select("domain,spf_status,dkim_status,dmarc_status,mx_status,status")

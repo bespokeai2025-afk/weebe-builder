@@ -37,7 +37,7 @@ export function WhatsAppWarmupPanel() {
   });
 
   const save = useMutation({
-    mutationFn: (patch: Parameters<typeof updateFn>[0]["data"]) => updateFn({ data: patch }),
+    mutationFn: (patch: NonNullable<Parameters<typeof updateFn>[0]>["data"]) => updateFn({ data: patch }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["wati-warmup"] });
       toast.success("Warm-up settings saved");

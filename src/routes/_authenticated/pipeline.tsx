@@ -262,15 +262,15 @@ function LeadCard({
             <span className="text-[9px] text-muted-foreground">{lastContact}</span>
           )}
           {lead.hasNotes && (
-            <StickyNote className="h-3.5 w-3.5 text-amber-500" title="Has notes" />
+            <span title="Has notes" className="inline-flex"><StickyNote className="h-3.5 w-3.5 text-amber-500" aria-hidden /></span>
           )}
           {lead.hasBooking && (
-            <CalendarCheck className="h-3.5 w-3.5 text-green-500" title="Appointment booked" />
+            <span title="Appointment booked" className="inline-flex"><CalendarCheck className="h-3.5 w-3.5 text-green-500" aria-hidden /></span>
           )}
           {lead.hasDocuments && lead.effective_stage === "documentation" ? (
-            <CheckCircle2 className="h-3.5 w-3.5 text-teal-500" title="Client documents received" />
+            <span title="Client documents received" className="inline-flex"><CheckCircle2 className="h-3.5 w-3.5 text-teal-500" aria-hidden /></span>
           ) : lead.hasDocuments ? (
-            <FolderOpen className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" title="Has documents" />
+            <span title="Has documents" className="inline-flex"><FolderOpen className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" aria-hidden /></span>
           ) : null}
           {onMove && !overlay && (() => {
             const idx = stageOrder.findIndex((s) => s.id === lead.effective_stage);

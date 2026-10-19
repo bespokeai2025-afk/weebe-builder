@@ -293,8 +293,10 @@ export const recheckDomainDns = createServerFn({ method: "POST" })
 
     const dnsResult = await checkDns(dom.domain, dom.dkim_selector);
 
-    const allPass = ["pass"].every((s) =>
-      [dnsResult.spf.status, dnsResult.dmarc.status, dnsResult.mx.status].includes(s)
+    // Every one of SPF, DMARC and MX must pass. (The old check was true when any single one
+    // passed, so a domain with only MX could be marked active.)
+    const allPass = [dnsResult.spf.status, dnsResult.dmarc.status, dnsResult.mx.status].every(
+      (s) => s === "pass",
     );
 
     await sb.from("email_sender_domains").update({

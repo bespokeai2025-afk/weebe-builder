@@ -34,7 +34,7 @@ export function getWorkflowCopilotNodeCatalog(): CopilotNodeCatalogEntry[] {
       type,
       displayName: core?.displayName ?? reg.displayName,
       category: core?.category ?? reg.category,
-      description: core?.description ?? reg.description,
+      description: core?.description ?? reg.description ?? "",
       properties: (core?.properties ?? reg.properties ?? []).map((p) => ({
         name: p.name,
         type: p.type,

@@ -180,7 +180,7 @@ function TelephonySettingsPage() {
           <code className="bg-black/20 rounded px-1">TWILIO_ACCOUNT_SID</code> /{" "}
           <code className="bg-black/20 rounded px-1">TWILIO_AUTH_TOKEN</code> in the server environment as a platform fallback.
           You can also manage these under{" "}
-          <Link to="/settings/providers/telephony" className="underline">Settings → Providers → Telephony</Link>.
+          <Link to="/settings/providers/$category" params={{ category: "telephony" }} className="underline">Settings → Providers → Telephony</Link>.
         </p>
 
         {credentialSource !== "none" && (

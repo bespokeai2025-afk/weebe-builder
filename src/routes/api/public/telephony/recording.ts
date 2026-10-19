@@ -7,6 +7,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
+import type { Database } from "@/integrations/supabase/types";
 function jsonOk(body: unknown) {
   return new Response(JSON.stringify(body), {
     status: 200,
@@ -44,7 +45,7 @@ export const Route = createFileRoute("/api/public/telephony/recording")({
           return jsonOk({ ok: false, reason: "call not found" });
         }
 
-        const patch: Record<string, unknown> = {
+        const patch: Database["public"]["Tables"]["telephony_calls"]["Update"] = {
           recording_sid: recordingSid,
           recording_status: recordingStatus,
           updated_at: new Date().toISOString(),

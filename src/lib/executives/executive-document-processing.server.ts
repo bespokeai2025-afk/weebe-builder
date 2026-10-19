@@ -31,7 +31,6 @@ export async function extractTextFromBuffer(
   if (ext === "pdf" || mime === "application/pdf") {
     const { PDFParse } = await import("pdf-parse");
     const parser = new PDFParse({ data: buffer });
-    await parser.load();
     const extracted = await parser.getText();
     return (extracted.text ?? "").trim();
   }

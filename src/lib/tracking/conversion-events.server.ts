@@ -135,7 +135,7 @@ export async function recordConversionEvent(
   input: RecordConversionEventInput,
 ): Promise<RecordConversionEventResult> {
   try {
-    const clickIds = input.clickIds ?? { gclid: null, gbraid: null, wbraid: null };
+    const clickIds: ClickIds = input.clickIds ?? { gclid: null, gbraid: null, wbraid: null, keyword: null };
 
     // Layer 2 duplicate check (lead-level, 24 h window).
     let duplicateOfLead = false;

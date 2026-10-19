@@ -9,26 +9,24 @@
 import { CANONICAL_SUPABASE_URL } from "./env-guard";
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import path from "node:path";
+import { mkdirSync, writeFileSync } from "node:fs";
+import type { Plugin } from "vite";
+import type { OutputChunk } from "rollup";
 import { createRequire } from "node:module";
 // One plugin mounts every voice relay (HyperStream, cascade, Twilio, FreJun);
 // the relays themselves live in src/lib/voice/gateway so production runs the
 // same code via scripts/prod-entry.mjs.
-import { voiceGatewayPlugin } from "./voice-gateway.plugin";
-import { campaignSchedulerPlugin } from "./campaign-scheduler.plugin";
-import { videoJobPollerPlugin } from "./video-job-poller.plugin";
-import { providerHealthSweepPlugin } from "./provider-health-sweep.plugin";
-import { staleCallSweepPlugin } from "./stale-call-sweep.plugin";
-import { adsSyncPlugin } from "./ads-sync.plugin";
-import { trendScoutPlugin } from "./trend-scout.plugin";
-import { accountsMindSchedulerPlugin } from "./accountsmind-scheduler.plugin";
-// WBAH background sync plugins (leads/calls/category) are intentionally disabled.
-// They each logged into WeeBespoke with the shared admin account every few minutes,
-// and WeeBespoke only allows ONE active session — so the constant background churn
-// kept kicking the human admin out of the WeeBespoke dashboard, breaking its own
-// Dynamics → People pull. WBAH People data is now read on demand only.
-// import { wbahLeadsSyncPlugin } from "./wbah-leads-sync.plugin";
-// import { wbahCallsSyncPlugin } from "./wbah-calls-sync.plugin";
-// import { wbahCategorySyncPlugin } from "./wbah-category-sync.plugin";
+import { voiceGatewayPlugin } from "./dev-plugins/voice-gateway.plugin";
+import { campaignSchedulerPlugin } from "./dev-plugins/campaign-scheduler.plugin";
+import { videoJobPollerPlugin } from "./dev-plugins/video-job-poller.plugin";
+import { providerHealthSweepPlugin } from "./dev-plugins/provider-health-sweep.plugin";
+import { staleCallSweepPlugin } from "./dev-plugins/stale-call-sweep.plugin";
+import { adsSyncPlugin } from "./dev-plugins/ads-sync.plugin";
+import { trendScoutPlugin } from "./dev-plugins/trend-scout.plugin";
+import { accountsMindSchedulerPlugin } from "./dev-plugins/accountsmind-scheduler.plugin";
+// The WBAH background sync plugins (leads/calls/category) were removed: each logged into
+// WeeBespoke with the shared admin account every few minutes, and WeeBespoke allows only one
+// active session, so they kept kicking the human admin out. WBAH People data is read on demand.
 
 // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
 // @cloudflare/vite-plugin builds from this — wrangler.jsonc main alone is insufficient.
@@ -36,6 +34,54 @@ import { accountsMindSchedulerPlugin } from "./accountsmind-scheduler.plugin";
 // EC2/production still uses dist/server + srvx when VERCEL is unset.
 // Lovable's nitro wrapper defaults output to dist/ — override to Vercel Build Output API paths.
 const isVercelBuild = !!(process.env.VERCEL || process.env.VERCEL_ENV);
+
+// The scheduler plugins below dial leads, sync ads and sweep calls against whatever database
+// .env points at — production, usually. Production schedules them through pg_cron, so here they
+// only run when asked for (ENABLE_DEV_BACKGROUND_JOBS=1 npm run dev), and never under vitest.
+const runDevBackgroundJobs = process.env.ENABLE_DEV_BACKGROUND_JOBS === "1" && !process.env.VITEST;
+// BUNDLE_REPORT=1 npm run build → dist/bundle-report-<env>.json: each output chunk with the source
+// modules (and their rendered sizes) inside it, largest first. Off by default.
+const bundleReport: Plugin[] =
+  process.env.BUNDLE_REPORT === "1"
+    ? [
+        {
+          name: "bundle-report",
+          apply: "build",
+          generateBundle(_options, bundle) {
+            const chunks = Object.values(bundle)
+              .filter((c): c is OutputChunk => c.type === "chunk")
+              .map((c) => ({
+                file: c.fileName,
+                bytes: c.code.length,
+                isEntry: c.isEntry,
+                isDynamicEntry: c.isDynamicEntry,
+                modules: Object.entries(c.modules)
+                  .map(([id, m]) => ({ id: id.replace(process.cwd(), ""), bytes: m.renderedLength }))
+                  .sort((a, b) => b.bytes - a.bytes)
+                  .slice(0, 40),
+              }))
+              .sort((a, b) => b.bytes - a.bytes);
+            mkdirSync("dist", { recursive: true });
+            writeFileSync(
+              `dist/bundle-report-${this.environment?.name ?? "build"}.json`,
+              JSON.stringify(chunks, null, 2),
+            );
+          },
+        },
+      ]
+    : [];
+
+const devBackgroundJobs = runDevBackgroundJobs
+  ? [
+      campaignSchedulerPlugin(),
+      videoJobPollerPlugin(),
+      providerHealthSweepPlugin(),
+      staleCallSweepPlugin(),
+      adsSyncPlugin(),
+      trendScoutPlugin(),
+      accountsMindSchedulerPlugin(),
+    ]
+  : [];
 
 /** htmlparser2@8 expects entities@4 `lib/*`; parse5 hoists entities@8 at the root. */
 const require = createRequire(import.meta.url);
@@ -110,7 +156,7 @@ export default defineConfig({
         ],
       },
     },
-    plugins: [voiceGatewayPlugin(), campaignSchedulerPlugin(), videoJobPollerPlugin(), providerHealthSweepPlugin(), staleCallSweepPlugin(), adsSyncPlugin(), trendScoutPlugin(), accountsMindSchedulerPlugin()],
+    plugins: [voiceGatewayPlugin(), ...devBackgroundJobs, ...bundleReport],
     resolve: {
       alias: {
         "entities/lib/decode.js": entitiesDecodePath,

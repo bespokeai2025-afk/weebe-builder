@@ -388,7 +388,7 @@ export function GrowthMindGrowthScheduler() {
 
   const { data: taskData, isLoading: loadingTasks } = useQuery({
     queryKey: ["growthmind-marketing-tasks", selectedPlanId],
-    queryFn:  () => getMarketingTasks({ planId: selectedPlanId ?? undefined }),
+    queryFn:  () => getMarketingTasks({ data: { planId: selectedPlanId ?? undefined } }),
     staleTime: 30_000,
     throwOnError: false,
   });

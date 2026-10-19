@@ -5,10 +5,17 @@
  * slots, every slot returned came from the first open day and the loop broke before reaching the
  * second — so a caller asking for "sometime next week" was read today's times.
  */
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { normalizeAvailabilityRange } from "@/lib/dnr/dnr-london-dates.shared";
 
 describe("normalizeAvailabilityRange", () => {
+  // The dates below are "near future" relative to this fixed today.
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-01T12:00:00Z"));
+  });
+  afterEach(() => vi.useRealTimers());
+
   it("defaults to a two-week window rather than a single day", () => {
     const r = normalizeAvailabilityRange("2026-10-05", undefined);
     expect(r.start).toBe("2026-10-05");

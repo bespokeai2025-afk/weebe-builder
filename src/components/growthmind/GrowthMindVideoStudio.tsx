@@ -2625,15 +2625,21 @@ export function GrowthMindVideoStudio() {
                   </p>
                 </div>
               </div>
-              {assets.some(a => a.creativeScore !== null && a.creativeScore !== undefined) && (
-                <div className="flex items-center justify-between">
-                  <p className="text-[10px] text-muted-foreground/60">Avg Creative Score</p>
-                  <p className="text-[11px] font-semibold text-amber-400">
-                    {(assets.filter(a => a.creativeScore != null).reduce((s, a) => s + (a.creativeScore ?? 0), 0) /
-                      assets.filter(a => a.creativeScore != null).length).toFixed(1)}/10
-                  </p>
-                </div>
-              )}
+              {(() => {
+                // creativeScore is the full breakdown ({ overall, hook, clarity, … }); average `overall`.
+                const scores = assets
+                  .map((a) => a.creativeScore?.overall)
+                  .filter((n): n is number => typeof n === "number");
+                if (scores.length === 0) return null;
+                return (
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] text-muted-foreground/60">Avg Creative Score</p>
+                    <p className="text-[11px] font-semibold text-amber-400">
+                      {(scores.reduce((sum, n) => sum + n, 0) / scores.length).toFixed(1)}/10
+                    </p>
+                  </div>
+                );
+              })()}
             </div>
           )}
 

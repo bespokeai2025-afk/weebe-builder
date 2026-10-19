@@ -78,11 +78,11 @@ function StrategyCard({ strategy, onDelete, onSend }: {
               onSend();
               setTimeout(() => setSending(false), 2000);
             }}
-            disabled={sending || strategy.status === "sent_for_approval"}
+            disabled={sending}
             className="text-xs gap-1.5 text-emerald-400 hover:text-emerald-300"
           >
             {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-            {strategy.status === "sent_for_approval" ? "Sent" : "Send to HiveMind"}
+            {sending ? "Sent" : "Send to HiveMind"}
           </Button>
           <button
             type="button" onClick={() => setExpanded(o => !o)}
@@ -196,7 +196,7 @@ function StrategyPage() {
     throwOnError: false,
   });
 
-  const strategies   = data?.strategies ?? [];
+  const strategies   = data?.strategies ?? ([] as NonNullable<typeof data>["strategies"]);
   const current      = strategies.find(s => s.planPeriod === activeTab) ?? null;
 
   async function handleGenerate(period: StrategyPeriod) {

@@ -218,7 +218,7 @@ export function buildEmptyWbahPostCallBuildConfig(
         wbah_post_call: wbahPipeline,
       },
       steps: flow.steps as BuildConfig["workflow"]["steps"],
-      n8n_graph: wbahPipeline.n8n_graph,
+      // The n8n graph is saved with the pipeline under channel_setup.wbah_post_call.
     },
     variables: [],
     extraction_fields: [],

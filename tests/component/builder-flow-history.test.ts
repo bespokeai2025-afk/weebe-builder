@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Version history rides along in agent settings on every save. Uncompressed it grew to ~2.9 MB on
  * a real agent and the server rejected saves with HTTP 413. History is now stored compressed and

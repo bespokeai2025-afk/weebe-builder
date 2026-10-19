@@ -86,7 +86,7 @@ export function SystemMindKnowledgePage() {
   // Architecture/Workflow KB seeder loops until remaining === 0 (16 topics, 4 per batch).
   useEffect(() => {
     (async () => {
-      try { await seedPbFn({ data: {} }); } catch { /* graceful */ }
+      try { await seedPbFn(); } catch { /* graceful */ }
       try { await seedKbFn({ data: { limit: 4 } }); } catch { /* graceful */ }
       // Loop until all Architecture KB + Workflow KB docs are indexed (or error out)
       let remaining = Infinity;

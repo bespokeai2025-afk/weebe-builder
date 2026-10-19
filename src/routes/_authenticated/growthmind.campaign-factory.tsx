@@ -290,7 +290,7 @@ function CampaignFactoryPage() {
     throwOnError: false,
   });
 
-  const drafts = data?.drafts ?? [];
+  const drafts = data?.drafts ?? ([] as NonNullable<typeof data>["drafts"]);
 
   async function handleGenerate() {
     if (!selected) return toast.error("Select a campaign type first");

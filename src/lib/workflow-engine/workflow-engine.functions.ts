@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requirePlatformAdmin } from "@/lib/auth/require-platform-admin";
 import { executeWorkflowRun } from "@/lib/workflow-engine/workflow-executor.server";
+import { jsonResult } from "@/lib/server-fn-json.shared";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -58,7 +59,7 @@ export interface WorkflowRun {
 
 export const listWorkflowTemplates = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(jsonResult(async ({ context }) => {
     const sb = context.supabase as any;
     const { data, error } = await sb
       .from("workflow_templates")
@@ -67,7 +68,7 @@ export const listWorkflowTemplates = createServerFn({ method: "GET" })
       .order("name");
     if (error) throw new Error(error.message);
     return (data ?? []) as WorkflowTemplate[];
-  });
+  }));
 
 export const listWorkflowTemplateCategories = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -82,7 +83,7 @@ export const listWorkflowTemplateCategories = createServerFn({ method: "GET" })
   });
 
 export const saveWorkflowTemplate = createServerFn({ method: "POST" })
-  .middleware([requirePlatformAdmin])
+  .middleware([requireSupabaseAuth, requirePlatformAdmin])
   .validator((input) =>
     z.object({
       id:              z.string().optional(),
@@ -126,7 +127,7 @@ export const saveWorkflowTemplate = createServerFn({ method: "POST" })
   });
 
 export const deleteWorkflowTemplate = createServerFn({ method: "POST" })
-  .middleware([requirePlatformAdmin])
+  .middleware([requireSupabaseAuth, requirePlatformAdmin])
   .validator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
@@ -139,7 +140,7 @@ export const deleteWorkflowTemplate = createServerFn({ method: "POST" })
 
 export const listWorkspaceWorkflows = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(jsonResult(async ({ context }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
@@ -168,7 +169,7 @@ export const listWorkspaceWorkflows = createServerFn({ method: "GET" })
       run_count: runCounts[w.id] ?? 0,
       last_run_at: lastRuns[w.id] ?? null,
     })) as WorkspaceWorkflow[];
-  });
+  }));
 
 export const createWorkspaceWorkflow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -270,7 +271,7 @@ export const deleteWorkspaceWorkflow = createServerFn({ method: "POST" })
 
 export const listWorkflowRuns = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(jsonResult(async ({ context }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
@@ -282,7 +283,7 @@ export const listWorkflowRuns = createServerFn({ method: "GET" })
       .limit(100);
     if (error) throw new Error(error.message);
     return (data ?? []) as WorkflowRun[];
-  });
+  }));
 
 export const manualTriggerWorkflow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

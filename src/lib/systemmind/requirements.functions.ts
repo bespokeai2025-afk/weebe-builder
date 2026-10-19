@@ -5,6 +5,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { jsonResult } from "@/lib/server-fn-json.shared";
 
 function requireWorkspaceId(workspaceId: string | undefined): string {
   if (!workspaceId) throw new Error("No workspace selected — join or create a workspace first.");
@@ -16,7 +17,7 @@ export const startRequirementsInterview = createServerFn({ method: "POST" })
   .validator((input: unknown) =>
     z.object({ agentId: z.string().uuid() }).parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(jsonResult(async ({ data, context }) => {
     {
       const { requireSystemMindEdit } = await import(
         "@/lib/systemmind/systemmind-access.server"
@@ -31,14 +32,14 @@ export const startRequirementsInterview = createServerFn({ method: "POST" })
       userId:      context.userId ?? null,
       agentId:     data.agentId,
     });
-  });
+  }));
 
 export const getRequirementsInterview = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
     z.object({ interviewId: z.string().uuid() }).parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(jsonResult(async ({ data, context }) => {
     {
       const { requireSystemMindView } = await import(
         "@/lib/systemmind/systemmind-access.server"
@@ -52,7 +53,7 @@ export const getRequirementsInterview = createServerFn({ method: "GET" })
       requireWorkspaceId(context.workspaceId),
       data.interviewId,
     );
-  });
+  }));
 
 export const answerRequirementsQuestions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -63,7 +64,7 @@ export const answerRequirementsQuestions = createServerFn({ method: "POST" })
                     .refine((r) => Object.keys(r).length > 0 && Object.keys(r).length <= 40, "Provide 1–40 answers."),
     }).parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(jsonResult(async ({ data, context }) => {
     {
       const { requireSystemMindEdit } = await import(
         "@/lib/systemmind/systemmind-access.server"
@@ -79,14 +80,14 @@ export const answerRequirementsQuestions = createServerFn({ method: "POST" })
       interviewId: data.interviewId,
       answers:     data.answers,
     });
-  });
+  }));
 
 export const generateRequirementsVersion = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
     z.object({ interviewId: z.string().uuid() }).parse(input),
   )
-  .handler(async ({ data, context }) => {
+  .handler(jsonResult(async ({ data, context }) => {
     {
       const { requireSystemMindEdit } = await import(
         "@/lib/systemmind/systemmind-access.server"
@@ -101,7 +102,7 @@ export const generateRequirementsVersion = createServerFn({ method: "POST" })
       userId:      context.userId ?? null,
       interviewId: data.interviewId,
     });
-  });
+  }));
 
 export const setScriptAdditionStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

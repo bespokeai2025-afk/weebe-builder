@@ -3261,7 +3261,8 @@ export const searchTwilioNumbers = createServerFn({ method: "POST" })
 
     const list = await client.availablePhoneNumbers(countryCode.toUpperCase()).local.list({
       smsEnabled: true,
-      ...(areaCode?.trim() ? { areaCode: areaCode.trim() } : {}),
+      // Twilio types areaCode as a number (it is a US/CA 3-digit prefix).
+      ...(areaCode?.trim() && /^\d+$/.test(areaCode.trim()) ? { areaCode: Number(areaCode.trim()) } : {}),
       pageSize: 10,
     });
 

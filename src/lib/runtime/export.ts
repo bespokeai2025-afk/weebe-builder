@@ -30,6 +30,7 @@ import {
 import type { AgentRuntimeDefinition, BuilderVariable } from "./schema";
 import { summariseDefinition } from "./definition";
 import type { AgentRuntimeSummary } from "./definition";
+import { jsonResult } from "@/lib/server-fn-json.shared";
 
 // ─── Pure assembly function ───────────────────────────────────────────────────
 
@@ -222,8 +223,8 @@ export function unpackAgentRow(row: {
   const variables = (
     Array.isArray(row.variables)
       ? row.variables
-      : Array.isArray((settings as Record<string, unknown>).variables)
-        ? (settings as Record<string, unknown>).variables
+      : Array.isArray((settings as unknown as Record<string, unknown>).variables)
+        ? (settings as unknown as Record<string, unknown>).variables
         : Array.isArray(flowData.variables)
           ? flowData.variables
           : []
@@ -252,7 +253,7 @@ export function unpackAgentRow(row: {
 export const exportAgentRuntimeDefinition = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: { id: string }) => input)
-  .handler(async ({ context, data }) => {
+  .handler(jsonResult(async ({ context, data }) => {
     const { supabase } = context;
     const { data: row, error } = await supabase
       .from("agents")
@@ -265,7 +266,7 @@ export const exportAgentRuntimeDefinition = createServerFn({ method: "POST" })
 
     const assemblyParams = unpackAgentRow(row as Parameters<typeof unpackAgentRow>[0]);
     return buildAgentRuntimeDefinition(assemblyParams);
-  });
+  }));
 
 /**
  * Return a lightweight summary of an agent's runtime definition.

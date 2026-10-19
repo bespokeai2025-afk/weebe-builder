@@ -516,7 +516,7 @@ function CampaignsTab() {
     throwOnError: false,
   });
 
-  const campaigns = data?.campaigns ?? [];
+  const campaigns = data?.campaigns ?? ([] as NonNullable<typeof data>["campaigns"]);
 
   async function handleDelete(id: string) {
     setDeleting(id);
@@ -968,7 +968,7 @@ function WarmupTab() {
     throwOnError: false,
   });
 
-  const warmups = data?.warmups ?? [];
+  const warmups = data?.warmups ?? ([] as NonNullable<typeof data>["warmups"]);
   const active   = warmups.filter(w => w.status === "active");
   const inactive = warmups.filter(w => w.status !== "active");
 

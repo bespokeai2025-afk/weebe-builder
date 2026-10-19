@@ -270,13 +270,13 @@ export async function auditSitemaps(workspaceId: string): Promise<SeoEnvelope<{ 
   };
 }
 
-export async function listStoredInspections(workspaceId: string): Promise<any[]> {
+export async function listStoredInspections(workspaceId: string, limit = 100): Promise<any[]> {
   const admin = supabaseAdmin as any;
   const { data } = await admin
     .from("growthmind_gsc_inspections")
     .select("url, verdict, coverage_state, robots_txt_state, indexing_state, last_crawl_time, google_canonical, user_canonical, inspected_at")
     .eq("workspace_id", workspaceId)
     .order("inspected_at", { ascending: false })
-    .limit(100);
+    .limit(limit);
   return data ?? [];
 }

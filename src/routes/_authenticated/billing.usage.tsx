@@ -96,8 +96,8 @@ function UsageDashboardPage() {
     <div className="px-6 py-5 max-w-4xl space-y-6">
       <PageHeader
         title="Usage Dashboard"
-        description={`Month-to-date usage for ${periodLabel}`}
-        icon={<TrendingUp className="h-4 w-4 text-violet-400" />}
+        subtitle={`Month-to-date usage for ${periodLabel}`}
+        icon={TrendingUp}
       />
 
       {/* Voice */}

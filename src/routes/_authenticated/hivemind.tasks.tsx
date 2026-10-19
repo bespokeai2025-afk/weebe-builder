@@ -888,7 +888,7 @@ function HiveMindTasks() {
   });
 
   const tasks  = data?.tasks  ?? [];
-  const events = data?.events ?? [];
+  const events = data?.events ?? ([] as NonNullable<typeof data>["events"]);
 
   const tabCounts = STATUS_TABS.reduce((acc, { key }) => {
     acc[key] = tasks.filter(t => t.status === key).length;

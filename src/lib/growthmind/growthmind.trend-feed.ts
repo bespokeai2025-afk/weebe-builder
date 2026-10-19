@@ -7,6 +7,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { jsonResult } from "@/lib/server-fn-json.shared";
 
 async function assertMember(sb: any, workspaceId: string, userId: string): Promise<void> {
   const { data: member, error } = await sb
@@ -55,7 +56,7 @@ const FeedInput = z.object({
 export const getTrendFeed = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .validator((i: z.infer<typeof FeedInput> | undefined) => (i ? FeedInput.parse(i) : {}))
-  .handler(async ({ data, context }) => {
+  .handler(jsonResult(async ({ data, context }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
@@ -84,9 +85,9 @@ export const getTrendFeed = createServerFn({ method: "GET" })
     if (itemsRes.error) throw new Error(`Failed to load trend items: ${itemsRes.error.message}`);
     if (runsRes.error)  throw new Error(`Failed to load discovery runs: ${runsRes.error.message}`);
 
-    const items = (itemsRes.data ?? []).map(mapItem);
+    const items = ((itemsRes.data ?? []) as any[]).map(mapItem);
     // Recommended first (by total score), then screened by prescreen
-    items.sort((a, b) => {
+    items.sort((a: TrendFeedItem, b: TrendFeedItem) => {
       const rank = (s: string) => (s === "recommended" ? 0 : s === "screened" ? 1 : s === "discovered" ? 2 : s === "actioned" ? 3 : 4);
       const r = rank(a.status) - rank(b.status);
       if (r !== 0) return r;
@@ -115,7 +116,7 @@ export const getTrendFeed = createServerFn({ method: "GET" })
       runsToday,
       costToday,
     };
-  });
+  }));
 
 // ── Manual discovery / screening / scoring triggers ───────────────────────────
 
@@ -436,7 +437,7 @@ export const updateTrendScoutSettings = createServerFn({ method: "POST" })
 
 export const getCompetitorIntelligence = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(jsonResult(async ({ context }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
@@ -460,7 +461,7 @@ export const getCompetitorIntelligence = createServerFn({ method: "GET" })
     if (srcRes.error)   throw new Error(`Failed to load sources: ${srcRes.error.message}`);
     if (itemsRes.error) throw new Error(`Failed to load items: ${itemsRes.error.message}`);
 
-    const items = (itemsRes.data ?? []).map(mapItem);
+    const items = ((itemsRes.data ?? []) as any[]).map(mapItem);
     const bySource = new Map<string, TrendFeedItem[]>();
     for (const it of items) {
       if (!it.sourceId) continue;
@@ -496,7 +497,7 @@ export const getCompetitorIntelligence = createServerFn({ method: "GET" })
     const ownedText = (ownedRows ?? []).map((r: any) => `${r.title ?? ""} ${r.caption ?? ""}`).join(" ").toLowerCase();
     const contentGaps = repeatedTopics.filter(t => !ownedText.includes(t.topic)).slice(0, 10);
 
-    const accounts = (srcRes.data ?? []).map((s: any) => {
+    const accounts = ((srcRes.data ?? []) as any[]).map((s: any) => {
       const posts = bySource.get(s.id) ?? [];
       const successful = [...posts].sort((a, b) =>
         Number(b.scores.momentum ?? 0) - Number(a.scores.momentum ?? 0)).slice(0, 5);
@@ -509,4 +510,4 @@ export const getCompetitorIntelligence = createServerFn({ method: "GET" })
     });
 
     return { accounts, repeatedTopics, contentGaps };
-  });
+  }));

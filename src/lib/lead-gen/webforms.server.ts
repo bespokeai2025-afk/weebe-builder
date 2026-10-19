@@ -8,6 +8,7 @@ import { sendWorkspaceEmail } from "@/lib/email/email-dispatch.server";
 import { sendTemplateEmailToLeadCore } from "@/lib/lead-gen/lead-email.server";
 import { triggerAutoCallForNewLead } from "@/lib/qualification/auto-call.server";
 
+import type { Database, Json } from "@/integrations/supabase/types";
 export const WEBEE_ADMIN_EMAIL = "admin@webespokeai.com";
 
 // Coerce an unknown webform value into a JSON-safe scalar (string or null).
@@ -290,10 +291,11 @@ const LEAD_SOURCE_ENUM_VALUES = new Set([
   "website", "inbound", "outbound", "referral", "import",
   "website_form", "landing_page", "facebook_lead_form", "google_ads_lead_form",
   "tiktok_lead_form", "linkedin_lead_form", "zapier", "make", "custom_form",
-  "webee_website_form", "api",
+  "webee_website_form", "api", "whatsapp", "manual",
 ]);
-export function toLeadSourceEnum(sourceType: string, fallback = "website_form"): string {
-  return LEAD_SOURCE_ENUM_VALUES.has(sourceType) ? sourceType : fallback;
+type LeadSource = Database["public"]["Enums"]["lead_source"];
+export function toLeadSourceEnum(sourceType: string, fallback: LeadSource = "website_form"): LeadSource {
+  return LEAD_SOURCE_ENUM_VALUES.has(sourceType) ? (sourceType as LeadSource) : fallback;
 }
 
 export async function processWebformSubmission(opts: {
@@ -322,7 +324,7 @@ export async function processWebformSubmission(opts: {
         webform_source_id: webformSourceId,
         source_type: sourceType,
         source_detail: sourceDetail,
-        raw_payload: raw,
+        raw_payload: raw as Json,
         mapped_payload: {},
         ip_address: ip,
         user_agent: userAgent,
@@ -470,7 +472,7 @@ export async function processWebformSubmission(opts: {
         lead_id:          leadId,
         source_type:      sourceType,
         source_detail:    sourceDetail,
-        raw_payload:      raw,
+        raw_payload:      raw as Json,
         mapped_payload:   { ...mapped, ...utm },
         utm_source:       utm.utm_source,
         utm_medium:       utm.utm_medium,

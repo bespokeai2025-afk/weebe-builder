@@ -279,7 +279,7 @@ function useElRelay(
   const wsRef           = useRef<WebSocket | null>(null);
   const audioCtxRef     = useRef<AudioContext | null>(null);
   const nextPlayRef     = useRef(0);
-  const wsPingRef       = useRef<ReturnType<typeof setInterval>>();
+  const wsPingRef       = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const streamRef       = useRef<MediaStream | null>(null);
   const lastAgentText   = useRef<string>("");
   const quotaFallback   = useRef(false);

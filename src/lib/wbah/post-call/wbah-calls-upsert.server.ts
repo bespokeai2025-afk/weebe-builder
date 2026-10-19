@@ -158,7 +158,7 @@ export async function upsertWbahCallFromWebhook(input: {
       : "ended";
     const custom = input.call.call_analysis?.custom_analysis_data ?? {};
     const explicitDnc = isWbahExplicitDoNotContactRequest(
-      custom.detailed_call_summary,
+      typeof custom.detailed_call_summary === "string" ? custom.detailed_call_summary : null,
       formatted?.callSummary,
       input.call.call_analysis?.call_summary,
       input.call.transcript,

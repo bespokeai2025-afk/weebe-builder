@@ -6,6 +6,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAction } from "@/lib/permissions/permissions.server";
+import { jsonResult } from "@/lib/server-fn-json.shared";
 
 function requireWorkspaceId(workspaceId: string | undefined): string {
   if (!workspaceId) throw new Error("No workspace selected — join or create a workspace first.");
@@ -67,7 +68,7 @@ export const startAgentDeployment = createServerFn({ method: "POST" })
 export const getDeploymentChecklist = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ deploymentId: z.string().uuid() }).parse(input))
-  .handler(async ({ data, context }) => {
+  .handler(jsonResult(async ({ data, context }) => {
     {
       const { requireSystemMindView } = await import(
         "@/lib/systemmind/systemmind-access.server"
@@ -81,7 +82,7 @@ export const getDeploymentChecklist = createServerFn({ method: "GET" })
       workspaceId: requireWorkspaceId(context.workspaceId),
       deploymentId: data.deploymentId,
     });
-  });
+  }));
 
 export const getDeploymentForAgent = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -237,7 +238,7 @@ export const decideDeploymentApproval = createServerFn({ method: "POST" })
 export const executeApprovedDeploymentAction = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ approvalId: z.string().uuid() }).parse(input))
-  .handler(async ({ data, context }) => {
+  .handler(jsonResult(async ({ data, context }) => {
     await requireAction(context.workspaceId, context.userId, "systemmind_approval");
     const { executeApprovedDeploymentActionServer } = await import(
       "@/lib/systemmind/deployment-orchestrator.server"
@@ -248,7 +249,7 @@ export const executeApprovedDeploymentAction = createServerFn({ method: "POST" }
       userId: requireUserId(context.userId),
       approvalId: data.approvalId,
     });
-  });
+  }));
 
 // ── Telephony helpers ──────────────────────────────────────────────────────────
 

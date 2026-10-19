@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireSupabaseAuth, requireWorkspaceId } from "@/integrations/supabase/auth-middleware";
 import { routeGenerate } from "./model-router.server";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -1024,9 +1024,8 @@ export const testPromptTemplate = createServerFn({ method: "POST" })
   .validator((input: unknown) => testSchema.parse(input))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
-    const workspaceId = context.workspaceId;
+    const workspaceId = requireWorkspaceId(context.workspaceId);
     const settings    = (context as any).settings ?? {};
-    if (!workspaceId) throw new Error("No workspace");
 
     const { data: tpl, error: te } = await sb
       .from("growthmind_prompt_templates")
@@ -1096,7 +1095,7 @@ Return this JSON (integers 1-10 only):
           maxTokens:   120,
           mode:        "manual",
           provider:    "openai",
-          model:       "gpt-4o-mini",
+          model:       "gpt-4.1-mini",
           settings,
           workspaceId,
           sb,
@@ -1613,7 +1612,7 @@ Return this JSON (integers 1-10 only):
             maxTokens:   120,
             mode:        "manual",
             provider:    "openai",
-            model:       "gpt-4o-mini",
+            model:       "gpt-4.1-mini",
             settings,
             workspaceId,
             sb,

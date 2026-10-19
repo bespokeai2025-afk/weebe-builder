@@ -47,9 +47,6 @@ export type WbahDerivedLead = {
   booked: boolean;
 };
 
-const SELECT_COLS =
-  "id, customer_name, phone, agent_name, call_status, sentiment, duration_seconds, started_at, appointment_date, booking_status, calendly_booking_url";
-
 /** Columns shared by Leads, Qualified, and Calendar derivation (one paginated scan). */
 const AGGREGATE_COLS =
   "id, customer_name, phone, agent_name, call_status, sentiment, duration_seconds, started_at, recording_url, disconnection_reason, end_reason, appointment_date, appointment_time, booking_status, calendly_booking_url";
@@ -229,39 +226,51 @@ export async function getWbahCallsAggregate(workspaceId: string): Promise<WbahCa
   return { all: cached.all, byPhone: buildWbahByPhone(cached.all), crmBookingByDigits };
 }
 
+/**
+ * Every wbah_calls row for the workspace (AGGREGATE_COLS), latest first, in one query via the
+ * wbah_calls_aggregate_rows() database function. Falls back to the old 1,000-row OFFSET page walk
+ * if that function hasn't been created yet (migration 20261017030000).
+ */
+async function loadAllWbahCallRows(workspaceId: string): Promise<any[]> {
+  const sb = supabaseAdmin as any;
+  const { data, error } = await sb.rpc("wbah_calls_aggregate_rows", { p_workspace_id: workspaceId });
+  if (!error) return Array.isArray(data) ? data : [];
+  console.warn("[WBAH aggregate] wbah_calls_aggregate_rows unavailable, paging instead:", error.message);
+
+  const PAGE = 1000;
+  const { count, error: countErr } = await sb
+    .from("wbah_calls")
+    .select("id", { count: "exact", head: true })
+    .eq("workspace_id", workspaceId);
+  if (countErr) throw new Error(`DB count failed: ${countErr.message}`);
+  // +1 page of headroom in case rows land between the count and the fetch.
+  const total = (count ?? 0) + PAGE;
+  const offsets: number[] = [];
+  for (let from = 0; from < total; from += PAGE) offsets.push(from);
+  const pages = await Promise.all(
+    offsets.map(async (from) => {
+      const { data: rows, error: pageErr } = await sb
+        .from("wbah_calls")
+        .select(AGGREGATE_COLS)
+        .eq("workspace_id", workspaceId)
+        .order("started_at", { ascending: false, nullsFirst: false })
+        .order("id", { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (pageErr) throw new Error(`DB query failed: ${pageErr.message}`);
+      return (rows ?? []) as any[];
+    }),
+  );
+  return pages.flat();
+}
+
 async function buildWbahCallsAggregateCached(workspaceId: string): Promise<WbahCallsAggregateCached> {
   return await cacheWrap(`${WBAH_AGGREGATE_CACHE_KEY}:${workspaceId}`, WBAH_AGGREGATE_TTL, async () => {
     const crmMap = await loadWbahCrmBookingByDigits(supabaseAdmin, workspaceId);
     const crm: WbahCallsAggregateCached["crm"] = {};
     crmMap.forEach((v, k) => { crm[k] = v; });
 
-    // Count first, then fetch all pages IN PARALLEL — the sequential page walk
-    // took ~6s for 16k+ rows; parallel fetch is roughly one round-trip.
-    const PAGE = 1000;
     const t0 = Date.now();
-    const { count, error: countErr } = await (supabaseAdmin as any)
-      .from("wbah_calls")
-      .select("id", { count: "exact", head: true })
-      .eq("workspace_id", workspaceId);
-    if (countErr) throw new Error(`DB count failed: ${countErr.message}`);
-    // +1 page of headroom in case rows land between the count and the fetch.
-    const total = (count ?? 0) + PAGE;
-    const offsets: number[] = [];
-    for (let from = 0; from < total; from += PAGE) offsets.push(from);
-
-    const pages = await Promise.all(
-      offsets.map(async (from) => {
-        const { data, error } = await (supabaseAdmin as any)
-          .from("wbah_calls")
-          .select(AGGREGATE_COLS)
-          .eq("workspace_id", workspaceId)
-          .order("started_at", { ascending: false, nullsFirst: false })
-          .order("id", { ascending: true })
-          .range(from, from + PAGE - 1);
-        if (error) throw new Error(`DB query failed: ${error.message}`);
-        return (data ?? []) as any[];
-      }),
-    );
+    const pages = [await loadAllWbahCallRows(workspaceId)];
     // Dedupe by id in case concurrent inserts shifted rows across page borders.
     const seen = new Set<string>();
     const all: any[] = [];
@@ -283,23 +292,8 @@ export async function getWbahDerivedLeads(
   workspaceId: string,
 ): Promise<WbahDerivedLead[]> {
   return cacheWrap(`webee:wbah-derived-leads:${workspaceId}`, 60, async () => {
-    const PAGE = 1000;
-    const all: any[] = [];
-    let from = 0;
-    for (;;) {
-      const { data, error } = await (supabaseAdmin as any)
-        .from("wbah_calls")
-        .select(SELECT_COLS)
-        .eq("workspace_id", workspaceId)
-        .order("started_at", { ascending: false, nullsFirst: false })
-        .order("id", { ascending: true })
-        .range(from, from + PAGE - 1);
-      if (error) throw new Error(`DB query failed: ${error.message}`);
-      const batch: any[] = data ?? [];
-      all.push(...batch);
-      if (batch.length < PAGE) break;
-      from += PAGE;
-    }
+    // Latest-first, same order the old page walk used.
+    const all = await loadAllWbahCallRows(workspaceId);
 
     // Dedup per contact (phone). Rows are latest-first, so the first time we see a
     // phone is that contact's most-recent call.

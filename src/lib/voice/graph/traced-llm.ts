@@ -19,16 +19,26 @@ export function createTracedVmLlm(
     },
 
     generateStream(messages, opts) {
-      const innerStream = inner.generateStream?.(messages, opts);
-      if (!innerStream) return inner.generate(messages, opts).then((t) => (async function* () { yield t; })());
-
       const trace = getTrace();
+      const innerStream = inner.generateStream?.(messages, opts);
+      // No streaming on the inner client: still return a stream (callers `for await` it), with
+      // the whole reply as one chunk.
+      if (!innerStream) {
+        return (async function* () {
+          trace?.mark("llm_speech_request_start");
+          const text = await inner.generate(messages, opts);
+          trace?.mark("llm_speech_complete");
+          yield text;
+        })();
+      }
+      const stream: AsyncIterable<string> = innerStream;
+
       trace?.mark("llm_speech_request_start");
 
       async function* wrap(): AsyncGenerator<string> {
         let first = true;
         try {
-          for await (const delta of innerStream) {
+          for await (const delta of stream) {
             if (first && delta) {
               trace?.mark("llm_speech_first_token");
               first = false;

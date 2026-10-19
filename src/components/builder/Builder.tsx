@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useReactFlow } from "@xyflow/react";
 import { toPng } from "html-to-image";
 import { useBuilderStore } from "@/lib/builder/store";
@@ -94,11 +94,15 @@ import { useSystemMindBuildLauncher } from "./SystemMindPromptDock";
 import { NodeEditorDialog } from "./NodeEditorDialog";
 import { ExportJsonDialog } from "./ExportJsonDialog";
 import { ImportJsonDialog } from "./ImportJsonDialog";
-import { ImportPDFDialog } from "./ImportPDFDialog";
 import { ImportSystemMindDraftDialog } from "./ImportSystemMindDraftDialog";
 import { RetellDeployDialog, type TxEntry, type CallEndMeta } from "./RetellDeployDialog";
+
+// Opened rarely — loaded on first open instead of with the builder.
+const ImportPDFDialog = lazy(() => import("./ImportPDFDialog").then((m) => ({ default: m.ImportPDFDialog })));
+const PlatformGuideDrawer = lazy(() =>
+  import("./PlatformGuideDrawer").then((m) => ({ default: m.PlatformGuideDrawer })),
+);
 import { VoiceCopilotButton } from "./VoiceCopilot";
-import { PlatformGuideDrawer } from "./PlatformGuideDrawer";
 import { PostCallDataSection } from "./PostCallDataSection";
 import { FlowVariablesSection } from "./FlowVariablesSection";
 import { VariableTextarea } from "./VariableAutocompleteField";
@@ -857,7 +861,8 @@ export function Builder({
       const result = await extractPostCallVariables({
         data: {
           transcript: transcript.map((t) => ({ role: t.role, text: t.text })),
-          variables: settings.variables ?? [],
+          // Variables live on the store, not in settings — read the current list at call end.
+          variables: useBuilderStore.getState().variables,
           agentName: settings.agentName ?? "Agent",
         },
       });
@@ -888,8 +893,13 @@ export function Builder({
     }
   }, [liveTranscript]);
   const [guideOpen, setGuideOpen] = useState(false);
+  // Set on first open and kept, so the lazily loaded panels stay mounted for their close animation.
+  const [guideMounted, setGuideMounted] = useState(false);
+  const [importPdfMounted, setImportPdfMounted] = useState(false);
+  useEffect(() => { if (guideOpen) setGuideMounted(true); }, [guideOpen]);
   const [importOpen, setImportOpen] = useState(false);
   const [importPdfOpen, setImportPdfOpen] = useState(false);
+  useEffect(() => { if (importPdfOpen) setImportPdfMounted(true); }, [importPdfOpen]);
   const [importSMDraftOpen, setImportSMDraftOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
 
@@ -1146,7 +1156,11 @@ export function Builder({
             </AlertDialog>
           </div>
           <ImportJsonDialog open={importOpen} onOpenChange={setImportOpen} hideTrigger />
-          <ImportPDFDialog open={importPdfOpen} onOpenChange={setImportPdfOpen} />
+          {importPdfMounted && (
+            <Suspense fallback={null}>
+              <ImportPDFDialog open={importPdfOpen} onOpenChange={setImportPdfOpen} />
+            </Suspense>
+          )}
           <ExportJsonDialog open={exportOpen} onOpenChange={setExportOpen} hideTrigger />
           <ImportSystemMindDraftDialog open={importSMDraftOpen} onOpenChange={setImportSMDraftOpen} />
 
@@ -3023,7 +3037,11 @@ export function Builder({
         )}
 
         {/* Platform Guide Drawer — 4th flex column, pushes canvas on open */}
-        <PlatformGuideDrawer open={guideOpen} onClose={() => setGuideOpen(false)} />
+        {guideMounted && (
+          <Suspense fallback={null}>
+            <PlatformGuideDrawer open={guideOpen} onClose={() => setGuideOpen(false)} />
+          </Suspense>
+        )}
       </div>
       <BuilderDebugConsole />
     </div>

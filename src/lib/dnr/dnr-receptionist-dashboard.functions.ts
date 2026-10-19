@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { DNR_RETELL_AGENT_ID, DNR_VOICE } from "@/lib/dnr/dnr-voice.config";
+import { jsonResult } from "@/lib/server-fn-json.shared";
 
 export type ReceptionistCallRow = {
   id: string;
@@ -67,7 +68,7 @@ export const getReceptionistDashboard = createServerFn({ method: "POST" })
   .validator((input) =>
     z.object({ limit: z.number().int().min(1).max(100).default(30) }).parse(input ?? {}),
   )
-  .handler(async ({ context, data }): Promise<ReceptionistDashboard> => {
+  .handler(jsonResult(async ({ context, data }): Promise<ReceptionistDashboard> => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
 
@@ -180,4 +181,4 @@ export const getReceptionistDashboard = createServerFn({ method: "POST" })
       toolEvents,
       toolEventsAvailable: !toolsErr,
     };
-  });
+  }));

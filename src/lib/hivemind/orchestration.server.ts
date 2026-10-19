@@ -19,6 +19,7 @@
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
+import type { Json } from "@/integrations/supabase/types";
 type Sb = any;
 
 export type OrchestrationPlaybook =
@@ -448,7 +449,7 @@ export async function runOrchestrationPlaybook(
         entity_type: findings[0]?.entityType ?? null,
         entity_id: findings[0]?.entityId ?? null,
         recommendation: plan.recommendation,
-        analyses,
+        analyses: analyses as Json,
         task_ids: taskIds,
         escalations: plan.escalations.map((e) => ({ mind: e.sourceMind, reason: e.reason, event_type: e.eventType, title: e.title })),
         created_by: opts.userId ?? null,

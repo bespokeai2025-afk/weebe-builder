@@ -454,6 +454,7 @@ async function generateFlow(
     suggestedBeginMessage?: string;
     segments: Array<
       | { segId: string; destination: "global_prompt" }
+      | { segId: string; destination: "discard" }
       | {
           segId: string;
           destination: "flow";
@@ -1028,7 +1029,6 @@ export const Route = createFileRoute("/api/builder/import-pdf")({
             rawTextB = result.value;
           } else {
             const parser = new PDFParse({ data: bufferB });
-            await parser.load();
             const extracted = await parser.getText();
             rawTextB = extracted.text;
           }

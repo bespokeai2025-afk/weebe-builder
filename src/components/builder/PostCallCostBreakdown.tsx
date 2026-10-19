@@ -105,7 +105,8 @@ export function PostCallCostBreakdown({ callId }: { callId: string }) {
 
       <div className="space-y-1">
         <StageRow label="Speech-to-text" provider={b.sttProvider} cents={b.sttCents} estimated={b.sttRateMissing || !b.sttProvider} />
-        <StageRow label="AI model" provider={b.llmProvider} cents={b.llmCents} estimated={b.llmRateMissing || !b.llmProvider} />
+        {/* The model stage is a blended per-minute rate — no per-provider tracking yet. */}
+        <StageRow label="AI model" provider={null} cents={b.llmCents} estimated />
         <StageRow label="Text-to-speech" provider={b.ttsProvider} cents={b.ttsCents} estimated={b.ttsRateMissing || !b.ttsProvider} />
         <div className="flex items-center justify-between gap-3 text-[11px] text-muted-foreground">
           <span className="w-20 shrink-0">Router, analysis</span>

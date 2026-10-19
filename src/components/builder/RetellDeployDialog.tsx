@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { RetellWebClient } from "retell-client-js-sdk";
+// Type only — the SDK (and the ~1 MB LiveKit client inside it) loads when a call starts.
+import type { RetellWebClient } from "retell-client-js-sdk";
 import { Phone, PhoneOff, Loader2, RefreshCw, DollarSign, Plus, Download, Zap, ShieldCheck, ShieldAlert, AlertTriangle, CheckCircle2, XCircle, Hammer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -686,6 +687,7 @@ export function RetellDeployDialog({
           dynamicVariables: testCallPrepRef.current.variables,
         },
       });
+      const { RetellWebClient } = await import("retell-client-js-sdk");
       const client = new RetellWebClient();
       clientRef.current = client;
 
@@ -783,11 +785,9 @@ export function RetellDeployDialog({
         });
         client.stopCall();
       });
-      // enableUpdate: true tells Retell's SDK to include the full running
-      // transcript array in every `update` event. Without this flag the
-      // `update` events fire for node-transition metadata but carry no
-      // transcript, so the live transcript panel stays empty throughout the call.
-      await client.startCall({ accessToken, enableUpdate: true });
+      // retell-client-js-sdk v2 forwards every server `update` event (running transcript
+      // included); the v1 `enableUpdate` flag no longer exists.
+      await client.startCall({ accessToken });
     } catch (e) {
       toast.error("Test call failed", { description: (e as Error).message });
     } finally {
@@ -2134,7 +2134,7 @@ export function RetellDeployDialog({
     }
 
     const textModel = isWebeeNative
-      ? resolveWebeeSpeechModel(settings as Record<string, unknown>)
+      ? resolveWebeeSpeechModel(settings as unknown as Record<string, unknown>)
       : (settings.openaiRealtimeModel ?? settings.model ?? "gpt-4.1");
     // Shared with the relay so the stored call row and this session are the same
     // call, which is what lets a test call be inspected afterwards.

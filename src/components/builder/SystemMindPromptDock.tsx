@@ -3,7 +3,7 @@
 // Workspace as a right-side drawer, plus the "SystemMind Build" left-nav entry
 // shown while a build session exists for the current agent.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useNavigate } from "@tanstack/react-router";
@@ -15,7 +15,10 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { SystemMindBuildDrawer } from "@/components/systemmind/SystemMindBuildDrawer";
+// The build drawer (SystemMind session view, ~165 KB) loads on first open, not with the builder.
+const SystemMindBuildDrawer = lazy(() =>
+  import("@/components/systemmind/SystemMindBuildDrawer").then((m) => ({ default: m.SystemMindBuildDrawer })),
+);
 import { createBuildSession, listBuildSessions } from "@/lib/systemmind/build-workspace.functions";
 
 const HELPER_PROMPTS = [
@@ -44,6 +47,8 @@ export function useSystemMindBuildLauncher({
   const createFn = useServerFn(createBuildSession);
 
   const [open, setOpen]                   = useState(false);
+  const [drawerMounted, setDrawerMounted] = useState(false);
+  useEffect(() => { if (open) setDrawerMounted(true); }, [open]);
   const [sessionId, setSessionId]         = useState<string | null>(null);
   const [initialPrompt, setInitialPrompt] = useState<string | null>(null);
   const [prompt, setPrompt]               = useState("");
@@ -192,17 +197,21 @@ export function useSystemMindBuildLauncher({
         </div>
       </div>
 
-      <SystemMindBuildDrawer
-        open={open}
-        onOpenChange={setOpen}
-        sessionId={sessionId ?? existingSession?.id ?? null}
-        initialPrompt={initialPrompt}
-        onInitialPromptConsumed={() => setInitialPrompt(null)}
-        agentContext={{
-          agentName: agentName ?? null,
-          channelType: channelType ?? null,
-        }}
-      />
+      {drawerMounted && (
+        <Suspense fallback={null}>
+          <SystemMindBuildDrawer
+            open={open}
+            onOpenChange={setOpen}
+            sessionId={sessionId ?? existingSession?.id ?? null}
+            initialPrompt={initialPrompt}
+            onInitialPromptConsumed={() => setInitialPrompt(null)}
+            agentContext={{
+              agentName: agentName ?? null,
+              channelType: channelType ?? null,
+            }}
+          />
+        </Suspense>
+      )}
     </>
   );
 

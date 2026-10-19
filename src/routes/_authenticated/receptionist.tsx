@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { Bot, CalendarCheck, ChevronRight, PhoneCall, Wrench, ExternalLink } from "lucide-react";
-import { DashboardPage, KpiCard } from "@/components/dashboard/PageShell";
+import { DashboardPage, KpiCard, PageHeader } from "@/components/dashboard/PageShell";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -67,7 +67,8 @@ function ReceptionistHubPage() {
 
   if (q.isLoading || !workspaceId) {
     return (
-      <DashboardPage title="Receptionist" subtitle="Loading receptionist activity">
+      <DashboardPage>
+        <PageHeader title="Receptionist" subtitle="Loading receptionist activity" />
         <LoadingProgress label="Loading receptionist data" estimatedMs={5000} />
       </DashboardPage>
     );
@@ -85,13 +86,14 @@ function ReceptionistHubPage() {
   ).length;
 
   return (
-    <DashboardPage
-      title="Receptionist"
-      subtitle={
-        [d?.brand, d?.location].filter(Boolean).join(" · ") ||
-        "Calls, bookings, and tool activity for this workspace's receptionist"
-      }
-    >
+    <DashboardPage>
+      <PageHeader
+        title="Receptionist"
+        subtitle={
+          [d?.brand, d?.location].filter(Boolean).join(" · ") ||
+          "Calls, bookings, and tool activity for this workspace's receptionist"
+        }
+      />
       <div className="mb-4 flex flex-wrap gap-2">
         <Button variant="outline" size="sm" asChild>
           <Link to="/calls">All calls</Link>
@@ -114,17 +116,19 @@ function ReceptionistHubPage() {
       </div>
 
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <KpiCard title="Recent calls" value={String(calls.length)} icon={PhoneCall} />
-        <KpiCard title="Bookings (calendar)" value={String(bookings.length)} icon={CalendarCheck} />
-        <KpiCard title="Tool events" value={String(toolEvents.length)} icon={Wrench} />
-        <KpiCard title="book_appointment OK" value={String(successfulBookings)} icon={Bot} />
+        <KpiCard label="Recent calls" value={String(calls.length)} icon={PhoneCall} />
+        <KpiCard label="Bookings (calendar)" value={String(bookings.length)} icon={CalendarCheck} />
+        <KpiCard label="Tool events" value={String(toolEvents.length)} icon={Wrench} />
+        <KpiCard label="book_appointment OK" value={String(successfulBookings)} icon={Bot} />
       </div>
 
       {!d?.toolEventsAvailable && (
         <p className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
-          Tool activity log is not available yet — run in Supabase SQL Editor:{" "}
-          <code className="text-xs">node scripts/apply-receptionist-migration.mjs</code> (prints the
-          migration SQL).
+          Tool activity log is not available yet — run{" "}
+          <code className="text-xs">
+            node scripts/apply-migration.mjs supabase/migrations/20260811120000_receptionist_tool_events.sql
+          </code>
+          .
         </p>
       )}
 

@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   quality:
-    name: Typecheck and build
+    name: Typecheck, test and build
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -34,6 +34,10 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
+
+      # Fast suite only — no database or secrets needed (live-database tests: npm run test:e2e).
+      - name: Test
+        run: npm test
 
       - name: Build
         run: npm run build

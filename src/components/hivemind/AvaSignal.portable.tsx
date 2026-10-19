@@ -303,11 +303,16 @@ export function AvaSignal({
   reducedRef.current = reduced;
 
   useEffect(() => {
-    const wrap = wrapRef.current;
-    const canvas = canvasRef.current;
-    if (!wrap || !canvas) return;
-    const ctx = canvas.getContext("2d", { alpha: true });
-    if (!ctx) return;
+    const wrapEl = wrapRef.current;
+    const canvasEl = canvasRef.current;
+    if (!wrapEl || !canvasEl) return;
+    const ctx2d = canvasEl.getContext("2d", { alpha: true });
+    if (!ctx2d) return;
+    // Re-bound with non-null types: the draw helpers below are hoisted function declarations,
+    // which don't keep the null checks above.
+    const wrap: HTMLDivElement = wrapEl;
+    const canvas: HTMLCanvasElement = canvasEl;
+    const ctx: CanvasRenderingContext2D = ctx2d;
 
     let mobile = window.matchMedia("(max-width: 640px)").matches;
     let width = 1;
@@ -649,7 +654,7 @@ export function AvaSignal({
         const x = width * 0.5 + radius * 0.04 + Math.cos(node.a) * rr;
         const z = Math.sin(node.a);
         const y = height * 0.5 - radius * 0.03 + z * rr * node.tilt + node.yOff * radius;
-        return { x, y, z, rBase };
+        return { x, y, z, rBase, size: node.size, hue: node.hue };
       });
       nodeLinks.forEach((link) => {
         link.ph += link.sp * speedMul * dt * (1 + voice * 0.35);

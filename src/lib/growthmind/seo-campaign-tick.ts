@@ -19,7 +19,7 @@
  * never invent a topic from nothing.
  */
 
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { WBAH_WORKSPACE_ID } from "../wbah-exclusion.shared";
 
 export const AUTO_SEO_NAME_PREFIX = "[Auto] ";
@@ -83,7 +83,7 @@ export type SeoCampaignTickResult = {
 };
 
 async function tickWorkspace(
-  sb: ReturnType<typeof createClient>,
+  sb: SupabaseClient<any, "public", "public", any, any>,
   workspaceId: string,
   perWeek: number,
 ): Promise<SeoCampaignTickResult> {

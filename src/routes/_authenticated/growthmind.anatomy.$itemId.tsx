@@ -20,7 +20,7 @@ import {
 import { createProjectFromRecommendation } from "@/lib/growthmind/growthmind.content-projects";
 
 export const Route = createFileRoute("/_authenticated/growthmind/anatomy/$itemId")({
-  validateSearch: (s: Record<string, unknown>) => ({ run: s.run === true || s.run === "true" ? true : undefined }),
+  validateSearch: (s: Record<string, unknown>): { run?: true } => ({ run: s.run === true || s.run === "true" ? true : undefined }),
   component: () => (
     <GrowthMindShell>
       <AnatomyPage />

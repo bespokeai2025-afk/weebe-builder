@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { jsonResult } from "@/lib/server-fn-json.shared";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -221,7 +222,7 @@ function mapRow(r: any): BusinessDna {
 
 export const getBusinessDna = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(jsonResult(async ({ context }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
@@ -251,7 +252,7 @@ export const getBusinessDna = createServerFn({ method: "GET" })
     };
 
     return { dna, completion: computeDnaCompletionScore(dna) };
-  });
+  }));
 
 const UpsertSchema = z.object({
   companyName:            z.string().default(""),
@@ -298,7 +299,7 @@ const UpsertSchema = z.object({
 export const upsertBusinessDna = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((data: unknown) => UpsertSchema.parse(data))
-  .handler(async ({ context, data }) => {
+  .handler(jsonResult(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
@@ -396,7 +397,7 @@ export const upsertBusinessDna = createServerFn({ method: "POST" })
     });
 
     return { dna, completion: computeDnaCompletionScore(dna) };
-  });
+  }));
 
 // ── Version history ────────────────────────────────────────────────────────────
 

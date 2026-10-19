@@ -14,12 +14,12 @@ import {
   getPromptTemplates, savePromptTemplate, deletePromptTemplate,
   testPromptTemplate, seedLibraryPacks, restorePromptVersion, togglePromptFavorite, getPromptTemplate,
   getWorkspaceContext, setPromptWinner, runPromptChain,
-  type PromptTemplate, type PromptVariable, type PromptVersion, type PromptChainStep, type ChainStepMapping,
+  type PromptTemplate, type PromptVariable, type PromptVersion, type PromptChainStep, type ChainStepMapping, type PromptType,
 } from "@/lib/growthmind/growthmind.prompt-studio";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const PROMPT_TYPES: { value: string; label: string }[] = [
+const PROMPT_TYPES: { value: PromptType; label: string }[] = [
   { value: "content",               label: "Content"            },
   { value: "video",                 label: "Video"              },
   { value: "campaign",              label: "Campaign"           },
@@ -958,7 +958,7 @@ export function GrowthMindPromptStudio() {
         tags:               editState.tags,
         isFavorite:         editState.isFavorite,
       }});
-      setSelectedId(res.id);
+      setSelectedId(res.id ?? null);
       setIsDirty(false);
       await qc.invalidateQueries({ queryKey: ["prompt-templates"] });
     } catch (e) {
@@ -984,7 +984,7 @@ export function GrowthMindPromptStudio() {
         tags:               editState.tags,
         isFavorite:         false,
       }});
-      setSelectedId(res.id);
+      setSelectedId(res.id ?? null);
       setEditState(s => ({ ...s, name: `${s.name} (Copy)`, category: dupCategory, isFavorite: false }));
       setIsDirty(false);
       await qc.invalidateQueries({ queryKey: ["prompt-templates"] });

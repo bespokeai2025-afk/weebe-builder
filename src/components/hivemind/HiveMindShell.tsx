@@ -22,15 +22,19 @@ const MODE_CONFIG: Record<HiveMindMode, { icon: React.ElementType; label: string
   recommend: { icon: Lightbulb,      label: "Recommend Only", desc: "Insights and recommendations", color: "text-blue-400",   ring: "ring-blue-500/30",   bg: "bg-blue-500/10" },
   assistant: { icon: MessageSquare,  label: "Assistant",      desc: "Create tasks and insights",    color: "text-violet-400", ring: "ring-violet-500/30", bg: "bg-violet-500/10" },
   operator:  { icon: Zap,            label: "Operator",       desc: "Propose and execute actions",  color: "text-amber-400",  ring: "ring-amber-500/30",  bg: "bg-amber-500/10" },
+  executive_operator: { icon: Zap, label: "Executive Operator", desc: "Operator plus cross-Mind playbooks", color: "text-rose-400", ring: "ring-rose-500/30", bg: "bg-rose-500/10" },
 };
 
 // Mode gates: which nav hrefs are visible per mode
 const SETTINGS_HREF = "/hivemind/settings";
+const OPERATOR_PAGES = ["/hivemind", "/hivemind/business-dna", "/hivemind/briefings", "/hivemind/briefing", "/hivemind/chat", "/hivemind/tasks", "/hivemind/work-orders", "/hivemind/actions", "/hivemind/marketing-operator", "/hivemind/recommendations", "/hivemind/reports", "/hivemind/system-health", "/hivemind/workflow-intelligence", SETTINGS_HREF];
 const MODE_VISIBILITY: Record<HiveMindMode, string[]> = {
   observe:   ["/hivemind", "/hivemind/business-dna", "/hivemind/briefings", "/hivemind/briefing", "/hivemind/system-health", "/hivemind/workflow-intelligence", SETTINGS_HREF],
   recommend: ["/hivemind", "/hivemind/business-dna", "/hivemind/briefings", "/hivemind/briefing", "/hivemind/recommendations", "/hivemind/reports", "/hivemind/system-health", "/hivemind/workflow-intelligence", SETTINGS_HREF],
   assistant: ["/hivemind", "/hivemind/business-dna", "/hivemind/briefings", "/hivemind/briefing", "/hivemind/chat", "/hivemind/tasks", "/hivemind/work-orders", "/hivemind/marketing-operator", "/hivemind/recommendations", "/hivemind/reports", "/hivemind/system-health", "/hivemind/workflow-intelligence", SETTINGS_HREF],
-  operator:  ["/hivemind", "/hivemind/business-dna", "/hivemind/briefings", "/hivemind/briefing", "/hivemind/chat", "/hivemind/tasks", "/hivemind/work-orders", "/hivemind/actions", "/hivemind/marketing-operator", "/hivemind/recommendations", "/hivemind/reports", "/hivemind/system-health", "/hivemind/workflow-intelligence", SETTINGS_HREF],
+  operator:  OPERATOR_PAGES,
+  // Executive Operator sees everything Operator does (see action-safety.shared.ts).
+  executive_operator: OPERATOR_PAGES,
 };
 
 const ALL_NAV = [

@@ -446,7 +446,7 @@ export const upsertMyAgent = createServerFn({ method: "POST" })
       retell_agent_id: data.retellAgentId ?? null,
       name: data.name,
       flow_data: data.flowData,
-      settings: compiledSettings,
+      settings: compiledSettings as Json,
       variables: data.variables,
       ...(typeof data.costSeconds === "number" ? { cost_seconds: data.costSeconds } : {}),
     };
@@ -567,12 +567,14 @@ export const saveAgentCalcom = createServerFn({ method: "POST" })
     // and automatically attach booking tools when the agent is deployed.
     if (row?.workspace_id) {
       if (data.calcomApiKey) {
-        const wsData: Record<string, unknown> = {
+        const wsData: { workspace_id: string; calcom_api_key: string; default_event_type_id?: number } = {
           workspace_id: row.workspace_id,
           calcom_api_key: data.calcomApiKey,
         };
-        if (data.calcomEventTypeId) {
-          wsData.default_event_type_id = data.calcomEventTypeId;
+        // Cal.com event type ids are integers; the column is too.
+        const eventTypeId = Number(data.calcomEventTypeId);
+        if (data.calcomEventTypeId && Number.isFinite(eventTypeId)) {
+          wsData.default_event_type_id = eventTypeId;
         }
         await supabase
           .from("workspace_settings")

@@ -10,7 +10,8 @@ export default defineConfig({
     },
   },
   test: {
-    include: ["tests/component/**/*.test.{ts,tsx}"],
+    // Fast suite — no live database. Live-database tests: npm run test:e2e.
+    include: ["tests/component/**/*.test.{ts,tsx}", "src/lib/**/*.test.{ts,tsx}"],
     environment: "jsdom",
     globals: false,
     testTimeout: 30_000,

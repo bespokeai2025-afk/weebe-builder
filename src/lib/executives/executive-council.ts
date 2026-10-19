@@ -1,3 +1,4 @@
+import type { Json } from "@/integrations/supabase/types";
 // ── Executive Council — shared, client-safe foundation ─────────────────────────
 // Constants + TypeScript contract types describing the AI executive team.
 // NO server imports here — this module is imported by both UI and server code.
@@ -230,6 +231,8 @@ export type GrowthMindExecutiveSummary = {
   recommendedBudget?:      string | null;
   recommendedNextAction?:  string | null;
   recommendedFunnel?:      CmoFunnelInsight | null;
+  /** Paid-ads roll-up once ad platforms have synced (see executive-bridge.server.ts). */
+  adsSummary?:             Json | null;
 };
 
 export type SystemMindExecutiveSummary = {

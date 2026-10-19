@@ -131,7 +131,7 @@ function HiveMindSettings() {
 
   const { data: voices = [] } = useQuery({
     queryKey: ["hivemind-voices"],
-    queryFn:  () => voicesFn().then(r => r.voices ?? []),
+    queryFn:  () => voicesFn().then(r => r.voices ?? ([] as NonNullable<typeof r.voices>)),
     staleTime: 300_000,
     throwOnError: false,
   });

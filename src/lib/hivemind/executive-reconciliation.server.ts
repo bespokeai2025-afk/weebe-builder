@@ -312,7 +312,7 @@ const notificationGapRecommendationsJob: ReconJob = {
     let proposed = 0;
     let inserted: any[] = [];
     const followThroughCandidates: any[] = [];
-    const existingByKey = new Map(
+    const existingByKey = new Map<string, any>(
       (existing ?? []).map((rec: any) => [String(rec.dedupe_key), rec]),
     );
     const rows: any[] = [];

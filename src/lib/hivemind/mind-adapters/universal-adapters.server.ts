@@ -706,7 +706,7 @@ export async function runCrossChannelObjectiveExecution(ctx: AdapterContext): Pr
     title: `Launch cross-channel objective: ${justified.length} channel(s)`,
     description: `Launch the approved ${justified.map((c: any) => c.channel).join(", ")} channel campaigns. Each channel send still requires its own send-action approval. Nothing is sent until the per-channel approvals are completed.`,
     action_type: "hivemind_launch_cross_channel_objective",
-    action_payload: { justified_channels: justified.map((c: any) => c.channel), ...artifacts[0] },
+    action_payload: { ...artifacts[0] },
     sensitive: false,
   });
 

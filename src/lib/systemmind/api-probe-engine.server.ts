@@ -10,6 +10,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requirePlatformAdmin } from "@/lib/auth/require-platform-admin";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { decryptCredentials, encryptCredentials } from "./client-api-connections.server";
+import { jsonResult } from "@/lib/server-fn-json.shared";
 
 // ── Internal helpers (server-side only, never exported as server fn) ──────────
 
@@ -91,7 +92,7 @@ async function tryRefreshOtpToken(connectionId: string, creds: Record<string, st
     const newToken = parsed?.accessToken ?? parsed?.token ?? parsed?.data?.accessToken ?? null;
     if (!newToken) return null;
 
-    const newCreds = { ...creds, accessToken: newToken };
+    const newCreds: typeof creds & { refreshToken?: string } = { ...creds, accessToken: newToken };
     if (parsed?.refreshToken ?? parsed?.data?.refreshToken) {
       newCreds.refreshToken = parsed?.refreshToken ?? parsed?.data?.refreshToken;
     }
@@ -229,7 +230,7 @@ export const probeEndpoint = createServerFn({ method: "POST" })
       body:          z.record(z.unknown()).optional(),
     }).parse(i),
   )
-  .handler(async ({ data }) => {
+  .handler(jsonResult(async ({ data }) => {
     const { baseUrl, authType, creds } = await getConnectionCreds(data.connectionId);
 
     let url = `${baseUrl}${data.endpointPath.startsWith("/") ? data.endpointPath : `/${data.endpointPath}`}`;
@@ -291,7 +292,7 @@ export const probeEndpoint = createServerFn({ method: "POST" })
     const suggested = suggestModuleForPath(data.endpointPath, topKeys);
 
     return { status, responseTime, error: errorMsg, topKeys, arrayPath, recordCount: arr.length, sampleRecord, paginationKeys, suggestedModules: suggested };
-  });
+  }));
 
 export const detectPagination = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])

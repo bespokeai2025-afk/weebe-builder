@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { jsonResult } from "@/lib/server-fn-json.shared";
 
 export type ActionType =
   | "email"
@@ -72,7 +73,7 @@ export const listHexmailCampaigns = createServerFn({ method: "POST" })
       includeSteps:    z.boolean().optional(),
     }).parse(input),
   )
-  .handler(async ({ context, data }) => {
+  .handler(jsonResult(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
     const sb = supabase as any;
@@ -103,12 +104,12 @@ export const listHexmailCampaigns = createServerFn({ method: "POST" })
       stepsByCampaign[s.campaign_id].push(s);
     }
     return campaigns.map((c) => ({ ...c, steps: stepsByCampaign[c.id] ?? [] }));
-  });
+  }));
 
 export const getHexmailCampaignWithSteps = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input) => z.object({ id: z.string() }).parse(input))
-  .handler(async ({ context, data }) => {
+  .handler(jsonResult(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
     const sb = supabase as any;
@@ -126,7 +127,7 @@ export const getHexmailCampaignWithSteps = createServerFn({ method: "POST" })
       .order("day_number", { ascending: true });
     if (se) throw new Error(se.message);
     return { ...campaign, steps: (steps ?? []) } as HexmailCampaign;
-  });
+  }));
 
 const configSchema = z
   .object({

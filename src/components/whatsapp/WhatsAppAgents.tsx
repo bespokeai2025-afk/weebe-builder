@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { listWAAgents, getWAProviderStatus } from "@/lib/dashboard/whatsapp.functions";
 import { getMyAgent } from "@/lib/agents/agents.functions";
-import { useBuilderStore } from "@/lib/builder/store";
+// The builder store pulls in the flow canvas library; load it only when opening the builder.
+const loadBuilderStore = () => import("@/lib/builder/store").then((m) => m.useBuilderStore);
 import type { BuilderSettings } from "@/lib/builder/types";
 import { toast } from "sonner";
 
@@ -35,6 +36,13 @@ export function WhatsAppAgents() {
 
   const isLoading = statusLoading;
 
+  async function startNewWhatsAppAgent() {
+    const useBuilderStore = await loadBuilderStore();
+    useBuilderStore.getState().setSettings({ channelType: "whatsapp" });
+    useBuilderStore.getState().clearAll();
+    navigate({ to: "/builder", search: { new: undefined } });
+  }
+
   async function openInBuilder(id: string) {
     setLoadingId(id);
     try {
@@ -46,6 +54,7 @@ export function WhatsAppAgents() {
       const settings  = (row.settings ?? {}) as Record<string, unknown>;
       const variables = Array.isArray(row.variables) ? row.variables : [];
 
+      const useBuilderStore = await loadBuilderStore();
       useBuilderStore.getState().loadFlow({
         nodes:      nodes as never,
         edges:      edges as never,
@@ -167,11 +176,7 @@ export function WhatsAppAgents() {
         <Button
           size="sm"
           className="gap-1.5"
-          onClick={() => {
-            useBuilderStore.getState().setSettings({ channelType: "whatsapp" });
-            useBuilderStore.getState().clearAll();
-            navigate({ to: "/builder", search: { new: undefined } });
-          }}
+          onClick={() => void startNewWhatsAppAgent()}
         >
           <Plus className="h-3.5 w-3.5" /> New WA Agent
         </Button>
@@ -191,11 +196,7 @@ export function WhatsAppAgents() {
             size="sm"
             variant="outline"
             className="mt-2 gap-1.5"
-            onClick={() => {
-              useBuilderStore.getState().setSettings({ channelType: "whatsapp" });
-              useBuilderStore.getState().clearAll();
-              navigate({ to: "/builder", search: { new: undefined } });
-            }}
+            onClick={() => void startNewWhatsAppAgent()}
           >
             <Plus className="h-3.5 w-3.5" /> Create your first WA agent
           </Button>

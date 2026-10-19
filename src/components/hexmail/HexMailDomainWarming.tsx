@@ -18,7 +18,7 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: "text-red-400/60 border-red-500/20",
 };
 
-function PlanCard({ plan, onStatusChange }: { plan: any; onStatusChange: (planId: string, status: string) => void }) {
+function PlanCard({ plan, onStatusChange }: { plan: any; onStatusChange: (planId: string, status: "active" | "paused" | "cancelled") => void }) {
   const [expanded, setExpanded] = useState(false);
   const getProgressFn = useServerFn(getWarmupProgress);
   const { data: days = [], refetch } = useQuery({

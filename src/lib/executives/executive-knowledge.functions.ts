@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { jsonResult } from "@/lib/server-fn-json.shared";
 
 // ── Knowledge bases ───────────────────────────────────────────────────────────
 
@@ -187,7 +188,7 @@ export const queryExecutiveKnowledge = createServerFn({ method: "POST" })
       topK:     z.number().int().min(1).max(20).optional(),
     }).parse(input),
   )
-  .handler(async ({ context, data }) => {
+  .handler(jsonResult(async ({ context, data }) => {
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
     const { retrieveExecutiveKnowledge } = await import("@/lib/executives/executive-knowledge.server");
@@ -198,7 +199,7 @@ export const queryExecutiveKnowledge = createServerFn({ method: "POST" })
       topK: data.topK,
     });
     return { chunks, kbSlugs };
-  });
+  }));
 
 // ── Starter knowledge seeding ─────────────────────────────────────────────────
 

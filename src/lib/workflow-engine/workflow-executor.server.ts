@@ -246,7 +246,13 @@ async function executeStep(
         await dispatchCrmPostCall(
           ctx.workspaceId,
           { name: lead.full_name, phone: lead.phone, email: lead.email ?? undefined },
-          { callType: "outbound", outcome: String(state.call_outcome ?? "workflow_push"), notes: `Workflow run: ${ctx.runId}` },
+          {
+            phone: lead.phone,
+            contactName: lead.full_name,
+            summary: `Outcome: ${String(state.call_outcome ?? "workflow_push")} — workflow run ${ctx.runId}`,
+            // No provider call behind a workflow push; the run id keeps the activity unique.
+            callId: `workflow:${ctx.runId}`,
+          },
         );
         return ok(step, { crm_synced: true, lead_id: ctx.leadId });
       }

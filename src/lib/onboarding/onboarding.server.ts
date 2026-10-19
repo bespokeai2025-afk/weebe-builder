@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -69,9 +70,40 @@ export const getOnboardingState = createServerFn({ method: "POST" })
     };
   });
 
+// Only these columns may be set from the client.
+const OnboardingStepPatchSchema = z
+  .object({
+    business_dna_done: z.boolean(),
+    knowledge_uploaded: z.boolean(),
+    connections_done: z.boolean(),
+    first_agent_done: z.boolean(),
+    first_campaign_done: z.boolean(),
+    analysis_done: z.boolean(),
+    telephony_done: z.boolean(),
+    crm_choice: z.enum(["smart_dash", "external", "skip"]),
+    completed: z.boolean(),
+    dismissed: z.boolean(),
+  })
+  .partial()
+  .strict();
+type OnboardingStepPatch = z.infer<typeof OnboardingStepPatchSchema>;
+
+const OnboardingDnaFormSchema = z.object({
+  companyName: z.string().max(300),
+  industry: z.string().max(300),
+  website: z.string().max(500),
+  locations: z.string().max(1000),
+  targetCustomers: z.string().max(2000),
+  primaryGoal: z.string().max(2000),
+  brandVoice: z.string().max(2000),
+});
+type OnboardingDnaForm = z.infer<typeof OnboardingDnaFormSchema>;
+
 export const setOnboardingPath = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((d: { data: { path: OnboardingPath } }) => d)
+  .validator((d: { path: OnboardingPath }) =>
+    z.object({ path: z.enum(["agent_builder", "grow", "both"]) }).parse(d),
+  )
   .handler(async ({ data, context }): Promise<OnboardingState> => {
     const { workspaceId, userId } = context;
     const sb = supabaseAdmin as any;
@@ -79,7 +111,7 @@ export const setOnboardingPath = createServerFn({ method: "POST" })
     const { data: row } = await sb
       .from("workspace_onboarding")
       .upsert(
-        { workspace_id: workspaceId, user_id: userId, path: data.data.path, updated_at: new Date().toISOString() },
+        { workspace_id: workspaceId, user_id: userId, path: data.path, updated_at: new Date().toISOString() },
         { onConflict: "workspace_id" }
       )
       .select()
@@ -87,7 +119,7 @@ export const setOnboardingPath = createServerFn({ method: "POST" })
 
     return {
       exists: true,
-      path: row?.path ?? data.data.path,
+      path: row?.path ?? data.path,
       completed: row?.completed ?? false,
       dismissed: row?.dismissed ?? false,
       business_dna_done: row?.business_dna_done ?? false,
@@ -103,20 +135,7 @@ export const setOnboardingPath = createServerFn({ method: "POST" })
 
 export const completeOnboardingStep = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((d: {
-    data: Partial<{
-      business_dna_done: boolean;
-      knowledge_uploaded: boolean;
-      connections_done: boolean;
-      first_agent_done: boolean;
-      first_campaign_done: boolean;
-      analysis_done: boolean;
-      telephony_done: boolean;
-      crm_choice: CrmChoice;
-      completed: boolean;
-      dismissed: boolean;
-    }>;
-  }) => d)
+  .validator((d: OnboardingStepPatch) => OnboardingStepPatchSchema.parse(d))
   .handler(async ({ data, context }): Promise<{ ok: boolean }> => {
     const { workspaceId, userId } = context;
     const sb = supabaseAdmin as any;
@@ -124,7 +143,7 @@ export const completeOnboardingStep = createServerFn({ method: "POST" })
     await sb
       .from("workspace_onboarding")
       .upsert(
-        { workspace_id: workspaceId, user_id: userId, ...data.data, updated_at: new Date().toISOString() },
+        { workspace_id: workspaceId, user_id: userId, ...data, updated_at: new Date().toISOString() },
         { onConflict: "workspace_id" }
       );
 
@@ -150,21 +169,11 @@ export const dismissOnboarding = createServerFn({ method: "POST" })
 // Quick Business DNA save during onboarding wizard
 export const saveOnboardingBusinessDna = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((d: {
-    data: {
-      companyName: string;
-      industry: string;
-      website: string;
-      locations: string;
-      targetCustomers: string;
-      primaryGoal: string;
-      brandVoice: string;
-    };
-  }) => d)
+  .validator((d: OnboardingDnaForm) => OnboardingDnaFormSchema.parse(d))
   .handler(async ({ data, context }): Promise<{ ok: boolean }> => {
     const { workspaceId } = context;
     const sb = supabaseAdmin as any;
-    const f = data.data;
+    const f = data;
 
     await sb.from("growthmind_business_dna").upsert(
       {

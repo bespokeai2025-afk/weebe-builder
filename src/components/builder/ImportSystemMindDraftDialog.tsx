@@ -129,6 +129,7 @@ export function ImportSystemMindDraftDialog({
           name:        v.name,
           description: v.description ?? "",
           type:        v.type ?? "string",
+          defaultValue: v.defaultValue ?? "",
         })),
         agentRowId: null,
         replaceSettings: true,

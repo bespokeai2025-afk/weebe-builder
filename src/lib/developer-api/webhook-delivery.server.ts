@@ -16,7 +16,7 @@ const RETRY_DELAYS_SECONDS = [30, 120, 600, 3600]; // 30s, 2m, 10m, 1h
 export type WebhookEventType =
   | "lead.created"   | "lead.updated"
   | "call.started"   | "call.completed"  | "call.failed"
-  | "booking.created"
+  | "booking.created" | "booking.updated" | "booking.cancelled"
   | "campaign.completed"
   | "document.uploaded"
   | "agent.deployed";

@@ -2058,7 +2058,7 @@ export const listHiveMindVoices = createServerFn({ method: "GET" })
       if (!res.ok) return { voices: [] };
       const json = await res.json() as any;
       return {
-        voices: (json.voices ?? []).map((v: any) => ({
+        voices: ((json.voices ?? []) as any[]).map((v: any) => ({
           id:          v.voice_id as string,
           name:        v.name as string,
           category:    v.category as string,

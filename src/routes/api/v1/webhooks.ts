@@ -16,7 +16,8 @@ const sb = () => createClient(SUPABASE_URL, SERVICE_KEY, { auth: { autoRefreshTo
 
 const VALID_EVENTS = [
   "lead.created","lead.updated","call.started","call.completed","call.failed",
-  "booking.created","campaign.completed","document.uploaded","agent.deployed",
+  "booking.created","booking.updated","booking.cancelled",
+  "campaign.completed","document.uploaded","agent.deployed",
 ];
 
 export const Route = createFileRoute("/api/v1/webhooks")({

@@ -38,9 +38,9 @@ function CompetitorIntelPage() {
     throwOnError: false,
   });
 
-  const accounts       = data?.accounts ?? [];
-  const repeatedTopics = data?.repeatedTopics ?? [];
-  const contentGaps    = data?.contentGaps ?? [];
+  const accounts       = data?.accounts ?? ([] as NonNullable<typeof data>["accounts"]);
+  const repeatedTopics = data?.repeatedTopics ?? ([] as NonNullable<typeof data>["repeatedTopics"]);
+  const contentGaps    = data?.contentGaps ?? ([] as NonNullable<typeof data>["contentGaps"]);
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">

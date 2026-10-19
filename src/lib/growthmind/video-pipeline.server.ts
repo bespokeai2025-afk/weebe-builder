@@ -23,6 +23,7 @@ import {
   type VideoQualityTier, type VideoGenerationType, type VideoAspect, type VideoResolution,
 } from "./veo31-capabilities.shared";
 import { loadBrandContext, planVideoCreative, type VideoPlan } from "./video-planning-engine.server";
+import { jsonResult } from "@/lib/server-fn-json.shared";
 
 // ── Shared types ──────────────────────────────────────────────────────────────
 
@@ -107,7 +108,7 @@ const planSchema = z.object({
 export const planVideoPipelineJob = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => planSchema.parse(input))
-  .handler(async ({ data, context }) => {
+  .handler(jsonResult(async ({ data, context }) => {
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
     const admin = supabaseAdmin as any;
@@ -182,7 +183,7 @@ export const planVideoPipelineJob = createServerFn({ method: "POST" })
 
     if (error) throw new Error(`Could not save the video plan: ${error.message}`);
     return { ok: true as const, issues: [], job: toJob(row) };
-  });
+  }));
 
 // ── Adjust prompt (pre-approval only — free, re-runs planning) ───────────────
 
@@ -194,7 +195,7 @@ const adjustSchema = z.object({
 export const adjustVideoPipelinePrompt = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => adjustSchema.parse(input))
-  .handler(async ({ data, context }) => {
+  .handler(jsonResult(async ({ data, context }) => {
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
     const admin = supabaseAdmin as any;
@@ -239,7 +240,7 @@ export const adjustVideoPipelinePrompt = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(`Could not update the plan: ${error.message}`);
     return toJob(updated);
-  });
+  }));
 
 // ── Approve & render: ATOMIC approval consumption + paid submission ──────────
 
@@ -251,7 +252,7 @@ const approveSchema = z.object({
 export const approveAndRenderVideoJob = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => approveSchema.parse(input))
-  .handler(async ({ data, context }) => {
+  .handler(jsonResult(async ({ data, context }) => {
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
     const admin = supabaseAdmin as any;
@@ -372,7 +373,7 @@ export const approveAndRenderVideoJob = createServerFn({ method: "POST" })
       });
       throw new Error(`We couldn't start the render: ${reason} Your approval was not reused — you can create a new render when ready.`);
     }
-  });
+  }));
 
 // ── Retry (creates a NEW job that needs a NEW approval) ──────────────────────
 
@@ -384,7 +385,7 @@ const retrySchema = z.object({
 export const retryVideoPipelineJob = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => retrySchema.parse(input))
-  .handler(async ({ data, context }) => {
+  .handler(jsonResult(async ({ data, context }) => {
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
     const admin = supabaseAdmin as any;
@@ -434,7 +435,7 @@ export const retryVideoPipelineJob = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(`Could not create the retry: ${error.message}`);
     return toJob(row);
-  });
+  }));
 
 // ── Cancel (pre-render only) ──────────────────────────────────────────────────
 
@@ -478,7 +479,7 @@ export const listVideoPipelineJobs = createServerFn({ method: "POST" })
 export const pollVideoPipelineJob = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ jobId: z.string().uuid() }).parse(input))
-  .handler(async ({ data, context }) => {
+  .handler(jsonResult(async ({ data, context }) => {
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
     const admin = supabaseAdmin as any;
@@ -495,4 +496,4 @@ export const pollVideoPipelineJob = createServerFn({ method: "POST" })
     const { completeRenderingJob } = await import("./video-job-poller");
     const updated = await completeRenderingJob(admin, row);
     return toJob(updated ?? row);
-  });
+  }));

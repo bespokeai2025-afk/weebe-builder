@@ -55,7 +55,7 @@ function TrendSourcesPage() {
     staleTime: 30_000,
     throwOnError: false,
   });
-  const sources = data?.sources ?? [];
+  const sources = data?.sources ?? ([] as NonNullable<typeof data>["sources"]);
 
   async function handleAdd() {
     if (!value.trim()) return;

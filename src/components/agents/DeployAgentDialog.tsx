@@ -1226,7 +1226,7 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
                       Save FreJun number
                     </Button>
 
-                    {settings.phoneNumber && (
+                    {typeof settings.phoneNumber === "string" && settings.phoneNumber && (
                       <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
                         <div className="flex items-center gap-2 min-w-0">
                           <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />

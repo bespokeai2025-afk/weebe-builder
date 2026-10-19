@@ -190,7 +190,7 @@ function MyAgentsPage() {
             <div className="flex items-center rounded-lg bg-muted/30 dark:bg-white/[0.03] p-0.5 ring-1 ring-border dark:ring-white/[0.06]">
               {(
                 [
-                  { value: "ALL", label: "All" },
+                  { value: "ALL", label: "All", icon: null },
                   { value: "RETELL", label: "OmniVoice", icon: <Radio className="h-3 w-3 text-sky-600 dark:text-sky-400" /> },
                   { value: "OPENAI_REALTIME", label: "HyperStream", icon: <Zap className="h-3 w-3 text-violet-600 dark:text-violet-400" /> },
                 ] as const

@@ -21,7 +21,10 @@ export type ActionType     =
   | "activate_systemmind_automation"
   | "seo_campaign_approval"
   | "content_publication_approval"
-  | "marketing_action_execute";
+  | "marketing_action_execute"
+  | "run_orchestration_playbook"
+  | "growthmind_publish_content"
+  | "gads_create_change_requests";
 
 export interface HiveMindAction {
   id:             string;
@@ -846,7 +849,10 @@ export async function approveHiveMindActionCore(
     if (sensitive && category) {
       // Fail closed: approver must hold the entitlement for this category.
       const { requireAction } = await import("@/lib/permissions/permissions.server");
-      await requireAction(workspaceId, userId, CATEGORY_ENTITLEMENT[category]);
+      const entitlement = (CATEGORY_ENTITLEMENT as Record<string, (typeof CATEGORY_ENTITLEMENT)[keyof typeof CATEGORY_ENTITLEMENT]>)[category];
+      // An unknown category (bad row) must not slip past the approval gate.
+      if (!entitlement) throw new Error(`Unknown sensitive action category "${category}" — approval refused.`);
+      await requireAction(workspaceId, userId, entitlement);
     }
 
     // 2. Atomic single-use consume (CAS). Losing racers get zero rows back.

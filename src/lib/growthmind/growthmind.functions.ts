@@ -4,6 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { type GrowthRecommendation } from "./growthmind.recommendations";
 import { cacheWrap, cacheDel } from "@/lib/cache/redis.server";
 
+import { getRequest } from "@tanstack/react-start/server";
 const GROWTHMIND_TTL = 10 * 60; // 10 minutes
 
 function growthmindKey(workspaceId: string) {
@@ -22,7 +23,7 @@ export const getGrowthMindData = createServerFn({ method: "GET" })
     const { requirePageAccessEntitled } = await import("@/lib/packages/entitlements.server");
     await requirePageAccessEntitled(workspaceId, userId, "growthmind", "view");
 
-    const url = context.request?.url ?? "";
+    const url = getRequest()?.url ?? "";
     const bust = process.env.NODE_ENV !== "production" && new URL(url, "http://x").searchParams.has("bust");
 
     return cacheWrap(
