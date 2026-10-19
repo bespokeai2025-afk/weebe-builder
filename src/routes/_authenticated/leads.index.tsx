@@ -134,6 +134,7 @@ import {
 } from "@/components/shared/AgentFilterSelect";
 import { wbahDateTimeOptions } from "@/lib/dashboard/wbah-timezone";
 
+import { formatCallMs as fmtDuration } from "@/lib/format/duration.shared";
 export const Route = createFileRoute("/_authenticated/leads/")({
   validateSearch: (search: Record<string, unknown>): { id?: string } => {
     const parsed = z.object({ id: z.string().uuid().optional() }).safeParse(search);
@@ -206,14 +207,6 @@ function interestBadge(level: string | null) {
       {level}
     </StatusBadge>
   );
-}
-
-function fmtDuration(ms: number | null): string {
-  if (ms == null) return "—";
-  const totalSec = Math.floor(ms / 1000);
-  const m = Math.floor(totalSec / 60);
-  const s = totalSec % 60;
-  return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
 function callStatusBadge(status: string | null) {

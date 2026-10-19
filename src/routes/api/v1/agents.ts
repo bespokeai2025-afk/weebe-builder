@@ -3,12 +3,11 @@
  * GET /api/v1/agents — list workspace agents (agents:read)
  */
 import { createFileRoute } from "@tanstack/react-router";
-import { createClient } from "@supabase/supabase-js";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { authenticateV1Request, jsonOk, jsonErr } from "@/lib/developer-api/v1-auth.middleware";
 
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
-const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
-const sb = () => createClient(SUPABASE_URL, SERVICE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
+// Untyped view of the shared service-role client (these routes predate the generated types).
+const sb = () => supabaseAdmin as any;
 
 export const Route = createFileRoute("/api/v1/agents")({
   server: {
@@ -25,7 +24,7 @@ export const Route = createFileRoute("/api/v1/agents")({
 
         if (error) return jsonErr(error.message, 500);
 
-        const agents = (data ?? []).map(a => ({
+        const agents = ((data ?? []) as any[]).map((a) => ({
           id:               a.id,
           name:             a.name,
           phone_number:     a.inbound_phone_number ?? null,

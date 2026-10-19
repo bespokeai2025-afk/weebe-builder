@@ -4,14 +4,9 @@
 // input. Dynamic imports use string literals (prod Rollup requirement).
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireSupabaseAuth, requireWorkspaceId } from "@/integrations/supabase/auth-middleware";
 import { requireAction } from "@/lib/permissions/permissions.server";
 import { jsonResult } from "@/lib/server-fn-json.shared";
-
-function requireWorkspaceId(workspaceId: string | undefined): string {
-  if (!workspaceId) throw new Error("No workspace selected — join or create a workspace first.");
-  return workspaceId;
-}
 
 function requireUserId(userId: string | undefined | null): string {
   if (!userId) throw new Error("Not signed in.");

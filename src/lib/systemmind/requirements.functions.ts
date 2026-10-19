@@ -4,13 +4,8 @@
 
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireSupabaseAuth, requireWorkspaceId } from "@/integrations/supabase/auth-middleware";
 import { jsonResult } from "@/lib/server-fn-json.shared";
-
-function requireWorkspaceId(workspaceId: string | undefined): string {
-  if (!workspaceId) throw new Error("No workspace selected — join or create a workspace first.");
-  return workspaceId;
-}
 
 export const startRequirementsInterview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

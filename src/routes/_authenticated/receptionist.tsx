@@ -13,17 +13,11 @@ import type { ReceptionistDashboard } from "@/lib/dnr/dnr-receptionist-dashboard
 import { getMyContext } from "@/lib/workspace/workspace.functions";
 import { RelativeTime } from "@/components/ui/relative-time";
 
+import { formatCallSeconds as fmtDuration } from "@/lib/format/duration.shared";
 export const Route = createFileRoute("/_authenticated/receptionist")({
   head: () => ({ meta: [{ title: "Receptionist — Webee" }] }),
   component: ReceptionistHubPage,
 });
-
-function fmtDuration(s?: number | null) {
-  if (!s) return "—";
-  const m = Math.floor(s / 60);
-  const r = s % 60;
-  return `${m}m ${r}s`;
-}
 
 function fmtWhen(iso: string | null) {
   if (!iso) return "—";

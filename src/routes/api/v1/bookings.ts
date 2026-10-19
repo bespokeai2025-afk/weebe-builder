@@ -4,12 +4,11 @@
  * POST /api/v1/bookings — create booking (bookings:write)
  */
 import { createFileRoute } from "@tanstack/react-router";
-import { createClient } from "@supabase/supabase-js";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { authenticateV1Request, jsonOk, jsonErr } from "@/lib/developer-api/v1-auth.middleware";
 
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
-const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
-const sb = () => createClient(SUPABASE_URL, SERVICE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
+// Untyped view of the shared service-role client (these routes predate the generated types).
+const sb = () => supabaseAdmin as any;
 
 const BOOKING_SELECT = "id, status, start_at, end_at, attendee_name, attendee_email, attendee_phone, meeting_url, notes, agent_id, call_id, external_id, created_at, updated_at";
 

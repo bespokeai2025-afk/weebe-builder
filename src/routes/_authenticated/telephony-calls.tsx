@@ -17,18 +17,11 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { RecordingPlayerDialog } from "@/components/RecordingPlayerDialog";
 import { listTelephonyCalls } from "@/lib/telephony/telephony.functions";
 
+import { formatCallSeconds as fmtDuration } from "@/lib/format/duration.shared";
 export const Route = createFileRoute("/_authenticated/telephony-calls")({
   head: () => ({ meta: [{ title: "Telephony Calls — Webee" }] }),
   component: TelephonyCallsPage,
 });
-
-function fmtDuration(s?: number | null) {
-  if (!s) return "—";
-  const m = Math.floor(s / 60);
-  const r = s % 60;
-  return `${m}m ${r}s`;
-}
-
 
 function statusBadge(s: string) {
   const tone: Record<string, "success" | "info" | "warning" | "neutral" | "danger" | "violet"> = {

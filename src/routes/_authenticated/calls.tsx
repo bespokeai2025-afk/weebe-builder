@@ -63,6 +63,7 @@ import {
   resolveWbahDisplaySentiment,
 } from "@/lib/dashboard/wbah-call-booking-display";
 
+import { formatCallSeconds as fmtDuration } from "@/lib/format/duration.shared";
 export const Route = createFileRoute("/_authenticated/calls")({
   head: () => ({ meta: [{ title: "Calls — Webee" }] }),
   validateSearch: (search: Record<string, unknown>): { vm?: "exclude" | "all" | "only" } => ({
@@ -70,13 +71,6 @@ export const Route = createFileRoute("/_authenticated/calls")({
   }),
   component: CallsPage,
 });
-
-function fmtDuration(s?: number | null) {
-  if (!s) return "—";
-  const m = Math.floor(s / 60);
-  const r = s % 60;
-  return `${m}m ${r}s`;
-}
 
 function fmtWbahSentiment(c: Record<string, unknown>): string {
   const s = resolveWbahDisplaySentiment(c) ?? String(c.sentiment ?? "");

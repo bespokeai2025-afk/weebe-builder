@@ -6,7 +6,7 @@
  * This is the primary point that advances the queue to the next target.
  */
 import { createFileRoute } from "@tanstack/react-router";
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { verifyTwilioSignature } from "@/lib/telephony/inbound-routing.server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { resolveTwilioCredentialsForWorkspace } from "@/lib/telephony/twilio-credentials.server";
 import { mapDialResultStatus } from "@/lib/telephony/auto-dialer.shared";
@@ -15,22 +15,6 @@ import {
   dialNextDialerTarget,
   recordTargetOutcome,
 } from "@/lib/telephony/auto-dialer-engine.server";
-
-function verifyTwilioSignature(
-  authToken: string,
-  twilioSignature: string | null,
-  url: string,
-  params: Record<string, string>,
-): boolean {
-  if (!twilioSignature) return false;
-  const sortedKeys = Object.keys(params).sort();
-  const data = sortedKeys.reduce((acc, k) => acc + k + params[k], url);
-  const expected = createHmac("sha1", authToken).update(data).digest("base64");
-  const a = Buffer.from(twilioSignature);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length) return false;
-  try { return timingSafeEqual(a, b); } catch { return false; }
-}
 
 const EMPTY_TWIML = `<?xml version="1.0" encoding="UTF-8"?><Response></Response>`;
 
