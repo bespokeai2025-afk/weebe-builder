@@ -9,7 +9,7 @@
 import { CANONICAL_SUPABASE_URL } from "./env-guard";
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import path from "node:path";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import type { Plugin } from "vite";
 import type { OutputChunk } from "rollup";
 import { createRequire } from "node:module";
@@ -83,11 +83,26 @@ const devBackgroundJobs = runDevBackgroundJobs
     ]
   : [];
 
-/** htmlparser2@8 expects entities@4 `lib/*`; parse5 hoists entities@8 at the root. */
+/**
+ * htmlparser2@8 expects entities@4 `lib/*`; parse5 needs entities@8. Resolve the v4 copy
+ * htmlparser2 actually uses. npm nests it next to htmlparser2; pnpm may hoist either version to
+ * the root, so fall back to the v4 copy in the pnpm store.
+ */
 const require = createRequire(import.meta.url);
-const entitiesDecodePath = require.resolve("entities/lib/decode.js", {
-  paths: [require.resolve("htmlparser2")],
-});
+function resolveEntitiesV4Decode(): string {
+  try {
+    return require.resolve("entities/lib/decode.js", { paths: [require.resolve("htmlparser2")] });
+  } catch {
+    const store = path.resolve("node_modules/.pnpm");
+    const v4 = existsSync(store)
+      ? readdirSync(store).filter((d) => /^entities@4\./.test(d)).sort().pop()
+      : undefined;
+    const candidate = v4 && path.join(store, v4, "node_modules/entities/lib/decode.js");
+    if (candidate && existsSync(candidate)) return candidate;
+    throw new Error("entities@4 (lib/decode.js) not found — needed for htmlparser2@8");
+  }
+}
+const entitiesDecodePath = resolveEntitiesV4Decode();
 const entitiesLibDir = path.dirname(entitiesDecodePath);
 
 export default defineConfig({
