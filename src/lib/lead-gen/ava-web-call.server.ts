@@ -20,6 +20,7 @@ import {
 import { AVA_LIVE_AGENT_ID, resolveAdminWorkspaceId, normalizePhoneE164 } from "@/lib/lead-gen/ava-call.server";
 import { normalizeSpokenEmail, normalizeSpokenPhone } from "@/lib/lead-gen/spoken-contact-normalize.shared";
 
+import { createRetellWebCallV3, type RetellWebCallSession } from "@/lib/retell/web-call.server";
 const str = (v: unknown, max = 300): string | null => {
   const s = typeof v === "string" && v.trim() && v.trim().toLowerCase() !== "null" ? v.trim() : "";
   return s ? s.slice(0, max) : null;
@@ -48,7 +49,7 @@ export async function createAvaWebCallSession(input: {
   ip: string | null;
   userAgent: string | null;
 }): Promise<
-  | { ok: true; accessToken: string; callId: string }
+  | ({ ok: true } & RetellWebCallSession)
   | { ok: false; error: string; status: number }
 > {
   const workspaceId = await resolveAdminWorkspaceId();
@@ -101,10 +102,11 @@ export async function createAvaWebCallSession(input: {
   // Pin the tested published agent version so future draft edits never leak
   // into live website calls. Set AVA_AGENT_VERSION after publishing.
   const pinnedVersion = Number.parseInt(process.env.AVA_AGENT_VERSION ?? "", 10);
-  const res = await fetch("https://api.retellai.com/v2/create-web-call", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${retellKey}` },
-    body: JSON.stringify({
+  // v3 (v2 create-web-call support ended 2026-10-18). transport / url / iceServers are returned
+  // alongside the token for the browser SDK; existing fields are unchanged.
+  let session: RetellWebCallSession;
+  try {
+    session = await createRetellWebCallV3(retellKey, {
       agent_id: AVA_LIVE_AGENT_ID,
       ...(Number.isFinite(pinnedVersion) ? { agent_version: pinnedVersion } : {}),
       metadata,
@@ -120,20 +122,13 @@ export async function createAvaWebCallSession(input: {
         email: email ?? "",
         phone_number: phone ?? "",
       },
-    }),
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    console.error("[AVA-WEB-CALL] create-web-call failed", res.status, body.slice(0, 400));
+    });
+  } catch (e: any) {
+    console.error("[AVA-WEB-CALL] create-web-call failed", e?.message ?? e);
     return { ok: false, error: "We couldn't start the conversation. Please try again shortly.", status: 502 };
   }
-  const data = (await res.json()) as { call_id?: string; access_token?: string };
-  if (!data.call_id || !data.access_token) {
-    console.error("[AVA-WEB-CALL] create-web-call returned no token/call_id");
-    return { ok: false, error: "We couldn't start the conversation. Please try again shortly.", status: 502 };
-  }
-  console.log("[AVA-WEB-CALL] Web call session created", { callId: data.call_id, workspaceId });
-  return { ok: true, accessToken: data.access_token, callId: data.call_id };
+  console.log("[AVA-WEB-CALL] Web call session created", { callId: session.callId, workspaceId });
+  return { ok: true, ...session };
 }
 
 // ── Webhook integration ──────────────────────────────────────────────────────

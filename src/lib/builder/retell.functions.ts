@@ -23,6 +23,7 @@ import {
 } from "@/lib/builder/retell-telephony.server";
 import { retellHybridPrompt } from "@/lib/voice/graph/speech-mode.shared";
 
+import { createRetellWebCallV3 } from "@/lib/retell/web-call.server";
 /**
  * Look up whether the signed-in user has Cal.com configured at the workspace
  * level. Returns the tool definitions to attach (or null when not connected).
@@ -969,21 +970,16 @@ export const createRetellWebCall = createServerFn({ method: "POST" })
     }
 
     const dynamicVariables = data.dynamicVariables ?? {};
-    const resp = await retellFetch(
-      `/v2/create-web-call`,
-      {
-        agent_id: agentId,
-        ...(Object.keys(dynamicVariables).length > 0
-          ? { retell_llm_dynamic_variables: dynamicVariables }
-          : {}),
-      },
-      "POST",
-      webCallKey,
-    );
-    return {
-      callId: String(resp.call_id ?? ""),
-      accessToken: String(resp.access_token ?? ""),
-    };
+    const apiKey = webCallKey || process.env.RETELL_API_KEY;
+    if (!apiKey) throw new Error("RETELL_API_KEY is not configured");
+    // v3 (v2 create-web-call support ended 2026-10-18). transport / url / iceServers go to the
+    // browser SDK with the token.
+    return createRetellWebCallV3(apiKey, {
+      agent_id: agentId,
+      ...(Object.keys(dynamicVariables).length > 0
+        ? { retell_llm_dynamic_variables: dynamicVariables }
+        : {}),
+    });
   });
 
 /**

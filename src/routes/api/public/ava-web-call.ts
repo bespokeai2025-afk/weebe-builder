@@ -3,8 +3,9 @@
  * POST /api/public/ava-web-call
  *
  * The public website calls this instead of hitting the Retell API directly so
- * the Retell API key never reaches the browser. Returns { accessToken, callId }
- * for the Retell web SDK (`retellWebClient.startCall({ accessToken })`).
+ * the Retell API key never reaches the browser. Returns { accessToken, callId } plus, from
+ * Retell's v3 create-web-call, { transport, url, iceServers } — pass them all to the Retell web
+ * SDK 3.x: `retellWebClient.startCall({ accessToken, callId, transport, url, iceServers })`.
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { AVA_CALL_CORS, avaCallOptionsHandler } from "@/lib/lead-gen/ava-call-http.server";
@@ -72,7 +73,15 @@ export const Route = createFileRoute("/api/public/ava-web-call")({
           return Response.json({ error: result.error }, { status: result.status, headers: AVA_CALL_CORS });
         }
         return Response.json(
-          { accessToken: result.accessToken, callId: result.callId },
+          {
+            accessToken: result.accessToken,
+            callId: result.callId,
+            // Retell v3: pass these to retell-client-js-sdk 3.x startCall() as well — a "gateway"
+            // transport token does not work over LiveKit.
+            ...(result.transport ? { transport: result.transport } : {}),
+            ...(result.url ? { url: result.url } : {}),
+            ...(result.iceServers ? { iceServers: result.iceServers } : {}),
+          },
           { headers: AVA_CALL_CORS },
         );
       },

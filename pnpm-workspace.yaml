@@ -3,6 +3,8 @@ packages:
 
 overrides:
   entities: 4.5.0
+  react: $react
+  react-dom: $react-dom
 
 allowBuilds:
   esbuild: true

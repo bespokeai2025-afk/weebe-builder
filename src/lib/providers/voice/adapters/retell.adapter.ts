@@ -1,9 +1,10 @@
 import type { VoiceProvider, VoiceSessionParams, VoiceSessionResult } from "../interface";
 
+import { createRetellWebCallV3 } from "@/lib/retell/web-call.server";
 const RETELL_BASE = "https://api.retellai.com";
 
 /**
- * Delegates to the Retell v2 create-web-call REST API.
+ * Delegates to the Retell v3 create-web-call REST API.
  * Requires `params.additionalConfig.retellAgentId` — the Retell agent ID string
  * (format: agent_xxxxxxxx), not the internal DB row UUID.
  */
@@ -26,24 +27,11 @@ export class RetellVoiceAdapter implements VoiceProvider {
       );
     }
 
-    const resp = await fetch(`${RETELL_BASE}/v2/create-web-call`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ agent_id: agentId }),
-    });
-
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => "");
-      throw new Error(`Retell create-web-call error ${resp.status}: ${text}`);
-    }
-
-    const data = await resp.json();
+    // v3 (v2 create-web-call support ended 2026-10-18).
+    const session = await createRetellWebCallV3(this.apiKey, { agent_id: agentId });
     return {
-      clientSecret: data.access_token,
-      sessionId: data.call_id,
+      clientSecret: session.accessToken,
+      sessionId: session.callId,
     };
   }
 

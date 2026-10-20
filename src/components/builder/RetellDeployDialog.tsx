@@ -681,7 +681,7 @@ export function RetellDeployDialog({
     }
     setCalling(true);
     try {
-      const { accessToken } = await startCall({
+      const session = await startCall({
         data: {
           agentId,
           dynamicVariables: testCallPrepRef.current.variables,
@@ -785,9 +785,15 @@ export function RetellDeployDialog({
         });
         client.stopCall();
       });
-      // retell-client-js-sdk v2 forwards every server `update` event (running transcript
-      // included); the v1 `enableUpdate` flag no longer exists.
-      await client.startCall({ accessToken });
+      // Retell v3 web calls may use the "gateway" transport instead of LiveKit, so pass what
+      // create-web-call returned. The SDK still forwards `update` events when Retell sends them.
+      await client.startCall({
+        accessToken: session.accessToken,
+        callId: session.callId,
+        ...(session.transport ? { transport: session.transport as "livekit" | "gateway" } : {}),
+        ...(session.url ? { url: session.url } : {}),
+        ...(session.iceServers ? { iceServers: session.iceServers } : {}),
+      });
     } catch (e) {
       toast.error("Test call failed", { description: (e as Error).message });
     } finally {
