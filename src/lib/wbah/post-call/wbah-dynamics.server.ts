@@ -3,6 +3,7 @@ import {
   type DynamicsAdapterConfig,
 } from "@/lib/providers/crm/adapters/dynamics.adapter";
 import { getWebespokeEnvVar } from "@/lib/integrations/webespokeEnterprise/webespoke-env.server";
+import { stripWbahProtectedContactFields } from "./wbah-crm-protected-fields.shared";
 
 export function getWbahDynamicsConfig(): DynamicsAdapterConfig | null {
   const tenantId =
@@ -173,21 +174,34 @@ async function patchDynamicsEntity(
   });
 }
 
+function withoutProtectedContactFields(
+  kind: "lead" | "opportunity",
+  id: string,
+  fields: Record<string, string | number | boolean | null>,
+): Record<string, string | number | boolean | null> {
+  const { fields: kept, removed } = stripWbahProtectedContactFields(kind, fields);
+  if (removed.length) {
+    console.log(`[Dynamics] ${kind} PATCH — contact details kept as in CRM`, { id, skipped: removed });
+  }
+  return kept;
+}
+
 export async function patchWbahLead(
   leadId: string,
   fields: Record<string, string | number | boolean | null>,
 ): Promise<void> {
-  await patchDynamicsEntity("lead", leadId, fields);
+  await patchDynamicsEntity("lead", leadId, withoutProtectedContactFields("lead", leadId, fields));
 }
 
 export async function patchWbahOpportunity(
   opportunityId: string,
   fields: Record<string, string | number | boolean | null>,
 ): Promise<void> {
-  await patchDynamicsEntity("opportunity", opportunityId, fields);
+  const kept = withoutProtectedContactFields("opportunity", opportunityId, fields);
+  await patchDynamicsEntity("opportunity", opportunityId, kept);
   console.log("[DynamicsOpportunity] Synced opportunity", {
     opportunityId,
-    fields: Object.keys(fields),
+    fields: Object.keys(kept),
   });
 }
 
