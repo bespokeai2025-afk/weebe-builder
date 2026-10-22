@@ -1,4 +1,5 @@
 import { isWbahClearDecline, isWbahRefusalOnNegativeCall } from "./wbah-decline.shared";
+import { normalizeCallbackDatetimeUtc } from "./wbah-uk-datetime.shared";
 import { isWbahExplicitDoNotContactRequest } from "./wbah-explicit-dnc.shared";
 
 /** Dynamics `new_currentstatus` option-set values (Allen's Logic V5). */
@@ -16,6 +17,8 @@ export type AllensLogicInput = {
   callbackDatetime: string | null | undefined;
   callbackDatetimeUtc?: string | null;
   callbackType?: string | null;
+  /** The callback time was defaulted (caller gave none) — a clear decline still wins. */
+  callbackDefaulted?: boolean;
   calendlyBookingUrl: string | null | undefined;
   /** True when Retell booked a slot (calendly_slot) even if WEBEE has no Calendly URL. */
   appointmentBooked?: boolean | null;
@@ -52,9 +55,13 @@ function hasValidCalendly(url: string | null | undefined): boolean {
   return Boolean(v && v !== "NA" && v !== "undefined" && v !== "null");
 }
 
+/**
+ * Only a real date counts. Retell's callback_datetime extraction often returns junk
+ * ("/", "null", ".", broken JSON — ~100 calls in 60 days); treating that as a
+ * request set leads to Call Back Request with no callback time.
+ */
 function hasCallbackRequest(raw: string | null | undefined, utc: string | null | undefined): boolean {
-  const r = String(raw ?? "").trim();
-  return Boolean(utc || (r && r !== "NA"));
+  return Boolean(utc || normalizeCallbackDatetimeUtc(raw));
 }
 
 const NEW_LEAD_STATUS = 100000000;
@@ -137,7 +144,15 @@ export function applyAllensLogicV5(input: AllensLogicInput): AllensLogicResult {
     return disqualify("remove", true, "REMOVE: explicit stop-contact request");
   }
 
-  if (hasCallback) {
+  const declined =
+    isWbahClearDecline(input.detailedCallSummary, input.callSummary) ||
+    (sentiment.includes("negative") &&
+      isWbahRefusalOnNegativeCall(input.detailedCallSummary, input.callSummary));
+
+  const hasBooking = hasValidCalendly(bookingUrl) || input.appointmentBooked === true;
+
+  // A callback the caller asked for without a time never beats a booking or a clear no.
+  if (hasCallback && !(input.callbackDefaulted && (declined || hasBooking))) {
     return {
       ...base,
       newCurrentStatus: WBAH_DYNAMICS_STATUS.CALLBACK,
@@ -151,7 +166,6 @@ export function applyAllensLogicV5(input: AllensLogicInput): AllensLogicResult {
     };
   }
 
-  const hasBooking = hasValidCalendly(bookingUrl) || input.appointmentBooked === true;
   if (hasBooking) {
     return {
       ...base,
@@ -174,11 +188,7 @@ export function applyAllensLogicV5(input: AllensLogicInput): AllensLogicResult {
     return disqualify("remove", true, "REMOVE: caller asked to stop contact");
   }
 
-  if (
-    isWbahClearDecline(input.detailedCallSummary, input.callSummary) ||
-    (sentiment.includes("negative") &&
-      isWbahRefusalOnNegativeCall(input.detailedCallSummary, input.callSummary))
-  ) {
+  if (declined) {
     return disqualify("decline", false, `DECLINE: clear no to selling (${sentiment || "no sentiment"})`);
   }
 

@@ -5,9 +5,14 @@ import {
   ukLocalToUtcIso,
 } from "./wbah-uk-datetime.shared";
 import {
+  mapWbahCallbackTypeToAgentPreference,
   resolveWbahCallbackFromAnalysis,
   type WbahCallbackHandler,
 } from "./wbah-callback-dynamics.shared";
+import {
+  nextWorkingDaySameUkTime,
+  summaryAsksForCallbackWithoutTime,
+} from "./wbah-callback-default.shared";
 import { resolveWbahCallSummaryText } from "./wbah-timeline-note.shared";
 import { pickWbahCrmEmail } from "./wbah-email.shared";
 
@@ -26,6 +31,8 @@ export type WbahFormatDataInput = {
   custom: Record<string, unknown>;
   /** Retell top-level call_analysis — fallback for sentiment/summary not duplicated in custom. */
   callAnalysis?: Record<string, unknown> | null;
+  /** Retell start_timestamp (ms) — anchors the default callback time. Falls back to now. */
+  callStartedAtMs?: number | null;
 };
 
 export type WbahFormattedCallData = {
@@ -43,6 +50,8 @@ export type WbahFormattedCallData = {
     | "callback_datetime"
     | "human_callback_datetime"
     | "booking_callback_datetime"
+    /** Callback asked for without a time — next working day, same UK time. */
+    | "default_next_working_day"
     | null;
   isCallbackRequest: boolean;
   dynamicsAgentPreference: number | null;
@@ -161,6 +170,43 @@ export function formatWbahRetellCallData(input: WbahFormatDataInput): WbahFormat
       : structured;
 
   const callback = resolveWbahCallbackFromAnalysis(custom);
+  let callbackFields: {
+    callbackDatetime: string | null;
+    callbackDatetimeUtc: string | null;
+    datetimeSource: WbahFormattedCallData["callbackDatetimeSource"];
+    isCallbackRequest: boolean;
+    dynamicsAgentPreference: number | null;
+  } = callback;
+  // A booked slot is the outcome; only default a callback when nothing was booked.
+  // Junk extractions ("/", "null") are no time at all — the caller may still have asked.
+  if (callback.callbackDatetime && !callback.callbackDatetimeUtc) {
+    callbackFields = { ...callbackFields, callbackDatetime: null };
+  }
+  if (
+    !callback.isCallbackRequest &&
+    !requestedStartUtc &&
+    (callback.callbackType != null ||
+      summaryAsksForCallbackWithoutTime(
+        pickStr(custom, "detailed_call_summary"),
+        resolveWbahCallSummaryText(custom, analysis),
+      ))
+  ) {
+    const startedAt = Number(input.callStartedAtMs);
+    const slot = nextWorkingDaySameUkTime(Number.isFinite(startedAt) && startedAt > 0 ? startedAt : Date.now());
+    if (slot) {
+      callbackFields = {
+        callbackDatetime: slot.local,
+        callbackDatetimeUtc: slot.utc,
+        datetimeSource: "default_next_working_day",
+        isCallbackRequest: true,
+        dynamicsAgentPreference: mapWbahCallbackTypeToAgentPreference({
+          callbackType: callback.callbackType,
+          callbackHandler: callback.callbackHandler,
+          custom,
+        }),
+      };
+    }
+  }
 
   const callSuccessfulRaw = analysis.call_successful ?? custom.call_successful;
   const callSuccessful =
@@ -190,13 +236,13 @@ export function formatWbahRetellCallData(input: WbahFormatDataInput): WbahFormat
     userSentiment: pickStr(custom, "user_sentiment") || pickStr(analysis, "user_sentiment") || null,
     callSummary: resolveWbahCallSummaryText(custom, analysis),
     callSuccessful,
-    callbackDatetime: callback.callbackDatetime,
-    callbackDatetimeUtc: callback.callbackDatetimeUtc,
+    callbackDatetime: callbackFields.callbackDatetime,
+    callbackDatetimeUtc: callbackFields.callbackDatetimeUtc,
     callbackType: callback.callbackType,
     callbackHandler: callback.callbackHandler,
-    callbackDatetimeSource: callback.datetimeSource,
-    isCallbackRequest: callback.isCallbackRequest,
-    dynamicsAgentPreference: callback.dynamicsAgentPreference,
+    callbackDatetimeSource: callbackFields.datetimeSource,
+    isCallbackRequest: callbackFields.isCallbackRequest,
+    dynamicsAgentPreference: callbackFields.dynamicsAgentPreference,
     appointmentDate: slot?.date ?? null,
     appointmentTimeUk: timeUk,
     requestedStartUtc,

@@ -75,7 +75,8 @@ export function normalizeCallbackDatetimeUtc(raw: string | null | undefined): st
 
   try {
     if (/Z|[+-]\d{2}:?\d{2}$/.test(cb)) return new Date(cb).toISOString();
-    const [datePart, timePart = "00:00:00"] = cb.split("T");
+    // Retell sends both "2026-08-20T09:30:00" and "2026-08-20 09:30:00".
+    const [datePart, timePart = "00:00:00"] = cb.split(/[T ]/);
     const [y, m, day] = datePart.split("-").map(Number);
     const [hh, mm, ss = 0] = timePart.split(":").map(Number);
     const local = ukLocalToUtcDate(

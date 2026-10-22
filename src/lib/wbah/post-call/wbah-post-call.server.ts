@@ -249,6 +249,7 @@ async function runDynamicsAllensPath(input: {
     callbackDatetime: input.formatted.callbackDatetime,
     callbackDatetimeUtc: input.formatted.callbackDatetimeUtc,
     callbackType: input.formatted.callbackType,
+    callbackDefaulted: input.formatted.callbackDatetimeSource === "default_next_working_day",
     calendlyBookingUrl: input.calendlyBookingUrl,
     appointmentBooked: isWbahAppointmentConfirmed({
       appointmentConfirmed: input.formatted.appointmentConfirmed,
@@ -573,6 +574,7 @@ async function runWbahPostCallPipelineCoreUnsafe(
     dynVars,
     custom,
     callAnalysis: call.call_analysis as Record<string, unknown> | undefined,
+    callStartedAtMs: call.start_timestamp ?? null,
   });
   formatted.leadId = leadId;
 

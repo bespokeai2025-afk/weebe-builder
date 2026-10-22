@@ -153,6 +153,7 @@ export async function runWbahRebookPostCallPipeline(
     dynVars,
     custom,
     callAnalysis: call.call_analysis as Record<string, unknown> | undefined,
+    callStartedAtMs: (call as { start_timestamp?: number }).start_timestamp ?? null,
   });
   formatted.leadId = recordId;
 

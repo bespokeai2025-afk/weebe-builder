@@ -83,7 +83,7 @@ export function isWbahAiCallbackType(callbackType: string | null | undefined): b
 export function mapWbahCallbackTypeToAgentPreference(input: {
   callbackType?: string | null;
   callbackHandler?: string | null;
-  datetimeSource?: ResolvedWbahCallback["datetimeSource"];
+  datetimeSource?: ResolvedWbahCallback["datetimeSource"] | "default_next_working_day";
   custom?: Record<string, unknown>;
 }): number | null {
   const { callbackType, callbackHandler, datetimeSource, custom } = input;

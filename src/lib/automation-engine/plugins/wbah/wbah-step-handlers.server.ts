@@ -74,6 +74,7 @@ export function wbahStepFormatData(bag: WbahRunBag): ReturnType<typeof formatWba
     dynVars: bag.dynVars,
     custom: bag.custom ?? {},
     callAnalysis: bag.call.call_analysis as Record<string, unknown> | undefined,
+    callStartedAtMs: (bag.call as { start_timestamp?: number }).start_timestamp ?? null,
   });
   if (bag.leadId) formatted.leadId = bag.leadId;
   return formatted;
@@ -163,6 +164,7 @@ export async function wbahStepDynamicsAllens(
     callbackDatetime: formatted.callbackDatetime,
     callbackDatetimeUtc: formatted.callbackDatetimeUtc,
     callbackType: formatted.callbackType,
+    callbackDefaulted: formatted.callbackDatetimeSource === "default_next_working_day",
     calendlyBookingUrl,
     appointmentBooked: isWbahAppointmentConfirmed({
       appointmentConfirmed: formatted.appointmentConfirmed,
