@@ -217,17 +217,24 @@ async function postWbahThisCallLeadNote(
 export async function wbahStepDynamicsAgentic(
   bag: WbahRunBag,
   formatted: ReturnType<typeof formatWbahRetellCallData>,
+  opts?: { narrativeOwnedByAllens?: boolean },
 ): Promise<void> {
   if (!bag.leadId || !isWbahDynamicsConfigured() || !formatted.structuredJsonOutput) return;
   const patch = buildWbahAgenticCrmPayload(formatted.structuredJsonOutput, bag.custom ?? {});
+  // Same single owner for the narrative as the core pipeline: when Allen's
+  // Logic already wrote this call, the summary and sentiment are its to keep.
+  if (opts?.narrativeOwnedByAllens) {
+    delete (patch as Record<string, unknown>).cos_call_summary;
+    delete (patch as Record<string, unknown>).cos_user_sentiment;
+  }
   if (Object.keys(patch).length) await patchWbahLead(bag.leadId, patch);
 
   const leadStatus = await getWbahLeadCurrentStatus(bag.leadId).catch(() => null);
   const clearPatch = buildWbahClearDataAgenticPayload({
     statecode: leadStatus?.statecode ?? null,
     newCurrentstatus: leadStatus?.new_currentstatus ?? null,
-    userSentiment: formatted.userSentiment,
-    callSummary: formatted.callSummary,
+    userSentiment: opts?.narrativeOwnedByAllens ? null : formatted.userSentiment,
+    callSummary: opts?.narrativeOwnedByAllens ? null : formatted.callSummary,
   });
   if (Object.keys(clearPatch).length) await patchWbahLead(bag.leadId, clearPatch);
   await postWbahThisCallLeadNote(bag, formatted).catch((e) => {

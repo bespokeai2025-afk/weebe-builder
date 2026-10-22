@@ -41,6 +41,69 @@ function err(message: string): NodeResult {
   };
 }
 
+/**
+ * Each WBAH step runs at most once per execution. The imported n8n canvas tags
+ * every helper node of a step (GET D365 Token, Merge token, Build CRM Payload…)
+ * with the step's executor, so one call used to run Allen's Logic 8 times, the
+ * agentic PATCH 5 times and post 5 identical timeline notes — racing the WBAH
+ * team's own edits. Which of those nodes a call reaches depends on its branch
+ * (a voicemail never gets past "Merge token into data"), so the step runs at the
+ * first node reached and the rest reuse its result.
+ */
+type StepMemo = { at: number; result: Promise<Partial<WbahRunBag>> };
+const stepMemo = new Map<string, StepMemo>();
+const STEP_MEMO_TTL_MS = 30 * 60_000;
+
+function runStepOnce(
+  ctx: NodeContext,
+  stepId: string,
+  run: () => Promise<Partial<WbahRunBag>>,
+): { first: boolean; result: Promise<Partial<WbahRunBag>> } {
+  const now = Date.now();
+  for (const [k, v] of stepMemo) if (now - v.at > STEP_MEMO_TTL_MS) stepMemo.delete(k);
+  const key = `${ctx.executionId}:${stepId}`;
+  const existing = stepMemo.get(key);
+  if (existing) return { first: false, result: existing.result };
+  const result = run();
+  stepMemo.set(key, { at: now, result });
+  return { first: true, result };
+}
+
+function stepRanInExecution(ctx: NodeContext, stepId: string): boolean {
+  return stepMemo.has(`${ctx.executionId}:${stepId}`);
+}
+
+/** True once Allen's Logic wrote this call — it then owns the summary and sentiment. */
+async function allensSucceeded(ctx: NodeContext): Promise<boolean> {
+  const memo = stepMemo.get(`${ctx.executionId}:dynamics_allens`);
+  if (!memo) return false;
+  return memo.result.then(
+    () => true,
+    () => false,
+  );
+}
+
+/** Calendly link for this call, created once per execution whichever node asks first. */
+function calendlyLinkOnce(
+  ctx: NodeContext,
+  bag: WbahRunBag,
+  formatted: NonNullable<ReturnType<typeof getFormatted>>,
+): Promise<Partial<WbahRunBag>> {
+  return runStepOnce(ctx, "calendly_link", async () => ({
+    calendlyBookingUrl: await wbahStepCalendlyLink(bag, formatted),
+  })).result;
+}
+
+/** Later nodes of a step that already ran: pass the step's result along, no side effects. */
+async function alreadyRan(
+  ctx: NodeContext,
+  bag: WbahRunBag,
+  result: Promise<Partial<WbahRunBag>>,
+): Promise<NodeResult> {
+  const patch = await result.catch(() => ({}));
+  return ok(ctx, { ...bag, ...patch }, { _wbahSkipped: true, _skipReason: "step already ran" });
+}
+
 function stepIdFromConfig(ctx: NodeContext): string {
   return String(ctx.config.executorStepId ?? ctx.config.stepId ?? ctx.nodeId);
 }
@@ -72,7 +135,12 @@ export async function executeWbahDashboardRaw(ctx: NodeContext): Promise<NodeRes
   if (!isWbahPostCallExecutionEnabled()) return skip(ctx, "execution disabled");
   if (!bag.leadId) return skip(ctx, "no lead_id");
   if (!stepAllowed(ctx, "dashboard_raw")) return skip(ctx, "event mismatch");
-  await wbahStepDashboardRaw(bag);
+  const once = runStepOnce(ctx, "dashboard_raw", async () => {
+    await wbahStepDashboardRaw(bag);
+    return {};
+  });
+  if (!once.first) return alreadyRan(ctx, bag, once.result);
+  await once.result;
   return ok(ctx, bag, { _wbahStep: "dashboard_raw" });
 }
 
@@ -84,14 +152,30 @@ export async function executeWbahFormatData(ctx: NodeContext): Promise<NodeResul
   return ok(ctx, { ...bag, formatted }, { _wbahStep: "format_data" });
 }
 
+/** The call's Calendly URL — from the bag, or by running the link step (once) now. */
+async function bookingUrlFor(
+  ctx: NodeContext,
+  bag: WbahRunBag,
+  formatted: NonNullable<ReturnType<typeof getFormatted>>,
+): Promise<string | null> {
+  if (bag.calendlyBookingUrl) return bag.calendlyBookingUrl;
+  if (!formatted.hasBookingSlot) return null;
+  return (await calendlyLinkOnce(ctx, bag, formatted)).calendlyBookingUrl ?? null;
+}
+
 export async function executeWbahCalendlyLink(ctx: NodeContext): Promise<NodeResult> {
   const bag = buildWbahRunBag(ctx);
   if (!bag) return err("Invalid WBAH webhook context");
   if (!isWbahPostCallExecutionEnabled()) return skip(ctx, "execution disabled");
   const formatted = getFormatted(ctx);
   if (!formatted?.hasBookingSlot) return skip(ctx, "no booking slot");
-  const calendlyBookingUrl = await wbahStepCalendlyLink(bag, formatted);
-  return ok(ctx, { ...bag, formatted, calendlyBookingUrl }, { _wbahStep: "calendly_link" });
+  const first = !stepRanInExecution(ctx, "calendly_link");
+  const { calendlyBookingUrl } = await calendlyLinkOnce(ctx, bag, formatted);
+  return ok(
+    ctx,
+    { ...bag, formatted, calendlyBookingUrl },
+    first ? { _wbahStep: "calendly_link" } : { _wbahSkipped: true, _skipReason: "step already ran" },
+  );
 }
 
 export async function executeWbahCalendlyInvitee(ctx: NodeContext): Promise<NodeResult> {
@@ -100,7 +184,13 @@ export async function executeWbahCalendlyInvitee(ctx: NodeContext): Promise<Node
   if (!isWbahPostCallExecutionEnabled()) return skip(ctx, "execution disabled");
   const formatted = getFormatted(ctx);
   if (!formatted) return skip(ctx, "no formatted data");
-  await wbahStepCalendlyInvitee(bag, formatted);
+  // Books a real appointment — a second run would book a second one.
+  const once = runStepOnce(ctx, "calendly_invitee", async () => {
+    await wbahStepCalendlyInvitee(bag, formatted);
+    return {};
+  });
+  if (!once.first) return alreadyRan(ctx, bag, once.result);
+  await once.result;
   return ok(ctx, { ...bag, formatted }, { _wbahStep: "calendly_invitee" });
 }
 
@@ -130,8 +220,14 @@ export async function executeWbahDashboardAnalyzed(ctx: NodeContext): Promise<No
   if (!isWbahPostCallExecutionEnabled()) return skip(ctx, "execution disabled");
   const formatted = getFormatted(ctx);
   if (!formatted) return skip(ctx, "no formatted data");
-  await wbahStepDashboardAnalyzed(bag, formatted, bag.calendlyBookingUrl ?? null);
-  return ok(ctx, { ...bag, formatted }, { _wbahStep: "dashboard_analyzed" });
+  const once = runStepOnce(ctx, "dashboard_analyzed", async () => {
+    const calendlyBookingUrl = await bookingUrlFor(ctx, bag, formatted);
+    await wbahStepDashboardAnalyzed(bag, formatted, calendlyBookingUrl);
+    return { calendlyBookingUrl };
+  });
+  if (!once.first) return alreadyRan(ctx, bag, once.result);
+  const patch = await once.result;
+  return ok(ctx, { ...bag, formatted, ...patch }, { _wbahStep: "dashboard_analyzed" });
 }
 
 export async function executeWbahCallsUpsert(ctx: NodeContext): Promise<NodeResult> {
@@ -140,8 +236,14 @@ export async function executeWbahCallsUpsert(ctx: NodeContext): Promise<NodeResu
   if (!isWbahPostCallExecutionEnabled()) return skip(ctx, "execution disabled");
   const formatted = getFormatted(ctx);
   if (!formatted) return skip(ctx, "no formatted data");
-  await wbahStepCallsUpsert(bag, formatted, bag.calendlyBookingUrl ?? null);
-  return ok(ctx, { ...bag, formatted }, { _wbahStep: "wbah_calls_upsert" });
+  const once = runStepOnce(ctx, "wbah_calls_upsert", async () => {
+    const calendlyBookingUrl = await bookingUrlFor(ctx, bag, formatted);
+    await wbahStepCallsUpsert(bag, formatted, calendlyBookingUrl);
+    return { calendlyBookingUrl };
+  });
+  if (!once.first) return alreadyRan(ctx, bag, once.result);
+  const patch = await once.result;
+  return ok(ctx, { ...bag, formatted, ...patch }, { _wbahStep: "wbah_calls_upsert" });
 }
 
 export async function executeWbahDynamicsAllens(ctx: NodeContext): Promise<NodeResult> {
@@ -150,8 +252,16 @@ export async function executeWbahDynamicsAllens(ctx: NodeContext): Promise<NodeR
   if (!isWbahPostCallExecutionEnabled()) return skip(ctx, "execution disabled");
   const formatted = getFormatted(ctx);
   if (!formatted || !bag.leadId) return skip(ctx, "missing lead or format");
-  await wbahStepDynamicsAllens(bag, formatted, bag.calendlyBookingUrl ?? null);
-  return ok(ctx, { ...bag, formatted }, { _wbahStep: "dynamics_allens" });
+  const once = runStepOnce(ctx, "dynamics_allens", async () => {
+    // The first Allen's node can run before the canvas reaches Create Booking
+    // Link; build the link here so the CRM still gets cos_calendly_booking_url.
+    const calendlyBookingUrl = await bookingUrlFor(ctx, bag, formatted);
+    await wbahStepDynamicsAllens(bag, formatted, calendlyBookingUrl);
+    return { calendlyBookingUrl };
+  });
+  if (!once.first) return alreadyRan(ctx, bag, once.result);
+  const patch = await once.result;
+  return ok(ctx, { ...bag, formatted, ...patch }, { _wbahStep: "dynamics_allens" });
 }
 
 export async function executeWbahDynamicsAgentic(ctx: NodeContext): Promise<NodeResult> {
@@ -160,7 +270,14 @@ export async function executeWbahDynamicsAgentic(ctx: NodeContext): Promise<Node
   if (!isWbahPostCallExecutionEnabled()) return skip(ctx, "execution disabled");
   const formatted = getFormatted(ctx);
   if (!formatted?.structuredJsonOutput) return skip(ctx, "no structured_json_output");
-  await wbahStepDynamicsAgentic(bag, formatted);
+  const once = runStepOnce(ctx, "dynamics_agentic", async () => {
+    await wbahStepDynamicsAgentic(bag, formatted, {
+      narrativeOwnedByAllens: await allensSucceeded(ctx),
+    });
+    return {};
+  });
+  if (!once.first) return alreadyRan(ctx, bag, once.result);
+  await once.result;
   return ok(ctx, { ...bag, formatted }, { _wbahStep: "dynamics_agentic" });
 }
 
