@@ -17,10 +17,16 @@ const EXPLICIT_DNC_PATTERNS: RegExp[] = [
   /\b(?:don'?t|do\s+not)\s+want\s+(?:to\s+be\s+)?(?:called|contacted)\b/i,
   /\b(?:don'?t|do\s+not)\s+want\s+any\s+(?:more\s+)?calls?\b/i,
   /\bremove\s+from\s+(?:the\s+)?(?:list|call\s*list|database|system)\b/i,
-  /\b(?:be\s+)?removed\s+from\s+(?:the\s+)?(?:call\s*list|list)\b/i,
+  /\b(?:be\s+)?removed\s+from\s+(?:the\s+|your\s+|their\s+)?(?:call\s*list|list|database|system|records)\b/i,
   /\btake\s+(?:my|their|the)\s+details?\s+off\b/i,
   /\bleave\s+me\s+alone\b/i,
   /\bopt[\s-]?out\b/i,
+  // How the AI summaries phrase it ("asked to stop receiving calls",
+  // "requested no further calls", "removed from the contact list").
+  /\bstop\s+receiving\s+(?:calls|contact)\b/i,
+  /\bnot\s+to\s+be\s+(?:called|contacted|phoned)\b/i,
+  /\b(?:no|not\s+to\s+receive\s+any)\s+further\s+(?:calls|contact)\b/i,
+  /\bremoved?\s+from\s+(?:the|their|your|our)?\s*(?:contact|call|calling|mailing)\s*list\b/i,
 ];
 
 export function isWbahExplicitDoNotContactRequest(

@@ -1,3 +1,4 @@
+import { isWbahClearDecline, isWbahRefusalOnNegativeCall } from "./wbah-decline.shared";
 import { isWbahExplicitDoNotContactRequest } from "./wbah-explicit-dnc.shared";
 
 /** Dynamics `new_currentstatus` option-set values (Allen's Logic V5). */
@@ -37,7 +38,7 @@ export type AllensLogicResult = {
   isCallbackRequest: boolean;
   callbackDatetimeUtc: string | null;
   callbackType: string | null;
-  rule: "callback" | "negative" | "logged" | "tried_to_contact" | "none";
+  rule: "remove" | "callback" | "logged" | "decline" | "tried_to_contact" | "none";
   allenLogicResult: string;
   /**
    * True only when the caller explicitly asked to stop contact / be removed
@@ -56,8 +57,32 @@ function hasCallbackRequest(raw: string | null | undefined, utc: string | null |
   return Boolean(utc || (r && r !== "NA"));
 }
 
+const NEW_LEAD_STATUS = 100000000;
+
+/** The caller's side of a Retell transcript ("User: …" lines). */
+function callerLinesOnly(transcript: string | null | undefined): string {
+  return String(transcript ?? "")
+    .split(/\r?\n/)
+    .filter((line) => /^\s*user\s*:/i.test(line))
+    .join(" ");
+}
+
 /**
- * Allen's Logic V5 — mirrors production n8n "Apply Allens Logic" node.
+ * Allen's Logic — what one AI call does to the lead's status.
+ *
+ *   remove    explicit "stop calling / remove me" → Disqualified + donotphone
+ *   callback  callback requested                  → Call Back Request
+ *   logged    appointment booked                  → Logged
+ *   decline   clear "no" to selling               → Disqualified
+ *   otherwise  Call Back Request / Logged stay as they are; a positive call (or
+ *             a negative one on a new lead) → Tried To Contact; else no change
+ *
+ * Sentiment no longer disqualifies on its own: a silent answer, a caller who
+ * wanted a human, or one annoyed at the timing all rate Negative while still
+ * wanting to sell (audit: Joanna Hadyniak, Alice Ibrahim). And a call that is
+ * not a remove/callback/booking/decline never moves a lead out of Call Back
+ * Request or Logged — a later voicemail used to reset a callback to Tried To
+ * Contact, which the morning cannot-contact sweep then disqualified.
  */
 export function applyAllensLogicV5(input: AllensLogicInput): AllensLogicResult {
   const callbackRaw = String(input.callbackDatetime ?? "").trim();
@@ -68,7 +93,10 @@ export function applyAllensLogicV5(input: AllensLogicInput): AllensLogicResult {
   const sentiment = String(input.userSentiment ?? "").toLowerCase().trim();
   const bookingUrl = String(input.calendlyBookingUrl ?? "").trim();
   const existingCurrentStatus = input.existingCurrentStatus ?? null;
-  const existingStateCode = input.existingStateCode ?? null;
+  const alreadyDisqualified = existingCurrentStatus === WBAH_DYNAMICS_STATUS.DISQUALIFIED;
+  const heldStatus =
+    existingCurrentStatus === WBAH_DYNAMICS_STATUS.LOGGED ||
+    existingCurrentStatus === WBAH_DYNAMICS_STATUS.CALLBACK;
 
   const base: Omit<AllensLogicResult, "rule" | "allenLogicResult"> = {
     newCurrentStatus: null,
@@ -83,6 +111,32 @@ export function applyAllensLogicV5(input: AllensLogicInput): AllensLogicResult {
     setDoNotPhone: false,
   };
 
+  const disqualify = (rule: "remove" | "decline", setDoNotPhone: boolean, why: string): AllensLogicResult =>
+    alreadyDisqualified
+      ? {
+          ...base,
+          setDoNotPhone,
+          rule,
+          allenLogicResult: `${why} — already Disqualified${setDoNotPhone ? " — donotphone=true" : ""}`,
+        }
+      : {
+          ...base,
+          newCurrentStatus: WBAH_DYNAMICS_STATUS.DISQUALIFIED,
+          skipStatusUpdate: false,
+          setDoNotPhone,
+          rule,
+          allenLogicResult: `${why} → Disqualified (${WBAH_DYNAMICS_STATUS.DISQUALIFIED})${
+            setDoNotPhone ? " + donotphone=true" : ""
+          }`,
+        };
+
+  // A removal request in the AI summary wins over anything else on the call —
+  // the summary reads the words in context ("stop calling us, we want a real
+  // person" is a callback, not a removal).
+  if (isWbahExplicitDoNotContactRequest(input.detailedCallSummary, input.callSummary)) {
+    return disqualify("remove", true, "REMOVE: explicit stop-contact request");
+  }
+
   if (hasCallback) {
     return {
       ...base,
@@ -93,37 +147,7 @@ export function applyAllensLogicV5(input: AllensLogicInput): AllensLogicResult {
       skipAppointmentUpdate: true,
       isCallbackRequest: true,
       rule: "callback",
-      allenLogicResult: `RULE 0: CALLBACK → ${WBAH_DYNAMICS_STATUS.CALLBACK} at ${callbackUtc ?? callbackRaw}`,
-    };
-  }
-
-  if (sentiment.includes("negative")) {
-    const explicitDnc = isWbahExplicitDoNotContactRequest(
-      input.detailedCallSummary,
-      input.callSummary,
-      input.transcript,
-    );
-    const dncSuffix = explicitDnc ? " + donotphone=true (explicit remove/stop contact)" : "";
-
-    if (existingCurrentStatus === WBAH_DYNAMICS_STATUS.DISQUALIFIED) {
-      return {
-        ...base,
-        setDoNotPhone: explicitDnc,
-        rule: "negative",
-        allenLogicResult: explicitDnc
-          ? "RULE 1: NEGATIVE — already Disqualified — explicit DNC — donotphone=true"
-          : "RULE 1: NEGATIVE — already Disqualified — no explicit DNC request",
-      };
-    }
-    return {
-      ...base,
-      newCurrentStatus: WBAH_DYNAMICS_STATUS.DISQUALIFIED,
-      skipStatusUpdate: false,
-      skipStatecodeUpdate: true,
-      skipAppointmentUpdate: true,
-      setDoNotPhone: explicitDnc,
-      rule: "negative",
-      allenLogicResult: `RULE 1: NEGATIVE → Disqualified (${WBAH_DYNAMICS_STATUS.DISQUALIFIED})${dncSuffix}`,
+      allenLogicResult: `CALLBACK → ${WBAH_DYNAMICS_STATUS.CALLBACK} at ${callbackUtc ?? callbackRaw}`,
     };
   }
 
@@ -138,21 +162,39 @@ export function applyAllensLogicV5(input: AllensLogicInput): AllensLogicResult {
       skipAppointmentUpdate: false,
       rule: "logged",
       allenLogicResult: hasValidCalendly(bookingUrl)
-        ? `RULE 2: BOOKED + Calendly URL → Logged (${WBAH_DYNAMICS_STATUS.LOGGED}) + Open`
-        : `RULE 2: BOOKED (calendly_slot) → Logged (${WBAH_DYNAMICS_STATUS.LOGGED}) + Open`,
+        ? `BOOKED + Calendly URL → Logged (${WBAH_DYNAMICS_STATUS.LOGGED}) + Open`
+        : `BOOKED (calendly_slot) → Logged (${WBAH_DYNAMICS_STATUS.LOGGED}) + Open`,
     };
   }
 
-  if (sentiment.includes("positive")) {
-    if (existingCurrentStatus === WBAH_DYNAMICS_STATUS.LOGGED) {
-      return {
-        ...base,
-        skipNarrativeUpdate: true,
-        rule: "none",
-        allenLogicResult:
-          "RULE 3 skipped — already Logged; later unbooked call must not drop status or replace summary",
-      };
-    }
+  // The caller's own words (never the agent's script) only count on a negative
+  // call that booked nothing — "Oh, they don't phone me?" on a booked call is not
+  // a removal request.
+  if (sentiment.includes("negative") && isWbahExplicitDoNotContactRequest(callerLinesOnly(input.transcript))) {
+    return disqualify("remove", true, "REMOVE: caller asked to stop contact");
+  }
+
+  if (
+    isWbahClearDecline(input.detailedCallSummary, input.callSummary) ||
+    (sentiment.includes("negative") &&
+      isWbahRefusalOnNegativeCall(input.detailedCallSummary, input.callSummary))
+  ) {
+    return disqualify("decline", false, `DECLINE: clear no to selling (${sentiment || "no sentiment"})`);
+  }
+
+  // Nothing decisive happened on this call.
+  const keepNarrative = existingCurrentStatus === WBAH_DYNAMICS_STATUS.LOGGED;
+  if (heldStatus) {
+    return {
+      ...base,
+      skipNarrativeUpdate: keepNarrative,
+      rule: "none",
+      allenLogicResult: `NO CHANGE (${sentiment || "empty"}) — keep existing status ${existingCurrentStatus}`,
+    };
+  }
+
+  const isNewLead = existingCurrentStatus == null || existingCurrentStatus === NEW_LEAD_STATUS;
+  if (sentiment.includes("positive") || (isNewLead && sentiment.includes("negative"))) {
     return {
       ...base,
       newCurrentStatus: WBAH_DYNAMICS_STATUS.TRIED_TO_CONTACT,
@@ -161,19 +203,14 @@ export function applyAllensLogicV5(input: AllensLogicInput): AllensLogicResult {
       skipStatecodeUpdate: false,
       skipAppointmentUpdate: true,
       rule: "tried_to_contact",
-      allenLogicResult: `RULE 3: POSITIVE + no Calendly → Tried To Contact (${WBAH_DYNAMICS_STATUS.TRIED_TO_CONTACT})`,
+      allenLogicResult: `${sentiment.toUpperCase()} + no booking/decline → Tried To Contact (${WBAH_DYNAMICS_STATUS.TRIED_TO_CONTACT})`,
     };
   }
 
   return {
     ...base,
-    skipNarrativeUpdate: existingCurrentStatus === WBAH_DYNAMICS_STATUS.LOGGED,
     rule: "none",
-    allenLogicResult: `RULE 4: OTHER (${sentiment || "empty"}) → NO UPDATE${
-      existingCurrentStatus === WBAH_DYNAMICS_STATUS.LOGGED
-        ? " — keep existing Logged summary"
-        : ""
-    }`,
+    allenLogicResult: `OTHER (${sentiment || "empty"}) → NO UPDATE`,
   };
 }
 

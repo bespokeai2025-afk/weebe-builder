@@ -30,14 +30,14 @@ describe("isWbahExplicitDoNotContactRequest", () => {
 });
 
 describe("applyAllensLogicV5 negative + DNC", () => {
-  it("Disqualified without donotphone when negative but no explicit removal", () => {
+  it("Disqualified without donotphone on a clear decline with no explicit removal", () => {
     const result = applyAllensLogicV5({
       userSentiment: "Negative",
       callbackDatetime: null,
       calendlyBookingUrl: null,
       callSummary: "User was not interested in selling. No removal requested.",
     });
-    expect(result.rule).toBe("negative");
+    expect(result.rule).toBe("decline");
     expect(result.newCurrentStatus).toBe(WBAH_DYNAMICS_STATUS.DISQUALIFIED);
     expect(result.setDoNotPhone).toBe(false);
 
