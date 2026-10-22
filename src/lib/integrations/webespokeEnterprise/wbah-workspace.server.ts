@@ -40,10 +40,13 @@ import {
   parseCampaignLeadStatusOptionsFromApi,
   parseWbahNewLeadSyncToggle,
   parseWbahLiveTransferSettings,
+  parseWbahCallingLimit,
   resolveCampaignScheduleOptions,
   TEST_LEAD_STATUS,
   type WbahNewLeadSyncToggleState,
   type WbahLiveTransferSettingsState,
+  type WbahCallingLimitKind,
+  type WbahCallingLimitState,
 } from "@/lib/integrations/webespokeEnterprise/wbah-campaign-sync.types";
 import { requirePageAccess } from "@/lib/permissions/permissions.server";
 import { jsonResult } from "@/lib/server-fn-json.shared";
@@ -742,6 +745,69 @@ export const setWbahNewLeadSyncToggle = createServerFn({ method: "POST" })
       return { enabled: data.enabled, source: "redis" as const, envDefault: false };
     }
     return parsed satisfies WbahNewLeadSyncToggleState;
+  });
+
+/** The backend's own `message` ({ result, statuscode, message, data }) — already human-readable. */
+function wbahApiMessage(res: { data?: unknown; error?: string }, fallback: string): string {
+  const body = res.data as { message?: unknown } | null | undefined;
+  if (body && typeof body.message === "string" && body.message.trim()) return body.message;
+  return res.error || fallback;
+}
+
+const CALLING_LIMIT_LABEL: Record<WbahCallingLimitKind, string> = {
+  voicemail: "voicemail cap",
+  daily: "daily call cap",
+};
+
+async function fetchWbahCallingLimit(
+  kind: WbahCallingLimitKind,
+  cbs: Awaited<ReturnType<typeof requireWbahCbs>>,
+): Promise<{ state: WbahCallingLimitState | null; error: string | null }> {
+  const get = kind === "voicemail" ? api.wbahGetVoicemailCap : api.wbahGetDailyCallCap;
+  const res = await get(cbs.getTokens, cbs.saveNewAccessToken, cbs.reloginFn);
+  if (!res.ok) {
+    if (res.status === 401) return { state: null, error: "Session expired. Please sign in again." };
+    return { state: null, error: wbahApiMessage(res, `Failed to load ${CALLING_LIMIT_LABEL[kind]}`) };
+  }
+  const state = parseWbahCallingLimit(res.data, kind);
+  return state
+    ? { state, error: null }
+    : { state: null, error: `Invalid ${CALLING_LIMIT_LABEL[kind]} response` };
+}
+
+/** Voicemail cap + daily call cap (backend runtime settings). Each loads independently. */
+export const getWbahCallingLimits = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    requireActiveWbahWorkspace(context.workspaceId);
+    await requirePageAccess(context.workspaceId, context.userId, "campaigns", "view");
+    const cbs = await requireWbahCbs(context.userId);
+    const [voicemail, daily] = await Promise.all([
+      fetchWbahCallingLimit("voicemail", cbs),
+      fetchWbahCallingLimit("daily", cbs),
+    ]);
+    return { voicemail, daily };
+  });
+
+export const setWbahCallingLimit = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((i) =>
+    z
+      .object({ kind: z.enum(["voicemail", "daily"]), value: z.number().int().positive() })
+      .parse(i ?? {}),
+  )
+  .handler(async ({ context, data }) => {
+    requireActiveWbahWorkspace(context.workspaceId);
+    await requirePageAccess(context.workspaceId, context.userId, "campaigns", "edit");
+    const cbs = await requireWbahCbs(context.userId);
+    const patch = data.kind === "voicemail" ? api.wbahPatchVoicemailCap : api.wbahPatchDailyCallCap;
+    const res = await patch(data.value, cbs.getTokens, cbs.saveNewAccessToken, cbs.reloginFn);
+    if (!res.ok) {
+      if (res.status === 401) throw new Error("Session expired. Please sign in again.");
+      if (res.status === 403) throw new Error("You don't have permission to change calling limits");
+      throw new Error(wbahApiMessage(res, `Failed to update ${CALLING_LIMIT_LABEL[data.kind]}`));
+    }
+    return { message: wbahApiMessage(res, `Saved ${CALLING_LIMIT_LABEL[data.kind]}`) };
   });
 
 const liveTransferDaySchema = z.object({

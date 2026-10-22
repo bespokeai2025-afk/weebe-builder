@@ -142,6 +142,52 @@ export function parseWbahNewLeadSyncToggle(raw: unknown): WbahNewLeadSyncToggleS
   };
 }
 
+/** GET/PATCH /campaigns/voicemail-cap and /campaigns/daily-call-cap */
+export type WbahCallingLimitKind = "voicemail" | "daily";
+
+export type WbahCallingLimitState = {
+  value: number;
+  /** "env" = nobody has overridden it; showing the server default. */
+  source: "redis" | "env";
+  envDefault: number;
+};
+
+export const WBAH_CALLING_LIMIT_FIELD: Record<WbahCallingLimitKind, string> = {
+  voicemail: "maxConsecutiveVoicemails",
+  daily: "maxDailyCallAttempts",
+};
+
+/** Client-side sanity cap; the server only requires a positive number. */
+export const WBAH_CALLING_LIMIT_UI_MAX = 30;
+
+export function parseWbahCallingLimit(
+  raw: unknown,
+  kind: WbahCallingLimitKind,
+): WbahCallingLimitState | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const inner =
+    o.data && typeof o.data === "object" && !Array.isArray(o.data)
+      ? (o.data as Record<string, unknown>)
+      : o;
+  const value = Number(inner[WBAH_CALLING_LIMIT_FIELD[kind]]);
+  if (!Number.isFinite(value)) return null;
+  const envDefault = Number(inner.envDefault);
+  return {
+    value,
+    source: String(inner.source ?? "redis").toLowerCase() === "env" ? "env" : "redis",
+    envDefault: Number.isFinite(envDefault) ? envDefault : value,
+  };
+}
+
+/** A whole number from 1 to the UI cap — mirrors the server's "positive number" check. */
+export function parseWbahCallingLimitInput(text: string): number | null {
+  const t = text.trim();
+  if (!/^\d+$/.test(t)) return null;
+  const n = Number(t);
+  return n >= 1 && n <= WBAH_CALLING_LIMIT_UI_MAX ? n : null;
+}
+
 /** GET/PATCH/POST /campaigns/live-transfer/settings */
 export type WbahLiveTransferSettingsSource = "redis" | "env";
 export type WbahLiveTransferFallback = "callback";

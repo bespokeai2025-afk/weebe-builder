@@ -408,6 +408,26 @@ export const wbahPatchNewLeadSyncToggle = (
   rl?: Relogin,
 ) => aPatch("/campaigns/new-lead-sync/toggle", { enabled }, gt, st, rl);
 
+export const wbahGetVoicemailCap = (gt: GetTokens, st: SaveToken, rl?: Relogin) =>
+  aGet("/campaigns/voicemail-cap", gt, st, rl);
+
+export const wbahPatchVoicemailCap = (
+  maxConsecutiveVoicemails: number,
+  gt: GetTokens,
+  st: SaveToken,
+  rl?: Relogin,
+) => aPatch("/campaigns/voicemail-cap", { maxConsecutiveVoicemails }, gt, st, rl);
+
+export const wbahGetDailyCallCap = (gt: GetTokens, st: SaveToken, rl?: Relogin) =>
+  aGet("/campaigns/daily-call-cap", gt, st, rl);
+
+export const wbahPatchDailyCallCap = (
+  maxDailyCallAttempts: number,
+  gt: GetTokens,
+  st: SaveToken,
+  rl?: Relogin,
+) => aPatch("/campaigns/daily-call-cap", { maxDailyCallAttempts }, gt, st, rl);
+
 export const wbahGetLiveTransferSettings = (gt: GetTokens, st: SaveToken, rl?: Relogin) =>
   aGet("/campaigns/live-transfer/settings", gt, st, rl);
 

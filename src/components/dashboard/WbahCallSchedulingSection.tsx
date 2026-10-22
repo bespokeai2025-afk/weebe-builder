@@ -82,6 +82,7 @@ import {
 } from "@/components/dashboard/WbahTestLeadBadge";
 import { WbahNewLeadAutoDialBadge } from "@/components/dashboard/WbahNewLeadSubBadge";
 import { WbahLiveTransferHoursPanel } from "@/components/dashboard/WbahLiveTransferHoursPanel";
+import { WbahCallingLimitsPanel } from "@/components/dashboard/WbahCallingLimitsPanel";
 
 const TIMEZONES = [
   { value: "Europe/London", label: "London (GMT/BST)" },
@@ -648,6 +649,8 @@ export function WbahCallSchedulingSection() {
       </div>
 
       <WbahLiveTransferHoursPanel />
+
+      <WbahCallingLimitsPanel />
 
       {/* Stats grid */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
