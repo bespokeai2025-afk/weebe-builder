@@ -153,9 +153,10 @@ export async function runWbahRebookPostCallPipeline(
   });
   formatted.leadId = recordId;
 
+  let confirmedBookingUrl: string | null = null;
   if (stepOn("dashboard_analyzed")) {
     try {
-      await forwardWbahDashboardAnalyzed({
+      const confirmed = await forwardWbahDashboardAnalyzed({
         leadId: recordId,
         call,
         payload,
@@ -168,6 +169,7 @@ export async function runWbahRebookPostCallPipeline(
           booking_status: formatted.appointmentConfirmed ? "confirmed" : "",
         },
       });
+      confirmedBookingUrl = confirmed?.calendlyBookingUrl ?? null;
       branches.push("dashboard_analyzed");
     } catch (e) {
       errors.push(`dashboard_analyzed: ${(e as Error).message}`);
@@ -181,7 +183,7 @@ export async function runWbahRebookPostCallPipeline(
         agent,
         dynVars: { ...dynVars, crm_type: "opportunity", opportunity_id: entity.opportunityId },
         formatted,
-        calendlyBookingUrl: null,
+        calendlyBookingUrl: confirmedBookingUrl,
         event,
       });
       branches.push("wbah_calls_upsert");

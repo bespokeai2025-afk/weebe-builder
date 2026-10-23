@@ -6,6 +6,13 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { WbahFormattedCallData } from "./wbah-format-data.shared";
 import type { WbahRetellAgentMapping } from "./wbah-retell-agents.shared";
 import { isWbahExplicitDoNotContactRequest } from "./wbah-explicit-dnc.shared";
+import { planWbahContactRefresh } from "./wbah-contact-refresh.shared";
+import { WBAH_TIMEZONE } from "@/lib/dashboard/wbah-timezone";
+
+/** YYYY-MM-DD in UK time. */
+function ukDate(msValue: number): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: WBAH_TIMEZONE }).format(new Date(msValue));
+}
 
 type RetellCall = {
   call_id?: string;
@@ -144,23 +151,6 @@ export async function upsertWbahCallFromWebhook(input: {
     .upsert(merged, { onConflict: "id" });
   if (error) throw new Error(`wbah_calls upsert failed: ${error.message}`);
 
-  // Our own placeholder contact row (keyed by this call) is insert-only below, so
-  // a confirmed booking learned after it was created would never reach it.
-  if (merged.booking_status === "success" && merged.calendly_booking_url) {
-    const { error: bookErr } = await (supabaseAdmin as any)
-      .from("wbah_crm_contacts")
-      .update({
-        booking_status: merged.booking_status,
-        calendly_booking_url: merged.calendly_booking_url,
-        appointment_date: merged.appointment_date ?? null,
-        appointment_time: merged.appointment_time ?? null,
-        synced_at: new Date().toISOString(),
-      })
-      .eq("workspace_id", input.agent.workspaceId)
-      .eq("external_id", String(callId));
-    if (bookErr) console.warn("[wbah-calls-upsert] contact booking update failed:", bookErr.message);
-  }
-
   // Mirror the contact into wbah_crm_contacts so the People tab shows results
   // even when WeeBespoke's CRM pipeline hasn't registered the lead yet (e.g.
   // intake race conditions, test campaigns, or new leads not yet in get-all-calldata).
@@ -208,10 +198,42 @@ export async function upsertWbahCallFromWebhook(input: {
       synced_at: new Date().toISOString(),
     };
 
-    // Insert-only mirror — never clobber existing WeeBespoke-sourced rows.
-    const { error: crmErr } = await (supabaseAdmin as any)
+    // One contact row per number: create it, or bring the existing one up to
+    // this call (a returning number used to keep its old name/status/booking).
+    const { data: existingContact, error: readErr } = await (supabaseAdmin as any)
       .from("wbah_crm_contacts")
-      .upsert(crmRow, { onConflict: "workspace_id,dedup_key", ignoreDuplicates: true });
+      .select(
+        "external_id, start_timestamp, appointment_date, appointment_time, booking_status, calendly_booking_url, meta",
+      )
+      .eq("workspace_id", input.agent.workspaceId)
+      .eq("dedup_key", dedupKey)
+      .maybeSingle();
+    let crmErr: { message: string } | null = readErr ?? null;
+    if (!readErr && !existingContact) {
+      const { error } = await (supabaseAdmin as any)
+        .from("wbah_crm_contacts")
+        .upsert(
+          { ...crmRow, full_name: crmRow.name, meta: leadId ? { lead_id: leadId } : {} },
+          { onConflict: "workspace_id,dedup_key", ignoreDuplicates: true },
+        );
+      crmErr = error;
+    } else if (!readErr && existingContact) {
+      const patch = planWbahContactRefresh({
+        existing: existingContact,
+        incoming: crmRow,
+        leadId,
+        hasOutcome: input.event === "call_analyzed" && formatted != null,
+        callDate: ukDate(startMs > 0 ? startMs : Date.now()),
+      });
+      if (patch) {
+        const { error } = await (supabaseAdmin as any)
+          .from("wbah_crm_contacts")
+          .update(patch)
+          .eq("workspace_id", input.agent.workspaceId)
+          .eq("dedup_key", dedupKey);
+        crmErr = error;
+      }
+    }
     if (crmErr) {
       // Non-fatal — log and continue; wbah_calls is the source of truth
       console.warn("[wbah-calls-upsert] wbah_crm_contacts mirror failed:", crmErr.message);

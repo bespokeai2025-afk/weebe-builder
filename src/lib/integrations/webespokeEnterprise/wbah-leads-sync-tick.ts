@@ -8,8 +8,34 @@
  *  - nothing on a schedule since the dev sync plugin was removed (see vite.config.ts)
  */
 import { createClient } from "@supabase/supabase-js";
-import { isWbahRecordBooked, isWbahBookingStatus, phoneDigits } from "../../dashboard/wbah-booking-meta";
+import { isWbahRecordBooked, phoneDigits } from "../../dashboard/wbah-booking-meta";
 import { selectWbahCallsByIds } from "./wbah-calls-lookup.server";
+import { isWbahContactUpdateCurrent } from "../../wbah/post-call/wbah-contact-refresh.shared";
+
+/**
+ * Booked-contact syncs upsert whole rows by phone. Drop any booking from a call
+ * older than the one the contact row already reflects, so an old booking never
+ * overwrites a returning lead's newer call (e.g. a July booking re-applied every
+ * few minutes over a new enquiry on the same number).
+ */
+async function dropBookingsOlderThanContact<T extends { dedup_key: string; start_timestamp: number | null }>(
+  sb: ReturnType<typeof getAdminClient>,
+  workspaceId: string,
+  rows: T[],
+): Promise<T[]> {
+  const keys = rows.map((r) => r.dedup_key);
+  const current = new Map<string, { start_timestamp: number | null }>();
+  for (let i = 0; i < keys.length; i += 200) {
+    const { data, error } = await (sb as any)
+      .from("wbah_crm_contacts")
+      .select("dedup_key, start_timestamp")
+      .eq("workspace_id", workspaceId)
+      .in("dedup_key", keys.slice(i, i + 200));
+    if (error) throw new Error(`wbah_crm_contacts lookup failed: ${error.message}`);
+    for (const r of (data ?? []) as any[]) current.set(String(r.dedup_key), r);
+  }
+  return rows.filter((r) => isWbahContactUpdateCurrent(current.get(r.dedup_key), r.start_timestamp));
+}
 
 // ── Supabase admin client ─────────────────────────────────────────────────────
 
@@ -1108,9 +1134,10 @@ export async function syncWbahBookedContactsFromCrm(opts?: { force?: boolean }):
     }
 
     if (!booked.length) return { rows: 0 };
+    const current = await dropBookingsOlderThanContact(sb, workspaceId, booked);
 
-    for (let i = 0; i < booked.length; i += 200) {
-      const chunk = booked.slice(i, i + 200);
+    for (let i = 0; i < current.length; i += 200) {
+      const chunk = current.slice(i, i + 200);
       const { error } = await (sb as any)
         .from("wbah_crm_contacts")
         .upsert(chunk, { onConflict: "workspace_id,dedup_key" });
@@ -1164,15 +1191,6 @@ function buildBookedCallRow(call: any, workspaceId: string) {
   };
 }
 
-function bookingRowScore(row: ReturnType<typeof buildBookedCallRow>): number {
-  let score = 0;
-  if (row.appointment_date && String(row.appointment_date).trim()) score += 4;
-  if (row.appointment_time && String(row.appointment_time).trim()) score += 2;
-  if (row.calendly_booking_url && String(row.calendly_booking_url).trim()) score += 3;
-  if (isWbahBookingStatus(row.booking_status)) score += 1;
-  return score;
-}
-
 let _bookedCallsSyncAt = 0;
 let _bookedCallsSyncInflight: Promise<{ rows: number }> | null = null;
 const BOOKED_CALLS_SYNC_MS = 3 * 60 * 1000;
@@ -1213,17 +1231,17 @@ export async function syncWbahBookedContactsFromCalls(opts?: { force?: boolean }
         if (!isWbahRecordBooked(call)) continue;
         const row = buildBookedCallRow(call, workspaceId);
         const key = phoneDigits(row.phone) || row.dedup_key;
-        const prev = byDigits.get(key);
-        if (!prev || bookingRowScore(row) > bookingRowScore(prev)) {
-          byDigits.set(key, row);
-        }
+        // Calls arrive newest first: the latest booking per number wins, not the
+        // most complete-looking older one.
+        if (!byDigits.has(key)) byDigits.set(key, row);
       }
       if (batch.length < PAGE) break;
       from += PAGE;
     }
 
-    const booked = [...byDigits.values()];
-    if (!booked.length) return { rows: 0 };
+    const latest = [...byDigits.values()];
+    if (!latest.length) return { rows: 0 };
+    const booked = await dropBookingsOlderThanContact(sb, workspaceId, latest);
 
     for (let i = 0; i < booked.length; i += 200) {
       const chunk = booked.slice(i, i + 200);
