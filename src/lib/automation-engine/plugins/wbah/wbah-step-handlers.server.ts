@@ -28,7 +28,10 @@ import { buildWbahAiTimelineNoteText } from "@/lib/wbah/post-call/wbah-timeline-
 import { preserveWbahAddressAgainstDictationDrift } from "@/lib/wbah/post-call/wbah-uk-address.shared";
 import { cleanWbahRawData, formatWbahRetellCallData } from "@/lib/wbah/post-call/wbah-format-data.shared";
 import { upsertWbahCallFromWebhook } from "@/lib/wbah/post-call/wbah-calls-upsert.server";
-import { postWbahCallOutputCreate } from "@/lib/wbah/post-call/wbah-webespoke-writer.server";
+import {
+  postWbahCallOutputCreate,
+  type WbahConfirmedBooking,
+} from "@/lib/wbah/post-call/wbah-webespoke-writer.server";
 import { forwardWbahDashboardAnalyzed } from "@/lib/wbah/post-call/wbah-dashboard-forward.shared";
 import type { WbahRunBag } from "./wbah-run-context";
 
@@ -126,9 +129,9 @@ export async function wbahStepDashboardAnalyzed(
   bag: WbahRunBag,
   formatted: ReturnType<typeof formatWbahRetellCallData>,
   calendlyBookingUrl: string | null,
-): Promise<void> {
-  if (!formatted.leadId) return;
-  await forwardWbahDashboardAnalyzed({
+): Promise<WbahConfirmedBooking | null> {
+  if (!formatted.leadId) return null;
+  return forwardWbahDashboardAnalyzed({
     leadId: formatted.leadId,
     call: bag.call,
     payload: bag.payload,

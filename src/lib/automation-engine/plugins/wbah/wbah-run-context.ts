@@ -82,8 +82,12 @@ export function mergeWbahOutput(
     ...(existing ?? {}),
     ...bag,
   };
+  // Step markers describe the node that set them; inheriting them from the
+  // input made every later node look skipped ("step already ran") or report
+  // another node's step in the run's branch list.
+  const { _wbahSkipped: _s, _skipReason: _r, _wbahStep: _w, ...input } = ctx.input.json as Record<string, unknown>;
   return {
-    ...ctx.input.json,
+    ...input,
     ...extra,
     event: nextBag.event,
     call: nextBag.call,

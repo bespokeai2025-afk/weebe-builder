@@ -2,6 +2,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import * as api from "@/lib/integrations/webespokeEnterprise/client.server";
 import { getWebespokeAdminCreds } from "@/lib/integrations/webespokeEnterprise/webespoke-env.server";
 import type { WbahCallbackRequestBody } from "./wbah-callback-post.shared";
+import { confirmedCalendlyBookingUrl } from "@/lib/dashboard/wbah-booking-meta";
 
 const INTEGRATION_KEY = "webespoke_enterprise";
 const CLIENT_NAME = "Webuyanyhouse";
@@ -92,7 +93,40 @@ export type WbahCallOutputCreateBody = {
   opportunity_id?: string | null;
 };
 
-export async function postWbahCallOutputCreate(body: WbahCallOutputCreateBody): Promise<void> {
+/** A confirmed Calendly booking (reschedulings/ URL) the backend holds for this call. */
+export type WbahConfirmedBooking = {
+  calendlyBookingUrl: string;
+  appointmentDate: string | null;
+  appointmentTime: string | null;
+};
+
+/**
+ * The backend replies with its saved call row. When the agent booked during the
+ * call, the backend's own book_appointment tool holds the real Calendly
+ * reschedulings/ link and attaches it to that row — the only place WEBEE can
+ * learn it for New Lead calls (they are in no synced CRM cohort).
+ */
+export function confirmedBookingFromCallOutputReply(reply: unknown): WbahConfirmedBooking | null {
+  const root = reply as Record<string, unknown> | null | undefined;
+  const row = (root?.data && typeof root.data === "object" ? root.data : root) as
+    | Record<string, unknown>
+    | null
+    | undefined;
+  const url = confirmedCalendlyBookingUrl({
+    calendly_booking_url: typeof row?.calendly_booking_url === "string" ? row.calendly_booking_url : null,
+  });
+  if (!url) return null;
+  const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+  return {
+    calendlyBookingUrl: url,
+    appointmentDate: str(row?.appointment_date),
+    appointmentTime: str(row?.appointment_time),
+  };
+}
+
+export async function postWbahCallOutputCreate(
+  body: WbahCallOutputCreateBody,
+): Promise<WbahConfirmedBooking | null> {
   const { getTokens, saveNewAccessToken, reloginFn } = await getWbahEnterpriseTokenCallbacks();
   const res = await api.authenticatedFetch<unknown>(
     "/call-output-data/create",
@@ -112,6 +146,7 @@ export async function postWbahCallOutputCreate(body: WbahCallOutputCreateBody): 
     status: res.status,
     result: typeof res.data === "object" ? (res.data as Record<string, unknown>)?.result : res.data,
   });
+  return confirmedBookingFromCallOutputReply(res.data);
 }
 
 const CALLBACK_RETRY_MAX = 5;

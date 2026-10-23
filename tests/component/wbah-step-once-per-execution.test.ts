@@ -6,6 +6,8 @@ const calls = vi.hoisted(() => ({
   link: 0,
   invitee: 0,
   dashboard: [] as Array<string | null>,
+  upsert: [] as Array<string | null>,
+  confirmedUrl: null as string | null,
 }));
 
 vi.mock("@/lib/automation-engine/plugins/wbah/wbah-step-handlers.server", () => ({
@@ -21,8 +23,13 @@ vi.mock("@/lib/automation-engine/plugins/wbah/wbah-step-handlers.server", () => 
   }),
   wbahStepDashboardAnalyzed: vi.fn(async (_b: unknown, _f: unknown, url: string | null) => {
     calls.dashboard.push(url);
+    return calls.confirmedUrl
+      ? { calendlyBookingUrl: calls.confirmedUrl, appointmentDate: "2026-10-23", appointmentTime: "12:00" }
+      : null;
   }),
-  wbahStepCallsUpsert: vi.fn(async () => {}),
+  wbahStepCallsUpsert: vi.fn(async (_b: unknown, _f: unknown, url: string | null) => {
+    calls.upsert.push(url);
+  }),
   wbahStepDynamicsAllens: vi.fn(async (_b: unknown, _f: unknown, url: string | null) => {
     calls.allens.push(url);
   }),
@@ -34,6 +41,7 @@ vi.mock("@/lib/automation-engine/plugins/wbah/wbah-step-handlers.server", () => 
 import {
   executeWbahCalendlyInvitee,
   executeWbahCalendlyLink,
+  executeWbahCallsUpsert,
   executeWbahDashboardAnalyzed,
   executeWbahDynamicsAgentic,
   executeWbahDynamicsAllens,
@@ -74,6 +82,26 @@ describe("WBAH steps run once per automation execution", () => {
     calls.link = 0;
     calls.invitee = 0;
     calls.dashboard = [];
+    calls.upsert = [];
+    calls.confirmedUrl = null;
+  });
+
+  it("the call record gets the backend's confirmed Calendly link from the dashboard reply", async () => {
+    calls.confirmedUrl = "https://calendly.com/reschedulings/abc-123";
+    const run = "exec-confirmed";
+    await executeWbahDashboardAnalyzed(ctx(run, "post-dashboard-analyzed"));
+    await executeWbahCallsUpsert(ctx(run, "wbah-calls-upsert"));
+    expect(calls.upsert).toEqual(["https://calendly.com/reschedulings/abc-123"]);
+  });
+
+  it("a node does not inherit an earlier node's skip marker", async () => {
+    const run = "exec-markers";
+    const res = await executeWbahDashboardAnalyzed(
+      ctx(run, "post-dashboard-analyzed", { _wbahSkipped: true, _skipReason: "step already ran", _wbahStep: "calendly_link" }),
+    );
+    const out = (res as { output: { json: Record<string, unknown> } }).output.json;
+    expect(out._wbahSkipped).toBeUndefined();
+    expect(out._wbahStep).toBe("dashboard_analyzed");
   });
 
   it("runs Allen's Logic, the agentic PATCH and the invitee booking once however many nodes carry them", async () => {

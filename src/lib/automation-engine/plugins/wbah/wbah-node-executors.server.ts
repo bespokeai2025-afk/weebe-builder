@@ -221,9 +221,11 @@ export async function executeWbahDashboardAnalyzed(ctx: NodeContext): Promise<No
   const formatted = getFormatted(ctx);
   if (!formatted) return skip(ctx, "no formatted data");
   const once = runStepOnce(ctx, "dashboard_analyzed", async () => {
-    const calendlyBookingUrl = await bookingUrlFor(ctx, bag, formatted);
-    await wbahStepDashboardAnalyzed(bag, formatted, calendlyBookingUrl);
-    return { calendlyBookingUrl };
+    const slotUrl = await bookingUrlFor(ctx, bag, formatted);
+    const confirmed = await wbahStepDashboardAnalyzed(bag, formatted, slotUrl);
+    // The backend's reply carries the real booking link (reschedulings/) when
+    // the agent booked during the call — it beats our slot-picker link.
+    return { calendlyBookingUrl: confirmed?.calendlyBookingUrl ?? slotUrl };
   });
   if (!once.first) return alreadyRan(ctx, bag, once.result);
   const patch = await once.result;
@@ -237,7 +239,11 @@ export async function executeWbahCallsUpsert(ctx: NodeContext): Promise<NodeResu
   const formatted = getFormatted(ctx);
   if (!formatted) return skip(ctx, "no formatted data");
   const once = runStepOnce(ctx, "wbah_calls_upsert", async () => {
-    const calendlyBookingUrl = await bookingUrlFor(ctx, bag, formatted);
+    // Wait for the dashboard POST when this run has one — its reply holds the
+    // confirmed Calendly link, whichever order the canvas reaches the nodes in.
+    const dashboard = stepMemo.get(`${ctx.executionId}:dashboard_analyzed`);
+    const fromDashboard = dashboard ? (await dashboard.result.catch((): Partial<WbahRunBag> => ({}))).calendlyBookingUrl : null;
+    const calendlyBookingUrl = fromDashboard ?? (await bookingUrlFor(ctx, bag, formatted));
     await wbahStepCallsUpsert(bag, formatted, calendlyBookingUrl);
     return { calendlyBookingUrl };
   });

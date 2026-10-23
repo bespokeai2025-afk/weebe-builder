@@ -144,6 +144,23 @@ export async function upsertWbahCallFromWebhook(input: {
     .upsert(merged, { onConflict: "id" });
   if (error) throw new Error(`wbah_calls upsert failed: ${error.message}`);
 
+  // Our own placeholder contact row (keyed by this call) is insert-only below, so
+  // a confirmed booking learned after it was created would never reach it.
+  if (merged.booking_status === "success" && merged.calendly_booking_url) {
+    const { error: bookErr } = await (supabaseAdmin as any)
+      .from("wbah_crm_contacts")
+      .update({
+        booking_status: merged.booking_status,
+        calendly_booking_url: merged.calendly_booking_url,
+        appointment_date: merged.appointment_date ?? null,
+        appointment_time: merged.appointment_time ?? null,
+        synced_at: new Date().toISOString(),
+      })
+      .eq("workspace_id", input.agent.workspaceId)
+      .eq("external_id", String(callId));
+    if (bookErr) console.warn("[wbah-calls-upsert] contact booking update failed:", bookErr.message);
+  }
+
   // Mirror the contact into wbah_crm_contacts so the People tab shows results
   // even when WeeBespoke's CRM pipeline hasn't registered the lead yet (e.g.
   // intake race conditions, test campaigns, or new leads not yet in get-all-calldata).

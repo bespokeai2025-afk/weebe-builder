@@ -39,7 +39,7 @@ import {
   type WbahRetellAgentMapping,
 } from "./wbah-retell-agents.shared";
 import { upsertWbahCallFromWebhook } from "./wbah-calls-upsert.server";
-import { postWbahCallOutputCreate } from "./wbah-webespoke-writer.server";
+import { postWbahCallOutputCreate, type WbahConfirmedBooking } from "./wbah-webespoke-writer.server";
 import { forwardWbahDashboardAnalyzed } from "./wbah-dashboard-forward.shared";
 import { extractDynVars } from "./wbah-dyn-vars.shared";
 
@@ -166,11 +166,11 @@ async function postDashboardAnalyzed(input: {
   payload: Record<string, unknown>;
   formatted: ReturnType<typeof formatWbahRetellCallData>;
   calendlyBookingUrl: string | null;
-}): Promise<void> {
+}): Promise<WbahConfirmedBooking | null> {
   const { formatted, call, payload, calendlyBookingUrl } = input;
-  if (!formatted.leadId) return;
+  if (!formatted.leadId) return null;
 
-  await forwardWbahDashboardAnalyzed({
+  return forwardWbahDashboardAnalyzed({
     leadId: formatted.leadId,
     call,
     payload,
@@ -554,7 +554,9 @@ async function runWbahPostCallPipelineCoreUnsafe(
 
   if (stepOn("dashboard_analyzed")) {
     try {
-      await postDashboardAnalyzed({ call, payload, formatted, calendlyBookingUrl });
+      const confirmed = await postDashboardAnalyzed({ call, payload, formatted, calendlyBookingUrl });
+      // The real booking link (reschedulings/) beats our slot-picker link.
+      if (confirmed) calendlyBookingUrl = confirmed.calendlyBookingUrl;
       branches.push("dashboard_analyzed");
     } catch (e) {
       errors.push(`dashboard_analyzed: ${(e as Error).message}`);

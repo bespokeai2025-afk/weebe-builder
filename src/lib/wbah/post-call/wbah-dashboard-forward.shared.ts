@@ -12,6 +12,7 @@ import {
   postWbahCallOutputCreate,
   postWbahCallbackRequest,
   type WbahCallOutputCreateBody,
+  type WbahConfirmedBooking,
 } from "./wbah-webespoke-writer.server";
 
 type RetellCallLike = {
@@ -37,12 +38,12 @@ export async function forwardWbahDashboardAnalyzed(input: {
     | "callback_type"
     | "is_callback_request"
   >;
-}): Promise<void> {
+}): Promise<WbahConfirmedBooking | null> {
   const { formatted, call, payload, calendlyBookingUrl, postCallExtras } = input;
   const leadId = input.leadId.trim();
-  if (!leadId) return;
+  if (!leadId) return null;
 
-  await postWbahCallOutputCreate({
+  const confirmed = await postWbahCallOutputCreate({
     leadId,
     event: "call_analyzed",
     raw_data: cleanWbahRawData(payload),
@@ -63,4 +64,5 @@ export async function forwardWbahDashboardAnalyzed(input: {
   if (shouldPostWbahCallbackRequest(callbackBody)) {
     await postWbahCallbackRequest(callbackBody);
   }
+  return confirmed;
 }
