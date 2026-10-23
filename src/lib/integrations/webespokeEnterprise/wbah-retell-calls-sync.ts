@@ -8,6 +8,7 @@
  * dev Vite plugins.
  */
 import { createClient } from "@supabase/supabase-js";
+import { selectWbahCallsByIds } from "./wbah-calls-lookup.server";
 
 const WBAH_SLUG = "webuyanyhouse";
 
@@ -177,12 +178,8 @@ async function syncRetellAccountPages(input: {
 
     if (!full && rows.length > 0) {
       const ids = rows.map((r) => r.id);
-      const { data: existing } = await (sb as any)
-        .from("wbah_calls")
-        .select("id")
-        .eq("workspace_id", workspaceId)
-        .in("id", ids);
-      const known = new Set(((existing ?? []) as any[]).map((e) => String(e.id)));
+      const existing = await selectWbahCallsByIds(sb, ids, "id", workspaceId);
+      const known = new Set(existing.map((e) => String(e.id)));
       await upsertRows(sb, rows);
       synced += rows.length;
       if (pages >= 1 && ids.every((id) => known.has(id))) {
@@ -212,12 +209,13 @@ const BOOKING_PRESERVE = ["appointment_date", "appointment_time", "booking_statu
 async function upsertRows(sb: Sb, rows: any[]): Promise<void> {
   if (rows.length === 0) return;
   const ids = rows.map((r) => r.id);
-  const { data: existing } = await (sb as any)
-    .from("wbah_calls")
-    .select("id, appointment_date, appointment_time, booking_status, calendly_booking_url, transcript")
-    .eq("workspace_id", rows[0].workspace_id)
-    .in("id", ids);
-  const byId = new Map<string, any>(((existing ?? []) as any[]).map((e) => [String(e.id), e]));
+  const existing = await selectWbahCallsByIds<any>(
+    sb,
+    ids,
+    "id, appointment_date, appointment_time, booking_status, calendly_booking_url, transcript",
+    rows[0].workspace_id,
+  );
+  const byId = new Map<string, any>(existing.map((e) => [String(e.id), e]));
 
   const merged = rows.map((row) => {
     const prev = byId.get(String(row.id));

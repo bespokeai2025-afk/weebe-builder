@@ -9,6 +9,7 @@
  */
 import { createClient } from "@supabase/supabase-js";
 import { isWbahRecordBooked, isWbahBookingStatus, phoneDigits } from "../../dashboard/wbah-booking-meta";
+import { selectWbahCallsByIds } from "./wbah-calls-lookup.server";
 
 // ── Supabase admin client ─────────────────────────────────────────────────────
 
@@ -633,11 +634,12 @@ async function upsertCallRows(sb: ReturnType<typeof getAdminClient>, rows: NonNu
   if (!rowsToUpsert.length) return 0;
 
   const ids = rowsToUpsert.map((r) => r.id);
-  const { data: existing } = await (sb as any)
-    .from("wbah_calls")
-    .select("id, appointment_date, appointment_time, booking_status, calendly_booking_url")
-    .in("id", ids);
-  const byId = new Map<string, any>(((existing ?? []) as any[]).map((e) => [String(e.id), e]));
+  const existing = await selectWbahCallsByIds<any>(
+    sb,
+    ids,
+    "id, appointment_date, appointment_time, booking_status, calendly_booking_url",
+  );
+  const byId = new Map<string, any>(existing.map((e) => [String(e.id), e]));
   const merged = rowsToUpsert.map((row) => {
     const prev = byId.get(String(row.id));
     if (!prev) return row;
@@ -817,9 +819,8 @@ export async function refreshWbahCallsIncremental(): Promise<{ calls: number; pa
       const ids = rows.map(r => r.id);
       let existingSet = new Set<string>();
       if (ids.length) {
-        const { data: existing } = await (sb as any)
-          .from("wbah_calls").select("id").eq("workspace_id", workspaceId).in("id", ids);
-        existingSet = new Set(((existing ?? []) as any[]).map(e => String(e.id)));
+        const existing = await selectWbahCallsByIds(sb, ids, "id", workspaceId);
+        existingSet = new Set(existing.map(e => String(e.id)));
       }
       await upsertCallRows(sb, rows);
       const known = ids.filter(id => existingSet.has(id)).length;
