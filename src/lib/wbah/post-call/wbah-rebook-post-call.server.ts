@@ -19,14 +19,10 @@ import {
   buildWbahRebookTimelineNote,
 } from "./wbah-rebook-opportunity-payload.shared";
 
+import { extractDynVars } from "./wbah-dyn-vars.shared";
+
 type RetellCall = WbahPostCallProcessInput["call"];
 
-function extractDynVars(call: RetellCall, payload: Record<string, unknown>): Record<string, unknown> {
-  const fromCall = call.retell_llm_dynamic_variables ?? {};
-  const nested =
-    (payload.call as Record<string, unknown> | undefined)?.retell_llm_dynamic_variables ?? {};
-  return { ...(typeof nested === "object" ? nested : {}), ...fromCall };
-}
 
 export function isWbahRebookPostCallWorkflow(
   wfConfig: WbahPostCallWorkflowConfig | null | undefined,

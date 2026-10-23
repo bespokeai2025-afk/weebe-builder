@@ -284,6 +284,9 @@ export function applyContactAddressSameAsProperty(
   for (const [propertyKey, contactKey] of WBAH_PROPERTY_TO_CONTACT_ADDRESS) {
     const propertyValue = val(source[propertyKey], target[propertyKey]);
     if (isEmptyValue(propertyValue)) continue;
+    // `source` can still hold a postcode the sanitiser rejected (garbled
+    // dictation, e.g. "N8238SD") — never copy that into the contact postcode.
+    if (contactKey === "address1_postalcode" && !looksLikeUkPostcode(propertyValue)) continue;
     if (isEmptyValue(target[contactKey]) || indicatesSameAsPropertyAddress(target[contactKey])) {
       target[contactKey] = propertyValue;
       copied++;

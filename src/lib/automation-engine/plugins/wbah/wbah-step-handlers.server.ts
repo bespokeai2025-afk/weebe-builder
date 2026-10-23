@@ -25,6 +25,7 @@ import {
   postWbahLeadTimelineNote,
 } from "@/lib/wbah/post-call/wbah-dynamics.server";
 import { buildWbahAiTimelineNoteText } from "@/lib/wbah/post-call/wbah-timeline-note.shared";
+import { preserveWbahAddressAgainstDictationDrift } from "@/lib/wbah/post-call/wbah-uk-address.shared";
 import { cleanWbahRawData, formatWbahRetellCallData } from "@/lib/wbah/post-call/wbah-format-data.shared";
 import { upsertWbahCallFromWebhook } from "@/lib/wbah/post-call/wbah-calls-upsert.server";
 import { postWbahCallOutputCreate } from "@/lib/wbah/post-call/wbah-webespoke-writer.server";
@@ -179,16 +180,39 @@ export async function wbahStepDynamicsAllens(
       typeof custom.detailed_call_summary === "string" ? custom.detailed_call_summary : null,
     transcript: bag.call.transcript ?? null,
   });
+  // Same inputs as the core pipeline: without dynVars/transcript the contact
+  // address was never mirrored from the property (contact_same_as_property
+  // lives in collected_dynamic_variables) — Justina Johnson, 23 Oct.
   const patch = buildWbahAllensCrmPayload({
     formatted,
     allens,
     calendlyBookingUrl,
     callbackUtc: formatted.callbackDatetimeUtc,
+    custom,
+    transcript: bag.call.transcript ?? null,
+    dynVars: bag.dynVars,
   });
+  keepCrmAddressOverDictationDrift(bag.leadId, "allens", patch, leadStatus?.raw);
   if (Object.keys(patch).length) await patchWbahLead(bag.leadId, patch);
   if (!formatted.structuredJsonOutput) {
     await postWbahThisCallLeadNote(bag, formatted).catch((e) => {
       console.warn("[WBAH] lead note failed", (e as Error).message);
+    });
+  }
+}
+
+function keepCrmAddressOverDictationDrift(
+  leadId: string,
+  path: "allens" | "agentic",
+  patch: Record<string, unknown>,
+  existing: Record<string, unknown> | null | undefined,
+): void {
+  const preserved = preserveWbahAddressAgainstDictationDrift(patch, existing);
+  if (preserved.length) {
+    console.log("[WBAH CONTACT-ADDRESS] kept existing CRM address over dictation drift", {
+      leadId,
+      path,
+      fields: preserved,
     });
   }
 }
@@ -222,16 +246,22 @@ export async function wbahStepDynamicsAgentic(
   opts?: { narrativeOwnedByAllens?: boolean },
 ): Promise<void> {
   if (!bag.leadId || !isWbahDynamicsConfigured() || !formatted.structuredJsonOutput) return;
-  const patch = buildWbahAgenticCrmPayload(formatted.structuredJsonOutput, bag.custom ?? {});
+  const patch = buildWbahAgenticCrmPayload(
+    formatted.structuredJsonOutput,
+    bag.custom ?? {},
+    bag.call.transcript ?? null,
+    bag.dynVars,
+  );
   // Same single owner for the narrative as the core pipeline: when Allen's
   // Logic already wrote this call, the summary and sentiment are its to keep.
   if (opts?.narrativeOwnedByAllens) {
     delete (patch as Record<string, unknown>).cos_call_summary;
     delete (patch as Record<string, unknown>).cos_user_sentiment;
   }
+  const leadStatus = await getWbahLeadCurrentStatus(bag.leadId).catch(() => null);
+  keepCrmAddressOverDictationDrift(bag.leadId, "agentic", patch, leadStatus?.raw);
   if (Object.keys(patch).length) await patchWbahLead(bag.leadId, patch);
 
-  const leadStatus = await getWbahLeadCurrentStatus(bag.leadId).catch(() => null);
   const clearPatch = buildWbahClearDataAgenticPayload({
     statecode: leadStatus?.statecode ?? null,
     newCurrentstatus: leadStatus?.new_currentstatus ?? null,

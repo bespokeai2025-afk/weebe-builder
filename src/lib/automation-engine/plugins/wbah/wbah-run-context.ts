@@ -4,6 +4,9 @@
 import type { NodeContext } from "../../types/node.types";
 import { resolveWbahRetellAgent, type WbahRetellAgentMapping } from "@/lib/wbah/post-call/wbah-retell-agents.shared";
 import { formatWbahRetellCallData } from "@/lib/wbah/post-call/wbah-format-data.shared";
+// Same variables as the core pipeline, including collected_dynamic_variables
+// (in-call Extract Variable values such as contact_same_as_property).
+import { extractDynVars } from "@/lib/wbah/post-call/wbah-dyn-vars.shared";
 
 export type RetellCallShape = {
   call_id?: string;
@@ -18,6 +21,8 @@ export type RetellCallShape = {
   };
   transcript?: string;
   retell_llm_dynamic_variables?: Record<string, unknown>;
+  collected_dynamic_variables?: Record<string, unknown>;
+  start_timestamp?: number;
 };
 
 export type WbahRunBag = {
@@ -32,12 +37,6 @@ export type WbahRunBag = {
   custom?: Record<string, unknown>;
 };
 
-function extractDynVars(call: RetellCallShape, payload: Record<string, unknown>): Record<string, unknown> {
-  const fromCall = call.retell_llm_dynamic_variables ?? {};
-  const nested =
-    (payload.call as RetellCallShape | undefined)?.retell_llm_dynamic_variables ?? {};
-  return { ...(typeof nested === "object" ? nested : {}), ...fromCall };
-}
 
 export function parseWbahRunBag(raw: Record<string, unknown>): Partial<WbahRunBag> | null {
   const body = (raw.body ?? raw) as Record<string, unknown>;
