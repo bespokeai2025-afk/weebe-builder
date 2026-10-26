@@ -9,6 +9,7 @@
  */
 import { createClient } from "@supabase/supabase-js";
 import { selectWbahCallsByIds } from "./wbah-calls-lookup.server";
+import { transcriptsFromPostCallJobs } from "./wbah-transcript-sources.server";
 
 const WBAH_SLUG = "webuyanyhouse";
 
@@ -270,6 +271,21 @@ async function enrichMissingTranscripts(
   if (missing.length === 0) return 0;
 
   let enriched = 0;
+  // Stored webhook payloads first — they cover every Retell account, cost no API calls.
+  const stored = await transcriptsFromPostCallJobs(sb, missing);
+  for (const [callId, transcript] of stored) {
+    const { error } = await (sb as any)
+      .from("wbah_calls")
+      .update({ transcript })
+      .eq("workspace_id", workspaceId)
+      .eq("id", callId);
+    if (!error) enriched++;
+  }
+  const stillMissing = missing.filter((id) => !stored.has(id));
+  missing.length = 0;
+  missing.push(...stillMissing);
+  if (missing.length === 0) return enriched;
+
   const failures: Record<string, number> = {};
   const bumpFail = (k: string) => { failures[k] = (failures[k] ?? 0) + 1; };
   const CONCURRENCY = 4;
@@ -364,6 +380,19 @@ export async function refreshWbahCallsFromRetell(opts?: { full?: boolean; maxPag
     }
 
     _lastRunAt = Date.now();
+
+    // Also retry recent answered calls still missing a transcript — not only the
+    // calls on this run's pages, or a call that missed once is never retried.
+    const since = new Date(Date.now() - 14 * 24 * 3600_000).toISOString();
+    const { data: recentMissing } = await (sb as any)
+      .from("wbah_calls")
+      .select("id")
+      .eq("workspace_id", conn.workspaceId)
+      .gte("started_at", since)
+      .gte("duration_seconds", 10)
+      .or("transcript.is.null,transcript.eq.")
+      .limit(300);
+    for (const r of (recentMissing ?? []) as Array<{ id: string }>) enrichCandidates.push(String(r.id));
 
     let enriched = 0;
     const enrichKey = apiKeys[0];

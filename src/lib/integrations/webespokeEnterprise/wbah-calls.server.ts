@@ -426,19 +426,42 @@ export const getWbahCallDetail = createServerFn({ method: "POST" })
     }
 
     const callIdForRetell = String(row?.id ?? data.id);
+
+    // The webhook payload we stored has the transcript whichever Retell account
+    // placed the call — try it before Retell (whose WBAH key can't see calls
+    // from the other account).
+    if (!transcript && callIdForRetell.startsWith("call_")) {
+      const { transcriptsFromPostCallJobs } = await import("./wbah-transcript-sources.server");
+      transcript = (await transcriptsFromPostCallJobs(supabaseAdmin, [callIdForRetell])).get(callIdForRetell) ?? null;
+      if (transcript) {
+        void (supabaseAdmin as any)
+          .from("wbah_calls")
+          .update({ transcript, synced_at: new Date().toISOString() })
+          .eq("workspace_id", workspaceId)
+          .eq("id", callIdForRetell);
+      }
+    }
+
     if (
       callIdForRetell.startsWith("call_") &&
       (!transcript || !Object.keys(postCall).length)
     ) {
       try {
         const { retellFetch } = await import("@/lib/providers/retell/client.server");
-        const apiKey = await requireWbahRetellKey(context.userId);
-        const retellCall = await retellFetch<Record<string, unknown>>(
-          `/v2/get-call/${callIdForRetell}`,
-          null,
-          "GET",
-          apiKey,
-        );
+        const { getWbahRetellApiKeysForSync } = await import("@/lib/wbah/post-call/wbah-retell-agents.shared");
+        const keys = getWbahRetellApiKeysForSync(await requireWbahRetellKey(context.userId));
+        // Each Retell account only knows its own calls — try them in turn.
+        let retellCall: Record<string, unknown> | null = null;
+        for (const apiKey of keys) {
+          retellCall = await retellFetch<Record<string, unknown>>(
+            `/v2/get-call/${callIdForRetell}`,
+            null,
+            "GET",
+            apiKey,
+          ).catch(() => null);
+          if (retellCall?.call_id) break;
+        }
+        if (!retellCall?.call_id) throw new Error("call not found in any WBAH Retell account");
         if (!transcript) {
           const fromText =
             typeof retellCall?.transcript === "string" ? retellCall.transcript.trim() : "";
