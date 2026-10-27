@@ -334,7 +334,7 @@ describe("cascade tuning", () => {
 
   it("uses a 500ms hangover at default responsiveness", () => {
     const tuned = resolveCascadeTuning({ responsiveness: 1 });
-    expect(tuned.silenceDurationMs).toBe(500);
+    expect(tuned.silenceDurationMs).toBe(400);
     expect(tuned.utteranceCoalesceMs).toBeLessThanOrEqual(200);
   });
 });

@@ -6,6 +6,9 @@
  */
 import type { EndpointingOptions } from "./vad/types";
 
+/** Default end-of-speech wait when the agent leaves it unset. */
+export const DEFAULT_SILENCE_MS = 400;
+
 /** Approximate ms per VAD frame in the browser relay path. */
 export const BROWSER_VAD_FRAME_MS = 50;
 
@@ -30,10 +33,12 @@ export function resolveCascadeTuning(input: CascadeTuningInput = {}): CascadeTun
   const responsiveness = clamp(input.responsiveness ?? 1, 0, 2);
   const interruption = clamp(input.interruptionSensitivity ?? 0.7, 0, 1);
 
-  // Retell-like: ~400–500 ms hangover. Addresses still get extra wait via coalesce.
+  // End-of-speech wait. It sits in front of every reply, so it is the cheapest latency to cut:
+  // 400 ms by default. Complete short answers already drop to 250–350 ms and half-finished
+  // sentences are held open to 900 ms (turn-commit.shared), so the base only covers the rest.
   let silenceMs = input.silenceDurationMs;
   if (silenceMs == null || silenceMs <= 0) {
-    silenceMs = responsiveness >= 1.2 ? 400 : responsiveness >= 0.8 ? 500 : 700;
+    silenceMs = responsiveness >= 1.2 ? 350 : responsiveness >= 0.8 ? DEFAULT_SILENCE_MS : 600;
   }
   silenceMs = clamp(silenceMs, 300, 1200);
 

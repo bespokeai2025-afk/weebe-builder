@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { useBuilderStore } from "@/lib/builder/store";
 import type { BuilderSettings } from "@/lib/builder/types";
+import { DEFAULT_SILENCE_MS } from "@/lib/voice/cascade-tuning.shared";
 
 function HSSlider({
   value,
@@ -162,15 +163,23 @@ export function HyperStreamSettingsSection() {
             <div>
               <Label className="text-[9px]">Silence Duration (ms)</Label>
               <p className="text-[10px] text-muted-foreground mb-1">
-                Milliseconds of silence to detect end of speech. Min: 200ms.
+                Milliseconds of silence to detect end of speech. Leave empty for Auto
+                ({DEFAULT_SILENCE_MS} ms on WEBEE Native).
               </p>
               <Input
                 type="number"
                 min={200}
                 max={3000}
                 step={50}
-                value={settings.hyperstreamSilenceDurationMs ?? 200}
-                onChange={(e) => intNum("hyperstreamSilenceDurationMs", e.target.value, 200)}
+                placeholder={`Auto (${DEFAULT_SILENCE_MS})`}
+                value={settings.hyperstreamSilenceDurationMs ?? ""}
+                onChange={(e) =>
+                  setSettings({
+                    hyperstreamSilenceDurationMs: e.target.value.trim()
+                      ? parseInt(e.target.value, 10) || undefined
+                      : undefined,
+                  })
+                }
                 className="h-7 text-[11px] w-32"
               />
             </div>

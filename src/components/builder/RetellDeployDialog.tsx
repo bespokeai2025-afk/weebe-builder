@@ -2386,7 +2386,9 @@ export function RetellDeployDialog({
           sessionId: relaySessionId,
           settings,
           speechLanguages: settings.speechLanguages ?? [settings.language ?? "en-US"],
-          silenceDurationMs: settings.hyperstreamSilenceDurationMs ?? 800,
+          // Unset = the engine's own default, the same one live phone calls use. A hard-coded 800
+          // here made every browser test call wait 300 ms longer than production.
+          silenceDurationMs: settings.hyperstreamSilenceDurationMs,
           responsiveness: settings.responsiveness,
           interruptionSensitivity: settings.interruptionSensitivity,
           boostedKeywords: settings.boostedKeywords,
