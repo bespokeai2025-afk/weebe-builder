@@ -20,6 +20,9 @@ export type CallTurnContext = {
   engine?: string | null;
   agentId?: string | null;
   isTestCall?: boolean;
+  llmProvider?: string | null;
+  ttsProvider?: string | null;
+  sttProvider?: string | null;
 };
 
 function toRow(ctx: CallTurnContext, rec: TurnLatencyRecord) {
@@ -45,6 +48,12 @@ function toRow(ctx: CallTurnContext, rec: TurnLatencyRecord) {
     engine: ctx.engine ?? "webee_native",
     agent_id: ctx.agentId ?? null,
     is_test_call: ctx.isTestCall ?? false,
+    llm_provider: ctx.llmProvider ?? null,
+    llm_model: rec.llmModel,
+    tts_provider: ctx.ttsProvider ?? null,
+    stt_provider: ctx.sttProvider ?? null,
+    prompt_chars: rec.promptChars,
+    stt_to_llm_request_ms: rec.sttToLlmRequestMs,
   };
 }
 

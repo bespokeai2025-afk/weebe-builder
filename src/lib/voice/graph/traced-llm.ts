@@ -5,6 +5,13 @@
 import type { CallTurnTrace } from "./latency-trace";
 import type { LlmMessage, VariableValue, VmLlm } from "./types";
 
+/** Characters sent to the model — a cheap stand-in for prompt tokens. */
+export function promptCharCount(messages: Array<{ content?: unknown }>): number {
+  let n = 0;
+  for (const m of messages) n += typeof m.content === "string" ? m.content.length : 0;
+  return n;
+}
+
 export function createTracedVmLlm(
   inner: VmLlm,
   getTrace: () => CallTurnTrace | null,
@@ -12,6 +19,7 @@ export function createTracedVmLlm(
   return {
     async generate(messages, opts) {
       const trace = getTrace();
+      trace?.setSpeechLlm(opts?.model, promptCharCount(messages));
       trace?.mark("llm_speech_request_start");
       const text = await inner.generate(messages, opts);
       trace?.mark("llm_speech_complete");
@@ -20,6 +28,7 @@ export function createTracedVmLlm(
 
     generateStream(messages, opts) {
       const trace = getTrace();
+      trace?.setSpeechLlm(opts?.model, promptCharCount(messages));
       const innerStream = inner.generateStream?.(messages, opts);
       // No streaming on the inner client: still return a stream (callers `for await` it), with
       // the whole reply as one chunk.

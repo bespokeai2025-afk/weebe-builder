@@ -70,6 +70,11 @@ export type TurnLatencyRecord = {
   speculativeHit: boolean;
   partialCommit: boolean;
   interrupted: boolean;
+  /** STT final → the reply request was sent (time lost before the model is even asked). */
+  sttToLlmRequestMs: number | null;
+  /** Model that wrote the spoken reply, and the size of what it was sent. */
+  llmModel: string | null;
+  promptChars: number | null;
 };
 
 export class CallTurnTrace {
@@ -80,6 +85,8 @@ export class CallTurnTrace {
   private heldForIncomplete: boolean | null = null;
   private edgeRouteMethod: RouteMethod | null = null;
   private globalRouteMethod: RouteMethod | null = null;
+  private speechLlmModel: string | null = null;
+  private speechPromptChars: number | null = null;
 
   constructor(
     readonly turnId: number,
@@ -106,6 +113,13 @@ export class CallTurnTrace {
   setEndpointing(hangoverMs: number, heldForIncomplete: boolean): void {
     this.hangoverMs = hangoverMs;
     this.heldForIncomplete = heldForIncomplete;
+  }
+
+  /** The reply request of this turn (first one wins, like marks). */
+  setSpeechLlm(model: string | null | undefined, promptChars: number): void {
+    if (this.speechLlmModel !== null || this.speechPromptChars !== null) return;
+    this.speechLlmModel = model ? String(model) : null;
+    this.speechPromptChars = promptChars;
   }
 
   /** Record how an edge or global transition was resolved (equation/heuristic/llm/…). */
@@ -167,6 +181,9 @@ export class CallTurnTrace {
       speculativeHit: this.marks.has("speculative_speech_hit"),
       partialCommit: this.marks.has("partial_stt_stable"),
       interrupted: this.marks.has("interruption_detected"),
+      sttToLlmRequestMs: this.msSinceStt("llm_speech_request_start"),
+      llmModel: this.speechLlmModel,
+      promptChars: this.speechPromptChars,
     };
   }
 

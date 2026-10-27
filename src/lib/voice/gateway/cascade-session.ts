@@ -95,6 +95,7 @@ import {
 import { resolveDynamicSpeed } from "../tts/dynamic-voice-speed.shared";
 import { resolveDeepgramModel } from "../stt/stt-tuning.shared";
 import { CallTurnTrace, type LatencyMark } from "../graph/latency-trace";
+import { promptCharCount } from "../graph/traced-llm";
 import { ResponseLifecycle } from "../response-lifecycle.shared";
 import {
   resolveVoiceRuntimeConfig,
@@ -1506,12 +1507,20 @@ export class CascadeSession {
     let agentText = "";
     const self = this;
     async function* tokensCapturingText(): AsyncGenerator<string> {
+      const model = self.config.model ?? WEBEE_NATIVE_SPEECH_MODEL;
+      t.trace?.setSpeechLlm(model, promptCharCount(messages));
+      t.trace?.mark("llm_speech_request_start");
+      let first = true;
       for await (const delta of gptStream(messages, {
-        model: self.config.model ?? WEBEE_NATIVE_SPEECH_MODEL,
+        model,
         apiKey: self.config.apiKey,
         provider: resolveWebeeLlmProvider(self.config.settings),
         signal: t.ctrl.signal,
       })) {
+        if (first && delta) {
+          t.trace?.mark("llm_speech_first_token");
+          first = false;
+        }
         agentText += delta;
         yield delta;
       }
@@ -2334,6 +2343,9 @@ export class CascadeSession {
             engine: "webee_native",
             agentId: this.config.agentId ?? null,
             isTestCall: this.config.isTestCall ?? false,
+            llmProvider: resolveWebeeLlmProvider(this.config.settings),
+            ttsProvider: this.tts?.name ?? null,
+            sttProvider: this.sttName ?? null,
           },
           trace.toRecord(),
         ),
