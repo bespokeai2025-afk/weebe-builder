@@ -91,7 +91,31 @@ function callerLinesOnly(transcript: string | null | undefined): string {
  * Request or Logged — a later voicemail used to reset a callback to Tried To
  * Contact, which the morning cannot-contact sweep then disqualified.
  */
+/** Dynamics lead state: 1 = Qualified (converted to an opportunity). */
+export const WBAH_DYNAMICS_STATE_QUALIFIED = 1;
+
 export function applyAllensLogicV5(input: AllensLogicInput): AllensLogicResult {
+  const result = decideAllensLogicV5(input);
+  // A qualified lead has been converted: the opportunity is the live record and the lead cannot
+  // be reopened (Dynamics refuses, and a refused PATCH writes nothing). Leave its state and
+  // status alone; the call's other fields are still written. call_d432d4a7887e6d9443e8dba836d
+  // (28 Oct) booked on an already-qualified lead and lost its address, appointment and notes.
+  if (
+    input.existingStateCode === WBAH_DYNAMICS_STATE_QUALIFIED &&
+    (result.newCurrentStatus != null || !result.skipStatecodeUpdate)
+  ) {
+    return {
+      ...result,
+      newCurrentStatus: null,
+      statecodeOverride: null,
+      skipStatecodeUpdate: true,
+      allenLogicResult: `${result.allenLogicResult} — lead already Qualified: status left as it is`,
+    };
+  }
+  return result;
+}
+
+function decideAllensLogicV5(input: AllensLogicInput): AllensLogicResult {
   const callbackRaw = String(input.callbackDatetime ?? "").trim();
   const callbackUtc = input.callbackDatetimeUtc ?? null;
   const callbackType = input.callbackType ?? null;

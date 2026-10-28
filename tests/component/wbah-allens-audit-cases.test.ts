@@ -168,3 +168,44 @@ describe("isWbahExplicitDoNotContactRequest — summary phrasing", () => {
     expect(isWbahExplicitDoNotContactRequest("The user requested not to be called again.")).toBe(true);
   });
 });
+
+describe("caller turned down the AI, not the sale", () => {
+  it("call_678f045434b26c8f034f8e18ecf — expected a human: Tried To Contact, not Not Interested", () => {
+    const result = run({
+      userSentiment: "Negative",
+      existingCurrentStatus: NEW,
+      callSummary:
+        "The call was answered but the user declined to proceed after learning it was an AI assistant and not a human consultant. No appointment was booked.",
+      detailedCallSummary:
+        "The call was answered and a conversation took place. The lead was not qualified as the user declined to proceed, expecting a human consultant to call immediately. No appointment was booked. The caller identified themselves as Andrew and declined further contact.",
+    });
+    expect(result.rule).toBe("tried_to_contact");
+    expect(result.newCurrentStatus).not.toBe(WBAH_DYNAMICS_STATUS.DISQUALIFIED);
+  });
+
+  it("call_d16899c473bfec47611fbcdb81f — asked for a human to call instead: not a decline", () => {
+    expect(
+      isWbahClearDecline(
+        "The user declined to continue with the AI and asked to have a human call them instead, without confirming a property.",
+      ),
+    ).toBe(false);
+  });
+
+  it("still a decline when they also say no to selling", () => {
+    expect(
+      isWbahClearDecline("The user wanted to speak to a human, and said they are no longer selling the property."),
+    ).toBe(true);
+    expect(isWbahClearDecline("Expected a real person; not interested in selling.")).toBe(true);
+  });
+
+  it("call_47ed060ed9c07566c9720aeec38 — wanted a human, then asked to be removed: still removed", () => {
+    const result = run({
+      userSentiment: "Negative",
+      existingCurrentStatus: NEW,
+      callSummary:
+        "The call was answered but the user requested to speak to a human consultant immediately. The transfer to a human agent failed, and the user then asked to be removed from the system and not contacted again.",
+    });
+    expect(result.rule).toBe("remove");
+    expect(result.setDoNotPhone).toBe(true);
+  });
+});

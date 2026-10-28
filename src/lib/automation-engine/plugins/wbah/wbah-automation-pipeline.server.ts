@@ -73,6 +73,11 @@ export async function runWbahPostCallWorkflow(
     if (entry.status === "error" && entry.error) {
       errors.push(`${entry.nodeId}: ${entry.error}`);
     }
+    // A step that failed and let the run continue (see register-wbah-nodes.ts).
+    const stepError = (entry.output as Record<string, unknown> | undefined)?._wbahError;
+    if (entry.status === "success" && typeof stepError === "string") {
+      errors.push(`${entry.nodeId}: ${stepError}`);
+    }
   }
 
   if (result.lastError) errors.push(result.lastError);

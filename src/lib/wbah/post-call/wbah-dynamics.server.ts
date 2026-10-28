@@ -100,6 +100,13 @@ export function isRecordAlreadyClosedError(body: string): boolean {
   return /already closed/i.test(body) || body.includes("0x80040519");
 }
 
+/** Fields that move a record between open, qualified and disqualified. */
+const STATE_CHANGE_FIELDS = ["statecode", "statuscode", "new_currentstatus"] as const;
+
+export function isStateChangeRefused(body: string): boolean {
+  return /permissions? to reactivate|cannot re-?open a qualified|cannot reactivate/i.test(body);
+}
+
 async function patchDynamicsEntity(
   kind: "lead" | "opportunity",
   id: string,
@@ -144,6 +151,24 @@ async function patchDynamicsEntity(
         discardedFields: Object.keys(remaining),
       });
       return;
+    }
+    // Dynamics refuses to reopen a qualified or disqualified lead with our permissions ("You do
+    // not have the correct permissions to reactivate leads", "You cannot re-open a qualified
+    // Lead"), and a refused PATCH writes nothing at all. The status stays where it is; the call's
+    // address, appointment and summary still belong on the record, so send them without it.
+    const stateFields = STATE_CHANGE_FIELDS.filter((f) => f in remaining);
+    if (stateFields.length && isStateChangeRefused(body)) {
+      console.warn(`[Dynamics] ${kind} state change refused — writing the other fields without it`, {
+        id,
+        withheld: Object.fromEntries(stateFields.map((f) => [f, remaining[f]])),
+        reason: body.slice(0, 200),
+      });
+      for (const f of stateFields) {
+        dropped.push(f);
+        delete remaining[f];
+      }
+      if (!Object.keys(remaining).length) return;
+      continue;
     }
     const unknown = unknownDynamicsProperty(body);
     if (!unknown || !(unknown in remaining)) {

@@ -15,6 +15,8 @@ import {
   executeWbahLiveTranscript,
   executeWbahStepById,
 } from "./wbah-node-executors.server";
+import { mergeWbahOutput } from "./wbah-run-context";
+import { isTransientError } from "../../runtime/node-runtime";
 
 export const WBAH_NODE_DEFINITIONS: NodeDefinition[] = [
   {
@@ -120,6 +122,30 @@ export const WBAH_NODE_DEFINITIONS: NodeDefinition[] = [
 ];
 
 let wbahRegistered = false;
+
+/**
+ * A WBAH step the CRM or dashboard refuses (a Dynamics 400, say) is recorded and the run goes on.
+ *
+ * The steps are independent writes — Allen's Logic, the agentic PATCH, the timeline note, the
+ * dashboard POST, the calls table. The hand-written pipeline ran each in its own try/catch; on the
+ * engine one refusal stopped the run, so on call_d432d4a7887e6d9443e8dba836d a refused status
+ * change also cost the call its note, its dashboard record and its row in wbah_calls. A temporary
+ * failure still stops the run, so the queue retries the job (holding back steps that already ran).
+ */
+function recordFailureAndContinue(execute: NodeDefinition["execute"]): NodeDefinition["execute"] {
+  return async (ctx) => {
+    try {
+      return await execute(ctx);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (isTransientError(message)) throw err;
+      console.warn(`[wbah-automation] ${ctx.nodeId} failed, continuing: ${message.slice(0, 200)}`);
+      return { status: "success", output: { json: mergeWbahOutput(ctx, {}, { _wbahError: message }) } };
+    }
+  };
+}
+
+for (const def of WBAH_NODE_DEFINITIONS) def.execute = recordFailureAndContinue(def.execute);
 
 export function registerWbahNodes(): void {
   if (wbahRegistered) return;
