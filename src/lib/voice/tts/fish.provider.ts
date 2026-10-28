@@ -54,7 +54,10 @@ const ANCHOR_MAX_SECONDS = 3;
 const ANCHOR_MIN_SECONDS = 1.2;
 
 /** Models the `model` connection header accepts (docs.fish.audio OpenAPI enum). */
-const KNOWN_MODELS = new Set(["s1", "s2-pro", "s2.1-pro", "s2.1-pro-free", "drama-3-preview"]);
+// "drama-3-preview" was renamed "drama-3" at release (13 Oct 2026); the old id is mapped below.
+// "s1" is deprecated and from 31 Dec 2026 is served (and billed) as s2.1-pro.
+const KNOWN_MODELS = new Set(["s1", "s2-pro", "s2.1-pro", "s2.1-pro-free", "drama-3"]);
+const RENAMED_MODELS: Record<string, string> = { "drama-3-preview": "drama-3" };
 
 /**
  * WEBEE Native default — Fish S2.1 Pro free tier (same model, fair-use API, no latency
@@ -67,7 +70,8 @@ let freeTierWarned = false;
 
 /** Resolve TTS model: per-request → FISH_TTS_MODEL env → s2.1-pro-free. */
 export function resolveFishTtsModel(override?: string | null): string {
-  const pick = String(override ?? process.env.FISH_TTS_MODEL ?? FISH_TTS_DEFAULT_MODEL).trim();
+  const raw = String(override ?? process.env.FISH_TTS_MODEL ?? FISH_TTS_DEFAULT_MODEL).trim();
+  const pick = RENAMED_MODELS[raw] ?? raw;
   const model = KNOWN_MODELS.has(pick) ? pick : FISH_TTS_DEFAULT_MODEL;
   if (model === "s2.1-pro-free" && Date.now() >= FREE_TIER_ENDS && !freeTierWarned) {
     freeTierWarned = true;
@@ -208,11 +212,26 @@ export function buildStartRequest(
   prosody.normalize_loudness = true;
   request.prosody = prosody;
   if (typeof req.temperature === "number") request.temperature = req.temperature;
+  // Fish 16 Oct 2026: how numbers, dates, units and symbols are spelled out before synthesis —
+  // "£250,000" and "03/11" read the UK way for an en-GB agent instead of the US way.
+  if (req.language) request.language = req.language;
   return request;
 }
 
+/**
+ * The language Fish should read numbers and dates in: the agent's one speech language, as a
+ * BCP-47 tag. Multilingual agents (or none set) get nothing, so Fish detects it per line.
+ */
+export function fishTtsLanguage(speechLanguages: readonly string[] | undefined): string | undefined {
+  const langs = (speechLanguages ?? []).map((l) => String(l ?? "").trim()).filter(Boolean);
+  if (langs.length !== 1) return undefined;
+  const tag = langs[0]!.replace(/_/g, "-");
+  return /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/i.test(tag) && !/^multi/i.test(tag) ? tag : undefined;
+}
+
 function resolveModel(req: TtsVoiceRequest, defaultModel: string): string {
-  const pick = req.model?.trim() || defaultModel;
+  const raw = req.model?.trim() || defaultModel;
+  const pick = RENAMED_MODELS[raw] ?? raw;
   return KNOWN_MODELS.has(pick) ? pick : FISH_TTS_DEFAULT_MODEL;
 }
 

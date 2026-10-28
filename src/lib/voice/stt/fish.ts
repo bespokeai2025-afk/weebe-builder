@@ -1,6 +1,9 @@
 /**
  * Fish Audio speech-to-text for the cascade voice engine.
  *
+ * Live calls use Fish's native realtime endpoint (fish-live.ts). This file keeps the two fallbacks
+ * below — the older OpenAI-compatible socket and batch `/v1/asr` — and the shared clean-up.
+ *
  * Primary path: Fish's OpenAI-compatible Realtime WebSocket opened with `?intent=transcription`
  * (docs.fish.audio/developer-guide/compat/realtime-protocol). Audio is appended as it arrives and
  * `input_audio_buffer.commit` at end-of-speech returns the transcript. That socket serves only
@@ -28,6 +31,7 @@ import {
 import { applyKeywordBoost } from "./keyword-boost.shared";
 import { buildWav } from "./whisper";
 import type { SttOpenOptions, SttProvider, SttSession } from "./types";
+import { FishLiveSttSession } from "./fish-live";
 
 const FISH_ASR_URL = "https://api.fish.audio/v1/asr";
 const FISH_REALTIME_URL =
@@ -125,6 +129,63 @@ class FishBatchSttSession implements SttSession {
   }
 
   close(): void {}
+}
+
+/** Streaming ASR often ignores language hints; recover via batch, romanization, or partials. */
+export async function preferEnglishLatinTranscript(
+  apiKey: string,
+  options: SttOpenOptions,
+  text: string,
+  frames: Buffer[],
+  partial: string,
+): Promise<string> {
+  const lang = options.language?.slice(0, 2).toLowerCase();
+  if (lang !== "en" || !text) return text || usablePartial(options, partial);
+  if (isLikelyEnglishSttHallucination(text)) {
+    console.warn(`[fish-stt] dropping English hallucination (${text.slice(0, 32)})`);
+    return usablePartial(options, partial, text);
+  }
+  if (!isMostlyNonLatinScript(text)) return text;
+
+  const batch = await fishBatchFallback(apiKey, options, frames);
+  if (batch && !isMostlyNonLatinScript(batch) && !isLikelyEnglishSttHallucination(batch)) {
+    console.warn(`[fish-stt] streaming non-Latin (${text.slice(0, 32)}); batch → ${batch.slice(0, 32)}`);
+    return batch;
+  }
+
+  const romanized = romanizeForEnglishStt(text) || (batch ? romanizeForEnglishStt(batch) : "");
+  if (romanized) {
+    console.warn(`[fish-stt] romanized non-Latin (${text.slice(0, 32)}) → ${romanized.slice(0, 32)}`);
+    return romanized;
+  }
+
+  console.warn(`[fish-stt] dropping unusable English transcript (${text.slice(0, 32)})`);
+  return usablePartial(options, partial, text);
+}
+
+/** An earlier transcript of the same utterance, when the final one is unusable. */
+function usablePartial(options: SttOpenOptions, partial: string, failedFinal = ""): string {
+  const lang = options.language?.slice(0, 2).toLowerCase();
+  const p = partial.trim();
+  if (!p || p === failedFinal.trim()) return "";
+  if (lang === "en" && (isMostlyNonLatinScript(p) || isLikelyEnglishSttHallucination(p))) return "";
+  console.warn(
+    `[fish-stt] using earlier transcript after failed final (${failedFinal.slice(0, 32) || "empty"}) → ${p.slice(0, 32)}`,
+  );
+  return normalizeEnglishLockedSttText(p, lang ?? "");
+}
+
+export async function fishBatchFallback(apiKey: string, options: SttOpenOptions, frames: Buffer[]): Promise<string> {
+  if (frames.length === 0) return "";
+  try {
+    return applyKeywordBoost(
+      await fishTranscribe(buildWav(frames, options.sampleRate), apiKey, options.language, options.keywords),
+      options.keywords,
+    );
+  } catch (err) {
+    console.error("[fish-stt] batch fallback failed:", (err as Error).message);
+    return "";
+  }
 }
 
 /** Pause inside an utterance that triggers a speculative full-utterance transcription. */
@@ -488,68 +549,12 @@ class FishStreamingSttSession implements SttSession {
     return this.preferEnglishLatinTranscript(batch, frames, partial);
   }
 
-  /** Streaming ASR often ignores language hints; recover via batch, romanization, or partials. */
-  private async preferEnglishLatinTranscript(
-    text: string,
-    frames: Buffer[],
-    partial: string,
-  ): Promise<string> {
-    const lang = this.options.language?.slice(0, 2).toLowerCase();
-    if (lang !== "en" || !text) return text || this.usablePartial(partial);
-    if (isLikelyEnglishSttHallucination(text)) {
-      console.warn(`[fish-stt] dropping English hallucination (${text.slice(0, 32)})`);
-      return this.usablePartial(partial, text);
-    }
-    if (!isMostlyNonLatinScript(text)) return text;
-
-    const batch = await this.batchFallback(frames);
-    if (batch && !isMostlyNonLatinScript(batch) && !isLikelyEnglishSttHallucination(batch)) {
-      console.warn(
-        `[fish-stt] streaming non-Latin (${text.slice(0, 32)}); batch → ${batch.slice(0, 32)}`,
-      );
-      return batch;
-    }
-
-    const romanized = romanizeForEnglishStt(text) || (batch ? romanizeForEnglishStt(batch) : "");
-    if (romanized) {
-      console.warn(
-        `[fish-stt] romanized non-Latin (${text.slice(0, 32)}) → ${romanized.slice(0, 32)}`,
-      );
-      return romanized;
-    }
-
-    console.warn(`[fish-stt] dropping unusable English transcript (${text.slice(0, 32)})`);
-    return this.usablePartial(partial, text);
+  private preferEnglishLatinTranscript(text: string, frames: Buffer[], partial: string): Promise<string> {
+    return preferEnglishLatinTranscript(this.apiKey, this.options, text, frames, partial);
   }
 
-  /** An earlier speculative transcript, when the final one is unusable. */
-  private usablePartial(partial: string, failedFinal = ""): string {
-    const lang = this.options.language?.slice(0, 2).toLowerCase();
-    const p = partial.trim();
-    if (!p || p === failedFinal.trim()) return "";
-    if (lang === "en" && (isMostlyNonLatinScript(p) || isLikelyEnglishSttHallucination(p))) return "";
-    console.warn(
-      `[fish-stt] using earlier transcript after failed final (${failedFinal.slice(0, 32) || "empty"}) → ${p.slice(0, 32)}`,
-    );
-    return normalizeEnglishLockedSttText(p, lang ?? "");
-  }
-
-  private async batchFallback(frames: Buffer[]): Promise<string> {
-    if (frames.length === 0) return "";
-    try {
-      return applyKeywordBoost(
-        await fishTranscribe(
-          buildWav(frames, this.options.sampleRate),
-          this.apiKey,
-          this.options.language,
-          this.options.keywords,
-        ),
-        this.options.keywords,
-      );
-    } catch (err) {
-      console.error("[fish-stt] batch fallback failed:", (err as Error).message);
-      return "";
-    }
+  private batchFallback(frames: Buffer[]): Promise<string> {
+    return fishBatchFallback(this.apiKey, this.options, frames);
   }
 
   close(): void {
@@ -570,6 +575,16 @@ export class FishSttProvider implements SttProvider {
   }
 
   async open(options: SttOpenOptions): Promise<SttSession> {
+    // Native realtime endpoint first; FISH_STT_MODE=compat keeps the older socket.
+    if (String(process.env.FISH_STT_MODE ?? "").trim().toLowerCase() !== "compat") {
+      try {
+        return await FishLiveSttSession.connect(this.apiKey, options);
+      } catch (err) {
+        console.warn(
+          `[fish-stt] realtime endpoint unavailable (${(err as Error).message}); using the compatible socket`,
+        );
+      }
+    }
     try {
       return await FishStreamingSttSession.connect(this.apiKey, options);
     } catch (err) {

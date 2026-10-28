@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * A fake Fish realtime transcription socket. Appended audio accumulates until `commit`, which is
@@ -74,7 +74,10 @@ const tick = () => new Promise((r) => setTimeout(r, 20));
 describe("Fish realtime STT — speculative full-utterance commits", () => {
   beforeEach(() => {
     sockets.length = 0;
+    // These cover the OpenAI-compatible socket, now the fallback behind the native endpoint.
+    vi.stubEnv("FISH_STT_MODE", "compat");
   });
+  afterEach(() => vi.unstubAllEnvs());
 
   async function open() {
     const partials: string[] = [];

@@ -35,6 +35,11 @@ export interface TtsVoiceRequest {
    * library voices do not, so clone-only locking (in-call audio anchor) applies.
    */
   cloneVoice?: boolean;
+  /**
+   * BCP-47 language of the agent's speech (e.g. "en-GB"). Fish uses it to say numbers, dates,
+   * units and symbols the local way. Omitted for multilingual agents.
+   */
+  language?: string;
 }
 
 export interface TtsProvider {

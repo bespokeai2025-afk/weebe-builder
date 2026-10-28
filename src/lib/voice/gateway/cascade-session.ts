@@ -41,7 +41,7 @@ import {
 } from "../stt";
 import { createTtsProvider, parseTtsProviderName } from "../tts";
 import { normalizeSpeechText, type TtsVoiceRequest } from "../tts/types";
-import { FishAudioTtsProvider, resolveFishTtsModel } from "../tts/fish.provider";
+import { FishAudioTtsProvider, fishTtsLanguage, resolveFishTtsModel } from "../tts/fish.provider";
 import type { TtsProvider, TtsProviderName } from "../tts";
 import {
   BackchannelScheduler,
@@ -553,6 +553,8 @@ export class CascadeSession {
           : this.fishTtsModel,
       ttsProvider: ttsChoice,
     });
+    const ttsLanguage = fishTtsLanguage(this.config.speechLanguages);
+    if (ttsLanguage) this.voiceProfile = { ...this.voiceProfile, language: ttsLanguage };
     if (this.tts.name === "fish") {
       (this.tts as FishAudioTtsProvider).bindCall(this.voiceProfile);
     }
@@ -1910,6 +1912,7 @@ export class CascadeSession {
     const clean = text.replace(/\s+/g, " ").trim();
     if (!clean) return;
     this.lastAgentText = clean;
+    this.stt?.addContext?.("assistant", clean);
     this.pendingAgentTranscript = clean;
     this.lastShownAgentTranscript = "";
     this.agentTranscriptStartedAt = Date.now();

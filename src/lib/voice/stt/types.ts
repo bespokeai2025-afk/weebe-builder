@@ -42,6 +42,11 @@ export interface SttSession {
   finalizeUtterance(frames: Buffer[]): Promise<string>;
   /** Drop buffered audio (streaming providers). Called after agent speech ends. */
   clearInputBuffer?(): void;
+  /**
+   * Conversation context for providers that use it (Fish realtime): the agent's lines, so short
+   * replies like "the second one" are recognised in context.
+   */
+  addContext?(role: "user" | "assistant", text: string): void;
   close(): void;
 }
 
