@@ -23,9 +23,9 @@ export const Route = createFileRoute("/api/public/wbah-post-call-queue")({
         }
         try {
           const result = await runWbahPostCallQueuePoller();
-          if (result.checked > 0) {
+          if (result.checked > 0 || result.expired > 0) {
             console.log(
-              `[wbah-post-call-queue] checked=${result.checked} processed=${result.processed} failed=${result.failed}`,
+              `[wbah-post-call-queue] checked=${result.checked} processed=${result.processed} failed=${result.failed} expired=${result.expired}`,
             );
           }
           return Response.json({ ok: true, ...result });

@@ -15,6 +15,24 @@ const BASE_BACKOFF_MS = 2000;
 const MAX_BATCH = 25;
 const STALE_PROCESSING_MS = 5 * 60_000;
 
+/**
+ * How long after it was queued a job is still retried automatically.
+ *
+ * The retry poller was never scheduled, so jobs that failed from August to October 2026 sat
+ * "pending" with their original payloads. Replaying a call from weeks ago would write its
+ * then-current status over whatever the lead has become since, so old jobs are marked failed
+ * instead and left to a deliberate rerun. Override with WBAH_POST_CALL_RETRY_WINDOW_HOURS.
+ */
+const DEFAULT_RETRY_WINDOW_HOURS = 6;
+
+export function wbahPostCallRetryWindowMs(): number {
+  const hours = Number(process.env.WBAH_POST_CALL_RETRY_WINDOW_HOURS ?? "");
+  return (Number.isFinite(hours) && hours > 0 ? hours : DEFAULT_RETRY_WINDOW_HOURS) * 3600_000;
+}
+
+export const WBAH_RETRY_WINDOW_EXPIRED_NOTE =
+  "Not retried automatically: older than the retry window. Rerun it from the executions list.";
+
 export function isWbahPostCallQueueEnabled(): boolean {
   const v = process.env.WBAH_POST_CALL_QUEUE ?? "true";
   return v === "true" || v === "1";
@@ -113,11 +131,14 @@ export async function processWbahPostCallJobById(
     return { ok: true, branches: row.branches ?? [], errors: row.errors ?? [] };
   }
 
+  // A retry replays the whole pipeline. Steps that cannot safely run twice and already succeeded
+  // on an earlier attempt are held back — otherwise a Dynamics failure after the Calendly step
+  // would book the customer a second appointment on every retry.
+  const alreadyDone = attempt > 1 ? await unsafeStepsAlreadyDone(sb, jobId) : [];
+  const disabledStepIds = [...new Set([...(opts?.disabledStepIds ?? []), ...alreadyDone])];
+
   try {
     const { runWbahPostCallPipelineCore } = await import("./wbah-post-call.server");
-    const { isWbahAutomationEngineEnabled, runWbahPostCallViaAutomationEngine } = await import(
-      "@/lib/automation-engine/plugins/wbah/wbah-automation-pipeline.server"
-    );
     const { resolveWbahRetellAgent } = await import("./wbah-retell-agents.shared");
     const payload = row.payload as Record<string, unknown>;
     const call = (payload.call ?? {}) as Record<string, unknown>;
@@ -125,24 +146,15 @@ export async function processWbahPostCallJobById(
     const agent = resolveWbahRetellAgent(agentId);
     if (!agent) throw new Error("WBAH agent not found");
 
-    const result = isWbahAutomationEngineEnabled()
-      ? await runWbahPostCallViaAutomationEngine({
-          event: row.event,
-          call: call as any,
-          payload,
-          agent,
-          skipLiveTranscript: true,
-          wbahJobId: jobId,
-          disabledStepIds: opts?.disabledStepIds,
-        })
-      : await runWbahPostCallPipelineCore({
-          event: row.event,
-          call: call as any,
-          payload,
-          agent,
-          skipLiveTranscript: true,
-          disabledStepIds: opts?.disabledStepIds,
-        });
+    const result = await runWbahPostCallPipelineCore({
+      event: row.event,
+      call: call as any,
+      payload,
+      agent,
+      skipLiveTranscript: true,
+      wbahJobId: jobId,
+      disabledStepIds,
+    });
 
     await sb
       .from("wbah_post_call_jobs")
@@ -154,26 +166,6 @@ export async function processWbahPostCallJobById(
         updated_at: new Date().toISOString(),
       })
       .eq("id", jobId);
-
-    void (async () => {
-      try {
-        const { isWbahAutomationEngineEnabled } = await import(
-          "@/lib/automation-engine/plugins/wbah/wbah-automation-pipeline.server"
-        );
-        if (isWbahAutomationEngineEnabled()) return;
-        const { recordAutomationTraceForWbahJob } = await import(
-          "@/lib/automation-engine/persistence/wbah-job-trace.server"
-        );
-        await recordAutomationTraceForWbahJob({
-          workspaceId: row.workspace_id,
-          jobId,
-          agentId,
-          payload,
-        });
-      } catch (e) {
-        console.warn("[WBAH QUEUE] automation trace failed:", e);
-      }
-    })();
 
     return { ok: true, branches: result.branches, errors: result.errors };
   } catch (e) {
@@ -197,19 +189,70 @@ export async function processWbahPostCallJobById(
   }
 }
 
+/** Unsafe steps that succeeded in any earlier execution of this job. */
+async function unsafeStepsAlreadyDone(sb: any, jobId: string): Promise<string[]> {
+  try {
+    const { data: execs } = await sb
+      .from("automation_workflow_executions")
+      .select("id")
+      .eq("wbah_job_id", jobId);
+    const ids = ((execs ?? []) as { id: string }[]).map((e) => e.id);
+    if (!ids.length) return [];
+    const { data: steps } = await sb
+      .from("automation_execution_steps")
+      .select("step:output_masked->>_wbahStep, skipped:output_masked->>_wbahSkipped")
+      .in("execution_id", ids)
+      .eq("status", "success");
+    return wbahUnsafeStepsFromRows((steps ?? []) as Array<{ step: string | null; skipped: string | null }>);
+  } catch (e) {
+    console.warn("[WBAH QUEUE] could not read earlier attempts; holding back unsafe steps", e);
+    // Unknown is treated as done: a missing booking can be rerun, a duplicate cannot be undone.
+    return [...WBAH_RERUN_UNSAFE_STEP_IDS];
+  }
+}
+
+export function wbahUnsafeStepsFromRows(
+  rows: Array<{ step: string | null; skipped: string | null }>,
+): string[] {
+  const unsafe = new Set<string>(WBAH_RERUN_UNSAFE_STEP_IDS);
+  const done = new Set<string>();
+  for (const r of rows) {
+    if (r.step && unsafe.has(r.step) && r.skipped !== "true") done.add(r.step);
+  }
+  return [...done];
+}
+
 export async function runWbahPostCallQueuePoller(limit = MAX_BATCH): Promise<{
   checked: number;
   processed: number;
   failed: number;
+  expired: number;
   errors: string[];
 }> {
   const sb = supabaseAdmin as any;
   const now = new Date().toISOString();
+  const windowStart = new Date(Date.now() - wbahPostCallRetryWindowMs()).toISOString();
+  const staleThreshold = new Date(Date.now() - STALE_PROCESSING_MS).toISOString();
+
+  // Jobs past the retry window are closed, not replayed — see DEFAULT_RETRY_WINDOW_HOURS.
+  // last_error keeps the original failure; the note says why it stopped.
+  const { data: expiredRows, error: expireErr } = await sb
+    .from("wbah_post_call_jobs")
+    .update({ status: "failed", errors: [WBAH_RETRY_WINDOW_EXPIRED_NOTE], updated_at: now })
+    .in("status", ["pending", "processing"])
+    .lt("created_at", windowStart)
+    .lt("updated_at", staleThreshold)
+    .select("id");
+  if (expireErr) console.warn("[WBAH QUEUE] expiring old jobs failed:", expireErr.message);
+  const expired = (expiredRows ?? []).length;
+
+  // Due retries, plus jobs a crashed worker left "processing" (the claim allows those too).
   const { data: jobs } = await sb
     .from("wbah_post_call_jobs")
     .select("id")
-    .eq("status", "pending")
+    .or(`status.eq.pending,and(status.eq.processing,updated_at.lt.${staleThreshold})`)
     .lte("next_retry_at", now)
+    .gte("created_at", windowStart)
     .order("created_at", { ascending: true })
     .limit(limit);
 
@@ -226,7 +269,7 @@ export async function runWbahPostCallQueuePoller(limit = MAX_BATCH): Promise<{
     }
   }
 
-  return { checked: (jobs ?? []).length, processed, failed, errors };
+  return { checked: (jobs ?? []).length, processed, failed, expired, errors };
 }
 
 export function drainWbahPostCallQueueAsync(jobId: string | null): void {

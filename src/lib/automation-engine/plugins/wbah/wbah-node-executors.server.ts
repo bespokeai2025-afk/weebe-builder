@@ -46,9 +46,8 @@ function err(message: string): NodeResult {
  * every helper node of a step (GET D365 Token, Merge token, Build CRM Payload…)
  * with the step's executor, so one call used to run Allen's Logic 8 times, the
  * agentic PATCH 5 times and post 5 identical timeline notes — racing the WBAH
- * team's own edits. Which of those nodes a call reaches depends on its branch
- * (a voicemail never gets past "Merge token into data"), so the step runs at the
- * first node reached and the rest reuse its result.
+ * team's own edits. Which of those nodes a call reaches depends on its branch,
+ * so the step runs at the first node reached and the rest reuse its result.
  */
 type StepMemo = { at: number; result: Promise<Partial<WbahRunBag>> };
 const stepMemo = new Map<string, StepMemo>();
@@ -125,7 +124,17 @@ export async function executeWbahLiveTranscript(ctx: NodeContext): Promise<NodeR
   if (!bag) return err("Invalid WBAH webhook context");
   if (isWebCall(bag.call)) return skip(ctx, "web_call");
   if (!stepAllowed(ctx, "live_transcript")) return skip(ctx, "event mismatch");
-  await wbahStepLiveTranscript(bag);
+  // Queued jobs: the webhook mirrored this event before queueing it. Running it again here (and
+  // once per canvas node tagged live_transcript) wrote the same session three times per event.
+  if ((ctx.input.trigger as Record<string, unknown> | undefined)?._skipLiveTranscript === true) {
+    return skip(ctx, "handled by the webhook");
+  }
+  const once = runStepOnce(ctx, "live_transcript", async () => {
+    await wbahStepLiveTranscript(bag);
+    return {};
+  });
+  if (!once.first) return alreadyRan(ctx, bag, once.result);
+  await once.result;
   return ok(ctx, bag, { _wbahStep: "live_transcript" });
 }
 

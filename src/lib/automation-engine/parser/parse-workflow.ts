@@ -9,7 +9,7 @@ import {
   type WorkflowDocument,
 } from "../types/workflow.schema";
 import { formatZodWorkflowErrors, WorkflowParseError } from "../errors/workflow-parse-error";
-import { buildAdjacency, getOutgoingEdges } from "./build-adjacency";
+import { buildAdjacency } from "./build-adjacency";
 import { findEndNodes, findEntryNodes } from "./find-entry-nodes";
 import { getNodeDefinition, hasNodeType, validateNodeConfig } from "../registry/node-registry";
 import { ensureAutomationEngineBootstrapped } from "../bootstrap";
@@ -48,10 +48,11 @@ function validateGraphStructure(workflow: RuntimeWorkflow): string[] {
     const id = stack.pop()!;
     if (visited.has(id)) continue;
     visited.add(id);
-    for (const port of ["main", "true", "false", "loop", "done"]) {
-      for (const edge of getOutgoingEdges(workflow.connections, id, port)) {
-        stack.push(edge.toNode);
-      }
+    // Every output port, not a fixed list: a switch routes on ports named after its rules
+    // ("booked", "callback", "default"), and with a fixed list everything behind them was
+    // reported unreachable, so no workflow with a named switch output could be saved or run.
+    for (const edge of outgoingFromAnyPort(workflow, id)) {
+      stack.push(edge.toNode);
     }
   }
 
@@ -63,6 +64,14 @@ function validateGraphStructure(workflow: RuntimeWorkflow): string[] {
   }
 
   return errors;
+}
+
+function outgoingFromAnyPort(workflow: RuntimeWorkflow, nodeId: string) {
+  const edges = [];
+  for (const list of workflow.connections.outgoing.values()) {
+    for (const edge of list) if (edge.fromNode === nodeId) edges.push(edge);
+  }
+  return edges;
 }
 
 function documentToRuntime(doc: WorkflowDocument): RuntimeWorkflow {

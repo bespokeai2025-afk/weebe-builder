@@ -13,6 +13,8 @@ export type QueueItem = {
   json: Record<string, unknown>;
   /** When set, only follow edges on this port from this node. */
   branchPort?: string;
+  /** Queued by a waiting node; the resume payload is merged into its data. */
+  afterWait?: boolean;
 };
 
 export class ExecutionContext {
@@ -100,6 +102,7 @@ export class ExecutionContext {
       workspaceId,
       status: this.status,
       currentNodeIds: this.queue.map((q) => q.nodeId),
+      queue: this.queue.map((q) => ({ ...q })),
       nodeOutputs: this.nodeOutputs as Record<string, unknown[]>,
       variables: this.variables,
       globalVariables: this.globalVariables,

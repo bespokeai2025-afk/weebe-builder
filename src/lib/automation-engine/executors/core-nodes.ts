@@ -205,6 +205,22 @@ export async function executeCoreFunction(ctx: NodeContext): Promise<NodeResult>
   const code = String(ctx.config.code ?? "").trim();
   if (!code) return passthrough(ctx);
 
+  // `new Function` runs in the server process with its globals, `process.env` (every secret,
+  // including the database service key) among them, and anyone who can edit a workflow can write
+  // the code. Off unless the server opts in, until code runs in a real sandbox. No production
+  // workflow ran a code node as of October 2026.
+  if (!codeNodesEnabled()) {
+    return {
+      status: "error",
+      error: {
+        message:
+          "Code nodes are turned off on this server: custom JavaScript cannot run safely yet. Use a condition, switch or HTTP step instead.",
+        code: "CODE_NODES_DISABLED",
+        retryable: false,
+      },
+    };
+  }
+
   try {
     const fn = new Function(
       "items",
@@ -239,6 +255,11 @@ export async function executeCoreFunction(ctx: NodeContext): Promise<NodeResult>
       },
     };
   }
+}
+
+function codeNodesEnabled(): boolean {
+  const raw = typeof process !== "undefined" ? String(process.env?.AUTOMATION_CODE_NODES ?? "") : "";
+  return /^(on|true|1|yes)$/i.test(raw.trim());
 }
 
 export async function executeCoreMerge(ctx: NodeContext): Promise<NodeResult> {

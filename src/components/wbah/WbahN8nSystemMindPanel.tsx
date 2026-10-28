@@ -156,12 +156,8 @@ export function WbahN8nSystemMindPanel() {
           />
           <StatusRow
             ok={status.migration?.automationEngineEnabled ?? false}
-            label="WBAH_USE_AUTOMATION_ENGINE (graph executor)"
-            detail={
-              status.migration?.automationEngineEnabled
-                ? `${status.migration.pipelineLabel ?? "Automation engine"} · Phase ${status.migration.automationEnginePhase ?? 4} · ${status.migration.wbahPluginNodeCount ?? 0} WBAH plugin nodes`
-                : "Legacy imperative pipeline — set env to true to use canvas graph executor"
-            }
+            label="Post-call workflow runs on the automation engine"
+            detail={`${status.migration?.wbahPluginNodeCount ?? 0} WBAH step nodes`}
           />
           <StatusRow
             ok={status.migration?.dynamicsConfigured ?? false}

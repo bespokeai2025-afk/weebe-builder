@@ -11,11 +11,21 @@ export type N8nConditionRule = {
   value?: string;
 };
 
+/** "not_equals", "Not Equals" and "not  equals" are the same operator. */
 function normalizeOperator(op: string | undefined): string {
   return String(op ?? "equals")
     .trim()
     .toLowerCase()
-    .replace(/\s+/g, " ");
+    .replace(/[\s_]+/g, " ");
+}
+
+function compareNumbers(left: unknown, right: unknown, test: (l: number, r: number) => boolean): boolean {
+  const l = Number(left);
+  const r = Number(right);
+  if (left == null || right == null || String(left).trim() === "" || !Number.isFinite(l) || !Number.isFinite(r)) {
+    return false;
+  }
+  return test(l, r);
 }
 
 function resolveFieldValue(
@@ -58,7 +68,6 @@ export function evaluateN8nConditionRule(
     case "exists":
       return left != null && left !== "";
     case "not exists":
-    case "not_exists":
       return left == null || left === "";
     case "is not empty":
     case "not empty":
@@ -70,9 +79,20 @@ export function evaluateN8nConditionRule(
     case "equal":
       return String(left ?? "") === String(right ?? "");
     case "not equals":
-    case "not_equal":
-    case "not equals":
+    case "not equal":
       return String(left ?? "") !== String(right ?? "");
+    case "greater than":
+    case "gt":
+      return compareNumbers(left, right, (l, r) => l > r);
+    case "greater than or equal":
+    case "gte":
+      return compareNumbers(left, right, (l, r) => l >= r);
+    case "less than":
+    case "lt":
+      return compareNumbers(left, right, (l, r) => l < r);
+    case "less than or equal":
+    case "lte":
+      return compareNumbers(left, right, (l, r) => l <= r);
     case "contains":
       return String(left ?? "").includes(String(right ?? ""));
     case "not contains":
@@ -85,7 +105,7 @@ export function evaluateN8nConditionRule(
       return left === false || String(left).toLowerCase() === "false";
     case "is valid":
       return left != null && String(left).trim() !== "" && String(left).toLowerCase() !== "invalid";
-    case "wbah:calendly_slot_not_empty":
+    case "wbah:calendly slot not empty":
     case "calendly slot not empty":
       return wbahWebhookHasCalendlySlot(
         left && typeof left === "object" ? (left as Record<string, unknown>) : inputJson,
@@ -94,7 +114,11 @@ export function evaluateN8nConditionRule(
       if (rule.field.includes(" equals ") || rule.field.includes(" exists")) {
         return evaluateConditionExpression(rule.field, ctx, inputJson);
       }
-      return Boolean(left);
+      // An operator this engine does not know. Treating it as "the field has a value" let a
+      // typo or an unsupported n8n operator pass the condition; failing closed sends the item
+      // down the false branch and says why.
+      console.warn(`[automation] unknown condition operator "${rule.operator}" — treated as false`);
+      return false;
   }
 }
 

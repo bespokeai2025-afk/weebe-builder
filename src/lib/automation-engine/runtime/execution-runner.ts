@@ -13,6 +13,7 @@ import {
   isMergeNode,
   mergeInputsReady,
   recordMergeInput,
+  requiredMergeInputCount,
 } from "./merge-runtime";
 import type { WorkflowExecutionResult, NodeExecutionRecord } from "../executor/execution.types";
 import type { ExecutionSnapshot, WaitState } from "../types/execution.schema";
@@ -200,10 +201,21 @@ export async function runExecution(req: RunExecutionRequest): Promise<WorkflowEx
 
   if (req.resumeSnapshot) {
     const snap = req.resumeSnapshot;
-    const queue: import("./execution-context").QueueItem[] = snap.currentNodeIds.map((nodeId) => ({
-      nodeId,
-      json: req.resumePayload ?? (snap.nodeOutputs[nodeId]?.[0] as { json?: Record<string, unknown> })?.json ?? {},
-    }));
+    // Snapshots carry the queue with its data, including the steps after the waiting node; the
+    // resume payload (a webhook reply, say) joins the data those steps receive. Older snapshots
+    // only list node ids.
+    const queue: import("./execution-context").QueueItem[] = snap.queue
+      ? snap.queue.map((q) => ({
+          ...q,
+          json: q.afterWait && req.resumePayload ? { ...q.json, ...req.resumePayload } : q.json,
+        }))
+      : snap.currentNodeIds.map((nodeId) => ({
+          nodeId,
+          json:
+            req.resumePayload ??
+            (snap.nodeOutputs[nodeId]?.[0] as { json?: Record<string, unknown> })?.json ??
+            {},
+        }));
     ctx = new ExecutionContext({
       executionId,
       workflow,
@@ -252,7 +264,28 @@ export async function runExecution(req: RunExecutionRequest): Promise<WorkflowEx
     mode,
   });
 
-  while (ctx.queue.length > 0) {
+  for (;;) {
+    if (ctx.queue.length === 0) {
+      // Nothing left can reach a merge that is still waiting, so run it with the inputs it has.
+      // An if/else that rejoins at a merge only ever sends one of its two inputs; waiting for
+      // both stopped the workflow there, silently, with the run reported as completed.
+      const pending = [...ctx.mergeBuffer.keys()][0];
+      if (!pending) break;
+      emit({
+        type: "node.log",
+        executionId,
+        nodeId: pending,
+        log: "merge ran with the inputs that arrived; the other branches were not taken",
+        meta: {
+          partialMerge: true,
+          received: ctx.mergeBuffer.get(pending)?.size ?? 0,
+          expected: requiredMergeInputCount(workflow, pending),
+        },
+      });
+      await flushMergeNode(ctx, workflow, pending, req);
+      continue;
+    }
+
     if (deadline && Date.now() > deadline) {
       ctx.markFailed("Workflow timeout exceeded");
       emit({ type: "execution.failed", executionId, error: ctx.lastError });
@@ -260,7 +293,9 @@ export async function runExecution(req: RunExecutionRequest): Promise<WorkflowEx
     }
 
     if (req.maxNodes != null && ctx.nodesRun >= req.maxNodes) {
-      ctx.markCompleted("completed");
+      // Stopping here leaves the rest of the workflow unrun; "completed" hid that.
+      ctx.markFailed(`Node limit reached (${req.maxNodes}) — the rest of the workflow did not run`);
+      emit({ type: "execution.failed", executionId, error: ctx.lastError });
       break;
     }
 
@@ -348,6 +383,20 @@ export async function runExecution(req: RunExecutionRequest): Promise<WorkflowEx
       }
       const wait: WaitState = result.resume!;
       ctx.markWaiting(wait);
+      // Queue the steps after the waiting node now, so the snapshot holds them and resume carries
+      // on from there. Without this, resume found nothing queued and ended the run.
+      const queuedBefore = ctx.queue.length;
+      await routeFromNode(
+        ctx,
+        workflow,
+        node.id,
+        node.type,
+        result.output?.json ?? inputJson,
+        result.branch,
+        req,
+        item.branchPort,
+      );
+      for (const q of ctx.queue.slice(queuedBefore)) q.afterWait = true;
       emit({ type: "node.finished", executionId, nodeId: node.id, status: "waiting", durationMs });
       emit({ type: "execution.waiting", executionId, waitingOn: wait });
       await req.onStep?.({ ctx, entry, input: inputJson, logs: nodeLogs, durationMs });

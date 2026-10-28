@@ -113,9 +113,9 @@ describe("WEBEE Native speech model", () => {
 });
 
 describe("WEBEE Native classifier model", () => {
-  it("defaults to gpt-4.1-nano when there is no Cerebras key", () => {
+  it("defaults to gpt-4.1-mini when there is no Cerebras key (gpt-4.1-nano is retired)", () => {
     withCerebrasKey(undefined, () => {
-      expect(resolveWebeeClassifierModel({})).toBe("gpt-4.1-nano");
+      expect(resolveWebeeClassifierModel({})).toBe("gpt-4.1-mini");
     });
   });
 

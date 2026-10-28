@@ -24,7 +24,7 @@
 import { randomUUID } from "node:crypto";
 import { WebSocket } from "ws";
 import { CascadeSession, type CascadeTransport } from "./cascade-session";
-import { makeSupabaseAdmin, readAnalysisSchema } from "./telephony-core";
+import { makeSupabaseAdmin, readCallAnalysisSchema } from "./telephony-core";
 import { CASCADE_SAMPLE_RATE, parseSttProviderName } from "../stt";
 import { resolveWebeeLlmProvider, resolveWebeeSpeechModel } from "../webee-native.shared";
 import { resolveVoiceLlmApiKey } from "../llm/gpt";
@@ -152,7 +152,7 @@ function handleConnection(ws: WebSocket, _ctx: VoiceGatewayContext): void {
             direction: "outbound",
             fromNumber: "web",
             toNumber: "web:test",
-            analysisSchema: readAnalysisSchema(runtime.settings, runtime.analysisVariables),
+            analysisSchema: readCallAnalysisSchema(runtime.settings, runtime.analysisVariables),
             analysisModel: (runtime.settings.postCallAnalysisModel as string | undefined) ?? null,
             successCriteria: (runtime.settings.successCriteria as string | undefined) ?? null,
           },

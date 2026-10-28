@@ -13,6 +13,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { WebSocket } from "ws";
 import { compileRealtimePrompt } from "../../builder/compile-realtime-prompt";
 import { isWebeeNativeMode, resolveDeploymentMode } from "../../runtime/adapter";
+import { withStandardCallOutcome } from "../call-outcome.shared";
 import type { DeploymentMode } from "../../runtime/types";
 import { loadNativeCostCentsPerMinute } from "../lifecycle/cost";
 import { NativeCallLifecycle } from "../lifecycle/call-lifecycle";
@@ -180,7 +181,7 @@ export async function loadCallAgentConfig(
   config.voiceId = isWebeeNativeMode(config.deploymentMode)
     ? ((settings.webeeVoiceId as string | undefined) ?? "")
     : ((settings.voice_id as string | undefined) ?? DEFAULT_VOICE);
-  config.analysisSchema = readAnalysisSchema(settings, agentRow.variables);
+  config.analysisSchema = readCallAnalysisSchema(settings, agentRow.variables);
   config.analysisModel = (settings.postCallAnalysisModel as string | undefined) ?? null;
   config.successCriteria = (settings.successCriteria as string | undefined) ?? null;
   // Stored model ids may be retired preview aliases, so always re-resolve.
@@ -245,6 +246,14 @@ export function fillKnownVariables(text: string, values: Record<string, string>)
  * built purely in the builder extracted no custom fields at all. Existing agents only appeared to
  * work because their snapshot happened to match what was in the builder.
  */
+/** The agent's own fields plus the standard call outcome every agent reports (call-outcome.shared). */
+export function readCallAnalysisSchema(
+  settings: Record<string, unknown>,
+  builderVariables?: unknown,
+): AnalysisField[] {
+  return withStandardCallOutcome(readAnalysisSchema(settings, builderVariables)) as AnalysisField[];
+}
+
 export function readAnalysisSchema(
   settings: Record<string, unknown>,
   builderVariables?: unknown,

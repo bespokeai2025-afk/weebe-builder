@@ -1,46 +1,42 @@
 /**
- * Run WBAH post-call via automation engine (Phase 4 — opt-in).
+ * WBAH post-call workflow on the automation engine — the only post-call pipeline for new-lead,
+ * TTC and DQ agents. Entry and gating live in wbah-post-call.server.ts.
  */
 import type { WbahPostCallProcessInput, WbahPostCallProcessResult } from "@/lib/wbah/post-call/wbah-post-call.server";
-import { resolveWbahPostCallWorkflowConfig } from "@/lib/wbah/workflow/wbah-workflow-resolver.server";
-import { applyDisabledStepIds } from "@/lib/wbah/workflow/wbah-workflow-graph.shared";
+import type { WbahPostCallWorkflowConfig } from "@/lib/wbah/workflow/wbah-workflow-steps.shared";
 import { attachAutomationToWbahPipeline } from "../../sync-automation.server";
 import { wbahPipelineToAutomationDocument } from "../../adapters/wbah-graph.adapter";
 import { executeWorkflowWithPersistence } from "../../executor/execute-with-persistence";
 import { ensureAutomationEngineBootstrapped } from "../../bootstrap";
+import { isTransientError } from "../../runtime/node-runtime";
 
+/**
+ * The engine is the only WBAH post-call pipeline now (see wbah-post-call.server.ts), so this is
+ * always true. WBAH_USE_AUTOMATION_ENGINE is no longer read; it can be removed from the server env.
+ */
 export function isWbahAutomationEngineEnabled(): boolean {
-  const v = process.env.WBAH_USE_AUTOMATION_ENGINE ?? "false";
-  return v === "true" || v === "1";
+  return true;
 }
 
+/** Same entry as the queue and the webhook use: web-call, rebooking and kill-switch checks first. */
 export async function runWbahPostCallViaAutomationEngine(
   input: WbahPostCallProcessInput & { skipLiveTranscript?: boolean; wbahJobId?: string },
 ): Promise<WbahPostCallProcessResult> {
-  if (input.agent.role === "rebooking") {
-    const { runWbahPostCallPipelineCore } = await import("@/lib/wbah/post-call/wbah-post-call.server");
-    return runWbahPostCallPipelineCore({
-      event: input.event,
-      call: input.call,
-      payload: input.payload,
-      agent: input.agent,
-      skipLiveTranscript: input.skipLiveTranscript,
-      disabledStepIds: input.disabledStepIds,
-    });
-  }
+  const { runWbahPostCallPipelineCore } = await import("@/lib/wbah/post-call/wbah-post-call.server");
+  return runWbahPostCallPipelineCore(input);
+}
 
+/** Run the workspace's post-call workflow for one event. `wfConfig` already has per-run steps off. */
+export async function runWbahPostCallWorkflow(
+  input: WbahPostCallProcessInput & {
+    skipLiveTranscript?: boolean;
+    wbahJobId?: string;
+    wfConfig: WbahPostCallWorkflowConfig;
+  },
+): Promise<WbahPostCallProcessResult> {
   ensureAutomationEngineBootstrapped();
 
-  // Same per-run step suppression the core pipeline applies. Without this a
-  // rerun that means to hold back calendly_invitee would still book a second
-  // appointment whenever the automation engine is the active path.
-  const cfg = applyDisabledStepIds(
-    await resolveWbahPostCallWorkflowConfig({
-      workspaceId: input.agent.workspaceId,
-      agentId: String(input.call.agent_id ?? ""),
-    }),
-    input.disabledStepIds,
-  );
+  const cfg = input.wfConfig;
   const withAutomation = cfg.automation ? cfg : attachAutomationToWbahPipeline(cfg);
   const workflowDoc =
     (withAutomation.automation as Record<string, unknown> | undefined) ??
@@ -51,6 +47,8 @@ export async function runWbahPostCallViaAutomationEngine(
     call: input.call,
     body: { event: input.event, call: input.call, ...input.payload },
     ...input.payload,
+    // The webhook already mirrored this event into the live session before queueing it.
+    _skipLiveTranscript: Boolean(input.skipLiveTranscript),
   };
 
   const result = await executeWorkflowWithPersistence(workflowDoc, {
@@ -78,6 +76,14 @@ export async function runWbahPostCallViaAutomationEngine(
   }
 
   if (result.lastError) errors.push(result.lastError);
+
+  // A run stopped by a temporary failure (no answer, 429, 5xx) goes back to the queue, which
+  // retries it with backoff. Anything else is final: a Dynamics validation error fails the same
+  // way every time, so the job completes with the error shown instead of retrying it.
+  const failedStep = [...result.log].reverse().find((e) => e.status === "error");
+  if (result.status === "failed" && input.wbahJobId && failedStep?.error && isTransientError(failedStep.error)) {
+    throw new Error(`${failedStep.nodeId}: ${failedStep.error}`);
+  }
 
   return {
     handled: true,

@@ -140,3 +140,35 @@ describe("WBAH steps run once per automation execution", () => {
     expect(calls.allens).toHaveLength(2);
   });
 });
+
+describe("live transcript node", () => {
+  beforeEach(() => vi.stubEnv("WBAH_POST_CALL_ENABLED", "true"));
+
+  it("is skipped for queued jobs — the webhook already mirrored the event", async () => {
+    const { executeWbahLiveTranscript } = await import(
+      "@/lib/automation-engine/plugins/wbah/wbah-node-executors.server"
+    );
+    const { wbahStepLiveTranscript } = await import(
+      "@/lib/automation-engine/plugins/wbah/wbah-step-handlers.server"
+    );
+    vi.mocked(wbahStepLiveTranscript).mockClear();
+    const c = ctx("exec-live-skip", "live-1");
+    (c.input as { trigger?: Record<string, unknown> }).trigger = { _skipLiveTranscript: true };
+    const res = await executeWbahLiveTranscript(c);
+    expect((res.output?.json as Record<string, unknown>)._skipReason).toBe("handled by the webhook");
+    expect(wbahStepLiveTranscript).not.toHaveBeenCalled();
+  });
+
+  it("runs once per execution even when two canvas nodes carry it", async () => {
+    const { executeWbahLiveTranscript } = await import(
+      "@/lib/automation-engine/plugins/wbah/wbah-node-executors.server"
+    );
+    const { wbahStepLiveTranscript } = await import(
+      "@/lib/automation-engine/plugins/wbah/wbah-step-handlers.server"
+    );
+    vi.mocked(wbahStepLiveTranscript).mockClear();
+    await executeWbahLiveTranscript(ctx("exec-live-once", "live-1"));
+    await executeWbahLiveTranscript(ctx("exec-live-once", "live-2"));
+    expect(wbahStepLiveTranscript).toHaveBeenCalledTimes(1);
+  });
+});

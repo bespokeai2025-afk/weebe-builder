@@ -31,6 +31,20 @@ export const ExecutionSnapshotSchema = z.object({
   workspaceId: z.string().uuid(),
   status: ExecutionStatusSchema,
   currentNodeIds: z.array(z.string()).default([]),
+  /**
+   * The run queue at the pause, items and data, including the steps after the waiting node.
+   * Resume runs exactly these. Older snapshots have only `currentNodeIds`.
+   */
+  queue: z
+    .array(
+      z.object({
+        nodeId: z.string(),
+        json: z.record(z.unknown()),
+        branchPort: z.string().optional(),
+        afterWait: z.boolean().optional(),
+      }),
+    )
+    .optional(),
   nodeOutputs: z.record(z.array(z.unknown())).default({}),
   variables: z.record(z.unknown()).default({}),
   globalVariables: z.record(z.unknown()).default({}),

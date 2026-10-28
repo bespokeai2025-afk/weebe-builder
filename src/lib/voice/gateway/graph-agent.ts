@@ -23,6 +23,7 @@ import { buildLanguageLockInstruction } from "../language-lock.shared";
 import { resolveCallVoiceId } from "../call-voice-profile.shared";
 import {
   resolveWebeeClassifierModel,
+  resolveWebeeOpenAiClassifierModel,
   resolveWebeeLlmProvider,
   resolveWebeeSpeechModel,
   resolveWebeeStrongClassifierModel,
@@ -253,6 +254,7 @@ export async function buildGraphRuntime(
       provider: llmProvider,
       defaultModel: configuredModel,
       classifierModel,
+      openAiClassifierModel: resolveWebeeOpenAiClassifierModel(settings),
       temperature: typeof flow.model_temperature === "number" ? flow.model_temperature : undefined,
     }),
     () => vm.getTurnTrace(),

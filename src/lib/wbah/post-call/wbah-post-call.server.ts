@@ -1,46 +1,24 @@
 /**
- * WBAH native post-call pipeline — replaces n8n workflow yR3vAIdZNLovD8jx.
+ * WBAH post-call — entry point for every Retell event on a WBAH agent.
  *
- * Branches (parallel on call_analyzed when lead_id present):
- *  1. Live transcript (always)
- *  2. WeeBespoke dashboard POST (call-output-data/create)
- *  3. Calendly link + slot URL (when booking slot extracted)
- *  4. Dynamics Allen's Logic PATCH
- *  5. Dynamics agentic PATCH (structured_json_output)
+ * New-lead, TTC and DQ calls run one pipeline: the automation engine executes the workspace's
+ * post-call workflow (the canvas in the WBAH workflow tab), node by node, with every step
+ * implemented once in `automation-engine/plugins/wbah/wbah-step-handlers.server.ts`.
+ *
+ * There used to be a second, hand-written copy of the same steps here, chosen by
+ * WBAH_USE_AUTOMATION_ENGINE. Production ran the engine, so every fix had to land twice, and three
+ * times in October 2026 it landed in only one (call variables, repeated Dynamics writes, contact
+ * address) and became a live bug. This file now only decides whether and how a call is processed:
+ * web calls are ignored, rebooking agents use their own opportunity-only pipeline, and
+ * WBAH_POST_CALL_ENABLED=false limits processing to the live transcript.
  */
-import {
-  markLiveCallSessionEnded,
-  mergeWebhookTranscript,
-  upsertLiveCallSession,
-} from "@/lib/retell/live-call-sessions.server";
-import { applyAllensLogicV5, isWbahAppointmentConfirmed } from "./wbah-allens-logic.shared";
-import {
-  buildWbahAgenticCrmPayload,
-  buildWbahAllensCrmPayload,
-  buildWbahCalendlySlotUrl,
-  buildWbahClearDataAgenticPayload,
-} from "./wbah-crm-payload.shared";
-import {
-  createWbahCalendlyBookingLink,
-  createWbahCalendlyInvitee,
-  isWbahCalendlyConfigured,
-} from "./wbah-calendly.server";
-import {
-  getWbahLeadCurrentStatus,
-  isWbahDynamicsConfigured,
-  patchWbahLead,
-  postWbahLeadTimelineNote,
-} from "./wbah-dynamics.server";
-import { preserveWbahAddressAgainstDictationDrift } from "./wbah-uk-address.shared";
-import { buildWbahAiTimelineNoteText } from "./wbah-timeline-note.shared";
-import { cleanWbahRawData, formatWbahRetellCallData } from "./wbah-format-data.shared";
+import { handleWbahLiveTranscript } from "./wbah-live-transcript.server";
+import { isWbahCalendlyConfigured } from "./wbah-calendly.server";
+import { isWbahDynamicsConfigured } from "./wbah-dynamics.server";
 import {
   isWbahPostCallExecutionEnabled,
   type WbahRetellAgentMapping,
 } from "./wbah-retell-agents.shared";
-import { upsertWbahCallFromWebhook } from "./wbah-calls-upsert.server";
-import { postWbahCallOutputCreate, type WbahConfirmedBooking } from "./wbah-webespoke-writer.server";
-import { forwardWbahDashboardAnalyzed } from "./wbah-dashboard-forward.shared";
 import { extractDynVars } from "./wbah-dyn-vars.shared";
 
 type RetellCall = {
@@ -73,8 +51,8 @@ export type WbahPostCallProcessInput = {
    * Step ids to force off for this run only, without touching the saved
    * workflow. A manual rerun uses this to hold back steps that are not safe to
    * repeat — `calendly_invitee` books a real appointment and would book a
-   * second one. Applied by flipping `enabled` on the resolved config, so both
-   * the core pipeline and the automation engine honour it from one place.
+   * second one. Applied by flipping `enabled` on the resolved config before
+   * the workflow runs.
    */
   disabledStepIds?: string[];
 };
@@ -88,263 +66,7 @@ export type WbahPostCallProcessResult = {
 
 export { extractDynVars } from "./wbah-dyn-vars.shared";
 
-async function handleLiveTranscript(
-  event: string,
-  call: RetellCall,
-  payload: Record<string, unknown>,
-  agent: WbahRetellAgentMapping,
-): Promise<void> {
-  mergeWebhookTranscript(call, payload);
-  const callId = call.call_id;
-  if (!callId) return;
-
-  switch (event) {
-    case "call_started":
-    case "transcript_updated":
-      await upsertLiveCallSession({
-        workspaceId: agent.workspaceId,
-        agentName: agent.agentName,
-        event,
-        call,
-      });
-      break;
-    case "call_ended":
-    case "call_analyzed":
-    case "call_transferred":
-      await markLiveCallSessionEnded(agent.workspaceId, callId, "ended");
-      break;
-    case "call_failed":
-      await markLiveCallSessionEnded(agent.workspaceId, callId, "failed");
-      break;
-    default:
-      break;
-  }
-}
-
-async function postDashboardRaw(input: {
-  event: string;
-  call: RetellCall;
-  payload: Record<string, unknown>;
-  leadId: string;
-}): Promise<void> {
-  await postWbahCallOutputCreate({
-    leadId: input.leadId,
-    event: input.event,
-    raw_data: cleanWbahRawData(input.payload),
-    retell_call_id: input.call.call_id ?? null,
-  });
-}
-
-async function maybePostWbahNoAnswerTimelineNote(input: {
-  call: RetellCall;
-  leadId: string;
-  custom: Record<string, unknown>;
-}): Promise<void> {
-  const startMs = Number(input.call.start_timestamp ?? 0);
-  const endMs = Number(input.call.end_timestamp ?? 0);
-  const durationMs = startMs > 0 && endMs > startMs ? endMs - startMs : 0;
-  if (durationMs > 0) return;
-
-  const noteText = buildWbahAiTimelineNoteText({
-    label: "WBAH AI call",
-    callId: input.call.call_id ?? null,
-    userSentiment: null,
-    callSummary:
-      String(input.custom.detailed_call_summary ?? "").trim() ||
-      "Call not answered — no conversation recorded.",
-    transcript: input.call.transcript ?? null,
-  });
-  await postWbahLeadTimelineNote({
-    leadId: input.leadId,
-    subject: "WBAH AI call — no answer",
-    noteText,
-  });
-}
-
-async function postDashboardAnalyzed(input: {
-  call: RetellCall;
-  payload: Record<string, unknown>;
-  formatted: ReturnType<typeof formatWbahRetellCallData>;
-  calendlyBookingUrl: string | null;
-}): Promise<WbahConfirmedBooking | null> {
-  const { formatted, call, payload, calendlyBookingUrl } = input;
-  if (!formatted.leadId) return null;
-
-  return forwardWbahDashboardAnalyzed({
-    leadId: formatted.leadId,
-    call,
-    payload,
-    formatted,
-    calendlyBookingUrl,
-  });
-}
-
-async function runDynamicsAllensPath(input: {
-  leadId: string;
-  formatted: ReturnType<typeof formatWbahRetellCallData>;
-  calendlyBookingUrl: string | null;
-  custom?: Record<string, unknown>;
-  transcript?: string | null;
-  dynVars?: Record<string, unknown>;
-}): Promise<void> {
-  const leadStatus = await getWbahLeadCurrentStatus(input.leadId).catch(() => null);
-  const custom = input.custom ?? {};
-  const detailed =
-    typeof custom.detailed_call_summary === "string" ? custom.detailed_call_summary : null;
-
-  const allens = applyAllensLogicV5({
-    userSentiment: input.formatted.userSentiment,
-    callbackDatetime: input.formatted.callbackDatetime,
-    callbackDatetimeUtc: input.formatted.callbackDatetimeUtc,
-    callbackType: input.formatted.callbackType,
-    callbackDefaulted: input.formatted.callbackDatetimeSource === "default_next_working_day",
-    calendlyBookingUrl: input.calendlyBookingUrl,
-    appointmentBooked: isWbahAppointmentConfirmed({
-      appointmentConfirmed: input.formatted.appointmentConfirmed,
-      appointmentDate: input.formatted.appointmentDate,
-      appointmentTime: input.formatted.appointmentTimeUk,
-      requestedStartUtc: input.formatted.requestedStartUtc,
-    }),
-    existingCurrentStatus: leadStatus?.new_currentstatus ?? null,
-    existingStateCode: leadStatus?.statecode ?? null,
-    callSummary: input.formatted.callSummary,
-    detailedCallSummary: detailed,
-    transcript: input.transcript ?? null,
-  });
-
-  const patch = buildWbahAllensCrmPayload({
-    formatted: input.formatted,
-    allens,
-    calendlyBookingUrl: input.calendlyBookingUrl,
-    callbackUtc: input.formatted.callbackDatetimeUtc,
-    custom: input.custom,
-    transcript: input.transcript ?? null,
-    dynVars: input.dynVars,
-  });
-
-  const preserved = preserveWbahAddressAgainstDictationDrift(patch, leadStatus?.raw);
-  if (preserved.length) {
-    console.log("[WBAH CONTACT-ADDRESS] kept existing CRM address over dictation drift", {
-      leadId: input.leadId,
-      path: "allens",
-      fields: preserved,
-    });
-  }
-
-  if (!Object.keys(patch).length) {
-    console.log("[WBAH POST-CALL] dynamics_allens skipped", { rule: allens.rule });
-    return;
-  }
-
-  console.log("[WBAH POST-CALL] dynamics_allens PATCH", {
-    leadId: input.leadId,
-    rule: allens.rule,
-    allenLogicResult: allens.allenLogicResult,
-    fieldCount: Object.keys(patch).length,
-    fields: Object.keys(patch),
-  });
-
-  await patchWbahLead(input.leadId, patch);
-}
-
-async function runDynamicsAgenticPath(input: {
-  leadId: string;
-  formatted: ReturnType<typeof formatWbahRetellCallData>;
-  custom: Record<string, unknown>;
-  transcript?: string | null;
-  dynVars?: Record<string, unknown>;
-  /** True when the Allen's path already ran and owns the narrative fields. */
-  narrativeOwnedByAllens?: boolean;
-}): Promise<void> {
-  const structured = input.formatted.structuredJsonOutput;
-  const patch = buildWbahAgenticCrmPayload(
-    structured,
-    input.custom,
-    input.transcript ?? null,
-    input.dynVars,
-  );
-  // Allen's logic decides whether the narrative should change at all (it can
-  // deliberately preserve an existing summary). When both paths run they each
-  // write their own wording of cos_call_summary, so the lead's summary visibly
-  // flipped back and forth on every call — ten times in 36 seconds on
-  // call_737e10b06ced477f741a1a31ec5, once per PATCH and retry. One owner.
-  if (input.narrativeOwnedByAllens) {
-    delete (patch as Record<string, unknown>).cos_call_summary;
-    delete (patch as Record<string, unknown>).cos_user_sentiment;
-  }
-
-  // Read before the write: the same lead fetch feeds the drift guard here and
-  // the clear-data payload below, so ordering it first costs nothing.
-  const leadStatus = await getWbahLeadCurrentStatus(input.leadId).catch(() => null);
-  const preserved = preserveWbahAddressAgainstDictationDrift(patch, leadStatus?.raw);
-  if (preserved.length) {
-    console.log("[WBAH CONTACT-ADDRESS] kept existing CRM address over dictation drift", {
-      leadId: input.leadId,
-      path: "agentic",
-      fields: preserved,
-    });
-  }
-
-  if (Object.keys(patch).length) {
-    console.log("[WBAH POST-CALL] dynamics_agentic PATCH", {
-      leadId: input.leadId,
-      fieldCount: Object.keys(patch).length,
-      fields: Object.keys(patch),
-    });
-    await patchWbahLead(input.leadId, patch);
-  } else {
-    console.log("[WBAH POST-CALL] dynamics_agentic skipped (no CRM fields after normalize)");
-  }
-
-  const clearPatch = buildWbahClearDataAgenticPayload({
-    statecode: leadStatus?.statecode ?? null,
-    newCurrentstatus: leadStatus?.new_currentstatus ?? null,
-    userSentiment: input.narrativeOwnedByAllens ? null : input.formatted.userSentiment,
-    callSummary: input.narrativeOwnedByAllens ? null : input.formatted.callSummary,
-  });
-  if (Object.keys(clearPatch).length) {
-    console.log("[WBAH POST-CALL] clearDataforAgentic PATCH", {
-      leadId: input.leadId,
-      fields: Object.keys(clearPatch),
-    });
-    await patchWbahLead(input.leadId, clearPatch);
-  }
-}
-
-async function runCalendlyInviteePath(input: {
-  call: RetellCall;
-  dynVars: Record<string, unknown>;
-  formatted: ReturnType<typeof formatWbahRetellCallData>;
-}): Promise<void> {
-  if (!isWbahCalendlyConfigured()) return;
-
-  const confirmed = isWbahAppointmentConfirmed({
-    appointmentConfirmed: input.formatted.appointmentConfirmed,
-    appointmentDate: input.formatted.appointmentDate,
-    appointmentTime: input.formatted.requestedStartUtc,
-    requestedStartUtc: input.formatted.requestedStartUtc,
-  });
-  if (!confirmed || !input.formatted.requestedStartUtc) return;
-
-  const firstName = String(input.dynVars.first_name ?? input.dynVars.First_name ?? "").trim();
-  const lastName = String(input.dynVars.last_name ?? input.dynVars.Last_name ?? "").trim();
-  const name = [firstName, lastName].filter(Boolean).join(" ") || input.formatted.customerName || "Customer";
-  const email = input.formatted.email || "no-reply@example.com";
-  const phone = String(input.call.to_number ?? input.dynVars.phone ?? "").trim() || null;
-  const propertyAddress = String(
-    input.dynVars.property_address_line2 ?? input.dynVars.property_address ?? "",
-  ).trim() || null;
-
-  await createWbahCalendlyInvitee({
-    email,
-    name,
-    startTimeUtc: input.formatted.requestedStartUtc,
-    phone,
-    propertyAddress,
-    salesforceUuid: String(input.dynVars.salesforce_uuid ?? "N/A"),
-  });
-}
-
+/** Kept for callers and docs that name the old function; the engine is the only pipeline. */
 export async function runWbahPostCallPipeline(
   input: WbahPostCallProcessInput,
 ): Promise<WbahPostCallProcessResult> {
@@ -352,47 +74,13 @@ export async function runWbahPostCallPipeline(
 }
 
 export async function runWbahPostCallPipelineCore(
-  input: WbahPostCallProcessInput & { skipLiveTranscript?: boolean },
-): Promise<WbahPostCallProcessResult> {
-  const branches: string[] = [];
-  const errors: string[] = [];
-  try {
-    return await runWbahPostCallPipelineCoreUnsafe(input, branches, errors);
-  } catch (e) {
-    // A thrown business-rule rejection (e.g. Dynamics "lead is already
-    // closed") used to escape all the way to the job queue, which wipes
-    // `branches` and retries the whole event up to 5 times — pointless,
-    // since retrying doesn't change the CRM's lead state, and it also
-    // erases the record of whichever steps already succeeded before the
-    // throw. Catch it here instead: keep what ran, report the failure,
-    // and let the job settle as "completed with errors" rather than churn
-    // through identical retries.
-    const msg = e instanceof Error ? e.message : String(e);
-    console.log("[WBAH POST-CALL] unexpected error — returning partial result instead of retrying", {
-      event: input.event,
-      callId: input.call.call_id,
-      branches,
-      error: msg,
-    });
-    return {
-      handled: true,
-      message: "completed with errors",
-      branches,
-      errors: [...errors, `unexpected: ${msg}`],
-    };
-  }
-}
-
-async function runWbahPostCallPipelineCoreUnsafe(
-  input: WbahPostCallProcessInput & { skipLiveTranscript?: boolean },
-  branches: string[],
-  errors: string[],
+  input: WbahPostCallProcessInput & { skipLiveTranscript?: boolean; wbahJobId?: string },
 ): Promise<WbahPostCallProcessResult> {
   const { event, call, payload, agent, skipLiveTranscript, disabledStepIds } = input;
 
   const isWebCall = call.call_type === "web_call" || call.call_type === "webcall";
   if (isWebCall) {
-    return { handled: true, message: "ignored: web call", branches, errors };
+    return { handled: true, message: "ignored: web call", branches: [], errors: [] };
   }
 
   const { resolveWbahPostCallWorkflowConfig } = await import(
@@ -409,10 +97,7 @@ async function runWbahPostCallPipelineCoreUnsafe(
     disabledStepIds,
   );
 
-  if (
-    agent.role === "rebooking" ||
-    wfConfig.workflow_kind === "wbah_rebook_post_call"
-  ) {
+  if (agent.role === "rebooking" || wfConfig.workflow_kind === "wbah_rebook_post_call") {
     const { runWbahRebookPostCallPipeline } = await import("./wbah-rebook-post-call.server");
     const { defaultRebookPostCallWorkflowConfig } = await import(
       "@/lib/wbah/workflow/wbah-rebook-workflow.shared"
@@ -431,247 +116,24 @@ async function runWbahPostCallPipelineCoreUnsafe(
     });
   }
 
-  const stepOn = (id: string) => isStepEnabledInOrder(wfConfig, id, event);
-
-  if (!skipLiveTranscript && stepOn("live_transcript")) {
-    try {
-      await handleLiveTranscript(event, call, payload, agent);
-      branches.push("live_transcript");
-    } catch (e) {
-      errors.push(`live_transcript: ${(e as Error).message}`);
-    }
-  }
-
-  const executionEnabled = isWbahPostCallExecutionEnabled();
-  if (!executionEnabled) {
-    return {
-      handled: true,
-      message: "live only (WBAH_POST_CALL_ENABLED=false)",
-      branches,
-      errors,
-    };
-  }
-
-  const dynVars = extractDynVars(call, payload);
-  const leadId = String(dynVars.lead_id ?? dynVars.leadId ?? "").trim() || null;
-  const custom = call.call_analysis?.custom_analysis_data ?? {};
-
-  if (event === "call_ended" && stepOn("wbah_calls_upsert")) {
-    try {
-      await upsertWbahCallFromWebhook({
-        call,
-        agent,
-        dynVars,
-        formatted: null,
-        event,
-      });
-      branches.push("wbah_calls_upsert");
-    } catch (e) {
-      errors.push(`wbah_calls_upsert: ${(e as Error).message}`);
-    }
-  }
-
-  if (event === "call_ended" && leadId && isWbahDynamicsConfigured()) {
-    try {
-      await maybePostWbahNoAnswerTimelineNote({
-        call,
-        leadId,
-        custom,
-      });
-      branches.push("dynamics_lead_note");
-    } catch (e) {
-      errors.push(`dynamics_lead_note: ${(e as Error).message}`);
-    }
-  }
-
-  if ((event === "call_started" || event === "call_ended") && leadId) {
-    if (stepOn("dashboard_raw")) {
+  if (!isWbahPostCallExecutionEnabled()) {
+    const branches: string[] = [];
+    const errors: string[] = [];
+    if (!skipLiveTranscript && isStepEnabledInOrder(wfConfig, "live_transcript", event)) {
       try {
-        await postDashboardRaw({ event, call, payload, leadId });
-        branches.push("dashboard_raw");
+        await handleWbahLiveTranscript(event, call, payload, agent);
+        branches.push("live_transcript");
       } catch (e) {
-        errors.push(`dashboard_raw: ${(e as Error).message}`);
+        errors.push(`live_transcript: ${(e as Error).message}`);
       }
     }
-    return {
-      handled: true,
-      message: `processed ${event}`,
-      branches,
-      errors,
-    };
+    return { handled: true, message: "live only (WBAH_POST_CALL_ENABLED=false)", branches, errors };
   }
 
-  if (event === "call_ended") {
-    return {
-      handled: true,
-      message: "processed call_ended",
-      branches,
-      errors,
-    };
-  }
-
-  if (event !== "call_analyzed") {
-    return { handled: true, message: `live only for ${event}`, branches, errors };
-  }
-
-  if (!leadId) {
-    return { handled: true, message: "call_analyzed without lead_id", branches, errors };
-  }
-
-  const formatted = formatWbahRetellCallData({
-    dynVars,
-    custom,
-    callAnalysis: call.call_analysis as Record<string, unknown> | undefined,
-    callStartedAtMs: call.start_timestamp ?? null,
-  });
-  formatted.leadId = leadId;
-
-  let calendlyBookingUrl: string | null = null;
-  if (
-    stepOn("calendly_link") &&
-    formatted.hasBookingSlot &&
-    isWbahCalendlyConfigured()
-  ) {
-    try {
-      const baseLink = await createWbahCalendlyBookingLink();
-      if (baseLink) {
-        calendlyBookingUrl = buildWbahCalendlySlotUrl(baseLink, formatted);
-        branches.push("calendly_link");
-      }
-    } catch (e) {
-      errors.push(`calendly: ${(e as Error).message}`);
-    }
-  }
-
-  if (stepOn("calendly_invitee") && formatted.hasBookingSlot) {
-    try {
-      await runCalendlyInviteePath({ call, dynVars, formatted });
-      branches.push("calendly_invitee");
-    } catch (e) {
-      errors.push(`calendly_invitee: ${(e as Error).message}`);
-    }
-  }
-
-  if (stepOn("dashboard_analyzed")) {
-    try {
-      const confirmed = await postDashboardAnalyzed({ call, payload, formatted, calendlyBookingUrl });
-      // The real booking link (reschedulings/) beats our slot-picker link.
-      if (confirmed) calendlyBookingUrl = confirmed.calendlyBookingUrl;
-      branches.push("dashboard_analyzed");
-    } catch (e) {
-      errors.push(`dashboard_analyzed: ${(e as Error).message}`);
-    }
-  }
-
-  if (stepOn("wbah_calls_upsert")) {
-    try {
-      await upsertWbahCallFromWebhook({
-        call,
-        agent,
-        dynVars,
-        formatted,
-        calendlyBookingUrl,
-        event,
-      });
-      branches.push("wbah_calls_upsert");
-    } catch (e) {
-      errors.push(`wbah_calls_upsert: ${(e as Error).message}`);
-    }
-  }
-
-  if (isWbahDynamicsConfigured()) {
-    let allensWroteNarrative = false;
-    if (stepOn("dynamics_allens")) {
-      try {
-        await runDynamicsAllensPath({
-          leadId,
-          formatted,
-          calendlyBookingUrl,
-          custom,
-          transcript: call.transcript ?? null,
-          dynVars,
-        });
-        allensWroteNarrative = true;
-        branches.push("dynamics_allens");
-      } catch (e) {
-        errors.push(`dynamics_allens: ${(e as Error).message}`);
-      }
-    }
-
-    if (stepOn("dynamics_agentic") && formatted.structuredJsonOutput) {
-      try {
-        await runDynamicsAgenticPath({
-          leadId,
-          formatted,
-          custom,
-          transcript: call.transcript ?? null,
-          dynVars,
-          narrativeOwnedByAllens: allensWroteNarrative,
-        });
-        branches.push("dynamics_agentic");
-      } catch (e) {
-        errors.push(`dynamics_agentic: ${(e as Error).message}`);
-      }
-    }
-
-    const noteGateOpen = Boolean(leadId) && (stepOn("dynamics_allens") || stepOn("dynamics_agentic"));
-    if (noteGateOpen) {
-      try {
-        const noteText = buildWbahAiTimelineNoteText({
-          label: "WBAH AI call",
-          callId: call.call_id ?? null,
-          userSentiment: formatted.userSentiment,
-          callSummary: formatted.callSummary,
-          transcript: call.transcript ?? null,
-          appointmentDate: formatted.appointmentDate,
-          appointmentTime: formatted.appointmentTimeUk ?? formatted.requestedStartUtc,
-          callbackUtc: formatted.callbackDatetimeUtc,
-        });
-        await postWbahLeadTimelineNote({
-          leadId: leadId!,
-          subject: `WBAH AI call summary${call.call_id ? ` — ${call.call_id}` : ""}`.slice(0, 200),
-          noteText,
-        });
-        branches.push("dynamics_lead_note");
-        console.log("[WBAH POST-CALL] dynamics_lead_note posted", { leadId, callId: call.call_id ?? null });
-      } catch (e) {
-        errors.push(`dynamics_lead_note: ${(e as Error).message}`);
-        console.log("[WBAH POST-CALL] dynamics_lead_note FAILED", {
-          leadId,
-          callId: call.call_id ?? null,
-          error: (e as Error).message,
-        });
-      }
-    } else {
-      // A call with real transcript/summary data but no note ever showing up
-      // in Dynamics is otherwise undiagnosable after the fact — log exactly
-      // why this gate was closed so a future report can be traced in seconds.
-      console.log("[WBAH POST-CALL] dynamics_lead_note skipped (gate closed)", {
-        leadId,
-        hasLeadId: Boolean(leadId),
-        dynamicsAllensStepOn: stepOn("dynamics_allens"),
-        dynamicsAgenticStepOn: stepOn("dynamics_agentic"),
-        callId: call.call_id ?? null,
-      });
-    }
-  }
-
-  console.log("[WBAH POST-CALL] Completed", {
-    event,
-    callId: call.call_id,
-    leadId,
-    workflow: wfConfig.name,
-    branches,
-    errorCount: errors.length,
-    ...(errors.length ? { errors } : {}),
-  });
-
-  return {
-    handled: true,
-    message: errors.length ? "completed with errors" : "completed",
-    branches,
-    errors,
-  };
+  const { runWbahPostCallWorkflow } = await import(
+    "@/lib/automation-engine/plugins/wbah/wbah-automation-pipeline.server"
+  );
+  return runWbahPostCallWorkflow({ ...input, wfConfig });
 }
 
 export function getWbahPostCallReadiness(): {
@@ -718,7 +180,7 @@ export async function processWbahRetellWebhook(input: {
 
   if (isStepEnabledInOrder(wfConfig, "live_transcript", input.event)) {
     try {
-      await handleLiveTranscript(input.event, input.call, input.payload, agent);
+      await handleWbahLiveTranscript(input.event, input.call as Record<string, unknown>, input.payload, agent);
     } catch (e) {
       console.warn("[WBAH POST-CALL] live_transcript:", (e as Error).message);
     }

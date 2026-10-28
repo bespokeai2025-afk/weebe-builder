@@ -151,7 +151,6 @@ export {
   type AutomationExecutionSource,
 } from "./persistence/execution-persistence.server";
 
-export { recordAutomationTraceForWbahJob } from "./persistence/wbah-job-trace.server";
 
 export {
   registerWbahNodes,

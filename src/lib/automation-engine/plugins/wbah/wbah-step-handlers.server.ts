@@ -1,11 +1,8 @@
 /**
- * WBAH plugin — native step handlers (wraps existing post-call implementations).
+ * WBAH post-call steps — the one implementation of each step. The automation engine's WBAH nodes
+ * (wbah-node-executors.server.ts) call these; nothing else implements them.
  */
-import {
-  markLiveCallSessionEnded,
-  mergeWebhookTranscript,
-  upsertLiveCallSession,
-} from "@/lib/retell/live-call-sessions.server";
+import { handleWbahLiveTranscript } from "@/lib/wbah/post-call/wbah-live-transcript.server";
 import { applyAllensLogicV5, isWbahAppointmentConfirmed } from "@/lib/wbah/post-call/wbah-allens-logic.shared";
 import {
   buildWbahAgenticCrmPayload,
@@ -36,31 +33,7 @@ import { forwardWbahDashboardAnalyzed } from "@/lib/wbah/post-call/wbah-dashboar
 import type { WbahRunBag } from "./wbah-run-context";
 
 export async function wbahStepLiveTranscript(bag: WbahRunBag): Promise<void> {
-  mergeWebhookTranscript(bag.call as any, bag.payload);
-  const callId = bag.call.call_id;
-  if (!callId) return;
-
-  switch (bag.event) {
-    case "call_started":
-    case "transcript_updated":
-      await upsertLiveCallSession({
-        workspaceId: bag.agent.workspaceId,
-        agentName: bag.agent.agentName,
-        event: bag.event,
-        call: bag.call as any,
-      });
-      break;
-    case "call_ended":
-    case "call_analyzed":
-    case "call_transferred":
-      await markLiveCallSessionEnded(bag.agent.workspaceId, callId, "ended");
-      break;
-    case "call_failed":
-      await markLiveCallSessionEnded(bag.agent.workspaceId, callId, "failed");
-      break;
-    default:
-      break;
-  }
+  await handleWbahLiveTranscript(bag.event, bag.call as Record<string, unknown>, bag.payload, bag.agent);
 }
 
 export async function wbahStepDashboardRaw(bag: WbahRunBag): Promise<void> {

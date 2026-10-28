@@ -100,15 +100,25 @@ export async function executeWorkflowWithPersistence(
 
   const hooks = createStepWriterHooks({ workspaceId, executionId });
 
-  const result = await runExecution({
-    workflow: rawWorkflow,
-    ...opts,
-    executionId,
-    workspaceId,
-    mode,
-    onStep: hooks.onStep,
-    onWaiting: hooks.onWaiting,
-  });
+  let result: WorkflowExecutionResult;
+  try {
+    result = await runExecution({
+      workflow: rawWorkflow,
+      ...opts,
+      executionId,
+      workspaceId,
+      mode,
+      onStep: hooks.onStep,
+      onWaiting: hooks.onWaiting,
+    });
+  } catch (e) {
+    // Close the row before the error goes up, or it reads "running" for ever.
+    const msg = e instanceof Error ? e.message : String(e);
+    await finalizeExecutionRun({ workspaceId, executionId, status: "failed", summary: {}, lastError: msg }).catch(
+      () => {},
+    );
+    throw e;
+  }
 
   try {
     const summary = executionSummary(result);

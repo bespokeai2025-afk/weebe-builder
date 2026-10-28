@@ -13,8 +13,15 @@ export const WEBEE_NATIVE_OPENAI_SPEECH_MODEL = "gpt-4o-mini";
 /** Graph edge routing + variable extraction (Cerebras). */
 export const WEBEE_NATIVE_CLASSIFIER_MODEL = "gpt-oss-120b";
 
-/** Fast OpenAI classifier for live routing. */
-export const WEBEE_NATIVE_OPENAI_CLASSIFIER_MODEL = "gpt-4.1-nano";
+/**
+ * Default OpenAI classifier for live routing, and the model routing falls back to when Cerebras
+ * is unavailable. gpt-4.1-nano was the default until OpenAI retired it (every request now returns
+ * model_not_found). Of the OpenAI models that are still served, gpt-4.1-mini answered routing
+ * fastest in a 2026-10-28 benchmark (median 1.30 s against 1.46 s for gpt-5-nano and 1.86 s for
+ * gpt-4o-mini, all correct). Override with WEBEE_NATIVE_OPENAI_CLASSIFIER_MODEL or the agent's
+ * `webeeOpenAiClassifierModel`.
+ */
+export const WEBEE_NATIVE_OPENAI_CLASSIFIER_MODEL = "gpt-4.1-mini";
 
 /** Stronger classifier for nodes with many ambiguous prompt transitions. */
 export const WEBEE_NATIVE_CLASSIFIER_MODEL_STRONG = "gpt-oss-120b";
@@ -33,8 +40,7 @@ export interface WebeeNativeLlmChoice {
 export const WEBEE_NATIVE_LLM_MODELS: Record<VoiceLlmProvider, WebeeNativeLlmChoice[]> = {
   openai: [
     { id: "gpt-4o-mini", label: "GPT-4o mini", desc: "Fast — best for live voice" },
-    { id: "gpt-4.1-nano", label: "GPT-4.1 nano", desc: "Cheapest routing / extraction" },
-    { id: "gpt-4.1-mini", label: "GPT-4.1 mini", desc: "Balanced quality and speed" },
+    { id: "gpt-4.1-mini", label: "GPT-4.1 mini", desc: "Fastest OpenAI routing / extraction" },
     { id: "gpt-4.1", label: "GPT-4.1", desc: "Highest OpenAI quality" },
     { id: "gpt-4o", label: "GPT-4o", desc: "Strong general model" },
   ],
@@ -136,12 +142,31 @@ export function resolveWebeeClassifierModel(settings?: Record<string, unknown> |
   ).trim();
   if (provider === "openai") {
     if (fromSettings && !isCerebrasModelId(fromSettings)) return fromSettings;
-    return WEBEE_NATIVE_OPENAI_CLASSIFIER_MODEL;
+    return resolveWebeeOpenAiClassifierModel(settings);
   }
   if (fromSettings && !isLegacyOpenAiVoiceModel(fromSettings)) return fromSettings;
   const fromEnv = String(process.env.WEBEE_NATIVE_CLASSIFIER_MODEL ?? "").trim();
   if (fromEnv && !isLegacyOpenAiVoiceModel(fromEnv)) return fromEnv;
   return WEBEE_NATIVE_CLASSIFIER_MODEL;
+}
+
+/**
+ * OpenAI model for routing and extraction: the classifier on an OpenAI agent, and the one a
+ * Cerebras agent's routing moves to while Cerebras is unavailable. Without it the fallback reused
+ * the speech model (gpt-4o-mini), about half a second slower per routing call.
+ */
+export function resolveWebeeOpenAiClassifierModel(
+  settings?: Record<string, unknown> | null,
+): string {
+  const candidates = [
+    settings?.webeeOpenAiClassifierModel,
+    typeof process !== "undefined" ? process.env?.WEBEE_NATIVE_OPENAI_CLASSIFIER_MODEL : undefined,
+  ];
+  for (const raw of candidates) {
+    const id = String(raw ?? "").trim();
+    if (id && isModelServedByWebeeProvider(id, "openai")) return id;
+  }
+  return WEBEE_NATIVE_OPENAI_CLASSIFIER_MODEL;
 }
 
 /**

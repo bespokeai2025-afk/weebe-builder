@@ -22,6 +22,7 @@ import {
   assignNumberToAgentService,
 } from "@/lib/builder/retell-telephony.server";
 import { retellHybridPrompt } from "@/lib/voice/graph/speech-mode.shared";
+import { withStandardCallOutcome } from "@/lib/voice/call-outcome.shared";
 
 import { createRetellWebCallV3 } from "@/lib/retell/web-call.server";
 /**
@@ -766,6 +767,11 @@ Read the \`confirmation_message\` field from the response. If a \`meeting_url\` 
         ...bookingAnalysisFields.filter((f) => !existingNames.has(f.name)),
       ];
     }
+
+    // ---- Standard call outcome on every agent (outcome rules act on it) ----
+    agent.post_call_analysis_data = withStandardCallOutcome(
+      (agent.post_call_analysis_data as Array<Record<string, unknown>> | undefined) ?? [],
+    );
 
     // ---- Agent ----
     let agentResp: Record<string, unknown> | undefined;

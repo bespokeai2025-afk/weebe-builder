@@ -17,6 +17,7 @@ import {
   type ChatMsg,
   type VoiceLlmProvider,
 } from "../llm/gpt";
+import { LatencyHedge } from "../llm/latency-hedge";
 import {
   WEBEE_NATIVE_CLASSIFIER_MODEL,
   WEBEE_NATIVE_OPENAI_CLASSIFIER_MODEL,
@@ -36,6 +37,11 @@ export interface OpenAiVmLlmOptions {
    * the single easiest cost regression to make.
    */
   classifierModel?: string;
+  /**
+   * OpenAI model for routing and extraction when they cannot run on `classifierModel`: Cerebras
+   * unavailable, or the provider has retired the model. See `resolveWebeeOpenAiClassifierModel`.
+   */
+  openAiClassifierModel?: string;
   temperature?: number;
 }
 
@@ -71,6 +77,14 @@ const EXTRACT_MAX_TOKENS = 256;
  */
 const BACKGROUND_LLM_TIMEOUT_MS = 4_000;
 
+/**
+ * Duplicate a routing or extraction request that runs past this server's recent p90 (see
+ * `LatencyHedge`). Shared across calls so the delay is learned from every call on the server;
+ * separate per kind because extraction prompts are larger and slower than routing ones.
+ */
+const classifyHedge = new LatencyHedge({ maxDelayMs: BACKGROUND_LLM_TIMEOUT_MS * 0.75 });
+const extractHedge = new LatencyHedge({ maxDelayMs: BACKGROUND_LLM_TIMEOUT_MS * 0.75 });
+
 const EXTRACT_SYSTEM = [
   "You extract structured data from a voice conversation.",
   "Return a JSON object containing only the requested fields.",
@@ -99,6 +113,10 @@ export function createOpenAiVmLlm(options: OpenAiVmLlmOptions): VmLlm {
   // on the SAME call skips straight to OpenAI instead of paying for a second failed Cerebras
   // attempt first — see CerebrasBreaker's doc comment for why this must not be shared across calls.
   const breaker: CerebrasBreaker = { down: false };
+  const classifierFallbacks = {
+    openai: options.openAiClassifierModel || WEBEE_NATIVE_OPENAI_CLASSIFIER_MODEL,
+    cerebras: WEBEE_NATIVE_CLASSIFIER_MODEL,
+  };
 
   const complete = (messages: LlmMessage[], model: string, extra: Record<string, unknown> = {}) =>
     gptComplete(messages as ChatMsg[], {
@@ -141,12 +159,15 @@ export function createOpenAiVmLlm(options: OpenAiVmLlmOptions): VmLlm {
       ];
 
       // Routing always uses the cheap classifier — never the speech model.
-      const raw = await complete(prompt, opts?.model || classifierModel, {
-        temperature: 0,
-        maxTokens: CLASSIFY_MAX_TOKENS,
-        responseFormat: "json_object",
-        timeoutMs: BACKGROUND_LLM_TIMEOUT_MS,
-      });
+      const raw = await classifyHedge.run(() =>
+        complete(prompt, opts?.model || classifierModel, {
+          temperature: 0,
+          maxTokens: CLASSIFY_MAX_TOKENS,
+          responseFormat: "json_object",
+          timeoutMs: BACKGROUND_LLM_TIMEOUT_MS,
+          fallbackModels: classifierFallbacks,
+        }),
+      );
 
       return parseTransitionIndex(raw, choices);
     },
@@ -179,12 +200,15 @@ export function createOpenAiVmLlm(options: OpenAiVmLlmOptions): VmLlm {
         },
       ];
 
-      const raw = await complete(prompt, opts?.model || classifierModel, {
-        temperature: 0,
-        maxTokens: EXTRACT_MAX_TOKENS,
-        responseFormat: "json_object",
-        timeoutMs: BACKGROUND_LLM_TIMEOUT_MS,
-      });
+      const raw = await extractHedge.run(() =>
+        complete(prompt, opts?.model || classifierModel, {
+          temperature: 0,
+          maxTokens: EXTRACT_MAX_TOKENS,
+          responseFormat: "json_object",
+          timeoutMs: BACKGROUND_LLM_TIMEOUT_MS,
+          fallbackModels: classifierFallbacks,
+        }),
+      );
 
       let parsed: unknown;
       try {

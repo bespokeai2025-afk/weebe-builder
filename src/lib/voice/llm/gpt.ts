@@ -113,6 +113,99 @@ export interface CerebrasBreaker {
   down: boolean;
 }
 
+/**
+ * Process-wide pause on Cerebras after a quota/rate-limit error.
+ *
+ * The per-call breaker above only helps the call that hit the error, and several paths
+ * (speculative speech, the flat prompt, post-call analysis) never pass one. An out-of-credit
+ * account (402) stays out of credit, so every new call — often every request — paid a failed
+ * Cerebras round trip before OpenAI answered: measured 1.4 s median to first token on live
+ * turns while the account returned 402. After one such error every request on this server goes
+ * straight to OpenAI for the cool-down, then Cerebras is tried again.
+ */
+export const CEREBRAS_QUOTA_COOLDOWN_MS = 10 * 60_000;
+let cerebrasDownUntil = 0;
+
+export function isCerebrasCoolingDown(now: number = Date.now()): boolean {
+  return now < cerebrasDownUntil;
+}
+
+function markCerebrasQuotaDown(message: string): void {
+  const alreadyDown = isCerebrasCoolingDown();
+  cerebrasDownUntil = Date.now() + CEREBRAS_QUOTA_COOLDOWN_MS;
+  if (!alreadyDown) {
+    console.warn(
+      `[voice-llm] Cerebras unavailable (${message.slice(0, 120)}) — using OpenAI for the next ` +
+        `${CEREBRAS_QUOTA_COOLDOWN_MS / 60_000} minutes. Top up Cerebras to restore the faster model.`,
+    );
+  }
+}
+
+/** Test hook. */
+export function resetCerebrasCooldownForTests(): void {
+  cerebrasDownUntil = 0;
+}
+
+function skipCerebras(options: GptStreamOptions): boolean {
+  return Boolean(options.breaker?.down) || isCerebrasCoolingDown();
+}
+
+/** The same request, moved to OpenAI with the model the caller chose for that case. */
+function onOpenAi(options: GptStreamOptions): GptStreamOptions {
+  const fallback = options.fallbackModels?.openai?.trim();
+  return { ...options, provider: "openai", model: fallback || options.model };
+}
+
+/**
+ * Models a provider has said it no longer serves, keyed `provider:model`, with the model used
+ * instead for the rest of this process.
+ *
+ * gpt-4.1-nano was retired by OpenAI and every routing call on it failed with model_not_found,
+ * leaving routing to its "stay on the node" fallback. A model id stored on an agent or a node
+ * outlives the provider's catalogue, so a retirement should cost one failed request per server,
+ * not one per turn.
+ */
+const retiredModels = new Map<string, string>();
+
+/** Test hook. */
+export function resetRetiredModelsForTests(): void {
+  retiredModels.clear();
+}
+
+function isModelUnavailableError(message: string): boolean {
+  return (
+    /\b(400|404)\b/.test(message) &&
+    /model_not_found|has been deprecated|does not exist|not_found_error/i.test(message)
+  );
+}
+
+/** Model id to send: the caller's choice on this provider, unless the provider retired it. */
+function requestModel(options: GptStreamOptions, auth: VoiceLlmAuth): string {
+  const requested = resolveTextModel(options.model, auth.provider);
+  return retiredModels.get(`${auth.provider}:${requested}`) ?? requested;
+}
+
+/**
+ * After a "model not found" error, record the replacement and say whether to retry. Only when the
+ * caller named one for this provider and it differs from what just failed — otherwise the error
+ * is real and surfaces as before.
+ */
+function noteRetiredModel(err: unknown, options: GptStreamOptions, auth: VoiceLlmAuth): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  if (!isModelUnavailableError(message)) return false;
+  const replacement = options.fallbackModels?.[auth.provider]?.trim();
+  if (!replacement) return false;
+  const failed = requestModel(options, auth);
+  const next = resolveTextModel(replacement, auth.provider);
+  if (!next || next === failed) return false;
+  retiredModels.set(`${auth.provider}:${failed}`, next);
+  console.warn(
+    `[voice-llm] ${auth.provider} no longer serves ${failed} — using ${next} instead on this server. ` +
+      `Update the agent's model setting.`,
+  );
+  return true;
+}
+
 export interface GptStreamOptions {
   model: string;
   apiKey: string;
@@ -128,6 +221,12 @@ export interface GptStreamOptions {
   responseFormat?: "json_object";
   /** See `CerebrasBreaker` — pass the same object for every call within one voice call. */
   breaker?: CerebrasBreaker;
+  /**
+   * Model to use on each provider when `model` cannot be used there: on OpenAI while Cerebras is
+   * unavailable (otherwise a Cerebras id maps to the speech default, gpt-4o-mini), and on either
+   * provider once it reports `model` retired. Routing passes its own classifier here.
+   */
+  fallbackModels?: Partial<Record<VoiceLlmProvider, string>>;
 }
 
 /**
@@ -146,22 +245,41 @@ export async function* gptStream(
     throw new Error("Voice LLM key missing — set OPENAI_API_KEY or CEREBRAS_API_KEY");
   }
 
-  // Already know Cerebras is down for this call — don't pay for a second failed attempt.
-  if (auth.provider === "cerebras" && options.breaker?.down) {
+  // Already know Cerebras is down (this call, or this server recently) — don't pay for another failed attempt.
+  let opts = options;
+  if (auth.provider === "cerebras" && skipCerebras(options)) {
     const fallback = resolveVoiceLlmAuth(options.apiKey, "openai");
-    if (fallback.apiKey) auth = fallback;
+    if (fallback.apiKey) {
+      auth = fallback;
+      opts = onOpenAi(options);
+    }
   }
 
   try {
-    yield* streamChat(messages, options, auth);
+    yield* streamChatServed(messages, opts, auth);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (!isCerebrasQuotaError(auth.provider, message)) throw err;
     const fallback = resolveVoiceLlmAuth(options.apiKey, "openai");
     if (!fallback.apiKey || fallback.provider === auth.provider) throw err;
-    console.warn(`[voice-llm] Cerebras unavailable (${message.slice(0, 120)}) — falling back to OpenAI`);
+    markCerebrasQuotaDown(message);
     if (options.breaker) options.breaker.down = true;
-    yield* streamChat(messages, { ...options, provider: "openai" }, fallback);
+    yield* streamChatServed(messages, onOpenAi(opts), fallback);
+  }
+}
+
+/** `streamChat`, retried once on the replacement when the provider has retired the model. */
+async function* streamChatServed(
+  messages: ChatMsg[],
+  options: GptStreamOptions,
+  auth: VoiceLlmAuth,
+): AsyncGenerator<string> {
+  try {
+    yield* streamChat(messages, options, auth);
+  } catch (err) {
+    // A retired model is refused before any token is sent, so nothing has been yielded yet.
+    if (!noteRetiredModel(err, options, auth)) throw err;
+    yield* streamChat(messages, options, auth);
   }
 }
 
@@ -171,7 +289,7 @@ function buildChatBody(
   auth: VoiceLlmAuth,
   stream: boolean,
 ): Record<string, unknown> {
-  const textModel = resolveTextModel(options.model, auth.provider);
+  const textModel = requestModel(options, auth);
   const body: Record<string, unknown> = { model: textModel, messages, stream };
   if (typeof options.temperature === "number") body.temperature = options.temperature;
   if (typeof options.maxTokens === "number") body.max_tokens = options.maxTokens;
@@ -282,20 +400,38 @@ export async function gptComplete(
   if (!auth.apiKey) {
     throw new Error("Voice LLM key missing — set OPENAI_API_KEY or CEREBRAS_API_KEY");
   }
-  if (auth.provider === "cerebras" && options.breaker?.down) {
+  let opts = options;
+  if (auth.provider === "cerebras" && skipCerebras(options)) {
     const fallback = resolveVoiceLlmAuth(options.apiKey, "openai");
-    if (fallback.apiKey) auth = fallback;
+    if (fallback.apiKey) {
+      auth = fallback;
+      opts = onOpenAi(options);
+    }
   }
 
   try {
-    return await completeOnce(messages, options, auth);
+    return await completeServed(messages, opts, auth);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (!isCerebrasQuotaError(auth.provider, message)) throw err;
     const fallback = resolveVoiceLlmAuth(options.apiKey, "openai");
     if (!fallback.apiKey || fallback.provider === auth.provider) throw err;
-    console.warn(`[voice-llm] Cerebras unavailable (${message.slice(0, 120)}) — falling back to OpenAI`);
+    markCerebrasQuotaDown(message);
     if (options.breaker) options.breaker.down = true;
-    return await completeOnce(messages, { ...options, provider: "openai" }, fallback);
+    return await completeServed(messages, onOpenAi(opts), fallback);
+  }
+}
+
+/** `completeOnce`, retried once on the replacement when the provider has retired the model. */
+async function completeServed(
+  messages: ChatMsg[],
+  options: GptStreamOptions,
+  auth: VoiceLlmAuth,
+): Promise<string> {
+  try {
+    return await completeOnce(messages, options, auth);
+  } catch (err) {
+    if (!noteRetiredModel(err, options, auth)) throw err;
+    return await completeOnce(messages, options, auth);
   }
 }

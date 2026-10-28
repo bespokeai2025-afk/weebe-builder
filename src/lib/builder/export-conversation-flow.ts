@@ -11,6 +11,7 @@ import {
   compileSpeechInstruction,
   responseModeFromInstruction,
 } from "../voice/graph/speech-mode.shared";
+import { withStandardCallOutcome } from "../voice/call-outcome.shared";
 
 /**
  * Map our builder graph to a full agent JSON with a nested
@@ -347,6 +348,10 @@ function orderLikeRaw<T extends Record<string, unknown>>(obj: T, keyOrder?: stri
 }
 
 function buildPostCallAnalysisData(raw: unknown, variables: BuilderVariable[]) {
+  return withStandardCallOutcome(buildAgentPostCallFields(raw, variables));
+}
+
+function buildAgentPostCallFields(raw: unknown, variables: BuilderVariable[]): Array<Record<string, unknown>> {
   if (!variables.length) return Array.isArray(raw) ? raw : [];
   const ALLOWED = new Set(["string", "number", "boolean", "enum", "system-presets"]);
   return variables
