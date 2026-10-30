@@ -561,7 +561,7 @@ export async function processWebformSubmission(opts: {
     // Fire any active lead_added workflows (Build Workspace / Workflow Engine)
     // that listen for webform intake. Best-effort — never fails the submission.
     try {
-      const { dispatchLeadAddedWorkflows } = await import("@/lib/workflow-engine/workflow-executor.server");
+      const { dispatchLeadAddedWorkflows } = await import("@/lib/automation-engine/plugins/workflow-steps/run-workspace-workflow.server");
       await dispatchLeadAddedWorkflows({
         workspaceId,
         leadId,

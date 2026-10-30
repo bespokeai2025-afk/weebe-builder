@@ -18,7 +18,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { routeGenerate } from "@/lib/growthmind/model-router.server";
 import { WBAH_POST_CALL_STEP_TYPES } from "@/lib/wbah/workflow/wbah-workflow-steps.shared";
 
-// ── Step whitelist (MUST mirror workflow-executor.server.ts switch) ────────────
+// ── Step whitelist (MUST mirror plugins/workflow-steps/workflow-step-handlers.server.ts) ──
 export const ALLOWED_STEP_TYPES = [
   "trigger",
   "update_lead_status",

@@ -272,8 +272,15 @@ export async function runWbahPostCallQueuePoller(limit = MAX_BATCH): Promise<{
   return { checked: (jobs ?? []).length, processed, failed, expired, errors };
 }
 
+/** A separate automation worker process runs queued jobs (src/lib/automation-engine/worker). */
+export function isAutomationWorkerEnabled(): boolean {
+  return /^(on|true|1|yes)$/i.test(String(process.env.AUTOMATION_WORKER ?? "").trim());
+}
+
 export function drainWbahPostCallQueueAsync(jobId: string | null): void {
   if (!jobId) return;
+  // With the worker running, the webhook only enqueues; the worker picks the job up within seconds.
+  if (isAutomationWorkerEnabled()) return;
   void processWbahPostCallJobById(jobId).catch((e) => {
     console.warn("[WBAH QUEUE] async drain failed:", e);
   });
@@ -468,6 +475,9 @@ export async function getWbahPostCallQueueStats(workspaceId: string): Promise<{
  * `live_transcript` only mirrors an in-progress call into the live session
  * table and means nothing once the call has ended.
  */
+/** How long the retry poller leaves a manually rerun job alone. */
+const RERUN_POLLER_HOLD_MS = 10 * 60_000;
+
 export const WBAH_RERUN_UNSAFE_STEP_IDS = ["calendly_invitee", "live_transcript"] as const;
 
 /**
@@ -522,7 +532,10 @@ export async function rerunWbahPostCallJob(
       branches: [],
       errors: [],
       last_error: null,
-      next_retry_at: null,
+      // NOT NULL in the table. Set ahead, not now: the rerun processes the job itself just below,
+      // and a due time of "now" would let the retry poller race it for the claim — and run it
+      // without the steps this rerun holds back.
+      next_retry_at: new Date(Date.now() + RERUN_POLLER_HOLD_MS).toISOString(),
       updated_at: new Date().toISOString(),
     })
     .eq("workspace_id", workspaceId)

@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import {
@@ -15,70 +15,36 @@ import {
   Trash2,
   ShieldCheck,
   Loader2,
-  Clock,
-  CalendarClock,
   PlayCircle,
   StickyNote,
-  Globe,
-  Building2,
-  Upload,
-  UserCog,
-  Plug,
-  Mail,
   MessageCircle,
-  MessageSquareText,
   Contact,
-  AlertTriangle,
   UserPlus,
   Sparkles,
 } from "lucide-react";
-import { deriveLeadOrigin, ORIGIN_FILTER_OPTIONS } from "@/lib/leads/lead-origin.shared";
+import { ORIGIN_FILTER_OPTIONS } from "@/lib/leads/lead-origin.shared";
 import { useState, useMemo, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeSentiment } from "@/lib/sentiment";
-import {
-  wbahAppointmentDate,
-  wbahAppointmentTime,
-  wbahBookingStatus,
-} from "@/lib/dashboard/wbah-appointment-display";
+import { wbahAppointmentDate, wbahAppointmentTime, wbahBookingStatus } from "@/lib/dashboard/wbah-appointment-display";
 import { Button } from "@/components/ui/button";
 import { SavedFiltersSection } from "@/components/people-views/SavedFiltersSection";
-import {
-  DashboardPage,
-  KpiCard,
-  MiniKpiCard,
-  SummaryTooltip,
-  stickyCell,
-  stickyHead,
-} from "@/components/dashboard/PageShell";
+import { DashboardPage, KpiCard, MiniKpiCard, SummaryTooltip, stickyCell, stickyHead } from "@/components/dashboard/PageShell";
 import { cn } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { AssignLeadsDialog } from "@/components/leads/AssignLeadsDialog";
 import { QuickDialerCallButton } from "@/components/leads/QuickDialerCallButton";
 import { getMyPermissions } from "@/lib/permissions/team-access.functions";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import {
   listLeads,
+  listLeadsPage,
   setLeadStatus,
   startQualificationCallsForLeads,
   scheduleQualificationCalls,
@@ -87,36 +53,15 @@ import {
   upsertLead,
 } from "@/lib/dashboard/leads.functions";
 import { pageLevelRank } from "@/lib/permissions/permissions.shared";
-import {
-  buildManualLeadPayload,
-  isManualLeadSubmittable,
-} from "@/lib/dashboard/manual-lead.shared";
-import {
-  LeadAiAssistantPanel,
-  type AssistantTarget,
-} from "@/components/leads/LeadAiAssistantPanel";
+import { buildManualLeadPayload, isManualLeadSubmittable } from "@/lib/dashboard/manual-lead.shared";
+import { LeadAiAssistantPanel, type AssistantTarget } from "@/components/leads/LeadAiAssistantPanel";
 import { useSalesAssistantAccess } from "@/hooks/useSalesAssistantAccess";
-import {
-  listWbahPositiveNeutralLeads,
-  getWbahContactCallHistory,
-  getWbahCallDetail,
-} from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
-import {
-  LEAD_STATUS_CATEGORIES,
-  leadMatchesStatusCategory,
-  isLeadStatusCategory,
-  type LeadStatusCategory,
-} from "@/lib/dashboard/lead-status-categories";
+import { getWbahContactCallHistory, getWbahCallDetail } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { LEAD_STATUS_CATEGORIES, isLeadStatusCategory, type LeadStatusCategory } from "@/lib/dashboard/lead-status-categories";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import { LeadEmailDialog } from "@/components/dashboard/LeadEmailDialog";
 import { PlayRecordingButton } from "@/components/RecordingPlayerDialog";
-import {
-  WbahNotesButton,
-  WbahBookedStickyBadge,
-  WbahCallCountBadge,
-  WbahCalendlyLink,
-  wbahAgentColorMapFromLeads,
-} from "@/components/dashboard/WbahNotesButton";
+import { WbahNotesButton, WbahBookedStickyBadge, WbahCallCountBadge, WbahCalendlyLink } from "@/components/dashboard/WbahNotesButton";
 import { WbahContactCallHistoryTable } from "@/components/dashboard/WbahContactCallHistoryTable";
 import type { WbahContactCallHistoryItem } from "@/lib/dashboard/wbah-call-history.types";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
@@ -125,16 +70,17 @@ import { getCampaignStats } from "@/lib/dashboard/campaigns.functions";
 import { getDashboardLiveAgents } from "@/lib/agents/agents.functions";
 import { CallSchedulingSection } from "@/components/dashboard/CallSchedulingSection";
 import { StartCallsDialog } from "@/components/dashboard/StartCallsDialog";
-import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
+import { TablePagBar, type PageSize } from "@/components/ui/table-pagination";
+import type { LeadPageRow, LeadsPageFilters, LeadsPageResult } from "@/lib/dashboard/leads-page.shared";
+import { buildWbahAgentColorMap } from "@/lib/dashboard/wbah-agent-colors";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
-import {
-  useWorkspaceAgentOptions,
-  rowMatchesAgent,
-  agentTypeLabel,
-} from "@/components/shared/AgentFilterSelect";
+import { useWorkspaceAgentOptions, agentTypeLabel } from "@/components/shared/AgentFilterSelect";
 import { wbahDateTimeOptions } from "@/lib/dashboard/wbah-timezone";
-
 import { formatCallMs as fmtDuration } from "@/lib/format/duration.shared";
+import { BookingFailedBadge, LeadSourceBadge, PreferredContactBadge, bookingStatusBadge, callStatusBadge, interestBadge, scoreBadge, sentimentBadge } from "@/components/leads/LeadBadges";
+import { STATUS_OPTIONS, filterToDates, fmtCallDate, fmtDate, statusDisplay } from "@/components/leads/leads-page-format";
+
 export const Route = createFileRoute("/_authenticated/leads/")({
   validateSearch: (search: Record<string, unknown>): { id?: string } => {
     const parsed = z.object({ id: z.string().uuid().optional() }).safeParse(search);
@@ -144,361 +90,12 @@ export const Route = createFileRoute("/_authenticated/leads/")({
   component: LeadsPage,
 });
 
-function fmtDate(d: string | null, isWbah = false) {
-  if (!d) return "—";
-  try {
-    return new Date(d).toLocaleString(undefined, wbahDateTimeOptions(isWbah));
-  } catch {
-    return d;
-  }
-}
-function fmtCallDate(iso: string | null | undefined, isWbah = false) {
-  if (!iso) return "Not called yet";
-  try {
-    return new Date(iso).toLocaleString(
-      undefined,
-      wbahDateTimeOptions(isWbah, {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    );
-  } catch {
-    return iso;
-  }
-}
-
-function sentimentBadge(s: string | null) {
-  if (!s) return null;
-  const tone: Record<string, "success" | "warning" | "danger" | "neutral"> = {
-    positive: "success",
-    neutral: "warning",
-    negative: "danger",
-  };
-  return (
-    <StatusBadge tone={tone[s] ?? "neutral"} size="sm">
-      {s}
-    </StatusBadge>
-  );
-}
-
-function scoreBadge(score: number | null) {
-  if (score == null) return <span className="text-muted-foreground">—</span>;
-  const color =
-    score >= 70
-      ? "text-emerald-600 dark:text-emerald-400"
-      : score >= 40
-        ? "text-amber-600 dark:text-amber-400"
-        : "text-red-600 dark:text-red-400";
-  return <span className={`font-semibold ${color}`}>{score}</span>;
-}
-
-function interestBadge(level: string | null) {
-  if (!level) return null;
-  const tone: Record<string, "success" | "warning" | "danger" | "neutral"> = {
-    high: "success",
-    medium: "warning",
-    low: "danger",
-  };
-  return (
-    <StatusBadge tone={tone[level] ?? "neutral"} size="sm">
-      {level}
-    </StatusBadge>
-  );
-}
-
-function callStatusBadge(status: string | null) {
-  if (!status) return <span className="text-muted-foreground text-[11px]">—</span>;
-  const tone: Record<string, "success" | "danger" | "orange" | "info" | "neutral"> = {
-    completed: "success",
-    failed: "danger",
-    no_answer: "orange",
-    initiated: "info",
-    in_progress: "info",
-  };
-  return (
-    <StatusBadge tone={tone[status] ?? "neutral"} size="sm" className="font-medium capitalize">
-      {status.replace(/_/g, " ")}
-    </StatusBadge>
-  );
-}
-
-function bookingStatusBadge(status: string | null) {
-  if (!status) return <span className="text-muted-foreground text-[11px]">—</span>;
-  const lower = status.toLowerCase();
-  const tone: Record<string, "success" | "warning" | "danger" | "neutral"> = {
-    booked: "success",
-    confirmed: "success",
-    success: "success",
-    pending: "warning",
-    cancelled: "danger",
-  };
-  return (
-    <StatusBadge tone={tone[lower] ?? "neutral"} size="sm" className="font-medium capitalize">
-      {status.replace(/_/g, " ")}
-    </StatusBadge>
-  );
-}
-
-// ── Lead origin / source indicators ─────────────────────────────────────────
-// Uses the canonical deriveLeadOrigin() — consistent across web + mobile.
-// Never branches on workspace identity; same renderer for every workspace.
-type LeadBadgeSpec = { Icon: typeof Globe; label: string; tone: string; tooltip: string };
-
-const ORIGIN_ICON_MAP: Record<string, typeof Globe> = {
-  whatsapp: MessageCircle,
-  voice_call: Phone,
-  web_form: Globe,
-  crm: Building2,
-  csv_import: Upload,
-  manual: UserCog,
-  api: Plug,
-  email: Mail,
-  sms: MessageSquareText,
-  campaign: BarChart3,
-  unknown: Contact,
-};
-
-function leadOriginBadgeSpec(lead: any): LeadBadgeSpec | null {
-  const origin = deriveLeadOrigin(lead);
-  if (origin === "unknown") return null; // hide badge for unknown
-
-  const Icon = ORIGIN_ICON_MAP[origin] ?? Contact;
-  const LABELS: Record<string, string> = {
-    whatsapp: "WhatsApp",
-    voice_call: "Voice",
-    web_form: "Web Form",
-    crm: "CRM",
-    csv_import: "CSV / Import",
-    manual: "Manual",
-    api: "API",
-    email: "Email",
-    sms: "SMS",
-    campaign: "Campaign",
-  };
-  const TONES: Record<string, string> = {
-    whatsapp: "text-emerald-400 bg-emerald-500/10",
-    voice_call: "text-blue-400 bg-blue-500/10",
-    web_form: "text-sky-400 bg-sky-500/10",
-    crm: "text-violet-400 bg-violet-500/10",
-    csv_import: "text-amber-400 bg-amber-500/10",
-    manual: "text-slate-400 bg-slate-500/10",
-    api: "text-emerald-400 bg-emerald-500/10",
-    email: "text-orange-400 bg-orange-500/10",
-    sms: "text-fuchsia-400 bg-fuchsia-500/10",
-    campaign: "text-pink-400 bg-pink-500/10",
-  };
-  const label = LABELS[origin] ?? origin;
-  const tone = TONES[origin] ?? "text-muted-foreground bg-muted/40";
-  const provider = lead.origin_provider ?? null;
-  const tooltip = provider ? `${label}\nvia ${provider}` : label;
-  return { Icon, label, tone, tooltip };
-}
-
-function LeadSourceBadge({ lead }: { lead: any }) {
-  const spec = leadOriginBadgeSpec(lead);
-  if (!spec) return null;
-  const { Icon, tooltip, tone } = spec;
-  return (
-    <span
-      title={tooltip}
-      className={cn("inline-flex shrink-0 items-center justify-center rounded p-0.5", tone)}
-    >
-      <Icon className="h-2.5 w-2.5" />
-    </span>
-  );
-}
-
-function preferredContactBadgeSpec(lead: any): LeadBadgeSpec | null {
-  const raw = String(
-    lead?.preferred_contact ??
-      lead?.preferred_contact_method ??
-      lead?.meta?.preferred_contact ??
-      lead?.meta?.preferred_contact_method ??
-      "",
-  )
-    .toLowerCase()
-    .trim();
-  if (!raw) return null;
-  if (raw === "phone" || raw === "call")
-    return { Icon: Phone, label: "Prefers phone", tone: "text-blue-400 bg-blue-500/10", tooltip: "Prefers phone" };
-  if (raw === "email")
-    return { Icon: Mail, label: "Prefers email", tone: "text-orange-400 bg-orange-500/10", tooltip: "Prefers email" };
-  if (raw === "whatsapp")
-    return {
-      Icon: MessageCircle,
-      label: "Prefers WhatsApp",
-      tone: "text-emerald-400 bg-emerald-500/10",
-      tooltip: "Prefers WhatsApp",
-    };
-  if (raw === "sms" || raw === "text")
-    return {
-      Icon: MessageSquareText,
-      label: "Prefers SMS",
-      tone: "text-fuchsia-400 bg-fuchsia-500/10",
-      tooltip: "Prefers SMS",
-    };
-  if (raw === "any" || raw === "no_preference")
-    return {
-      Icon: Contact,
-      label: "No contact preference",
-      tone: "text-slate-400 bg-slate-500/10",
-      tooltip: "No contact preference",
-    };
-  return null;
-}
-
-function PreferredContactBadge({
-  lead,
-  onEmailClick,
-}: {
-  lead: any;
-  onEmailClick?: (lead: any) => void;
-}) {
-  const spec = preferredContactBadgeSpec(lead);
-  if (!spec) return null;
-  const { Icon, label, tone } = spec;
-  const raw = String(
-    lead?.preferred_contact ??
-      lead?.preferred_contact_method ??
-      lead?.meta?.preferred_contact ??
-      lead?.meta?.preferred_contact_method ??
-      "",
-  )
-    .toLowerCase()
-    .trim();
-
-  if (raw === "email" && onEmailClick && lead?.email) {
-    return (
-      <button
-        type="button"
-        title={`${label} — click to email ${lead.email}`}
-        onClick={(e) => {
-          e.stopPropagation();
-          onEmailClick(lead);
-        }}
-        className={cn(
-          "inline-flex shrink-0 items-center justify-center rounded p-0.5 transition hover:ring-1 hover:ring-orange-400/60",
-          tone,
-        )}
-      >
-        <Icon className="h-2.5 w-2.5" />
-      </button>
-    );
-  }
-
-  return (
-    <span
-      title={label}
-      className={cn("inline-flex shrink-0 items-center justify-center rounded p-0.5", tone)}
-    >
-      <Icon className="h-2.5 w-2.5" />
-    </span>
-  );
-}
-
-// ── Booking failed — follow up (Ava web-call bookings that errored) ────────
-// Flag written by ava-web-call.server.ts: meta.booking_failed / booking_error.
-function BookingFailedBadge({ lead, detailed = false }: { lead: any; detailed?: boolean }) {
-  if (!lead?.meta?.booking_failed) return null;
-  const err =
-    typeof lead?.meta?.booking_error === "string" && lead.meta.booking_error.trim()
-      ? lead.meta.booking_error.trim()
-      : null;
-  return (
-    <StatusBadge
-      tone="danger"
-      icon={<AlertTriangle className="h-2.5 w-2.5" />}
-      title={err ? `Booking failed — follow up. Error: ${err}` : "Booking failed — follow up"}
-    >
-      {detailed ? "Booking failed — follow up" : "Booking failed"}
-    </StatusBadge>
-  );
-}
-
-const STATUS_OPTIONS = [
-  {
-    value: "interested",
-    label: "Open",
-    color: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 ring-emerald-500/20",
-  },
-  {
-    value: "qualified",
-    label: "Qualified",
-    color: "bg-violet-500/15 text-violet-600 dark:text-violet-400 ring-violet-500/20",
-  },
-  {
-    value: "callback_requested",
-    label: "Callback Requested",
-    color: "bg-amber-500/15 text-amber-600 dark:text-amber-400 ring-amber-500/20",
-  },
-  {
-    value: "need_to_call",
-    label: "Needs to Call",
-    color: "bg-sky-500/15 text-sky-600 dark:text-sky-400 ring-sky-500/20",
-  },
-  {
-    value: "not_interested",
-    label: "Closed",
-    color: "bg-red-500/15 text-red-600 dark:text-red-400 ring-red-500/20",
-  },
-  {
-    value: "completed",
-    label: "Completed",
-    color: "bg-blue-500/15 text-blue-600 dark:text-blue-400 ring-blue-500/20",
-  },
-  {
-    value: "no_answer",
-    label: "No Answer",
-    color: "bg-orange-500/15 text-orange-600 dark:text-orange-400 ring-orange-500/20",
-  },
-  {
-    value: "scheduled",
-    label: "Scheduled",
-    color: "bg-purple-500/15 text-purple-600 dark:text-purple-400 ring-purple-500/20",
-  },
-] as const;
-
-function statusDisplay(status: string | null) {
-  const opt = STATUS_OPTIONS.find((o) => o.value === status);
-  if (opt) return opt;
-  return {
-    value: status ?? "",
-    label: status?.replace(/_/g, " ") ?? "—",
-    color: "bg-muted text-muted-foreground ring-border",
-  };
-}
-
-function filterToDates(filter: string): { dateFrom?: string; dateTo?: string } {
-  if (filter === "all") return {};
-  if (filter === "today") {
-    const d = new Date();
-    const from = new Date(d);
-    from.setUTCHours(0, 0, 0, 0);
-    const to = new Date(d);
-    to.setUTCHours(23, 59, 59, 999);
-    return { dateFrom: from.toISOString(), dateTo: to.toISOString() };
-  }
-  if (filter === "yesterday") {
-    const d = new Date(Date.now() - 86_400_000);
-    const from = new Date(d);
-    from.setUTCHours(0, 0, 0, 0);
-    const to = new Date(d);
-    to.setUTCHours(23, 59, 59, 999);
-    return { dateFrom: from.toISOString(), dateTo: to.toISOString() };
-  }
-  const days = parseInt(filter, 10);
-  return isNaN(days) ? {} : { dateFrom: new Date(Date.now() - days * 86_400_000).toISOString() };
-}
-
 function LeadsPage() {
   const { id: requestedLeadId } = Route.useSearch();
   const navigate = Route.useNavigate();
   const qc = useQueryClient();
   const listLeadsFn = useServerFn(listLeads);
-  const listWbahPositiveNeutralLeadsFn = useServerFn(listWbahPositiveNeutralLeads);
+  const listLeadsPageFn = useServerFn(listLeadsPage);
   const setStatusFn = useServerFn(setLeadStatus);
   const getCampaignStatsFn = useServerFn(getCampaignStats);
   const getAgentsFn = useServerFn(getDashboardLiveAgents);
@@ -538,16 +135,6 @@ function LeadsPage() {
     return filterToDates(wbahDaysFilter);
   }, [wbahDaysFilter, leadsFrom, leadsTo]);
 
-  function leadDurationSeconds(l: any): number {
-    if (l?.retell_call?.duration_seconds != null)
-      return Number(l.retell_call.duration_seconds) || 0;
-    if (l?.meta?.duration_ms != null) return (Number(l.meta.duration_ms) || 0) / 1000;
-    return 0;
-  }
-  function leadCallStatus(l: any): string {
-    return String(l?.retell_call?.call_status ?? l?.meta?.call_status ?? "").toLowerCase();
-  }
-
   useEffect(() => {
     const stored = localStorage.getItem("wbahDaysFilter");
     if (stored) setWbahDaysFilter(stored);
@@ -573,10 +160,10 @@ function LeadsPage() {
     staleTime: 5 * 60_000,
     throwOnError: false,
   });
-  const canAssign = (myPermsQ.data as any)?.actionAccess?.lead_assignment === true;
+  const canAssign = myPermsQ.data?.actionAccess?.lead_assignment === true;
   // Creating a lead is an edit of the Leads page; there is no separate action
   // key for it, so gate on the page level the same way the rest of the app does.
-  const leadsLevel = String((myPermsQ.data as any)?.pageAccess?.leads ?? "hidden");
+  const leadsLevel = String(myPermsQ.data?.pageAccess?.leads ?? "hidden");
   const canCreateLead = pageLevelRank(leadsLevel) >= pageLevelRank("edit");
 
   const canUseAssistant = useSalesAssistantAccess();
@@ -610,7 +197,7 @@ function LeadsPage() {
     calls: WbahContactCallHistoryItem[];
   } | null>(null);
 
-  async function openCallHistory(lead: any) {
+  async function openCallHistory(lead: LeadPageRow) {
     const phone = lead.phone;
     if (!phone) return;
     setCallHistory({ name: lead.full_name ?? "Contact", phone, loading: true, calls: [] });
@@ -628,12 +215,12 @@ function LeadsPage() {
     }
   }
 
-  async function openHistoryTranscript(call: any) {
+  async function openHistoryTranscript(call: WbahContactCallHistoryItem) {
     if (!call?.id) return;
     setWbahTranscript("Loading transcript…");
     try {
       const d = await getCallDetailFn({ data: { id: String(call.id) } });
-      setWbahTranscript((d as any)?.transcript || "No transcript available.");
+      setWbahTranscript(d?.transcript || "No transcript available.");
     } catch {
       setWbahTranscript("Failed to load transcript.");
     }
@@ -643,7 +230,7 @@ function LeadsPage() {
   const [isWbah, setIsWbah] = useState(false);
   const [wsResolved, setWsResolved] = useState(false);
 
-  function openLeadPanel(lead: any) {
+  function openLeadPanel(lead: LeadPageRow) {
     setPanel({
       entityType: "lead",
       entityId: lead.id,
@@ -655,29 +242,56 @@ function LeadsPage() {
     });
   }
 
-  async function openWbahTranscriptFromLead(lead: any) {
+  async function openWbahTranscriptFromLead(lead: LeadPageRow) {
     if (!lead?.id) return;
     setWbahTranscript("Loading transcript…");
     try {
       const d = await getCallDetailFn({ data: { id: String(lead.id) } });
-      setWbahTranscript((d as any)?.transcript || "No transcript available.");
+      setWbahTranscript(d?.transcript || "No transcript available.");
     } catch {
       setWbahTranscript("Failed to load transcript.");
     }
   }
 
+  // One page at a time from the server, which applies every filter (leads-page.shared.ts).
+  const [leadsPage, setLeadsPage] = useState(1);
+  const [leadsPageSize, setLeadsPageSize] = useState<PageSize>(25);
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const pageFilters = useMemo<LeadsPageFilters>(
+    () => ({
+      search: debouncedSearch.trim() || undefined,
+      status: statusFilter || undefined,
+      statusCategory: leadStatusCat,
+      sentiment: sentimentFilter || undefined,
+      callStatus: callStatusFilter || undefined,
+      wbahAgent: wbahAgentFilter,
+      agent: !isWbah && selectedAgent
+        ? { id: selectedAgent.id, name: selectedAgent.name, retellAgentId: selectedAgent.retellAgentId ?? null }
+        : null,
+      minDurationSec: leadsDuration ? parseInt(leadsDuration, 10) || undefined : undefined,
+      outcome: (leadsOutcome || "") as LeadsPageFilters["outcome"],
+      ...(wbahDaysFilter !== "all" ? leadsDateRange : {}),
+      origin: originFilter || undefined,
+      quick: quickFilter || undefined,
+    }),
+    [
+      debouncedSearch, statusFilter, leadStatusCat, sentimentFilter, callStatusFilter, wbahAgentFilter,
+      isWbah, selectedAgent, leadsDuration, leadsOutcome, wbahDaysFilter, leadsDateRange, originFilter,
+      quickFilter,
+    ],
+  );
+  const pageFiltersKey = JSON.stringify(pageFilters);
+  useEffect(() => setLeadsPage(1), [pageFiltersKey]);
+
   const leadsQ = useQuery({
-    queryKey: ["leads-all", isWbah],
-    queryFn: () => {
-      // WBAH "Leads window" = already-called contacts whose latest call came back
-      // positive or neutral. For WBAH the server fn first refreshes the newest
-      // calls from WeeBespoke (incremental) before deriving, so this is LIVE on
-      // open. Date narrowing is applied client-side in `filtered`.
-      if (isWbah) return listWbahPositiveNeutralLeadsFn();
-      const { dateFrom, dateTo } = leadsDateRange;
-      return listLeadsFn({ data: { limit: 1000, dateFrom, dateTo } });
-    },
+    // "leads-all" prefix kept: mutations invalidate by it.
+    queryKey: ["leads-all", "page", isWbah, pageFiltersKey, leadsPage, leadsPageSize],
+    queryFn: () =>
+      listLeadsPageFn({ data: { filters: pageFilters, page: leadsPage, pageSize: leadsPageSize } }) as Promise<
+        LeadsPageResult
+      >,
     enabled: wsResolved,
+    placeholderData: keepPreviousData,
     staleTime: isWbah ? 180_000 : 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     refetchInterval: isWbah ? false : 5 * 60 * 1000,
@@ -724,25 +338,24 @@ function LeadsPage() {
     throwOnError: false,
   });
 
-  const leads = (leadsQ.data ?? []) as any[];
-  const requestedLead = ((requestedLeadQ.data ?? []) as any[])[0] ?? null;
+  const pageRows: LeadPageRow[] = leadsQ.data?.rows ?? [];
+  const matching = leadsQ.data?.matching ?? 0;
+  const summary = leadsQ.data?.summary;
+  const requestedLead = ((requestedLeadQ.data ?? []) as LeadPageRow[])[0] ?? null;
 
   useEffect(() => {
     if (!requestedLeadId || !requestedLead || panel) return;
     openLeadPanel(requestedLead);
   }, [panel, requestedLead, requestedLeadId]);
 
-  const wbahAgentNamesFromData = useMemo(
-    () => leads.map((l: any) => l.meta?.agent_name as string | undefined),
-    [leads],
-  );
+  const wbahAgentNamesFromData = useMemo(() => summary?.agentNames ?? [], [summary]);
   const { options: wbahAgentOptions } = useWbahAgentOptions(wbahAgentNamesFromData, isWbah);
   const stats = statsQ.data;
-  const allAgents = (agentsQ.data ?? []) as any[];
+  const allAgents = agentsQ.data ?? [];
   const qualAgents = allAgents
-    .filter((a: any) => a.agentType === "client_qualification")
-    .sort((a: any, b: any) => (b.defaultForLeads ? 1 : 0) - (a.defaultForLeads ? 1 : 0));
-  const scheduledCount = leads.filter((l: any) => l.status === "scheduled").length;
+    .filter((a) => a.agentType === "client_qualification")
+    .sort((a, b) => (b.defaultForLeads ? 1 : 0) - (a.defaultForLeads ? 1 : 0));
+  const scheduledCount = summary?.scheduled ?? 0;
 
   useEffect(() => {
     let active = true;
@@ -774,113 +387,24 @@ function LeadsPage() {
     };
   }, []);
 
-  const isRetell = useMemo(
-    () => !isWbah && leads.some((l: any) => l.retell_call != null),
-    [leads, isWbah],
-  );
+  const isRetell = summary?.isRetell ?? false;
 
-  const filtered = leads.filter((l: any) => {
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      if (
-        !(
-          (l.full_name ?? "").toLowerCase().includes(q) ||
-          (l.phone ?? "").includes(q) ||
-          (l.email ?? "").toLowerCase().includes(q) ||
-          (l.company_name ?? "").toLowerCase().includes(q)
-        )
-      )
-        return false;
-    }
-    if (statusFilter && l.status !== statusFilter) return false;
-    if (!leadMatchesStatusCategory(l.status, leadStatusCat)) return false;
-    if (sentimentFilter && normalizeSentiment(l.sentiment) !== sentimentFilter) return false;
-    if (callStatusFilter) {
-      const cs = isRetell ? l.retell_call?.call_status : isWbah ? l.meta?.call_status : null;
-      if (cs !== callStatusFilter) return false;
-    }
-    if (wbahAgentFilter !== "all" && (l.meta?.agent_name ?? "") !== wbahAgentFilter) return false;
-    if (
-      !isWbah &&
-      selectedAgent &&
-      !rowMatchesAgent(selectedAgent, {
-        agentId: l.agent_id ?? l.meta?.agent_id,
-        agentName: l.meta?.agent_name,
-      })
-    )
-      return false;
-    // Call duration greater than N minutes.
-    if (leadsDuration) {
-      const minDur = parseInt(leadsDuration, 10);
-      if (minDur > 0 && leadDurationSeconds(l) < minDur) return false;
-    }
-    // Call outcome: successful = completed / positive; unsuccessful = failed/no-answer/busy/negative.
-    if (leadsOutcome === "successful") {
-      const cs = leadCallStatus(l);
-      const ok = cs === "completed" || normalizeSentiment(l.sentiment) === "positive";
-      if (!ok) return false;
-    }
-    if (leadsOutcome === "unsuccessful") {
-      const cs = leadCallStatus(l);
-      const bad =
-        ["failed", "no_answer", "busy", "not_connected"].includes(cs) ||
-        normalizeSentiment(l.sentiment) === "negative";
-      if (!bad) return false;
-    }
-    // Date range (applies to all leads; "custom" = Between).
-    if (wbahDaysFilter !== "all") {
-      const { dateFrom, dateTo } = leadsDateRange;
-      if (dateFrom || dateTo) {
-        const dateStr = l.meta?.last_called_at ?? l.last_contacted_at ?? l.created_at ?? null;
-        if (!dateStr) return false;
-        const ts = new Date(dateStr).getTime();
-        if (isNaN(ts)) return false;
-        if (dateFrom && ts < new Date(dateFrom).getTime()) return false;
-        if (dateTo && ts > new Date(dateTo).getTime()) return false;
-      }
-    }
-    if (originFilter && deriveLeadOrigin(l) !== originFilter) return false;
-    if (quickFilter) {
-      const ns = normalizeSentiment(l.sentiment);
-      const st = l.status;
-      switch (quickFilter) {
-        case "before_call":
-          if (st !== "need_to_call") return false;
-          break;
-        case "after_call":
-          if (st === "need_to_call") return false;
-          break;
-        case "positive":
-          if (ns !== "positive") return false;
-          break;
-        case "neutral":
-          if (ns !== "neutral") return false;
-          break;
-        case "partial_qualified":
-          if (!l.meta?.partial_qualified) return false;
-          break;
-        case "disqualified":
-          if (st !== "not_interested") return false;
-          break;
-        case "callback":
-          if (!(l.callback_date || st === "callback_requested")) return false;
-          break;
-        case "not_called":
-          if (st !== "not_connected") return false;
-          break;
-        case "buzzchat_replied":
-          if (!l.has_buzzchat_reply) return false;
-          break;
-      }
-    }
-    return true;
-  });
-
-  const leadsPag = useTablePagination(filtered);
+  const leadsPag = {
+    page: leadsQ.data?.page ?? leadsPage,
+    pageSize: leadsPageSize,
+    totalPages: Math.max(1, Math.ceil(matching / leadsPageSize)),
+    total: matching,
+    sliced: pageRows,
+    setPage: setLeadsPage,
+    changePageSize: (size: PageSize) => {
+      setLeadsPageSize(size);
+      setLeadsPage(1);
+    },
+  };
 
   const wbahAgentColorMap = useMemo(
-    () => (isWbah ? wbahAgentColorMapFromLeads(leads) : new Map()),
-    [isWbah, leads],
+    () => (isWbah ? buildWbahAgentColorMap(summary?.bookedAgentNames ?? []) : new Map()),
+    [isWbah, summary],
   );
 
   useEffect(() => {
@@ -892,22 +416,6 @@ function LeadsPage() {
       window.location.reload();
     }
   }, [leadsQ.isError]);
-
-  useEffect(() => {
-    if (!isWbah || !import.meta.env.DEV) return;
-    const pos = leads.filter((l: any) => normalizeSentiment(l.sentiment) === "positive").length;
-    const neu = leads.filter((l: any) => normalizeSentiment(l.sentiment) === "neutral").length;
-    const neg = leads.filter((l: any) => normalizeSentiment(l.sentiment) === "negative").length;
-    const unk = leads.filter((l: any) => normalizeSentiment(l.sentiment) === "unknown").length;
-    console.log(
-      "[WBAH Leads] total=%d positive=%d neutral=%d negative=%d unknown=%d",
-      leads.length,
-      pos,
-      neu,
-      neg,
-      unk,
-    );
-  }, [isWbah, leads]);
 
   const hasLeadFilters =
     search.trim() ||
@@ -923,13 +431,10 @@ function LeadsPage() {
     agentFilter !== "all" ||
     originFilter;
 
-  const positive = leads.filter((l: any) => normalizeSentiment(l.sentiment) === "positive").length;
-  const withScore = leads.filter((l: any) => l.lead_score != null);
-  const avgScore =
-    withScore.length > 0
-      ? Math.round(withScore.reduce((a: number, l: any) => a + l.lead_score, 0) / withScore.length)
-      : null;
-  const meetingsReq = leads.filter((l: any) => l.meeting_requested).length;
+  const totalLeads = summary?.total ?? 0;
+  const positive = summary?.positive ?? 0;
+  const avgScore = summary?.avgScore ?? null;
+  const meetingsReq = summary?.meetingsRequested ?? 0;
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
@@ -940,11 +445,25 @@ function LeadsPage() {
     });
   }
 
-  function toggleSelectAll() {
-    if (selectedIds.size === filtered.length) {
+  const allMatchingSelected = matching > 0 && selectedIds.size === matching;
+
+  /** Select every lead matching the filters, across all pages. */
+  async function toggleSelectAll() {
+    if (allMatchingSelected) {
       setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(filtered.map((l: any) => l.id)));
+      return;
+    }
+    try {
+      const res = (await listLeadsPageFn({ data: { filters: pageFilters, idsOnly: true } })) as {
+        ids: string[];
+        matching: number;
+      };
+      setSelectedIds(new Set(res.ids));
+      if (res.ids.length < res.matching) {
+        toast.info(`Selected the first ${res.ids.length.toLocaleString()} of ${res.matching.toLocaleString()} leads`);
+      }
+    } catch (e) {
+      toast.error("Could not select all leads", { description: (e as Error).message });
     }
   }
 
@@ -979,8 +498,8 @@ function LeadsPage() {
         },
       });
       const limitMsg =
-        (result as any).limitReached > 0 ? ` · ${(result as any).limitReached} at daily limit` : "";
-      const firstError = (result as any).errors?.[0]?.message as string | undefined;
+        result.limitReached > 0 ? ` · ${result.limitReached} at daily limit` : "";
+      const firstError = result.errors?.[0]?.message;
       const failMsg =
         result.failed > 0
           ? `${result.failed} failed${firstError ? ` — ${firstError}` : ""}${limitMsg}`
@@ -1037,7 +556,7 @@ function LeadsPage() {
         toast.info("No scheduled calls are due yet");
       } else {
         toast.success(`Fired ${result.fired} scheduled call${result.fired !== 1 ? "s" : ""}`, {
-          description: (result as any).failed > 0 ? `${(result as any).failed} failed` : undefined,
+          description: (result.failed ?? 0) > 0 ? `${result.failed} failed` : undefined,
         });
       }
       qc.invalidateQueries({ queryKey: ["leads-all"] });
@@ -1171,7 +690,7 @@ function LeadsPage() {
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <KpiCard
           label="Total Leads"
-          value={leads.length}
+          value={totalLeads}
           icon={Users}
           iconBg="bg-blue-500/15"
           iconColor="text-blue-400"
@@ -1182,7 +701,7 @@ function LeadsPage() {
           icon={TrendingUp}
           iconBg="bg-emerald-500/15"
           iconColor="text-emerald-400"
-          hint={leads.length > 0 ? `${Math.round((positive / leads.length) * 100)}%` : undefined}
+          hint={totalLeads > 0 ? `${Math.round((positive / totalLeads) * 100)}%` : undefined}
         />
         <KpiCard
           label="Avg Lead Score"
@@ -1247,7 +766,7 @@ function LeadsPage() {
               {isWbah ? "Positive / Neutral Leads" : "Lead Records"}
               {hasLeadFilters && (
                 <span className="ml-2 normal-case text-xs font-normal text-muted-foreground tracking-normal">
-                  {filtered.length} matching
+                  {matching.toLocaleString()} matching
                 </span>
               )}
               {selectedIds.size > 0 && (
@@ -1469,13 +988,13 @@ function LeadsPage() {
               );
             })}
             <span className="ml-auto text-[11px] text-muted-foreground">
-              {filtered.length} shown
+              {matching.toLocaleString()} shown
             </span>
           </div>
           <div className="p-0">
             {leadsQ.isLoading || !wsResolved ? (
               <LoadingProgress label="Loading leads" estimatedMs={8000} />
-            ) : filtered.length === 0 ? (
+            ) : matching === 0 ? (
               <div className="flex flex-col items-center gap-2 py-10 text-center">
                 <Users className="h-8 w-8 text-muted-foreground" />
                 <p className="text-sm font-medium">No leads yet</p>
@@ -1491,7 +1010,7 @@ function LeadsPage() {
                     <tr className="border-b border-border dark:border-white/[0.06] bg-card/30">
                       <th className={cn("px-2 py-1 w-8", isWbah && cn(stickyHead, "left-0"))}>
                         <Checkbox
-                          checked={selectedIds.size === filtered.length && filtered.length > 0}
+                          checked={allMatchingSelected}
                           onCheckedChange={toggleSelectAll}
                         />
                       </th>
@@ -1587,7 +1106,7 @@ function LeadsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {leadsPag.sliced.map((lead: any) => (
+                    {leadsPag.sliced.map((lead) => (
                       <tr
                         key={lead.id}
                         className={`group h-8 border-b border-border/60 dark:border-white/[0.04] align-middle hover:bg-muted/40 dark:hover:bg-white/[0.02] transition-colors ${selectedIds.has(lead.id) ? "bg-blue-500/5" : ""}`}
@@ -1787,7 +1306,7 @@ function LeadsPage() {
                             <td className="px-2 py-0.5">
                               {lead.retell_call?.transcript ? (
                                 <button
-                                  onClick={() => setWbahTranscript(lead.retell_call.transcript)}
+                                  onClick={() => setWbahTranscript(lead.retell_call?.transcript ?? null)}
                                   className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-violet-400/80 hover:text-violet-400 hover:bg-violet-500/10 border border-violet-500/20 transition-colors whitespace-nowrap"
                                 >
                                   <span>Transcript</span>
@@ -1809,7 +1328,7 @@ function LeadsPage() {
                               {callStatusBadge(lead.meta?.call_status)}
                             </td>
                             <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">
-                              {fmtDuration(lead.meta?.duration_ms)}
+                              {fmtDuration(lead.meta?.duration_ms ?? null)}
                             </td>
                             <td className="px-2 py-0.5">
                               {lead.meta?.recording_url ? (
@@ -1836,7 +1355,7 @@ function LeadsPage() {
                                 )
                               ) : lead.call_summary ? (
                                 <button
-                                  onClick={() => setWbahTranscript(lead.call_summary)}
+                                  onClick={() => setWbahTranscript(lead.call_summary ?? null)}
                                   className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-violet-400/80 hover:text-violet-400 hover:bg-violet-500/10 border border-violet-500/20 transition-colors whitespace-nowrap"
                                 >
                                   <span>Transcript</span>
@@ -1918,6 +1437,7 @@ function LeadsPage() {
                   total={leadsPag.total}
                   setPage={leadsPag.setPage}
                   changePageSize={leadsPag.changePageSize}
+                  loading={leadsQ.isFetching}
                 />
               </div>
             )}

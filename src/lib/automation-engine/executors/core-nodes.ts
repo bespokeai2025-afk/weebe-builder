@@ -205,61 +205,44 @@ export async function executeCoreFunction(ctx: NodeContext): Promise<NodeResult>
   const code = String(ctx.config.code ?? "").trim();
   if (!code) return passthrough(ctx);
 
-  // `new Function` runs in the server process with its globals, `process.env` (every secret,
-  // including the database service key) among them, and anyone who can edit a workflow can write
-  // the code. Off unless the server opts in, until code runs in a real sandbox. No production
-  // workflow ran a code node as of October 2026.
+  // Runs in QuickJS/WebAssembly with a memory cap and a deadline — see sandbox/run-code.server.ts.
+  // AUTOMATION_CODE_NODES=off turns code nodes off on a server.
   if (!codeNodesEnabled()) {
     return {
       status: "error",
       error: {
-        message:
-          "Code nodes are turned off on this server: custom JavaScript cannot run safely yet. Use a condition, switch or HTTP step instead.",
+        message: "Code nodes are turned off on this server (AUTOMATION_CODE_NODES=off).",
         code: "CODE_NODES_DISABLED",
         retryable: false,
       },
     };
   }
 
-  try {
-    const fn = new Function(
-      "items",
-      "$input",
-      "$json",
-      "$vars",
-      `"use strict"; ${code}`,
-    );
-    const result = fn(
-      [{ json: ctx.input.json }],
-      ctx.input,
-      ctx.input.json,
-      ctx.variables,
-    );
-    if (result && typeof result === "object" && "json" in (result as object)) {
-      return success((result as { json: Record<string, unknown> }).json);
-    }
-    if (Array.isArray(result) && result[0]?.json) {
-      return success(result[0].json as Record<string, unknown>);
-    }
-    if (result && typeof result === "object") {
-      return success(result as Record<string, unknown>);
-    }
-    return success({ ...ctx.input.json, _functionResult: result });
-  } catch (e) {
-    return {
-      status: "error",
-      error: {
-        message: e instanceof Error ? e.message : String(e),
-        code: "FUNCTION_ERROR",
-        retryable: false,
-      },
-    };
+  const { runSandboxedCode } = await import("../sandbox/run-code.server");
+  const run = await runSandboxedCode(code, {
+    json: ctx.input.json,
+    trigger: ctx.input.trigger,
+    variables: ctx.variables,
+  });
+  if (!run.ok) {
+    return { status: "error", error: { message: run.error, code: "FUNCTION_ERROR", retryable: false } };
   }
+  const result = run.value as any;
+  if (result && typeof result === "object" && "json" in result) {
+    return success(result.json as Record<string, unknown>);
+  }
+  if (Array.isArray(result) && result[0]?.json) {
+    return success(result[0].json as Record<string, unknown>);
+  }
+  if (result && typeof result === "object" && !Array.isArray(result)) {
+    return success(result as Record<string, unknown>);
+  }
+  return success({ ...ctx.input.json, _functionResult: result });
 }
 
 function codeNodesEnabled(): boolean {
   const raw = typeof process !== "undefined" ? String(process.env?.AUTOMATION_CODE_NODES ?? "") : "";
-  return /^(on|true|1|yes)$/i.test(raw.trim());
+  return !/^(off|false|0|no)$/i.test(raw.trim());
 }
 
 export async function executeCoreMerge(ctx: NodeContext): Promise<NodeResult> {

@@ -204,3 +204,49 @@ export function withinBudget(rows: CallTurnRow[], budgetMs = LATENCY_BUDGET_MS) 
   const within = vals.filter((v) => v <= budgetMs).length;
   return { measured: vals.length, within, share: within / vals.length, budgetMs };
 }
+
+/** Response time for one step of a flow, for the builder canvas. */
+export type NodeLatency = {
+  nodeId: string;
+  turns: number;
+  p50: number;
+  p90: number;
+  /** Share of turns where a language model chose the next step (the slow routing path). */
+  modelRoutedShare: number;
+  /** Median size of the prompt sent for this step, in characters, when recorded. */
+  promptCharsP50: number | null;
+};
+
+/** Per-step response time — the same number the Latency page shows: speech end → first audio. */
+export function nodeLatencySummary(
+  rows: Array<
+    Pick<CallTurnRow, "node_id" | "speech_to_first_audio_ms" | "stt_to_first_audio_ms" | "edge_route_method"> & {
+      prompt_chars?: number | null;
+    }
+  >,
+): NodeLatency[] {
+  const byNode = new Map<string, typeof rows>();
+  for (const r of rows) {
+    if (!r.node_id) continue;
+    const list = byNode.get(r.node_id) ?? [];
+    list.push(r);
+    byNode.set(r.node_id, list);
+  }
+  const out: NodeLatency[] = [];
+  for (const [nodeId, list] of byNode) {
+    const ms = percentiles(
+      list.map((r) => r.speech_to_first_audio_ms ?? r.stt_to_first_audio_ms).filter((v): v is number => typeof v === "number"),
+    );
+    if (!ms) continue;
+    const prompt = percentiles(list.map((r) => r.prompt_chars).filter((v): v is number => typeof v === "number"));
+    out.push({
+      nodeId,
+      turns: ms.count,
+      p50: ms.p50,
+      p90: ms.p90,
+      modelRoutedShare: list.filter((r) => r.edge_route_method === "llm").length / list.length,
+      promptCharsP50: prompt ? prompt.p50 : null,
+    });
+  }
+  return out.sort((a, b) => b.p50 - a.p50);
+}

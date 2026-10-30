@@ -3025,62 +3025,6 @@ export const listWbahCallbacks = createServerFn({ method: "POST" })
 // Reads from the standard `leads` table filtered by source_detail="webespoke_enterprise"
 // and excludes CRM contact rows (wbah_source="crm"). This gives the 1568 seller leads.
 
-export const listWbahLeadsForPeople = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { supabase, workspaceId } = context;
-    if (!workspaceId) throw new Error("No active workspace");
-    return cacheWrap(`webee:wbah-people-leads:${workspaceId}`, 60, async () => {
-      const sb = supabase as any;
-      const PAGE = 1000;
-      const all: any[] = [];
-      let from = 0;
-      while (true) {
-        const { data, error } = await sb
-          .from("leads")
-          .select("id, full_name, phone, email, created_at, meta, call_summary, callback_date")
-          .eq("workspace_id", workspaceId)
-          .eq("source", "import")
-          .eq("source_detail", "webespoke_enterprise")
-          .order("created_at", { ascending: false })
-          .range(from, from + PAGE - 1);
-        if (error) throw new Error(error.message);
-        const rows: any[] = data ?? [];
-        // exclude CRM contact rows (wbah_source = "crm")
-        const sellers = rows.filter((r: any) => r.meta?.wbah_source !== "crm");
-        all.push(...sellers);
-        if (rows.length < PAGE) break;
-        from += PAGE;
-      }
-      console.log(`[WBAH people] leads from DB: ${all.length}`);
-      return all.map((r: any, idx: number) => ({
-        id: r.id,
-        srNo: idx + 1,
-        name: r.full_name,
-        contact: r.phone,
-        email: r.email,
-        callType: "Lead",
-        callStatus: r.meta?.call_status ?? null,
-        sentimentAnalysis: r.meta?.last_call_sentiment ?? null,
-        disconnectionReason: r.meta?.disconnection_reason ?? null,
-        appointmentDate: r.meta?.appointment_date ?? null,
-        appointmentTime: r.meta?.appointment_time ?? null,
-        bookingStatus: r.meta?.booking_status ?? null,
-        calendlyBookingUrl: r.meta?.calendly_booking_url ?? null,
-        agentName: r.meta?.agent_name ?? r.meta?.assigned_agent ?? null,
-        startTimestamp: r.meta?.start_timestamp
-          ? Number(r.meta.start_timestamp)
-          : r.meta?.last_called_at
-            ? new Date(r.meta.last_called_at).getTime()
-            : null,
-        durationMs: r.meta?.duration_ms ? Number(r.meta.duration_ms) : null,
-        recordingUrl: r.meta?.recording_url ?? null,
-        transcript: r.meta?.transcript ?? r.call_summary ?? null,
-        endReason: r.meta?.end_reason ?? null,
-      }));
-    });
-  });
-
 // ── WBAH Positive / Neutral Leads (derived live from wbah_calls) ──────────────
 // The "Leads" window shows every contact who has ALREADY been called and whose
 // most-recent call came back positive or neutral — one row per contact (their
@@ -3090,109 +3034,19 @@ export const listWbahLeadsForPeople = createServerFn({ method: "GET" })
 // appear in both this window and the Rebooking tab.
 
 // A neutral call must last longer than this to count as "partial qualified".
-const WBAH_PARTIAL_QUALIFIED_MIN_SECONDS = 5 * 60; // 5 minutes
+export const WBAH_PARTIAL_QUALIFIED_MIN_SECONDS = 5 * 60; // 5 minutes
 
 export const listWbahPositiveNeutralLeads = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const t0 = Date.now();
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
     requireActiveWbahWorkspace(workspaceId);
     void refreshWbahLiveData(workspaceId, { lightBackfill: true });
-
-    const { byPhone, crmBookingByDigits } = await getWbahCallsAggregate(workspaceId);
-
-    const sentRank = (s: string) =>
-      s === "positive" ? 3 : s === "neutral" ? 2 : s === "negative" ? 1 : 0;
-    const posNeu: any[] = [];
-    for (const calls of byPhone.values()) {
-      // Latest-first (rows already ordered, but be explicit).
-      calls.sort(
-        (a, b) => (Date.parse(b.started_at ?? "") || 0) - (Date.parse(a.started_at ?? "") || 0),
-      );
-      // Definitive outcome = best sentiment across all the contact's calls.
-      let main = calls[0];
-      let best = sentRank(String(calls[0].sentiment ?? "").toLowerCase());
-      for (const c of calls) {
-        const r = sentRank(String(c.sentiment ?? "").toLowerCase());
-        if (r > best) {
-          best = r;
-          main = c;
-        } // first (latest) call at the best rank
-      }
-      const definitive = String(main.sentiment ?? "").toLowerCase();
-      if (definitive !== "positive" && definitive !== "neutral") continue;
-      main.__callCount = calls.length;
-      posNeu.push(main);
-    }
-
-    // Transcripts are heavy — pull them only for the kept contacts, chunked to
-    // stay under PostgREST's row cap. call_summary is small and returned for the
-    // Summary column; full transcript stays on-demand via getWbahCallDetail.
-    const summaryById = new Map<string, string | null>();
-    const hasTranscriptById = new Map<string, boolean>();
-    const ids = posNeu.map((c) => c.id).filter(Boolean);
-    for (let i = 0; i < ids.length; i += 500) {
-      const chunk = ids.slice(i, i + 500);
-      const { data: trows } = await (supabaseAdmin as any)
-        .from("wbah_calls")
-        .select("id, transcript, call_summary")
-        .in("id", chunk);
-      for (const t of (trows ?? []) as any[]) {
-        const summary =
-          t.call_summary && String(t.call_summary).trim() ? String(t.call_summary).trim() : null;
-        summaryById.set(t.id, summary);
-        hasTranscriptById.set(t.id, !!(t.transcript && String(t.transcript).trim()));
-      }
-    }
-
-    console.log(`[WBAH leads] positive/neutral called contacts: ${posNeu.length}`);
-
-    return posNeu.map((c) => {
-      const phoneKey = phoneDigits(c.phone) || `id:${c.id}`;
-      const calls = byPhone.get(phoneKey) ?? [c];
-      const bookingCall = findWbahBookingCall(calls);
-      const crm = phoneDigits(c.phone) ? crmBookingByDigits.get(phoneDigits(c.phone)) : null;
-      const appt = resolveWbahBookingFields(c, bookingCall, crm);
-      const startedIso: string | null = c.started_at ?? null;
-      const summary = summaryById.get(c.id) ?? null;
-      const sentiment = String(c.sentiment ?? "").toLowerCase() || null;
-      const durationSec = Number(c.duration_seconds ?? 0);
-      const partialQualified =
-        sentiment === "neutral" && durationSec > WBAH_PARTIAL_QUALIFIED_MIN_SECONDS;
-      return {
-        id: c.id,
-        full_name: c.customer_name ?? "Unknown",
-        company_name: null,
-        phone: c.phone ?? null,
-        email: null,
-        sentiment,
-        lead_score: null,
-        interest_level: null,
-        status: null,
-        call_summary: summary,
-        next_action: null,
-        last_contacted_at: startedIso,
-        created_at: startedIso,
-        meta: {
-          last_called_at: startedIso,
-          call_status: c.call_status ?? null,
-          duration_ms: c.duration_seconds != null ? Number(c.duration_seconds) * 1000 : null,
-          recording_url: c.recording_url ?? null,
-          appointment_date: appt.appointment_date ?? null,
-          appointment_time: appt.appointment_time ?? null,
-          booking_status: appt.booking_status ?? null,
-          end_reason: c.end_reason ?? null,
-          disconnection_reason: c.disconnection_reason ?? null,
-          calendly_booking_url: appt.calendly_booking_url ?? null,
-          agent_name: appt.agent_name ?? c.agent_name ?? null,
-          partial_qualified: partialQualified,
-          call_count: c.__callCount ?? 1,
-          has_transcript: hasTranscriptById.get(c.id) ?? false,
-        },
-      };
-    });
+    const { buildWbahPositiveNeutralLeadRows, attachWbahLeadCallText } = await import("./wbah-leads-page.server");
+    const rows = await buildWbahPositiveNeutralLeadRows(workspaceId);
+    console.log(`[WBAH leads] positive/neutral called contacts: ${rows.length}`);
+    return attachWbahLeadCallText(rows);
   });
 
 // ── WBAH Qualified Leads (derived live from wbah_calls) ───────────────────────

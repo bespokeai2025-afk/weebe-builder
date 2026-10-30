@@ -161,8 +161,9 @@ export function WorkflowEnginePage() {
   async function handleTrigger(id: string) {
     setTriggeringId(id);
     try {
-      const { run_id } = await triggerFn({ data: { workflow_id: id } });
-      toast.success("Workflow triggered", { description: `Run ${run_id.slice(0, 8)}…` });
+      const { run_id, error } = await triggerFn({ data: { workflow_id: id } });
+      if (error) toast.error("Workflow run failed", { description: `Run ${run_id.slice(0, 8)}… — ${error}` });
+      else toast.success("Workflow ran", { description: `Run ${run_id.slice(0, 8)}…` });
       qc.invalidateQueries({ queryKey: ["workflow-runs"] });
       qc.invalidateQueries({ queryKey: ["workspace-workflows"] });
     } catch (e: any) {

@@ -239,7 +239,7 @@ describe("SystemMind — workflow depth adapter", () => {
   it("single resolved workflow → awaiting_action_approval, snapshot artifact attached", async () => {
     const { sb, inserted } = makeSb({
       workspace_workflows: [{ id: "w1", name: "Lead intake", status: "active", flow_definition: { nodes: [{}, {}] }, updated_at: "2026-07-20" }],
-      workflow_runs: [{ id: "r1", status: "failed", created_at: "2026-07-25" }],
+      automation_workflow_executions: [{ id: "r1", status: "failed", created_at: "2026-07-25" }],
       mind_task_executions: [],
       hivemind_actions: [],
     });

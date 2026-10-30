@@ -432,7 +432,7 @@ describe("Contract matrix — Workflow depth review (SystemMind)", () => {
   it("B–E: universal contracts hold — 4 stages, Apply stage blocked + sensitive", async () => {
     const { sb, inserted } = makeSb({
       workspace_workflows: { rows: [{ id: "w1", name: "Lead intake", status: "active", flow_definition: { nodes: [{}, {}] }, updated_at: "2026-07-20" }] },
-      workflow_runs: { rows: [{ id: "r1", status: "completed", created_at: "2026-07-25" }] },
+      automation_workflow_executions: { rows: [{ id: "r1", status: "completed", created_at: "2026-07-25" }] },
       work_orders: { rows: [] },
       hivemind_tasks: { rows: [] },
     });

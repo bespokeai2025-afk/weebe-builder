@@ -356,7 +356,7 @@ export async function createWorkflowDepthWorkOrderCore(
   const workflowResolved = !!wf;
 
   const { data: runRows } = wf
-    ? await sb.from("workflow_runs")
+    ? await sb.from("automation_workflow_executions")
         .select("id, status, created_at")
         .eq("workspace_id", workspaceId)
         .eq("workflow_id", wf.id)

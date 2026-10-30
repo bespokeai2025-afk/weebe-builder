@@ -21,7 +21,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { checkWebuyanyhouseWorkspace } from "@/lib/integrations/webespokeEnterprise/wbah.functions";
 import { getMyContext } from "@/lib/workspace/workspace.functions";
 
-import { getOverviewStats, listLeads }               from "@/lib/dashboard/leads.functions";
+import { getOverviewStats, listLeadsPage }           from "@/lib/dashboard/leads.functions";
 import { getDashboardLiveAgents, listLiveAgents }     from "@/lib/agents/agents.functions";
 import { getCampaignStats }                           from "@/lib/dashboard/campaigns.functions";
 import { getPipelineLeads }                           from "@/lib/pipeline/pipeline.functions";
@@ -31,7 +31,6 @@ import { listCalls }                                  from "@/lib/dashboard/call
 import { getCallSchedule }                            from "@/lib/dashboard/call-schedule.functions";
 import { listDataRecords }                            from "@/lib/dashboard/data-records.functions";
 import {
-  listWbahPositiveNeutralLeads,
   listWbahQualifiedLeads,
   listWbahCategorizedLeads,
   listWbahCallsCount,
@@ -54,7 +53,6 @@ export function PrefetchOnLogin({ authed }: Props) {
 
   const overviewFn       = useServerFn(getOverviewStats);
   const liveAgentsFn     = useServerFn(getDashboardLiveAgents);
-  const listLeadsFn      = useServerFn(listLeads);
   const campaignStatsFn  = useServerFn(getCampaignStats);
   const pipelineFn       = useServerFn(getPipelineLeads);
   const analyticsFn      = useServerFn(getRetellAnalytics);
@@ -64,7 +62,7 @@ export function PrefetchOnLogin({ authed }: Props) {
   const listAgentsFn     = useServerFn(listLiveAgents);
   const scheduleFn       = useServerFn(getCallSchedule);
   const dataRecordsFn    = useServerFn(listDataRecords);
-  const wbahLeadsFn      = useServerFn(listWbahPositiveNeutralLeads);
+  const leadsPageFn      = useServerFn(listLeadsPage);
   const wbahQualifiedFn  = useServerFn(listWbahQualifiedLeads);
   const wbahCatFn        = useServerFn(listWbahCategorizedLeads);
   const wbahCallsCountFn = useServerFn(listWbahCallsCount);
@@ -114,7 +112,8 @@ export function PrefetchOnLogin({ authed }: Props) {
 
     if (isWbah) {
       // ── WBAH "We Buy Any House" workspace ──
-      prefetch(["leads-all", true], () => wbahLeadsFn());
+      // Warms the server's positive/neutral contact list; the page's own query loads page 1.
+      prefetch(["leads-page-warm", true], () => leadsPageFn({ data: { page: 1, pageSize: 1 } }));
       prefetch(["wbah-qualified-leads"],  () => wbahQualifiedFn());
       // NOTE: the full WBAH calls list is ~20MB — never prefetch it on login.
       // The Calls page loads page-1 on demand via server-side pagination.
@@ -141,7 +140,7 @@ export function PrefetchOnLogin({ authed }: Props) {
       // ── All other workspaces ──
       const dateFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
       const dateTo   = new Date().toISOString();
-      prefetch(["leads-all", false], () => listLeadsFn({ data: { limit: 1000, dateFrom, dateTo } }));
+      prefetch(["leads-page-warm", false], () => leadsPageFn({ data: { page: 1, pageSize: 1 } }));
       prefetch(["calls", "exclude", "30"], () => callsFn({ data: { voicemailFilter: "exclude", dateFrom, dateTo } }));
       prefetch(["leads-qualified", ""],    () => qualLeadsFn({ data: { limit: 200 } }));
     }

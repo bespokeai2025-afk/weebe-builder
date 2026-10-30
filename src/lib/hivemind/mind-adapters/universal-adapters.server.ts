@@ -236,7 +236,7 @@ export async function runWorkflowDepthExecution(ctx: AdapterContext): Promise<Ad
     return blocked(steps, "provider_action_unsupported: Target workflow could not be resolved — specify a workflow_id in the task input.");
   }
 
-  const { data: runRows } = await ctx.sb.from("workflow_runs")
+  const { data: runRows } = await ctx.sb.from("automation_workflow_executions")
     .select("id, status, created_at")
     .eq("workspace_id", ctx.workspaceId).eq("workflow_id", wf.id)
     .order("created_at", { ascending: false }).limit(50);

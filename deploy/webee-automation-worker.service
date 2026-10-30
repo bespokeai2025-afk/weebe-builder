@@ -1,0 +1,25 @@
+# Automation worker — runs WBAH post-call jobs and queued automations off the web server.
+# Install: sudo cp deploy/webee-automation-worker.service /etc/systemd/system/
+#          sudo systemctl daemon-reload && sudo systemctl enable --now webee-automation-worker
+# Then set AUTOMATION_WORKER=on in the web server's environment and restart it.
+# Adjust User, WorkingDirectory and EnvironmentFile to match the web server's unit.
+[Unit]
+Description=WEBEE automation worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/webee
+EnvironmentFile=/home/ubuntu/webee/.env
+ExecStartPre=/usr/bin/node dist/automation-worker.mjs --check
+ExecStart=/usr/bin/node dist/automation-worker.mjs
+Restart=always
+RestartSec=5
+# Finishes in-flight jobs on stop (up to 60 s).
+TimeoutStopSec=75
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target

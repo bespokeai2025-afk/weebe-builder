@@ -3,6 +3,7 @@
  */
 import { registerCoreNodes } from "./registry/register-core-nodes";
 import { registerWbahNodes } from "./plugins/wbah/register-wbah-nodes";
+import { registerWorkflowStepNodes } from "./plugins/workflow-steps/register-workflow-step-nodes";
 import { getNodeRegistrySnapshot } from "./registry/node-registry";
 
 let bootstrapped = false;
@@ -11,6 +12,7 @@ export function bootstrapAutomationEngine(): { nodeTypes: string[]; count: numbe
   if (!bootstrapped) {
     registerCoreNodes();
     registerWbahNodes();
+    registerWorkflowStepNodes();
     bootstrapped = true;
   }
   const snap = getNodeRegistrySnapshot();

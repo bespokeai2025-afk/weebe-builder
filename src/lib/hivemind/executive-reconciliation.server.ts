@@ -89,10 +89,12 @@ const failedWorkflowsJob: ReconJob = {
   intervalMs: 15 * 60 * 1000,
   run: async (sb, workspaceId) => {
     const since = new Date(Date.now() - 24 * HOUR).toISOString();
+    // Workflow Builder runs (workflow_id set); WBAH post-call runs have none.
     const { data: runs, error } = await sb
-      .from("workflow_runs")
-      .select("id, workflow_id, error, completed_at, workflow:workspace_workflows(name)")
+      .from("automation_workflow_executions")
+      .select("id, workflow_id, error:last_error, completed_at, workflow_name")
       .eq("workspace_id", workspaceId)
+      .not("workflow_id", "is", null)
       .eq("status", "failed")
       .gte("completed_at", since)
       .order("completed_at", { ascending: false })
@@ -103,7 +105,7 @@ const failedWorkflowsJob: ReconJob = {
         workspaceId,
         eventType: "workflow_failed",
         sourceSystem: "workflow-engine",
-        title: `Workflow ${run.workflow?.name ? `"${run.workflow.name}" ` : ""}run failed`,
+        title: `Workflow ${run.workflow_name ? `"${run.workflow_name}" ` : ""}run failed`,
         summary: run.error ? String(run.error).slice(0, 500) : null,
         entityType: "workflow_run",
         entityId: String(run.id),
@@ -457,10 +459,10 @@ const TRIGGER_RECHECKS: Record<
   workflow_failed: async (sb, workspaceId, entityId) => {
     // entityId is a workflow_run id; look up its workflow, then check for
     // fresh failures of the same workflow in the last 24h.
-    const { data: run } = await sb.from("workflow_runs")
+    const { data: run } = await sb.from("automation_workflow_executions")
       .select("workflow_id").eq("id", entityId).eq("workspace_id", workspaceId).maybeSingle();
     if (!run?.workflow_id) return false;
-    const { count } = await sb.from("workflow_runs")
+    const { count } = await sb.from("automation_workflow_executions")
       .select("id", { count: "exact", head: true })
       .eq("workspace_id", workspaceId)
       .eq("workflow_id", run.workflow_id)

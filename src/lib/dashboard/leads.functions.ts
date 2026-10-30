@@ -457,6 +457,167 @@ export const listLeads = createServerFn({ method: "POST" })
   });
 
 
+const leadsPageFiltersSchema = z.object({
+  search: z.string().max(200).optional(),
+  status: z.string().max(60).optional(),
+  statusCategory: z
+    .enum(["all", "tried_to_contact", "disqualified", "rebooked_consultation"])
+    .optional(),
+  sentiment: z.string().max(20).optional(),
+  callStatus: z.string().max(40).optional(),
+  wbahAgent: z.string().max(200).optional(),
+  agent: z
+    .object({ id: z.string(), name: z.string().nullable().optional(), retellAgentId: z.string().nullable().optional() })
+    .nullable()
+    .optional(),
+  minDurationSec: z.number().int().min(0).max(86_400).optional(),
+  outcome: z.enum(["", "successful", "unsuccessful"]).optional(),
+  dateFrom: z.string().optional(),
+  dateTo: z.string().optional(),
+  origin: z.string().max(60).optional(),
+  quick: z.string().max(40).optional(),
+});
+
+/** Most leads one request reads for the Leads page; the largest non-WBAH workspace has ~4,000. */
+const LEADS_PAGE_SCAN_CAP = 20_000;
+const LEADS_PAGE_IDS_CAP = 10_000;
+
+/** PostgREST `or=(…)` treats commas, parentheses and dots as syntax; keep them out of a search. */
+function postgrestSearchTerm(raw: string): string {
+  return raw.replace(/[,()*%\\]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Leads page, one page at a time. Applies the page's filters on the server (the same rules the
+ * page used to run in the browser, see leads-page.shared.ts) and returns that page, the number of
+ * matching leads, and headline numbers over all leads. `idsOnly` returns every matching id instead,
+ * for "select all".
+ */
+export const listLeadsPage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) =>
+    z
+      .object({
+        filters: leadsPageFiltersSchema.default({}),
+        page: z.number().int().min(1).default(1),
+        pageSize: z.number().int().min(1).max(500).default(25),
+        idsOnly: z.boolean().optional(),
+      })
+      .parse(input ?? {}),
+  )
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId, userId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    const { pageOfLeads, summarizeLeads } = await import("@/lib/dashboard/leads-page.shared");
+    const { isWbahWorkspaceId } = await import("@/lib/wbah-exclusion.shared");
+    const isWbah = isWbahWorkspaceId(workspaceId);
+    const f = data.filters;
+
+    let base: any[];
+    if (isWbah) {
+      const { buildWbahPositiveNeutralLeadRows } = await import(
+        "@/lib/integrations/webespokeEnterprise/wbah-leads-page.server"
+      );
+      const { refreshWbahLiveData } = await import("@/lib/integrations/webespokeEnterprise/wbah-live.server");
+      if (data.page === 1 && !data.idsOnly) void refreshWbahLiveData(workspaceId, { lightBackfill: true });
+      base = await buildWbahPositiveNeutralLeadRows(workspaceId);
+    } else {
+      base = await loadLeadsPageCandidates(supabase, workspaceId, userId, f);
+    }
+
+    const cut = pageOfLeads(base, f, { isWbah, page: data.page, pageSize: data.pageSize });
+    if (data.idsOnly) {
+      return { ids: cut.matchingIds().slice(0, LEADS_PAGE_IDS_CAP), matching: cut.matching };
+    }
+
+    let rows = cut.rows;
+    if (isWbah) {
+      const { attachWbahLeadCallText } = await import(
+        "@/lib/integrations/webespokeEnterprise/wbah-leads-page.server"
+      );
+      rows = await attachWbahLeadCallText(rows as any[]);
+    } else {
+      rows = await attachLatestCallTranscripts(supabase, rows);
+    }
+
+    return {
+      rows,
+      matching: cut.matching,
+      page: cut.page,
+      pageSize: data.pageSize,
+      summary: summarizeLeads(base, isWbah),
+      truncated: !isWbah && base.length >= LEADS_PAGE_SCAN_CAP,
+    };
+  });
+
+/** Leads for one workspace with each lead's latest call (no transcript). Filters that are plain
+ *  columns run in the database; everything else runs in pageOfLeads. */
+async function loadLeadsPageCandidates(
+  supabase: any,
+  workspaceId: string,
+  userId: string,
+  f: z.infer<typeof leadsPageFiltersSchema>,
+): Promise<any[]> {
+  const { resolvePermissions } = await import("@/lib/permissions/permissions.server");
+  const perms = await resolvePermissions(workspaceId, userId);
+  const assignedOnly = perms.assignedRecordsOnly === true;
+  const term = f.search ? postgrestSearchTerm(f.search) : "";
+
+  const PAGE = 1000;
+  const leads: any[] = [];
+  for (let offset = 0; offset < LEADS_PAGE_SCAN_CAP; offset += PAGE) {
+    let q = supabase
+      .from("leads")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .order("updated_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(offset, offset + PAGE - 1);
+    if (assignedOnly) q = q.eq("assigned_to", userId);
+    if (f.status) q = q.eq("status", f.status);
+    if (f.statusCategory && f.statusCategory !== "all") {
+      q = q.in("status", LEAD_STATUS_CATEGORY_MAP[f.statusCategory]);
+    }
+    if (term) {
+      q = q.or(
+        `full_name.ilike.%${term}%,phone.ilike.%${term}%,email.ilike.%${term}%,company_name.ilike.%${term}%`,
+      );
+    }
+    // Same narrowing the page sent before; the last-contact date is checked in pageOfLeads.
+    if (f.dateFrom) q = q.gte("created_at", f.dateFrom);
+    if (f.dateTo) q = q.lte("created_at", f.dateTo);
+    const { data: rows, error } = await q;
+    if (error) throw new Error(error.message);
+    leads.push(...(rows ?? []));
+    if ((rows ?? []).length < PAGE) break;
+  }
+
+  const latest = new Map<string, any>();
+  const ids = leads.map((l) => l.id);
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data: callRows } = await supabase
+      .from("calls")
+      .select(
+        "id, lead_id, call_status, duration_seconds, recording_url, disconnection_reason, call_summary, sentiment, started_at",
+      )
+      .in("lead_id", ids.slice(i, i + 200))
+      .order("started_at", { ascending: false });
+    for (const c of callRows ?? []) if (!latest.has(c.lead_id)) latest.set(c.lead_id, c);
+  }
+  return leads.map((l) => ({ ...l, retell_call: latest.get(l.id) ?? null }));
+}
+
+/** The latest call's transcript, for the rows actually shown. */
+async function attachLatestCallTranscripts(supabase: any, rows: any[]): Promise<any[]> {
+  const callIds = rows.map((r) => r.retell_call?.id).filter(Boolean);
+  if (!callIds.length) return rows;
+  const { data } = await supabase.from("calls").select("id, transcript").in("id", callIds);
+  const byId = new Map<string, string | null>((data ?? []).map((c: any) => [c.id, c.transcript ?? null]));
+  return rows.map((r) =>
+    r.retell_call?.id ? { ...r, retell_call: { ...r.retell_call, transcript: byId.get(r.retell_call.id) ?? null } } : r,
+  );
+}
+
 export const upsertLead = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input) =>

@@ -2,7 +2,6 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requirePlatformAdmin } from "@/lib/auth/require-platform-admin";
-import { executeWorkflowRun } from "@/lib/workflow-engine/workflow-executor.server";
 import { jsonResult } from "@/lib/server-fn-json.shared";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -155,10 +154,12 @@ export const listWorkspaceWorkflows = createServerFn({ method: "GET" })
     let lastRuns: Record<string, string | null> = {};
     if (ids.length > 0) {
       const { data: runs } = await sb
-        .from("workflow_runs")
+        .from("automation_workflow_executions")
         .select("workflow_id, started_at")
+        .eq("workspace_id", workspaceId)
         .in("workflow_id", ids)
-        .order("started_at", { ascending: false });
+        .order("started_at", { ascending: false })
+        .limit(5000);
       for (const r of (runs ?? []) as any[]) {
         runCounts[r.workflow_id] = (runCounts[r.workflow_id] ?? 0) + 1;
         if (!lastRuns[r.workflow_id]) lastRuns[r.workflow_id] = r.started_at;
@@ -269,25 +270,50 @@ export const deleteWorkspaceWorkflow = createServerFn({ method: "POST" })
 
 // ── Workflow Runs ──────────────────────────────────────────────────────────────
 
+/**
+ * Workflow Builder run history: automation-engine executions of this workspace's workflows.
+ * Mapped to the shape the page and HiveMind already read.
+ */
 export const listWorkflowRuns = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(jsonResult(async ({ context }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
+    const ids = await workspaceWorkflowIds(sb, workspaceId);
+    if (!ids.length) return [] as WorkflowRun[];
     const { data, error } = await sb
-      .from("workflow_runs")
-      .select("*, workflow:workspace_workflows(name)")
+      .from("automation_workflow_executions")
+      .select("id, workspace_id, workflow_id, workflow_name, status, started_at, completed_at, last_error, summary, trigger_masked")
       .eq("workspace_id", workspaceId)
+      .in("workflow_id", ids)
       .order("started_at", { ascending: false })
       .limit(100);
     if (error) throw new Error(error.message);
-    return (data ?? []) as WorkflowRun[];
+    return ((data ?? []) as any[]).map((r) => ({
+      id: r.id,
+      workspace_id: r.workspace_id,
+      workflow_id: r.workflow_id,
+      trigger_type: (r.trigger_masked?.trigger_type as string | undefined) ?? null,
+      status: r.status,
+      started_at: r.started_at,
+      completed_at: r.completed_at,
+      error: r.last_error ?? null,
+      summary: r.summary ?? {},
+      workflow: r.workflow_name ? { name: r.workflow_name } : null,
+    })) as WorkflowRun[];
   }));
+
+async function workspaceWorkflowIds(sb: any, workspaceId: string): Promise<string[]> {
+  const { data } = await sb.from("workspace_workflows").select("id").eq("workspace_id", workspaceId);
+  return ((data ?? []) as Array<{ id: string }>).map((w) => w.id);
+}
 
 export const manualTriggerWorkflow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input) => z.object({ workflow_id: z.string().uuid() }).parse(input))
+  .validator((input) =>
+    z.object({ workflow_id: z.string().uuid(), lead_id: z.string().uuid().optional() }).parse(input),
+  )
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -302,65 +328,20 @@ export const manualTriggerWorkflow = createServerFn({ method: "POST" })
     if (wfErr || !wf) throw new Error("Workflow not found");
     if (wf.status === "error") throw new Error("Workflow is in error state — fix it before triggering");
 
-    const { data: run, error: runErr } = await sb.from("workflow_runs").insert({
-      workspace_id: workspaceId,
-      workflow_id:  data.workflow_id,
-      trigger_type: "manual",
-      trigger_data: { triggered_by: "user" },
-      status:       "running",
-    }).select("id").maybeSingle();
-    if (runErr) throw new Error(runErr.message);
-
-    const runId = run?.id as string;
-    try {
-      const results = await executeWorkflowRun(
-        wf.flow_definition as Record<string, unknown>,
-        {
-          workspaceId,
-          runId,
-          triggerData: { triggered_by: "user", trigger_type: "manual" },
-          leadId: (data as any).lead_id ?? undefined,
-        },
-      );
-      const failed  = results.filter(r => r.status === "error");
-      const success = results.filter(r => r.status === "ok");
-      await sb.from("workflow_runs").update({
-        status:       failed.length > 0 ? "failed" : "completed",
-        completed_at: new Date().toISOString(),
-        error:        failed[0]?.error ?? null,
-        summary:      {
-          steps_total:     results.length,
-          steps_ok:        success.length,
-          steps_failed:    failed.length,
-          steps_skipped:   results.filter(r => r.status === "skipped").length,
-          mode: "live",
-        },
-      }).eq("id", runId);
-      if (failed.length > 0) {
-        const { notifyWorkflowError } = await import("@/lib/workflow-engine/workflow-executor.server");
-        await notifyWorkflowError({
-          workspaceId,
-          workflowName: wf.name ?? null,
-          runId,
-          errorMessage: failed[0]?.error ?? null,
-        });
-      }
-    } catch (e: any) {
-      await sb.from("workflow_runs").update({
-        status:       "failed",
-        completed_at: new Date().toISOString(),
-        error:        e?.message ?? String(e),
-      }).eq("id", runId);
-      const { notifyWorkflowError } = await import("@/lib/workflow-engine/workflow-executor.server");
-      await notifyWorkflowError({
-        workspaceId,
-        workflowName: wf.name ?? null,
-        runId,
-        errorMessage: e?.message ?? String(e),
-      });
-      throw e;
-    }
-    return { run_id: runId };
+    const { runWorkspaceWorkflow } = await import(
+      "@/lib/automation-engine/plugins/workflow-steps/run-workspace-workflow.server"
+    );
+    const run = await runWorkspaceWorkflow({
+      workspaceId,
+      workflow: wf,
+      triggerType: "manual",
+      triggerData: { triggered_by: "user" },
+      leadId: data.lead_id,
+      mode: "manual",
+    });
+    // A failed run is recorded (and notified) like any other; the page shows it in run history.
+    const runId = run.executionId;
+    return { run_id: runId, status: run.status, error: run.error };
   });
 
 // ── Stats ──────────────────────────────────────────────────────────────────────
@@ -372,9 +353,17 @@ export const getWorkflowEngineStats = createServerFn({ method: "GET" })
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
 
+    const ids = await workspaceWorkflowIds(sb, workspaceId);
     const [wfRes, runsRes, templatesRes] = await Promise.all([
       sb.from("workspace_workflows").select("status").eq("workspace_id", workspaceId),
-      sb.from("workflow_runs").select("status").eq("workspace_id", workspaceId),
+      ids.length
+        ? sb
+            .from("automation_workflow_executions")
+            .select("status")
+            .eq("workspace_id", workspaceId)
+            .in("workflow_id", ids)
+            .limit(10000)
+        : Promise.resolve({ data: [] }),
       sb.from("workflow_templates").select("id").eq("status", "published"),
     ]);
 

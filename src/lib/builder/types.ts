@@ -640,6 +640,19 @@ export interface BuilderSettings {
   flowHistory?: FlowVersionSnapshot[];
   /** Live calls use this graph when present; the canvas stays the draft. */
   publishedSnapshot?: PublishedSnapshot | null;
+  /** Every publish and rollback, newest last — what "Roll back" steps back through. */
+  publishLog?: PublishLogEntry[];
+  /** Industry, set when the agent is saved as a template (template-industries.shared.ts). */
+  industry?: string;
+  /** Scripted caller conversations replayed before publishing. */
+  testConversations?: import("./test-conversations.shared").TestConversation[];
+}
+
+export interface PublishLogEntry {
+  version: number;
+  at: string;
+  /** Set when this entry is a rollback: the version that was live before it. */
+  rolledBackFrom?: number;
 }
 
 export interface BuilderVariable {

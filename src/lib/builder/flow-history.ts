@@ -4,6 +4,7 @@ import type {
   FlowNode,
   FlowVersionSnapshot,
   PublishedSnapshot,
+  PublishLogEntry,
 } from "./types";
 import type { Edge } from "@xyflow/react";
 
@@ -161,4 +162,48 @@ export function makePublishedSnapshot(
     flowData: structuredClone({ nodes, edges }),
     variables: structuredClone(variables),
   };
+}
+
+/** Publish log, newest last, capped. */
+export function appendPublishLog(
+  log: PublishLogEntry[] | undefined,
+  entry: PublishLogEntry,
+  cap = 30,
+): PublishLogEntry[] {
+  return [...(log ?? []), entry].slice(-cap);
+}
+
+/**
+ * The version that was live before `liveVersion`, that can still be restored from history.
+ * Walks the publish log backwards; for agents published before the log existed, falls back to
+ * history entries labelled "Published".
+ */
+export function previousPublishedVersion(
+  liveVersion: number,
+  log: PublishLogEntry[] | undefined,
+  history: FlowVersionSnapshot[] | undefined,
+): number | null {
+  const stored = new Set((history ?? []).map((v) => v.version));
+  // Replay the log as a stack: a publish pushes its version, a rollback pops what it replaced.
+  // Without the pops, rolling back twice went forward again (8 → 5 → 8 instead of 8 → 5 → 3).
+  const stack: number[] = [];
+  for (const e of log ?? []) {
+    if (e.rolledBackFrom != null) {
+      while (stack.length && stack[stack.length - 1] !== e.version) stack.pop();
+      if (!stack.length) stack.push(e.version);
+    } else {
+      stack.push(e.version);
+    }
+  }
+  const liveAt = stack.lastIndexOf(liveVersion);
+  const before = liveAt >= 0 ? stack.slice(0, liveAt) : stack;
+  for (let i = before.length - 1; i >= 0; i--) {
+    const v = before[i]!;
+    if (v !== liveVersion && stored.has(v)) return v;
+  }
+  if ((log ?? []).length) return null;
+  const published = (history ?? [])
+    .filter((v) => v.label === "Published" && v.version < liveVersion)
+    .sort((a, b) => b.version - a.version);
+  return published[0]?.version ?? null;
 }

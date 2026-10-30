@@ -32,9 +32,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { InstructionTypeTabs } from "./NodeEditorDialog";
+import { InstructionTypeTabs } from "./node-editor/InstructionTypeTabs";
 import { normalizeBuilderSpeechMode } from "@/lib/voice/graph/speech-mode.shared";
 import { useNodeIssue } from "./flow-validation-context";
+import { NodeLatencyBadge } from "./NodeLatencyBadge";
 import { Switch } from "@/components/ui/switch";
 import { VariableBareTextarea, VariableTextarea } from "./VariableAutocompleteField";
 
@@ -497,6 +498,7 @@ function ConversationStyleNode({ id, data, selected }: NodeProps<FlowNode>) {
 
   return (
     <div className="relative group">
+      <NodeLatencyBadge nodeId={id} promptText={data?.dialogue} />
       {nodeData.isStart && (
         <div className="absolute -top-7 -left-2 z-10 flex items-center gap-1 rounded-md bg-violet-500 px-2 py-0.5 text-[10px] font-medium text-white shadow">
           <Flag className="h-3 w-3" /> Begin
@@ -679,6 +681,7 @@ function FunctionStyleNode({ id, data, selected }: NodeProps<FlowNode>) {
 
   return (
     <div className="relative group">
+      <NodeLatencyBadge nodeId={id} promptText={data?.dialogue} />
       <div
         data-flow-state={visualState}
         className={cn("min-w-[400px] w-[480px] max-w-[560px]", NODE_SURFACE_CLASS, issueRingClass(issueLevel))}
@@ -832,6 +835,7 @@ function SubagentStyleNode({ id, data, selected }: NodeProps<FlowNode>) {
 
   return (
     <div className="relative group">
+      <NodeLatencyBadge nodeId={id} promptText={data?.dialogue} />
       <div
         data-flow-state={visualState}
         className={cn("min-w-[400px] w-[480px] max-w-[560px]", NODE_SURFACE_CLASS, issueRingClass(issueLevel))}
@@ -971,6 +975,7 @@ function SimpleNode({ id, data, selected }: NodeProps<FlowNode>) {
 
   return (
     <div className="relative group">
+      <NodeLatencyBadge nodeId={id} promptText={data?.dialogue} />
       <div
         data-flow-state={visualState}
         className={cn("w-[320px]", NODE_SURFACE_CLASS, issueRingClass(issueLevel))}
@@ -1223,6 +1228,7 @@ function ExtractVariableNode({ id, data, selected }: NodeProps<FlowNode>) {
 
   return (
     <div className="relative group">
+      <NodeLatencyBadge nodeId={id} promptText={data?.dialogue} />
       {/* Floating variable panel anchored to the right of this node */}
       <NodeToolbar isVisible={!!panelVar} position={Position.Right} offset={12}>
         {panelVar && (

@@ -2,6 +2,8 @@ import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { useServerFn } from "@tanstack/react-start";
+import { templateDeploymentMode, templateIndustryLabel, TEMPLATE_INDUSTRIES } from "@/lib/builder/template-industries.shared";
+import { ALL_DEPLOYMENT_MODES } from "@/lib/runtime/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, Trash2, Plus, Globe2, User, Radio, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -57,6 +59,7 @@ function TemplatesPage() {
   const qc = useQueryClient();
 
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [industryFilter, setIndustryFilter] = useState<string>("all");
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [engineMismatch, setEngineMismatch] = useState<{
@@ -153,8 +156,8 @@ function TemplatesPage() {
       const vp =
         (cleanSettings.voiceProvider as BuilderSettings["voiceProvider"] | undefined) ??
         "RETELL";
-      const derivedDeploymentMode =
-        vp === "OPENAI_REALTIME" ? "OPENAI_NATIVE" : "RETELL";
+      // The template's own engine — a WEBEE Native template used to open as Retell here.
+      const derivedDeploymentMode = templateDeploymentMode(cleanSettings);
       useBuilderStore.getState().setSettings({
         voiceProvider: vp,
         deploymentMode: derivedDeploymentMode,
@@ -269,7 +272,14 @@ function TemplatesPage() {
   }
 
   const all = templatesQ.data ?? [];
-  const globals = all.filter((t) => t.scope === "global");
+  const allGlobals = all.filter((t) => t.scope === "global");
+  const industriesPresent = TEMPLATE_INDUSTRIES.filter((i) =>
+    allGlobals.some((t) => (t.settings?.industry ?? "general") === i.value),
+  );
+  const globals =
+    industryFilter === "all"
+      ? allGlobals
+      : allGlobals.filter((t) => (t.settings?.industry ?? "general") === industryFilter);
   const personals = all.filter((t) => t.scope === "personal");
   const isAdmin = adminQ.data?.isAdmin ?? false;
 
@@ -330,6 +340,23 @@ function TemplatesPage() {
               ? " As an admin, open one in the builder and use Save as template → Global to add new ones."
               : ""}
           </p>
+          {industriesPresent.length > 1 && (
+            <div className="mb-4 flex flex-wrap gap-1.5">
+              {[{ value: "all", label: "All industries" }, ...industriesPresent].map((i) => (
+                <button
+                  key={i.value}
+                  onClick={() => setIndustryFilter(i.value)}
+                  className={`rounded-full px-2.5 py-1 text-xs ring-1 transition-colors ${
+                    industryFilter === i.value
+                      ? "bg-primary/15 text-primary ring-primary/30"
+                      : "text-muted-foreground ring-border hover:text-foreground"
+                  }`}
+                >
+                  {i.label}
+                </button>
+              ))}
+            </div>
+          )}
           <TemplateGrid
             items={globals}
             onUse={handleUse}
@@ -474,23 +501,30 @@ function TemplateGrid({
           <CardHeader className="pb-3">
             <div className="flex items-start justify-between gap-2">
               <CardTitle className="text-base">{t.name}</CardTitle>
-              {t.settings?.voiceProvider === "OPENAI_REALTIME" ? (
-                <Badge
-                  variant="outline"
-                  className="shrink-0 border-violet-500/40 bg-violet-500/10 text-violet-300 text-xs gap-1 px-1.5 py-0.5"
-                >
-                  <Zap className="h-3 w-3" />
-                  HyperStream
-                </Badge>
-              ) : (
-                <Badge
-                  variant="outline"
-                  className="shrink-0 border-sky-500/40 bg-sky-500/10 text-sky-300 text-xs gap-1 px-1.5 py-0.5"
-                >
-                  <Radio className="h-3 w-3" />
-                  OmniVoice
-                </Badge>
-              )}
+              {(() => {
+                const mode = templateDeploymentMode(t.settings);
+                const label = (ALL_DEPLOYMENT_MODES.find((m) => m.mode === mode)?.label ?? "OmniVoice Engine").replace(
+                  / Engine$/,
+                  "",
+                );
+                return mode === "OPENAI_NATIVE" ? (
+                  <Badge
+                    variant="outline"
+                    className="shrink-0 border-violet-500/40 bg-violet-500/10 text-violet-300 text-xs gap-1 px-1.5 py-0.5"
+                  >
+                    <Zap className="h-3 w-3" />
+                    {label}
+                  </Badge>
+                ) : (
+                  <Badge
+                    variant="outline"
+                    className="shrink-0 border-sky-500/40 bg-sky-500/10 text-sky-300 text-xs gap-1 px-1.5 py-0.5"
+                  >
+                    <Radio className="h-3 w-3" />
+                    {label}
+                  </Badge>
+                );
+              })()}
             </div>
             <CardDescription className="line-clamp-2">
               {t.description || "No description."}
@@ -498,6 +532,11 @@ function TemplateGrid({
           </CardHeader>
           <CardContent className="flex items-center justify-between gap-2">
             <span className="text-xs text-muted-foreground">
+              {templateIndustryLabel(t.settings?.industry)}
+              {Array.isArray(t.settings?.testConversations) && t.settings.testConversations.length > 0
+                ? ` · ${t.settings.testConversations.length} test conversations`
+                : ""}
+              {" · "}
               Updated {new Date(t.updated_at).toLocaleDateString()}
             </span>
             <div className="flex items-center gap-1">

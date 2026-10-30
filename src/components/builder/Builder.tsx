@@ -2,18 +2,18 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useReactFlow } from "@xyflow/react";
 import { toPng } from "html-to-image";
 import { useBuilderStore } from "@/lib/builder/store";
-import { resolveDeploymentMode, isRetellMode, isOpenAINativeMode, isElevenLabsNativeMode, isWebeeNativeMode } from "@/lib/runtime/adapter";
+import {
+  resolveDeploymentMode,
+  isRetellMode,
+  isOpenAINativeMode,
+  isElevenLabsNativeMode,
+  isWebeeNativeMode,
+} from "@/lib/runtime/adapter";
 import type { DeploymentMode } from "@/lib/runtime/types";
 import { CustomVoiceUploadDialog } from "@/components/builder/CustomVoiceUploadDialog";
 import { WebeeMigrationDialog } from "@/components/builder/WebeeMigrationDialog";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { OPENAI_TTS_VOICES } from "@/lib/voice/tts/openai-voices.shared";
 import { Label } from "@/components/ui/label";
@@ -37,13 +37,33 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, MoreHorizontal, FileJson, Upload, FileUp, Search, Check, ArrowLeftRight, Globe, Mic, MessageSquare as MsgSq, Settings2, Zap, Radio, Lock, Sparkles, Gem, Waves, Volume2, Play, Loader2, Download, Clock, Phone } from "lucide-react";
+import {
+  ChevronDown,
+  MoreHorizontal,
+  FileJson,
+  Upload,
+  FileUp,
+  Search,
+  Check,
+  ArrowLeftRight,
+  Globe,
+  Mic,
+  MessageSquare as MsgSq,
+  Settings2,
+  Zap,
+  Radio,
+  Lock,
+  Waves,
+  Play,
+  Loader2,
+  Download,
+  Phone,
+} from "lucide-react";
 import { KnowledgeBaseSection } from "@/components/builder/KnowledgeBaseSection";
 import { LocaleSettingsFields } from "@/components/builder/LocaleSettingsFields";
 import { SpeechSettingsSection } from "@/components/builder/SpeechSettingsSection";
 import { HyperStreamSettingsSection } from "@/components/builder/HyperStreamSettingsSection";
 import { TranscriptionSettingsSection } from "@/components/builder/TranscriptionSettingsSection";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -56,34 +76,18 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
-  MessageCircle,
-  Cpu,
-  PhoneForwarded,
-  Hash,
   GitBranch,
-  Users,
   MessageSquare,
-  Braces,
-  Code as CodeIcon,
   Square,
-  StickyNote,
-  CalendarCheck,
   Maximize,
   Trash,
   Image as ImageIcon,
   ChevronLeft,
   ChevronRight,
-  CalendarClock,
   LayoutGrid,
   Undo2,
   Redo2,
   RotateCcw,
-  PauseCircle,
-  Tag,
-  FileText,
-  FolderOpen,
-  Link,
-  Flag,
   Pencil,
   Copy,
 } from "lucide-react";
@@ -96,12 +100,6 @@ import { ExportJsonDialog } from "./ExportJsonDialog";
 import { ImportJsonDialog } from "./ImportJsonDialog";
 import { ImportSystemMindDraftDialog } from "./ImportSystemMindDraftDialog";
 import { RetellDeployDialog, type TxEntry, type CallEndMeta } from "./RetellDeployDialog";
-
-// Opened rarely — loaded on first open instead of with the builder.
-const ImportPDFDialog = lazy(() => import("./ImportPDFDialog").then((m) => ({ default: m.ImportPDFDialog })));
-const PlatformGuideDrawer = lazy(() =>
-  import("./PlatformGuideDrawer").then((m) => ({ default: m.PlatformGuideDrawer })),
-);
 import { VoiceCopilotButton } from "./VoiceCopilot";
 import { PostCallDataSection } from "./PostCallDataSection";
 import { FlowVariablesSection } from "./FlowVariablesSection";
@@ -111,23 +109,15 @@ import { BookingConfigSection } from "./BookingConfigSection";
 import { LeadGenSection } from "./LeadGenSection";
 import { ClientQualificationSection } from "./ClientQualificationSection";
 import type { BuilderSettings, NodeKind } from "@/lib/builder/types";
-import { paletteFor } from "@/lib/builder/node-registry";
-import { componentsFor, type FlowComponentDef } from "@/lib/builder/flow-components";
+import { componentsFor } from "@/lib/builder/flow-components";
 import { cn } from "@/lib/utils";
 import { MODELS, HYPERSTREAM_MODELS } from "@/lib/builder/pricing";
 import { searchElevenLabsVoices, previewElevenLabsVoice, previewRetellVoice } from "@/lib/builder/retell.functions";
 import { listElevenLabsVoices, cloneElevenLabsVoice } from "@/lib/builder/elevenlabs-voices.functions";
 import { listFishVoices, previewFishVoice, type FishVoice } from "@/lib/voice/fish-voices.functions";
-import {
-  WEBEE_NATIVE_LLM_MODELS,
-  defaultModelForProvider,
-} from "@/lib/voice/webee-native.shared";
+import { WEBEE_NATIVE_LLM_MODELS, defaultModelForProvider } from "@/lib/voice/webee-native.shared";
 import { FishVoiceCloneDialog } from "@/components/builder/FishVoiceCloneDialog";
-import {
-  formatFishVoiceLabel,
-  formatFishVoiceSubtitle,
-  fishVoiceGroup,
-} from "@/lib/voice/fish-voice-label.shared";
+import { formatFishVoiceLabel, formatFishVoiceSubtitle, fishVoiceGroup } from "@/lib/voice/fish-voice-label.shared";
 import { extractPostCallVariables, type PostCallExtracted } from "@/lib/builder/post-call-extract.functions";
 import { saveHyperStreamTestCall, updateCallSentiment } from "@/lib/builder/save-hyperstream-call.functions";
 import { LATENCY_BUDGET_MS } from "@/lib/voice/call-latency-stats.shared";
@@ -138,319 +128,15 @@ import { useQuery } from "@tanstack/react-query";
 import { agentVoicePatch } from "@/lib/builder/agent-voice.shared";
 import { listCartesiaVoices, listRetellVoices } from "@/lib/builder/voice-catalog.functions";
 import { toast } from "sonner";
+import { LanguagePicker } from "@/components/builder/LanguagePicker";
+import { COMPONENT_ICONS, paletteButtons } from "@/components/builder/builder-palette";
+import { DEFAULT_VOICES, MiniAudioPlayer, voiceProviderLabel } from "@/components/builder/builder-voices";
 
-const PALETTE_UI: Record<NodeKind, { icon: React.ElementType; color: string }> = {
-  begin: { icon: Flag, color: "text-violet-500" },
-  conversation: { icon: MessageCircle, color: "text-sky-600" },
-  wait: { icon: PauseCircle, color: "text-amber-500" },
-  subagent: { icon: Users, color: "text-sky-500" },
-  ending: { icon: Square, color: "text-rose-600" },
-  function: { icon: Cpu, color: "text-violet-600" },
-  call_transfer: { icon: PhoneForwarded, color: "text-emerald-600" },
-  press_digit: { icon: Hash, color: "text-cyan-600" },
-  logic_split: { icon: GitBranch, color: "text-pink-600" },
-  agent_transfer: { icon: Users, color: "text-orange-600" },
-  sms: { icon: MessageSquare, color: "text-amber-600" },
-  extract_variable: { icon: Braces, color: "text-indigo-600" },
-  code: { icon: CodeIcon, color: "text-slate-700" },
-  note: { icon: StickyNote, color: "text-yellow-700" },
-  check_documents: { icon: FolderOpen, color: "text-teal-600" },
-  send_upload_link: { icon: Link, color: "text-sky-600" },
-  http_request: { icon: Globe, color: "text-blue-600" },
-  mcp: { icon: Radio, color: "text-fuchsia-500" },
-  wa_start: { icon: MsgSq, color: "text-green-500" },
-  wa_message: { icon: MsgSq, color: "text-green-600" },
-  wa_media: { icon: ImageIcon, color: "text-lime-600" },
-  wa_booking: { icon: CalendarCheck, color: "text-sky-600" },
-  wa_delay: { icon: Clock, color: "text-teal-600" },
-  wa_wait_reply: { icon: PauseCircle, color: "text-amber-600" },
-  wa_extract_var: { icon: Braces, color: "text-indigo-600" },
-  wa_tag: { icon: Tag, color: "text-purple-600" },
-  wa_template: { icon: FileText, color: "text-blue-600" },
-};
-
-function paletteButtons(channel: "voice" | "whatsapp") {
-  return paletteFor(channel).map((d) => ({
-    kind: d.kind,
-    label: d.label,
-    icon: PALETTE_UI[d.kind]?.icon ?? MessageCircle,
-    color: PALETTE_UI[d.kind]?.color ?? "text-muted-foreground",
-  }));
-}
-
-const COMPONENT_ICONS: Record<FlowComponentDef["icon"], typeof CalendarClock> = {
-  booking: CalendarClock,
-  contact: Users,
-  handoff: PhoneForwarded,
-  wait: PauseCircle,
-  http: Globe,
-  end: Square,
-  custom: LayoutGrid,
-};
-
-const LANGUAGES: { code: string; flag: string; name: string; region: string }[] = [
-  { code: "en-US",  flag: "🇺🇸", name: "English",    region: "US"            },
-  { code: "es-ES",  flag: "🇪🇸", name: "Spanish",    region: "Spain"         },
-  { code: "es-419", flag: "🇲🇽", name: "Spanish",    region: "Latin America" },
-  { code: "en-IN",  flag: "🇮🇳", name: "English",    region: "India"         },
-  { code: "en-GB",  flag: "🇬🇧", name: "English",    region: "UK"            },
-  { code: "en-AU",  flag: "🇦🇺", name: "English",    region: "Australia"     },
-  { code: "en-NZ",  flag: "🇳🇿", name: "English",    region: "New Zealand"   },
-  { code: "fr-FR",  flag: "🇫🇷", name: "French",     region: "France"        },
-  { code: "fr-CA",  flag: "🇨🇦", name: "French",     region: "Canada"        },
-  { code: "zh-CN",  flag: "🇨🇳", name: "Chinese",    region: "China"         },
-  { code: "de-DE",  flag: "🇩🇪", name: "German",     region: "Germany"       },
-  { code: "hi-IN",  flag: "🇮🇳", name: "Hindi",      region: "India"         },
-  { code: "it-IT",  flag: "🇮🇹", name: "Italian",    region: "Italy"         },
-  { code: "ja-JP",  flag: "🇯🇵", name: "Japanese",   region: "Japan"         },
-  { code: "ko-KR",  flag: "🇰🇷", name: "Korean",     region: "Korea"         },
-  { code: "nl-NL",  flag: "🇳🇱", name: "Dutch",      region: "Netherlands"   },
-  { code: "pl-PL",  flag: "🇵🇱", name: "Polish",     region: "Poland"        },
-  { code: "pt-BR",  flag: "🇧🇷", name: "Portuguese", region: "Brazil"        },
-  { code: "pt-PT",  flag: "🇵🇹", name: "Portuguese", region: "Portugal"      },
-  { code: "ru-RU",  flag: "🇷🇺", name: "Russian",    region: "Russia"        },
-  { code: "tr-TR",  flag: "🇹🇷", name: "Turkish",    region: "Turkey"        },
-  { code: "vi-VN",  flag: "🇻🇳", name: "Vietnamese", region: "Vietnam"       },
-  { code: "ar-AE",  flag: "🇦🇪", name: "Arabic",     region: "UAE"           },
-];
-
-function langLabel(codes: string[]): string {
-  if (!codes.length) return "English (US)";
-  if (codes[0] === "multi") return "Flex Mode";
-  if (codes.length > 1) return `Multilingual (${codes.length})`;
-  const l = LANGUAGES.find((x) => x.code === codes[0]);
-  return l ? `${l.flag} ${l.name} (${l.region})` : codes[0];
-}
-
-function LanguagePicker({
-  value,
-  onChange,
-}: {
-  value: string[];
-  onChange: (v: string[]) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [multi, setMulti] = useState(value.length > 1);
-  const [search, setSearch] = useState("");
-
-  const isFlex = value.includes("multi");
-  const filtered = LANGUAGES.filter(
-    (l) =>
-      !search ||
-      l.name.toLowerCase().includes(search.toLowerCase()) ||
-      l.region.toLowerCase().includes(search.toLowerCase()),
-  );
-
-  function toggleLang(code: string) {
-    if (multi) {
-      if (value.includes(code)) {
-        const next = value.filter((c) => c !== code);
-        onChange(next.length ? next : [code]);
-      } else {
-        onChange([...value.filter((c) => c !== "multi"), code]);
-      }
-    } else {
-      onChange([code]);
-      setOpen(false);
-    }
-  }
-
-  function pickFlex() {
-    onChange(["multi"]);
-    setOpen(false);
-  }
-
-  function switchMode() {
-    const next = !multi;
-    setMulti(next);
-    if (!next && value.length > 1) onChange([value[0]]);
-  }
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="h-7 w-full justify-between text-xs font-normal px-2">
-          <span className="truncate">{langLabel(value)}</span>
-          <ChevronDown className="h-3 w-3 shrink-0 opacity-50 ml-1" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-64 p-0" align="start">
-        <div className="flex items-center justify-between px-3 pt-3 pb-1">
-          <span className="text-[11px] font-medium">
-            {multi ? "Speech Languages" : "Speech Language"}
-          </span>
-          <button
-            onClick={switchMode}
-            className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeftRight className="h-3 w-3" />
-            {multi ? "Single-select" : "Multiselect"}
-          </button>
-        </div>
-        {multi && (
-          <p className="px-3 pb-1 text-[10px] text-muted-foreground leading-snug">
-            Single language mode is recommended for best accuracy.
-          </p>
-        )}
-        <div className="px-2 pb-1">
-          <div className="relative">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search..."
-              className="w-full pl-6 pr-2 py-1 text-xs bg-muted/40 rounded border-0 outline-none ring-0 placeholder:text-muted-foreground"
-            />
-          </div>
-        </div>
-        <div className="max-h-52 overflow-y-auto">
-          {filtered.map((l) => {
-            const selected = value.includes(l.code);
-            return (
-              <button
-                key={l.code}
-                onClick={() => toggleLang(l.code)}
-                className="flex items-center gap-2 w-full px-3 py-1.5 text-xs hover:bg-muted/60 transition-colors"
-              >
-                <span className="text-base leading-none w-5 text-center">{l.flag}</span>
-                <span className="font-medium">{l.name}</span>
-                <span className="text-muted-foreground">({l.region})</span>
-                <span className="ml-auto">
-                  {multi ? (
-                    <span className={`h-3.5 w-3.5 rounded border flex items-center justify-center ${selected ? "bg-primary border-primary" : "border-muted-foreground/40"}`}>
-                      {selected && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
-                    </span>
-                  ) : (
-                    selected && <Check className="h-3 w-3 text-primary" />
-                  )}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-        <div className="border-t">
-          <button
-            onClick={pickFlex}
-            className="flex items-center gap-2 w-full px-3 py-2 text-xs hover:bg-muted/60 transition-colors"
-          >
-            <Globe className="h-4 w-4 text-emerald-500 shrink-0" />
-            <span className="font-medium">Flex Mode</span>
-            <span className="ml-auto">
-              {isFlex && <Check className="h-3 w-3 text-primary" />}
-            </span>
-          </button>
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-type VoiceGroup = string;
-
-/** Offline fallback only — the picker reads Retell's live catalogue when it can reach it. */
-const DEFAULT_VOICES: { id: string; label: string; group: VoiceGroup }[] = [
-  // ElevenLabs
-  { id: "11labs-Adrian", label: "Adrian — male, US", group: "ElevenLabs" },
-  { id: "11labs-Anthony", label: "Anthony — male, US", group: "ElevenLabs" },
-  { id: "11labs-Brian", label: "Brian — male, US", group: "ElevenLabs" },
-  { id: "11labs-Chloe", label: "Chloe — female, US", group: "ElevenLabs" },
-  { id: "11labs-Cimo", label: "Cimo — male, IT", group: "ElevenLabs" },
-  { id: "11labs-Lily", label: "Lily — female, UK", group: "ElevenLabs" },
-  { id: "11labs-Marissa", label: "Marissa — female, US", group: "ElevenLabs" },
-  { id: "11labs-Myra", label: "Myra — female, US", group: "ElevenLabs" },
-  { id: "11labs-Paul", label: "Paul — male, US", group: "ElevenLabs" },
-  { id: "11labs-Zuri", label: "Zuri — female, US", group: "ElevenLabs" },
-  // OpenAI
-  { id: "openai-Alloy", label: "Alloy — neutral", group: "OpenAI" },
-  { id: "openai-Echo", label: "Echo — male", group: "OpenAI" },
-  { id: "openai-Nova", label: "Nova — female", group: "OpenAI" },
-  { id: "openai-Shimmer", label: "Shimmer — female", group: "OpenAI" },
-  { id: "openai-Onyx", label: "Onyx — male", group: "OpenAI" },
-  // Deepgram
-  { id: "deepgram-Angus", label: "Angus — male", group: "Deepgram" },
-  { id: "deepgram-Asteria", label: "Asteria — female", group: "Deepgram" },
-  { id: "deepgram-Luna", label: "Luna — female", group: "Deepgram" },
-  { id: "deepgram-Orion", label: "Orion — male", group: "Deepgram" },
-];
-
-const VOICE_PROVIDER_LABELS: Record<string, string> = {
-  elevenlabs: "ElevenLabs",
-  openai: "OpenAI",
-  deepgram: "Deepgram",
-  cartesia: "Cartesia",
-  minimax: "MiniMax",
-  fish_audio: "Fish Audio",
-  platform: "Platform",
-};
-
-function voiceProviderLabel(provider: string | undefined): string {
-  const key = String(provider ?? "").toLowerCase();
-  return VOICE_PROVIDER_LABELS[key] ?? (key ? key.charAt(0).toUpperCase() + key.slice(1) : "Other");
-}
-
-function MiniAudioPlayer({ url }: { url: string }) {
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const [playing, setPlaying] = useState(false);
-  const [current, setCurrent] = useState(0);
-  const [duration, setDuration] = useState(0);
-
-  function fmt(s: number) {
-    if (!Number.isFinite(s) || s < 0) return "0:00";
-    const m = Math.floor(s / 60);
-    const sec = Math.floor(s % 60);
-    return `${m}:${sec.toString().padStart(2, "0")}`;
-  }
-
-  function toggle() {
-    const a = audioRef.current;
-    if (!a) return;
-    if (playing) { a.pause(); } else { a.play(); }
-  }
-
-  return (
-    <div className="space-y-0.5">
-      <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/60">Recording</p>
-      <audio
-        ref={audioRef}
-        src={url}
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-        onEnded={() => setPlaying(false)}
-        onTimeUpdate={() => setCurrent(audioRef.current?.currentTime ?? 0)}
-        onLoadedMetadata={() => {
-          const d = audioRef.current?.duration ?? 0;
-          setDuration(Number.isFinite(d) ? d : 0);
-        }}
-      />
-      <div className="flex items-center gap-1.5">
-        <button
-          onClick={toggle}
-          className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-muted dark:bg-white/[0.06] hover:bg-muted dark:hover:bg-white/[0.1] text-foreground transition-colors"
-        >
-          {playing
-            ? <span className="flex gap-px"><span className="w-[2px] h-2.5 bg-current rounded-sm" /><span className="w-[2px] h-2.5 bg-current rounded-sm" /></span>
-            : <Play className="h-2.5 w-2.5 ml-px" />}
-        </button>
-        <div
-          className="flex-1 h-0.5 rounded-full bg-muted dark:bg-white/[0.1] cursor-pointer"
-          onClick={(e) => {
-            if (!audioRef.current || !duration) return;
-            const rect = e.currentTarget.getBoundingClientRect();
-            audioRef.current.currentTime = ((e.clientX - rect.left) / rect.width) * duration;
-          }}
-        >
-          <div
-            className="h-full rounded-full bg-violet-400"
-            style={{ width: duration ? `${(current / duration) * 100}%` : "0%" }}
-          />
-        </div>
-        <span className="text-[9px] tabular-nums text-muted-foreground/70 shrink-0">
-          {fmt(current)}{Number.isFinite(duration) && duration > 0 ? ` / ${fmt(duration)}` : ""}
-        </span>
-      </div>
-    </div>
-  );
-}
+// Opened rarely — loaded on first open instead of with the builder.
+const ImportPDFDialog = lazy(() => import("./ImportPDFDialog").then((m) => ({ default: m.ImportPDFDialog })));
+const PlatformGuideDrawer = lazy(() =>
+  import("./PlatformGuideDrawer").then((m) => ({ default: m.PlatformGuideDrawer })),
+);
 
 export function Builder({
   heightClass = "h-[78vh]",

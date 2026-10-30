@@ -41,18 +41,7 @@ export function useWorkspaceAgentOptions() {
   return (q.data ?? []) as WorkspaceAgentOption[];
 }
 
-/** True when a data row belongs to the given agent. Rows across pages carry
- *  the local agent UUID, the provider (Retell) agent id, or the agent's
- *  display name — match on any of them. */
-export function rowMatchesAgent(
-  agent: WorkspaceAgentOption,
-  row: { agentId?: string | null; agentName?: string | null },
-): boolean {
-  if (row.agentId && row.agentId === agent.id) return true;
-  if (row.agentId && agent.retellAgentId && row.agentId === agent.retellAgentId) return true;
-  if (row.agentName && agent.name && row.agentName === agent.name) return true;
-  return false;
-}
+export { rowMatchesAgent } from "@/lib/agents/agent-match.shared";
 
 export function AgentFilterSelect({
   agents, value, onChange, className,

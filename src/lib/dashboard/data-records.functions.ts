@@ -4,6 +4,9 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { retellFetch } from "@/lib/providers/retell/client.server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { createLeadFromDataRecord } from "./lead-from-record.server";
+import type { Tables } from "@/integrations/supabase/types";
+
+export type DataRecordRow = Tables<"data_records">;
 
 const RecordIdsSchema = z.object({
   recordIds: z.array(z.string().uuid()).min(1).max(2000),
@@ -79,7 +82,7 @@ export const listDataRecords = createServerFn({ method: "POST" })
 
     // Deduplicate by mobile_number — keep the most recently updated record per number
     const seen = new Set<string>();
-    const deduped: typeof rows = [];
+    const deduped: DataRecordRow[] = [];
     for (const row of rows ?? []) {
       const key = (row.mobile_number ?? "").trim();
       if (!key || !seen.has(key)) {

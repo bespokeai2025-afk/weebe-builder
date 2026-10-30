@@ -251,7 +251,7 @@ describe("Workflow depth work order", () => {
   it("resolved workflow → 4 stages from real run evidence, blocked Apply", async () => {
     const { sb, inserted } = makeSb({
       workspace_workflows: { rows: [{ id: "w1", name: "Lead intake", status: "active", flow_definition: { nodes: [{}, {}, {}] }, updated_at: "2026-07-20" }] },
-      workflow_runs: { rows: [{ id: "r1", status: "failed", created_at: "2026-07-25" }, { id: "r2", status: "completed", created_at: "2026-07-24" }] },
+      automation_workflow_executions: { rows: [{ id: "r1", status: "failed", created_at: "2026-07-25" }, { id: "r2", status: "completed", created_at: "2026-07-24" }] },
       work_orders: { rows: [] },
       hivemind_tasks: { rows: [] },
     });

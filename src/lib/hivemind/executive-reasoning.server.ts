@@ -75,9 +75,11 @@ async function gatherSignals(
       .eq("workspace_id", workspaceId)
       .eq("status", "error")
       .limit(50),
-    sb.from("workflow_runs")
-      .select("workflow_id, workflow:workspace_workflows(name)")
+    // Workflow Builder runs (workflow_id set); WBAH post-call runs have none.
+    sb.from("automation_workflow_executions")
+      .select("workflow_id, workflow_name")
       .eq("workspace_id", workspaceId)
+      .not("workflow_id", "is", null)
       .eq("status", "failed")
       .gte("completed_at", new Date(now - 7 * DAY).toISOString())
       .limit(200),
@@ -90,7 +92,7 @@ async function gatherSignals(
   for (const r of wfRes.data ?? []) {
     const id = String(r.workflow_id ?? "");
     if (!id) continue;
-    const cur = wfCounts.get(id) ?? { id, name: r.workflow?.name ?? "workflow", failures: 0 };
+    const cur = wfCounts.get(id) ?? { id, name: r.workflow_name ?? "workflow", failures: 0 };
     cur.failures++;
     wfCounts.set(id, cur);
   }

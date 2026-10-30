@@ -11,6 +11,8 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
+  LATENCY_BUDGET_MS,
+  nodeLatencySummary,
   percentiles,
   retellLatencyCategories,
   routeMethodShare,
@@ -164,5 +166,45 @@ export const getLatencyOverview = createServerFn({ method: "GET" })
       edgeRoutes: routeMethodShare(turns, "edge"),
       globalRoutes: routeMethodShare(turns, "global"),
       speculation: speculationStat(turns),
+    };
+  });
+
+/**
+ * Response time per step of one agent's flow, for the builder canvas — live calls and test calls
+ * separately, so the canvas can fall back to test calls for an agent that is not live yet.
+ */
+export const getAgentNodeLatency = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) =>
+    z
+      .object({
+        agentId: z.string().uuid(),
+        days: z.number().int().min(1).max(90).optional(),
+
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { workspaceId } = context as { workspaceId?: string };
+    if (!workspaceId) throw new Error("No active workspace");
+    const days = data.days ?? 14;
+    const since = new Date(Date.now() - days * 86_400_000).toISOString();
+    let q = (supabaseAdmin as any)
+      .from("call_turns")
+      .select("node_id, speech_to_first_audio_ms, stt_to_first_audio_ms, edge_route_method, prompt_chars, is_test_call")
+      .eq("workspace_id", workspaceId)
+      .eq("agent_id", data.agentId)
+      .gte("created_at", since)
+      .limit(20_000);
+    const { data: rows, error } = await q;
+    if (error) throw new Error(error.message);
+    const turns = (rows ?? []) as Array<Parameters<typeof nodeLatencySummary>[0][number] & { is_test_call: boolean }>;
+    const live = turns.filter((t) => !t.is_test_call);
+    const test = turns.filter((t) => t.is_test_call);
+    return {
+      days,
+      budgetMs: LATENCY_BUDGET_MS,
+      live: { turns: live.length, nodes: nodeLatencySummary(live) },
+      test: { turns: test.length, nodes: nodeLatencySummary(test) },
     };
   });

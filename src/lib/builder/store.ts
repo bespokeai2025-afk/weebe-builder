@@ -28,6 +28,8 @@ import {
   expandFlowVersion,
   historyNeedsCompaction,
   makePublishedSnapshot,
+  appendPublishLog,
+  previousPublishedVersion,
   nextVersionNumber,
 } from "./flow-history";
 import { validateComponentSlice } from "./validate";
@@ -75,6 +77,11 @@ interface State {
   /** Compress any legacy (uncompressed) history so saves stay small. */
   compactHistory: () => Promise<void>;
   unpublishFlow: () => void;
+  /**
+   * Make the previously published version live again, without touching the draft. Returns the
+   * version now live, or null when there is nothing earlier to go back to.
+   */
+  rollbackPublished: () => Promise<number | null>;
   debugEvents: BuilderDebugEvent[];
   debugOpen: boolean;
   setDebugOpen: (open: boolean) => void;
@@ -267,6 +274,9 @@ function edgeLabelForConnection(nodes: FlowNode[], c: Connection): string | unde
 function deselectAll<T extends { selected?: boolean }>(items: T[]): T[] {
   return items.map((item) => (item.selected ? { ...item, selected: false } : item));
 }
+
+/** The builder store's state and actions. */
+export type BuilderStoreState = State;
 
 export const useBuilderStore = create<State>()(
   persist(
@@ -623,10 +633,37 @@ export const useBuilderStore = create<State>()(
           get().variables,
         );
         set({
-          settings: { ...get().settings, publishedSnapshot: published },
+          settings: {
+            ...get().settings,
+            publishedSnapshot: published,
+            publishLog: appendPublishLog(get().settings.publishLog, { version, at: published.publishedAt }),
+          },
           ...dirtyFields(get().editRevision),
         });
         return version;
+      },
+      rollbackPublished: async () => {
+        const { publishedSnapshot: live, flowHistory, publishLog } = get().settings;
+        if (!live) return null;
+        const target = previousPublishedVersion(live.version, publishLog, flowHistory);
+        if (target == null) return null;
+        const entry = (flowHistory ?? []).find((v) => v.version === target);
+        if (!entry) return null;
+        const snap = await expandFlowVersion(entry);
+        const published = makePublishedSnapshot(target, snap.flowData.nodes, snap.flowData.edges, snap.variables);
+        set({
+          settings: {
+            ...get().settings,
+            publishedSnapshot: published,
+            publishLog: appendPublishLog(get().settings.publishLog, {
+              version: target,
+              at: published.publishedAt,
+              rolledBackFrom: live.version,
+            }),
+          },
+          ...dirtyFields(get().editRevision),
+        });
+        return target;
       },
       restoreFlowVersion: async (version) => {
         const entry = (get().settings.flowHistory ?? []).find((v) => v.version === version);

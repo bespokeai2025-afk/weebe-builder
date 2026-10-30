@@ -364,11 +364,12 @@ describe("task accountability", () => {
       flow_definition: { nodes: [], edges: [] },
     }).select("id").single();
     if (wfErr) throw new Error(wfErr.message);
-    const { data: run, error: runErr } = await sb.from("workflow_runs").insert({
+    const { data: run, error: runErr } = await sb.from("automation_workflow_executions").insert({
       workspace_id: WS_A,
       workflow_id: wf.id,
+      workflow_name: "e2e accountability wf",
       status: "failed",
-      error: "e2e failure",
+      last_error: "e2e failure",
       completed_at: new Date().toISOString(),
     }).select("id").single();
     if (runErr) throw new Error(runErr.message);

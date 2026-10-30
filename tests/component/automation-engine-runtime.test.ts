@@ -309,23 +309,41 @@ describe("limits and errors", () => {
   });
 });
 
-describe("code nodes", () => {
-  it("do not run JavaScript inside the server unless explicitly enabled", async () => {
-    const result = await run(
-      linear({ id: "fn", type: "core.function", config: { code: "return { json: { leaked: typeof process } };" } }),
-    );
-    expect(result.status).toBe("failed");
-    expect(result.lastError).toMatch(/code nodes are turned off/i);
+describe("code nodes (sandboxed)", () => {
+  const fn = (code: string, trigger: Record<string, unknown> = {}) =>
+    run(linear({ id: "fn", type: "core.function", config: { code } }), { trigger });
+
+  it("run workflow JavaScript and return its result", async () => {
+    const result = await fn("return { json: { total: $json.a + 1, first: $input.first().json.a } };", { a: 1 });
+    expect(result.status).toBe("completed");
+    expect(result.nodeOutputs.fn?.[0]?.json).toEqual({ total: 2, first: 1 });
   });
 
-  it("run when the server enables them", async () => {
-    vi.stubEnv("AUTOMATION_CODE_NODES", "on");
-    const result = await run(
-      linear({ id: "fn", type: "core.function", config: { code: "return { json: { total: $json.a + 1 } };" } }),
-      { trigger: { a: 1 } },
+  it("cannot see the server: no process, require, fetch or globalThis secrets", async () => {
+    const result = await fn(
+      "return { json: { p: typeof process, r: typeof require, f: typeof fetch, g: typeof globalThis.process } };",
     );
-    expect(result.status).toBe("completed");
-    expect(result.nodeOutputs.fn?.[0]?.json).toEqual({ total: 2 });
+    expect(result.nodeOutputs.fn?.[0]?.json).toEqual({ p: "undefined", r: "undefined", f: "undefined", g: "undefined" });
+  });
+
+  it("an endless loop is stopped and fails only that step", async () => {
+    const started = Date.now();
+    const result = await fn("while (true) {}");
+    expect(result.status).toBe("failed");
+    expect(result.lastError).toMatch(/too long/);
+    expect(Date.now() - started).toBeLessThan(5_000);
+  });
+
+  it("a memory bomb fails that step", async () => {
+    const result = await fn("const a = []; while (true) a.push('x'.repeat(1e6));");
+    expect(result.status).toBe("failed");
+  });
+
+  it("can be turned off on a server", async () => {
+    vi.stubEnv("AUTOMATION_CODE_NODES", "off");
+    const result = await fn("return { json: {} };");
+    expect(result.status).toBe("failed");
+    expect(result.lastError).toMatch(/turned off/i);
   });
 
   it("imported n8n code with only a description is skipped, not run", async () => {

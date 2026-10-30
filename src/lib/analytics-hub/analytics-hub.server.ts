@@ -1069,8 +1069,10 @@ export async function getWorkflowAnalyticsData(workspaceId: string, filters?: An
   try {
     const [{ data: workflows }, { data: runs }] = await Promise.all([
       sb.from("workspace_workflows").select("id, name, status, trigger_type").eq("workspace_id", workspaceId).limit(200),
-      sb.from("workflow_runs").select("workflow_id, status, error, started_at, completed_at")
+      // Workflow Builder runs are automation-engine executions with workflow_id set.
+      sb.from("automation_workflow_executions").select("workflow_id, status, error:last_error, started_at, completed_at")
         .eq("workspace_id", workspaceId)
+        .not("workflow_id", "is", null)
         .gte("started_at", range.startIso).lt("started_at", range.endIso)
         .order("started_at", { ascending: false }).limit(ROW_CAP),
     ]);

@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { TEMPLATE_INDUSTRIES, type TemplateIndustry } from "@/lib/builder/template-industries.shared";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
@@ -41,6 +43,7 @@ export function SaveAsTemplateDialog({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [scope, setScope] = useState<"global" | "personal">("personal");
+  const [industry, setIndustry] = useState<TemplateIndustry>("general");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -49,6 +52,7 @@ export function SaveAsTemplateDialog({
       setName(s.settings.agentName || "Untitled template");
       setDescription("");
       setScope("personal");
+      setIndustry((s.settings.industry as TemplateIndustry | undefined) ?? "general");
     }
   }, [open]);
 
@@ -67,7 +71,8 @@ export function SaveAsTemplateDialog({
           description: description.trim(),
           flowData: { nodes: s.nodes, edges: s.edges } as never,
           // A template starts fresh: no version history or live snapshot of the source agent.
-          settings: { ...s.settings, flowHistory: [], publishedSnapshot: null } as never,
+          // Test conversations stay with it, so whoever starts from the template gets them too.
+          settings: { ...s.settings, flowHistory: [], publishedSnapshot: null, publishLog: [], industry } as never,
           variables: s.variables as never,
         },
       });
@@ -110,6 +115,27 @@ export function SaveAsTemplateDialog({
               maxLength={1000}
               placeholder="What is this template for?"
             />
+          </div>
+          <div className="space-y-2">
+            <Label>Industry</Label>
+            <Select value={industry} onValueChange={(v) => setIndustry(v as TemplateIndustry)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TEMPLATE_INDUSTRIES.map((i) => (
+                  <SelectItem key={i.value} value={i.value}>
+                    {i.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {(useBuilderStore.getState().settings.testConversations?.length ?? 0) > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Includes this agent's {useBuilderStore.getState().settings.testConversations!.length} test
+                conversations.
+              </p>
+            )}
           </div>
           <div className="space-y-2">
             <Label>Visibility</Label>
