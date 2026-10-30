@@ -59,6 +59,19 @@ export interface TtsProvider {
     textStream: AsyncIterable<string>,
     req: TtsVoiceRequest,
   ): AsyncGenerator<PcmChunk>;
+
+  // ── Optional call lifecycle ───────────────────────────────────────────────
+  // The voice engine calls these on every provider that has them, so a provider gains connection
+  // reuse and warm-up by implementing them in its own file — the engine never checks names.
+
+  /** The call's voice is locked: keep one connection for the whole call. */
+  bindCall?(req: TtsVoiceRequest): void;
+  /** The call ended: close what `bindCall` opened. */
+  releaseCall?(): void;
+  /** Open the next synthesis connection while the caller is still talking. */
+  warm?(req: TtsVoiceRequest): void;
+  /** Start synthesising a line the engine expects to say next (a fixed-text step). */
+  warmWithText?(text: string, req: TtsVoiceRequest): void;
 }
 
 /**

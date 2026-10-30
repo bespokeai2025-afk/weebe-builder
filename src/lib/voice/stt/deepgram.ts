@@ -314,6 +314,16 @@ class DeepgramSttSession implements SttSession {
 export class DeepgramSttProvider implements SttProvider {
   readonly name = "deepgram";
   readonly streaming = true;
+  /**
+   * Interim results stream as the caller talks. A partial covers the utterance only up to the
+   * last pause, and the final returns at once when nothing followed it, so the partial must not
+   * replace the final.
+   */
+  readonly capabilities = {
+    partials: true,
+    segmentFinalsBeforeEndpoint: true,
+    partialCanReplaceFinal: false,
+  } as const;
 
   constructor(
     private readonly apiKey: string,

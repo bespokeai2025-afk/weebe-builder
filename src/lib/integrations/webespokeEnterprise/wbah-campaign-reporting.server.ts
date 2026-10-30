@@ -181,7 +181,10 @@ export function computeWbahRunKpis(calls: any[]): Record<string, unknown> {
   for (const c of calls) {
     if (isVoicemailCall(c)) voicemail++;
     if (isConnectedCall(c)) connected++;
-    const d = Number(c.duration_seconds ?? 0);
+    // Exact milliseconds when the sync stored them: Retell's duration_seconds is cut to whole
+    // seconds, which left these reports ~9 minutes a month under the Credits page.
+    const ms = Number((c.meta as any)?.duration_ms);
+    const d = Number.isFinite(ms) && ms > 0 ? ms / 1000 : Number(c.duration_seconds ?? 0);
     if (Number.isFinite(d) && d > 0) totalSeconds += d;
     const s = String(c.sentiment ?? "").toLowerCase();
     if (s === "positive") positive++;

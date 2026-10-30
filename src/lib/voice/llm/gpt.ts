@@ -95,7 +95,9 @@ export function resolveTextModel(modelId: string, provider?: VoiceLlmProvider): 
     return CEREBRAS_GPT_OSS_120B;
   }
   if (cerebrasNative) return "gpt-4o-mini";
-  return OPENAI_TEXT_MAP[raw] ?? raw;
+  // "-fast" is Retell's id for its priority tier (an agent moved from Retell keeps it). OpenAI has
+  // no such model, and this engine has no priority tier, so it runs as the base model.
+  return OPENAI_TEXT_MAP[raw] ?? raw.replace(/-fast$/, "");
 }
 
 /**

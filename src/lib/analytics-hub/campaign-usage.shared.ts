@@ -440,3 +440,76 @@ export function buildUsageSeries(
       connectedMinutes: roundMinutes(e.connSecs),
     }));
 }
+
+/**
+ * A manual minutes adjustment on the usage panel (WBAH): minutes used that are not in the call
+ * records, added to "Minutes used" and charged at the billing rate like call minutes.
+ *
+ * Dated, so it counts once: only in a reporting period that contains its date (and in "This month"
+ * while that date is in the current month). A fixed number added to every range would have
+ * appeared again in every week, month and custom range.
+ */
+export type UsageMinutesAdjustment = {
+  minutes: number;
+  /** YYYY-MM-DD, Europe/London. */
+  date: string;
+  note: string | null;
+};
+
+/** WBAH: minutes used that are not in the call records, added to the usage panel's October figures. */
+export const WBAH_USAGE_MINUTES_ADJUSTMENT: UsageMinutesAdjustment = {
+  minutes: 2800,
+  date: "2026-10-30",
+  note: null,
+};
+
+function londonDayKey(ms: number): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(ms));
+}
+
+type AdjustableWorkspace = {
+  minutesUsed: number;
+  rateCostGbp: number;
+  totalDurationSeconds: number;
+  minutesThisMonth: number;
+  minutesToday: number;
+};
+
+/** The workspace totals with the adjustment added where its date falls; unchanged otherwise. */
+export function applyUsageMinutesAdjustment<W extends AdjustableWorkspace>(
+  workspace: W,
+  adjustment: UsageMinutesAdjustment | null,
+  range: { startIso: string; endIso: string },
+  now: number = Date.now(),
+): { workspace: W; applied: UsageMinutesAdjustment | null } {
+  if (!adjustment) return { workspace, applied: null };
+  const startKey = londonDayKey(Date.parse(range.startIso));
+  // endIso is exclusive (next midnight); the last day in range is the day before.
+  const endKey = londonDayKey(Date.parse(range.endIso) - 1);
+  const inPeriod = adjustment.date >= startKey && adjustment.date <= endKey;
+  if (!inPeriod) return { workspace, applied: null };
+
+  const todayKey = londonDayKey(now);
+  const addSeconds = adjustment.minutes * 60;
+  const seconds = workspace.totalDurationSeconds + addSeconds;
+  return {
+    workspace: {
+      ...workspace,
+      totalDurationSeconds: seconds,
+      minutesUsed: roundMinutes(workspace.minutesUsed * 60 + addSeconds),
+      rateCostGbp: rateCostGbpFor(seconds),
+      minutesThisMonth:
+        adjustment.date.slice(0, 7) === todayKey.slice(0, 7)
+          ? roundMinutes(workspace.minutesThisMonth * 60 + addSeconds)
+          : workspace.minutesThisMonth,
+      minutesToday:
+        adjustment.date === todayKey ? roundMinutes(workspace.minutesToday * 60 + addSeconds) : workspace.minutesToday,
+    },
+    applied: adjustment,
+  };
+}

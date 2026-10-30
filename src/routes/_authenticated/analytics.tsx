@@ -770,7 +770,16 @@ function AnalyticsPage() {
 
   // ── Credits state (WBAH only) ──
   const creditsFn = useServerFn(getWbahCredits);
-  const creditsQ = useQuery({ queryKey: ["wbah-credits"], queryFn: () => creditsFn(), staleTime: 5 * 60_000, enabled: mainTab === "credits" && isWbah, throwOnError: false });
+  // Loaded on every WBAH tab, not just Credits: the "Minutes used" tile shows the same figure.
+  const creditsQ = useQuery({ queryKey: ["wbah-credits"], queryFn: () => creditsFn(), staleTime: 5 * 60_000, enabled: isWbah, throwOnError: false });
+  // WBAH's billed minutes for the current credit cycle — the Credits tab's "Minutes Used". The
+  // range total below counts only calls in the selected dates, so the two never agreed (the
+  // cycle also starts at the last top-up and includes minutes used before it was tracked).
+  const creditCycleUsed: number | null = (() => {
+    const d: any = creditsQ.data;
+    const v = d?.summary?.used_minutes ?? d?.retell?.used_minutes;
+    return typeof v === "number" && Number.isFinite(v) ? v : null;
+  })();
 
   // Shared FilterBar options (agents / campaigns / lead sources). Hidden for
   // WBAH; only fetched once advanced analytics is available.
@@ -1067,7 +1076,16 @@ function AnalyticsPage() {
                   single orphaned tile. */}
               <div className="grid grid-cols-2 gap-3 px-6 pt-5 md:grid-cols-3">
                 <StatCard label="Total calls"  tone="primary" value={analytics.total} />
-                <StatCard label="Minutes used" tone="info"    value={`${analytics.totalMinutes}m`} />
+                {isWbah && creditCycleUsed != null ? (
+                  <StatCard
+                    label="Minutes used"
+                    tone="info"
+                    value={`${fmtMins(creditCycleUsed)}m`}
+                    hint={`This credit cycle, same as Credits · ${fmtMins(analytics.totalDurationSec / 60)}m in the selected dates`}
+                  />
+                ) : (
+                  <StatCard label="Minutes used" tone="info"    value={`${analytics.totalMinutes}m`} />
+                )}
                 <StatCard label="Avg duration" tone="info"    value={fmtDuration(analytics.avgDuration)} />
                 <StatCard label="E2E latency"  tone="primary" value={fmtMs(analytics.avgE2eLatency)} />
                 <StatCard label="Inbound"            tone="primary" value={analytics.inbound}                      icon={ArrowDownLeft} />

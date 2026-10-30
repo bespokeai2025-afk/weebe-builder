@@ -250,3 +250,79 @@ export function nodeLatencySummary(
   }
   return out.sort((a, b) => b.p50 - a.p50);
 }
+
+// ── Engine speed, per model and per voice provider ─────────────────────────
+// What the builder's model and voice menus show next to each choice: how long callers actually
+// waited on this workspace's calls, not a claim about the provider. One slow call should not brand
+// a model slow, so a verdict needs a few calls behind it.
+
+export type EngineSpeedRow = {
+  call_id: string;
+  llm_model: string | null;
+  tts_provider: string | null;
+  stt_to_first_token_ms: number | null;
+  stt_to_first_audio_ms: number | null;
+};
+
+export type EngineSpeedStat = { medianMs: number; turns: number; calls: number };
+
+export type EngineSpeed = {
+  /** Transcript final → the model's first word, by speech model. */
+  models: Record<string, EngineSpeedStat>;
+  /** Model's first word → first audio, by voice (TTS) provider. */
+  voices: Record<string, EngineSpeedStat>;
+};
+
+/** Turns and calls a stat needs before the builder calls it fast or slow. */
+export const ENGINE_SPEED_MIN_TURNS = 8;
+export const ENGINE_SPEED_MIN_CALLS = 2;
+/** Above this, the model alone puts a reply past the 1–1.4 s target. */
+export const SLOW_FIRST_WORD_MS = 1200;
+/** Above this, the voice alone adds more than a fast reply can absorb. */
+export const SLOW_VOICE_MS = 600;
+
+function medianStat(groups: Map<string, { values: number[]; calls: Set<string> }>): Record<string, EngineSpeedStat> {
+  const out: Record<string, EngineSpeedStat> = {};
+  for (const [key, g] of groups) {
+    const p = percentiles(g.values);
+    if (p) out[key] = { medianMs: p.p50, turns: p.count, calls: g.calls.size };
+  }
+  return out;
+}
+
+export function engineSpeedStats(rows: EngineSpeedRow[]): EngineSpeed {
+  const models = new Map<string, { values: number[]; calls: Set<string> }>();
+  const voices = new Map<string, { values: number[]; calls: Set<string> }>();
+  const add = (m: typeof models, key: string, v: number, callId: string) => {
+    const g = m.get(key) ?? { values: [], calls: new Set<string>() };
+    g.values.push(v);
+    g.calls.add(callId);
+    m.set(key, g);
+  };
+  for (const r of rows) {
+    const tok = r.stt_to_first_token_ms;
+    const aud = r.stt_to_first_audio_ms;
+    if (r.llm_model && typeof tok === "number" && tok >= 0) add(models, r.llm_model, tok, r.call_id);
+    if (r.tts_provider && typeof tok === "number" && typeof aud === "number" && aud >= tok) {
+      add(voices, r.tts_provider, aud - tok, r.call_id);
+    }
+  }
+  return { models: medianStat(models), voices: medianStat(voices) };
+}
+
+/** Enough calls behind a stat to call it fast or slow. */
+export function isSpeedStatReliable(stat: EngineSpeedStat | null | undefined): stat is EngineSpeedStat {
+  return !!stat && stat.turns >= ENGINE_SPEED_MIN_TURNS && stat.calls >= ENGINE_SPEED_MIN_CALLS;
+}
+
+export function fmtSpeedSeconds(ms: number): string {
+  return `${(ms / 1000).toFixed(1)} s`;
+}
+
+/** "0.8 s on your calls (36 turns)", or how little has been measured. */
+export function speedStatLabel(stat: EngineSpeedStat | null | undefined): string {
+  if (!stat) return "Not measured on your calls yet";
+  const n = `${stat.turns} turn${stat.turns === 1 ? "" : "s"}, ${stat.calls} call${stat.calls === 1 ? "" : "s"}`;
+  const median = fmtSpeedSeconds(stat.medianMs);
+  return isSpeedStatReliable(stat) ? `${median} on your calls (${n})` : `${median} so far (${n} — too few to judge)`;
+}

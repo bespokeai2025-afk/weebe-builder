@@ -23,6 +23,9 @@ import {
   type UsageGranularity,
   type CampaignUsageResult,
   aggregateCampaignUsage,
+  applyUsageMinutesAdjustment,
+  WBAH_USAGE_MINUTES_ADJUSTMENT,
+  type UsageMinutesAdjustment,
   buildUsageSeries,
 } from "./campaign-usage.shared";
 
@@ -72,6 +75,8 @@ export interface CampaignUsageData extends CampaignUsageResult {
    * "unavailable" = provider fetch failed (never silently zero).
    */
   provider: ProviderReconciliation | null;
+  /** WBAH only: the manual minutes adjustment included in workspace minutes and charge, if any. */
+  minutesAdjustment?: UsageMinutesAdjustment | null;
   error: string | null;
 }
 
@@ -474,9 +479,20 @@ async function computeCampaignUsage(
             minutes: agg.workspace.minutesUsed,
             calls: agg.workspace.totalCalls,
           });
+      // Manual minutes adjustment (WBAH_USAGE_MINUTES_ADJUSTMENT), added after the
+      // provider check so Retell is still compared against real call minutes only.
+      const { workspace, applied } = applyUsageMinutesAdjustment(
+        agg.workspace,
+        hasSubsetFilters || f.agentId || f.direction || f.callStatus
+          ? null
+          : WBAH_USAGE_MINUTES_ADJUSTMENT,
+        range,
+      );
       return {
         ...empty,
         ...agg,
+        workspace,
+        minutesAdjustment: applied,
         series: buildUsageSeries(calls, granularity),
         truncated,
         crossSourceDuplicatesExcluded,

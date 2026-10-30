@@ -569,6 +569,15 @@ class FishStreamingSttSession implements SttSession {
 export class FishSttProvider implements SttProvider {
   readonly name = "fish";
   readonly streaming = true;
+  /**
+   * Partials are full transcripts of the utterance up to the last pause, and the final returns at
+   * once when no speech followed that pause — so a partial must not replace the final.
+   */
+  readonly capabilities = {
+    partials: true,
+    segmentFinalsBeforeEndpoint: false,
+    partialCanReplaceFinal: false,
+  } as const;
 
   constructor(private readonly apiKey: string) {
     if (!apiKey) throw new Error("FishSttProvider requires an API key");

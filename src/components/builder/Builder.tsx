@@ -116,6 +116,7 @@ import { searchElevenLabsVoices, previewElevenLabsVoice, previewRetellVoice } fr
 import { listElevenLabsVoices, cloneElevenLabsVoice } from "@/lib/builder/elevenlabs-voices.functions";
 import { listFishVoices, previewFishVoice, type FishVoice } from "@/lib/voice/fish-voices.functions";
 import { WEBEE_NATIVE_LLM_MODELS, defaultModelForProvider } from "@/lib/voice/webee-native.shared";
+import { ModelSpeedLine, ModelSpeedWarning, VoiceSpeedHint, useEngineSpeed } from "./EngineSpeedHint";
 import { FishVoiceCloneDialog } from "@/components/builder/FishVoiceCloneDialog";
 import { formatFishVoiceLabel, formatFishVoiceSubtitle, fishVoiceGroup } from "@/lib/voice/fish-voice-label.shared";
 import { extractPostCallVariables, type PostCallExtracted } from "@/lib/builder/post-call-extract.functions";
@@ -231,6 +232,7 @@ export function Builder({
   );
   const fetchCartesiaVoices = useServerFn(listCartesiaVoices);
   const cartesiaActive = isWebeeNative && settings.webeeTtsProvider === "cartesia";
+  const engineSpeed = useEngineSpeed(isWebeeNative);
   const [cartesiaSearch, setCartesiaSearch] = useState("");
   const [cartesiaQuery, setCartesiaQuery] = useState("");
   useEffect(() => {
@@ -1729,6 +1731,7 @@ export function Builder({
                           <SelectItem value="cartesia">Cartesia</SelectItem>
                         </SelectContent>
                       </Select>
+                      <VoiceSpeedHint speed={engineSpeed} provider={settings.webeeTtsProvider ?? "fish"} />
                     </div>
                     {settings.webeeTtsProvider === "cartesia" && (
                       <div className="space-y-1.5">
@@ -1863,12 +1866,21 @@ export function Builder({
                                   <span className="text-[10px] text-muted-foreground leading-snug">
                                     {m.desc}
                                   </span>
+                                  <ModelSpeedLine speed={engineSpeed} modelId={m.id} />
                                 </span>
                               </SelectItem>
                             ),
                           )}
                         </SelectContent>
                       </Select>
+                      <ModelSpeedWarning
+                        speed={engineSpeed}
+                        modelId={
+                          settings.webeeSpeechModel ??
+                          defaultModelForProvider(settings.webeeLlmProvider ?? "openai")
+                        }
+                        choices={WEBEE_NATIVE_LLM_MODELS[settings.webeeLlmProvider ?? "openai"] ?? []}
+                      />
                     </div>
                     {/* Voice picker moved into a dialog. Filters, search,
                         clone button, preview text and the scrolling library

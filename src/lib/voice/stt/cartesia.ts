@@ -303,6 +303,17 @@ class CartesiaSttSession implements SttSession {
 export class CartesiaSttProvider implements SttProvider {
   readonly name = "cartesia";
   readonly streaming = true;
+  /**
+   * Ink-whisper sends no in-progress transcripts — only a finished segment once it hears a pause,
+   * measured 250 ms after the caller stopped (before the 400 ms end-of-speech wait ends). Its final
+   * takes 30–80 ms, so there is nothing worth skipping, and the segments would miss whatever came
+   * after the last one.
+   */
+  readonly capabilities = {
+    partials: false,
+    segmentFinalsBeforeEndpoint: true,
+    partialCanReplaceFinal: false,
+  } as const;
 
   constructor(
     private readonly apiKey: string,

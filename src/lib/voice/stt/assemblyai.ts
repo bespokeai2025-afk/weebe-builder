@@ -354,6 +354,12 @@ class AssemblyAiSttSession implements SttSession {
 export class AssemblyAiSttProvider implements SttProvider {
   readonly name = "assemblyai";
   readonly streaming = true;
+  /** Universal-Streaming partials cover the whole turn so far, so a complete-looking one can stand in for the final. */
+  readonly capabilities = {
+    partials: true,
+    segmentFinalsBeforeEndpoint: true,
+    partialCanReplaceFinal: true,
+  } as const;
 
   constructor(
     private readonly apiKey: string,

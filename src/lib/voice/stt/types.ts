@@ -50,9 +50,33 @@ export interface SttSession {
   close(): void;
 }
 
+/**
+ * How a speech recogniser behaves while the caller talks. Each provider declares this in its own
+ * file, and the voice engine reads it instead of checking provider names, so every provider gets
+ * the same orchestration: whatever arrives before the endpoint starts the same pre-endpoint work
+ * (speculative routing and speech, adaptive hangover), and the final is skipped only where that
+ * is safe.
+ */
+export interface SttCapabilities {
+  /** Sends in-progress transcripts while the caller is still talking. */
+  partials: boolean;
+  /**
+   * Sends each finished segment as soon as it hears a pause — before the engine's end-of-speech
+   * wait is over. With no partials, these are what the pre-endpoint work starts from.
+   */
+  segmentFinalsBeforeEndpoint: boolean;
+  /**
+   * A partial that looks complete ("yes", "it's empty") is the whole utterance, so the engine may
+   * use it and skip waiting for the final. False when a partial only covers speech up to the last
+   * pause: anything the caller said after it would be lost.
+   */
+  partialCanReplaceFinal: boolean;
+}
+
 export interface SttProvider {
   readonly name: string;
   /** True when the provider emits text while the caller is still speaking. */
   readonly streaming: boolean;
+  readonly capabilities: SttCapabilities;
   open(options: SttOpenOptions): Promise<SttSession>;
 }

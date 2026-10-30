@@ -28,6 +28,12 @@ export interface LatencyHedgeOptions {
   window?: number;
   /** Never hedge later than this; past it the duplicate cannot help. */
   maxDelayMs?: number;
+  /**
+   * Delay to use until `minSamples` have been seen. Unset = do not hedge until then. Without it
+   * the first calls after every restart run unprotected, which is when a slow provider spell
+   * was seen (a 4.8 s first word on the first reply of a call).
+   */
+  initialDelayMs?: number;
 }
 
 export class LatencyHedge {
@@ -36,12 +42,14 @@ export class LatencyHedge {
   private readonly minSamples: number;
   private readonly window: number;
   private readonly maxDelayMs: number;
+  private readonly initialDelayMs: number | null;
 
   constructor(options: LatencyHedgeOptions = {}) {
     this.quantile = options.quantile ?? 0.9;
     this.minSamples = options.minSamples ?? 10;
     this.window = options.window ?? 50;
     this.maxDelayMs = options.maxDelayMs ?? Number.POSITIVE_INFINITY;
+    this.initialDelayMs = options.initialDelayMs ?? null;
   }
 
   /** Record how long one request took. */
@@ -54,7 +62,9 @@ export class LatencyHedge {
   /** When a request should get a duplicate, or null while there is too little data (or it is off). */
   delayMs(): number | null {
     if (hedgeDisabled()) return null;
-    if (this.samples.length < this.minSamples) return null;
+    if (this.samples.length < this.minSamples) {
+      return this.initialDelayMs === null ? null : Math.min(this.initialDelayMs, this.maxDelayMs);
+    }
     const sorted = [...this.samples].sort((a, b) => a - b);
     const at = sorted[Math.min(sorted.length - 1, Math.floor(this.quantile * (sorted.length - 1)))]!;
     return Math.min(at, this.maxDelayMs);

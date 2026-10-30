@@ -7,6 +7,7 @@ import {
 import { Timer, AlertTriangle, ArrowUpDown, PhoneCall, Voicemail, CalendarDays, PoundSterling, CheckCircle2 } from "lucide-react";
 import { BILLING_RATE_GBP_PER_MINUTE, formatDurationHuman } from "@/lib/analytics-hub/campaign-usage.shared";
 import { getCampaignUsage } from "@/lib/analytics-hub/analytics-hub.functions";
+import { getWbahCredits } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { EmptyState, TableHead, Th } from "@/components/dashboard/PageShell";
 import {
@@ -57,6 +58,23 @@ export function CampaignUsageSection({ filter }: { filter: AnalyticsFilterState 
     staleTime: 60_000,
     throwOnError: false,
   });
+  // WBAH: the Credits page's "Minutes Used" for the current credit cycle, shown as a reference
+  // line. It covers a different period (since the last top-up, plus minutes used before it was
+  // tracked), so it is NOT added to this range's minutes or charge.
+  const creditsFn = useServerFn(getWbahCredits);
+  const isWbahUsage = (q.data as any)?.mode === "wbah_dialler";
+  const creditsQ = useQuery({
+    queryKey: ["wbah-credits"],
+    queryFn: () => creditsFn(),
+    staleTime: 5 * 60_000,
+    enabled: isWbahUsage,
+    throwOnError: false,
+  });
+  const creditCycleUsed: number | null = (() => {
+    const c: any = creditsQ.data;
+    const v = c?.summary?.used_minutes ?? c?.retell?.used_minutes;
+    return typeof v === "number" && Number.isFinite(v) ? v : null;
+  })();
   const [sortKey, setSortKey] = useState<SortKey>("minutesUsed");
   const [desc, setDesc] = useState(true);
 
@@ -119,6 +137,8 @@ export function CampaignUsageSection({ filter }: { filter: AnalyticsFilterState 
     </button>
   );
 
+  const adj = (d as any).minutesAdjustment as { minutes: number; date: string; note: string | null } | null | undefined;
+
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
@@ -144,6 +164,26 @@ export function CampaignUsageSection({ filter }: { filter: AnalyticsFilterState 
         </div>
       )}
 
+      {adj && (
+        <div className="text-[11px] text-muted-foreground">
+          Includes an adjustment of{" "}
+          <span className="font-medium text-foreground">
+            {adj.minutes > 0 ? "+" : ""}
+            {fmtMin(adj.minutes)}
+          </span>{" "}
+          dated {adj.date}
+          {adj.note ? ` (${adj.note})` : ""}, counted in Minutes used and the Client Usage Charge.
+        </div>
+      )}
+
+      {isWbahUsage && creditCycleUsed != null && (
+        <div className="text-[11px] text-muted-foreground">
+          Credit cycle used: <span className="font-medium text-foreground">{fmtMin(creditCycleUsed)}</span> (same as
+          Credits) — since the last top-up, including minutes used before it was tracked. Not added to this
+          period&apos;s minutes or charge.
+        </div>
+      )}
+
       {/* Provider reconciliation is WEBEE-internal diagnostics: the server only
           includes `provider` for platform admins — clients never receive it. */}
       {d.provider && (
@@ -156,7 +196,7 @@ export function CampaignUsageSection({ filter }: { filter: AnalyticsFilterState 
             <>Retell could not be reached to independently verify this period. Figures shown are WEBEE&apos;s stored data; no provider comparison is available right now.</>
           ) : (
             <span className="block space-y-0.5">
-              <span className="block">Retell provider minutes: {fmtMin(d.provider.minutes)} across {fmtInt(d.provider.calls)} calls · WEBEE recorded: {fmtMin(ws.minutesUsed)} across {fmtInt(ws.totalCalls)} calls.</span>
+              <span className="block">Retell provider minutes: {fmtMin(d.provider.minutes)} across {fmtInt(d.provider.calls)} calls · WEBEE recorded: {fmtMin(ws.minutesUsed - (adj?.minutes ?? 0))} across {fmtInt(ws.totalCalls)} calls.</span>
               <span className="block">
                 Provider reconciliation difference: {fmtMin(d.provider.differenceMinutes)} (tolerance ±{fmtMin(d.provider.toleranceMinutes)} from per-call second rounding).
                 {" "}Actual provider cost for this period: {fmtUsdCents(d.provider.costUsdCents)}{(d.provider.costUnavailableCalls ?? 0) > 0 ? ` (${fmtInt(d.provider.costUnavailableCalls)} calls without recorded cost)` : ""}.

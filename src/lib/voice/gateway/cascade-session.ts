@@ -39,9 +39,10 @@ import {
   type SttProviderName,
   type SttSession,
 } from "../stt";
+import type { SttCapabilities } from "../stt/types";
 import { createTtsProvider, parseTtsProviderName } from "../tts";
 import { normalizeSpeechText, type TtsVoiceRequest } from "../tts/types";
-import { FishAudioTtsProvider, fishTtsLanguage, resolveFishTtsModel } from "../tts/fish.provider";
+import { fishTtsLanguage, resolveFishTtsModel } from "../tts/fish.provider";
 import type { TtsProvider, TtsProviderName } from "../tts";
 import {
   BackchannelScheduler,
@@ -324,6 +325,12 @@ export class CascadeSession {
   /** UK postcode shapes are only recognised for agents that work in the UK. */
   private readonly ukPostcodes: boolean;
   private sttName = "fish";
+  /** What the STT provider sends before the endpoint — declared in the provider's own file. */
+  private sttCaps: SttCapabilities = {
+    partials: true,
+    segmentFinalsBeforeEndpoint: false,
+    partialCanReplaceFinal: false,
+  };
   private readonly fishTtsModel: string;
   private readonly vadTuning: import("../vad/types").EndpointingOptions;
   private readonly responses = new ResponseLifecycle();
@@ -385,6 +392,8 @@ export class CascadeSession {
   private turnCheckGeneration = 0;
   private partialNormalized = "";
   private partialStableSince = 0;
+  /** Finished segments the STT provider sent this utterance, before the endpoint. */
+  private finalSegmentsThisUtterance: string[] = [];
   private speculativeFlat: SpeculativeFlatRun | null = null;
   /** Avoid restarting graph speculative LLM on every partial tick. */
   private speculativeGraphKey = "";
@@ -555,9 +564,7 @@ export class CascadeSession {
     });
     const ttsLanguage = fishTtsLanguage(this.config.speechLanguages);
     if (ttsLanguage) this.voiceProfile = { ...this.voiceProfile, language: ttsLanguage };
-    if (this.tts.name === "fish") {
-      (this.tts as FishAudioTtsProvider).bindCall(this.voiceProfile);
-    }
+    this.tts.bindCall?.(this.voiceProfile);
     console.log(
       `${this.log} voice locked for call ${this.config.callId}: reference_id=${this.voiceProfile.voiceId}` +
         (typeof this.voiceProfile.speed === "number" ? ` speed=${this.voiceProfile.speed}` : "") +
@@ -595,6 +602,7 @@ export class CascadeSession {
       sttName === "deepgram" ? resolveDeepgramModel(this.config.settings) : undefined,
     );
     this.sttName = sttProvider.name;
+    this.sttCaps = sttProvider.capabilities;
     this.stt = await sttProvider.open({
       sampleRate: this.sampleRate,
       language: this.sttLanguage,
@@ -603,6 +611,7 @@ export class CascadeSession {
         this.transport.onPartialTranscript?.(text, "user");
         this.onCallerPartial(text);
       },
+      onFinal: (text) => this.onCallerSegmentFinal(text),
     });
 
     const runtime = await this.loadGraphRuntime();
@@ -1101,9 +1110,7 @@ export class CascadeSession {
   close(): void {
     if (this.closed) return;
     this.closed = true;
-    if (this.tts?.name === "fish") {
-      (this.tts as FishAudioTtsProvider).releaseCall();
-    }
+    this.tts?.releaseCall?.();
     this.clearUtteranceCoalesce();
     this.clearPartialStability();
     this.clearSilenceTimer();
@@ -1138,7 +1145,28 @@ export class CascadeSession {
   }
 
   /** Fish partial transcript while the caller is still speaking. */
-  private onCallerPartial(raw: string): void {
+  /**
+   * A finished segment from the STT provider, while the caller may still be in the end-of-speech
+   * wait.
+   *
+   * Some providers send no in-progress transcripts at all, only a finished segment once they hear
+   * a pause (Cartesia ink-whisper: 250 ms after the caller stopped, while our end-of-speech wait
+   * runs 400 ms). Everything that starts before the endpoint (speculative routing and speech, the
+   * adaptive hangover) is driven by partials, so on such a provider none of it ever ran: 0 of 33
+   * Cartesia turns against 12 of 40 on Fish. The segments so far are treated as a partial that has
+   * already stopped changing, so that work starts when the segment lands. Providers that stream
+   * partials start from those instead (`SttCapabilities`).
+   */
+  private onCallerSegmentFinal(raw: string): void {
+    if (this.sttCaps.partials || !this.sttCaps.segmentFinalsBeforeEndpoint) return;
+    if (!this.callerSpeaking) return;
+    const text = raw.trim();
+    if (!text) return;
+    this.finalSegmentsThisUtterance.push(text);
+    this.onCallerPartial(this.finalSegmentsThisUtterance.join(" "), { alreadyStable: true });
+  }
+
+  private onCallerPartial(raw: string, opts: { alreadyStable?: boolean } = {}): void {
     const normalized = normalizeEnglishLockedSttText(raw.trim(), this.sttLanguage);
     if (!normalized || normalized.length < 2) return;
 
@@ -1193,7 +1221,8 @@ export class CascadeSession {
     this.clearPartialStability();
     if (!this.callerSpeaking || normalized.length < minChars) return;
 
-    const stableFor = Date.now() - this.partialStableSince;
+    // A finished segment will not change, so it needs no stability wait.
+    const stableFor = opts.alreadyStable ? stableMs : Date.now() - this.partialStableSince;
     if (stableFor >= stableMs) {
       this.startPreEndpointWork(normalized);
       return;
@@ -1572,15 +1601,15 @@ export class CascadeSession {
     const partialFallback = this.partialNormalized.trim();
     this.partialNormalized = "";
     this.partialStableSince = 0;
+    this.finalSegmentsThisUtterance = [];
     this.callerSpeaking = false;
 
-    // Fish is excluded for the same reason as Deepgram: its partials are full transcripts of the
-    // utterance up to the last pause, and its final returns at once when no speech followed that
-    // pause. Using the partial instead would drop anything said after the pause.
+    // Only where the provider says a complete-looking partial is the whole utterance
+    // (`SttCapabilities.partialCanReplaceFinal`); otherwise it would drop anything said after the
+    // last pause.
     const skipSttFinal =
       this.englishTurnRules &&
-      this.sttName !== "deepgram" &&
-      this.sttName !== "fish" &&
+      this.sttCaps.partialCanReplaceFinal &&
       shouldSkipSttFinal(
         partialFallback,
         !!this.graphVm?.peekSpeechWarmTarget(partialFallback),
@@ -1893,15 +1922,15 @@ export class CascadeSession {
     return { ...this.voiceProfile };
   }
 
-  /** Pre-open Fish Audio while the caller speaks or while agent audio plays out. */
+  /** Pre-open the TTS connection while the caller speaks or agent audio plays out (providers that support it). */
   private warmTts(): void {
-    if (this.closed || !this.tts || this.tts.name !== "fish") return;
-    (this.tts as FishAudioTtsProvider).warm(this.ttsVoiceRequest());
+    if (this.closed || !this.tts?.warm) return;
+    this.tts.warm(this.ttsVoiceRequest());
   }
 
   private warmTtsWithText(text: string): void {
-    if (this.closed || !this.tts || this.tts.name !== "fish") return;
-    (this.tts as FishAudioTtsProvider).warmWithText(text, this.ttsVoiceRequest());
+    if (this.closed || !this.tts?.warmWithText) return;
+    this.tts.warmWithText(text, this.ttsVoiceRequest());
   }
 
   /**
@@ -2040,6 +2069,7 @@ export class CascadeSession {
     this.speechFrames = 0;
     this.partialNormalized = "";
     this.partialStableSince = 0;
+    this.finalSegmentsThisUtterance = [];
 
     const pending = this.pendingDuplexUserText;
     if (pending) {
@@ -2278,6 +2308,7 @@ export class CascadeSession {
     this.graphVm?.clearSpeculativeSpeech();
     this.partialNormalized = "";
     this.partialStableSince = 0;
+    this.finalSegmentsThisUtterance = [];
     this.restoreHangover();
     this.flushPendingAgentTranscript("interrupted");
     if (responseId) this.transport.onResponseCancelled?.(responseId, reason);

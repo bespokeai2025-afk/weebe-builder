@@ -140,15 +140,69 @@ function attachCartesiaHandlers(ws: WebSocket, queue: ChunkQueue, contextId: str
   ws.on("close", () => queue.end());
 }
 
+/**
+ * How long a pre-opened socket is trusted. Cartesia closes idle TTS sockets after a few minutes; a
+ * warm socket is normally used within a second or two (opened while the caller is talking), so a
+ * short limit only ever discards ones left over from an abandoned turn.
+ */
+const WARM_SOCKET_MAX_AGE_MS = 30_000;
+
 export class CartesiaTtsProvider implements TtsProvider {
   readonly name = "cartesia";
   private readonly apiKey: string;
   private readonly defaultModel: string;
+  /** One socket opened ahead of the next reply — see `warm`. */
+  private warmSlot: { sock: Promise<WebSocket>; openedAt: number } | null = null;
 
   constructor(apiKey: string, options?: { model?: string | null }) {
     if (!apiKey) throw new Error("CartesiaTtsProvider requires an API key");
     this.apiKey = apiKey;
     this.defaultModel = resolveCartesiaTtsModel(options?.model);
+  }
+
+  /**
+   * Open the next synthesis socket while the caller is still talking, so a reply does not wait on
+   * the WebSocket handshake. Each reply used to open its own socket after the text was ready; the
+   * voice engine calls this on speech start and on every partial, so it is a no-op while a fresh
+   * socket is already waiting.
+   */
+  warm(): void {
+    if (this.warmSlot && Date.now() - this.warmSlot.openedAt < WARM_SOCKET_MAX_AGE_MS) return;
+    this.dropWarmSlot();
+    const sock = connectCartesiaSocket(this.apiKey);
+    // An idle socket can still error (network drop) before a reply takes it; without a listener
+    // that error would be thrown on the process. Errors while in use are handled by the reply.
+    sock.then((ws) => ws.on("error", () => {})).catch(() => {});
+    this.warmSlot = { sock, openedAt: Date.now() };
+  }
+
+  /** The engine's call-end hook: close a socket nobody will use. */
+  releaseCall(): void {
+    this.dropWarmSlot();
+  }
+
+  private dropWarmSlot(): void {
+    const slot = this.warmSlot;
+    this.warmSlot = null;
+    slot?.sock.then((ws) => ws.terminate()).catch(() => {});
+  }
+
+  /** The warm socket if it is still open and fresh, otherwise a new connection. */
+  private async takeSocket(): Promise<WebSocket> {
+    const slot = this.warmSlot;
+    this.warmSlot = null;
+    if (slot && Date.now() - slot.openedAt < WARM_SOCKET_MAX_AGE_MS) {
+      try {
+        const ws = await slot.sock;
+        if (ws.readyState === WebSocket.OPEN) return ws;
+        ws.terminate();
+      } catch {
+        /* the warm connect failed — connect fresh below */
+      }
+    } else {
+      slot?.sock.then((ws) => ws.terminate()).catch(() => {});
+    }
+    return connectCartesiaSocket(this.apiKey);
   }
 
   synthesize(text: string, req: TtsVoiceRequest): AsyncGenerator<PcmChunk> {
@@ -159,7 +213,7 @@ export class CartesiaTtsProvider implements TtsProvider {
         if (!trimmed) return;
         const contextId = randomUUID();
         const queue = new ChunkQueue();
-        const ws = await connectCartesiaSocket(self.apiKey);
+        const ws = await self.takeSocket();
         attachCartesiaHandlers(ws, queue, contextId);
         ws.send(
           JSON.stringify({
@@ -191,7 +245,7 @@ export class CartesiaTtsProvider implements TtsProvider {
       (async function* (): AsyncGenerator<Buffer> {
         const contextId = randomUUID();
         const queue = new ChunkQueue();
-        const ws = await connectCartesiaSocket(self.apiKey);
+        const ws = await self.takeSocket();
         attachCartesiaHandlers(ws, queue, contextId);
 
         const model = resolveCartesiaTtsModel(req.model ?? self.defaultModel);

@@ -11,6 +11,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
+  engineSpeedStats,
   LATENCY_BUDGET_MS,
   nodeLatencySummary,
   percentiles,
@@ -20,6 +21,7 @@ import {
   stageBreakdown,
   withinBudget,
   type CallTurnRow,
+  type EngineSpeedRow,
 } from "./call-latency-stats.shared";
 
 const TURN_COLUMNS =
@@ -207,4 +209,33 @@ export const getAgentNodeLatency = createServerFn({ method: "GET" })
       live: { turns: live.length, nodes: nodeLatencySummary(live) },
       test: { turns: test.length, nodes: nodeLatencySummary(test) },
     };
+  });
+
+/**
+ * How fast each speech model and voice provider has been on this workspace's WEBEE Native calls,
+ * for the builder's model and voice menus. Test calls count: most native agents are still being
+ * built, and a builder test call runs the same engine as a live one.
+ */
+export const getEngineSpeed = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .validator((input) =>
+    z
+      .object({ days: z.number().int().min(1).max(90).optional() })
+      .optional()
+      .parse(input ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const { workspaceId } = context as { workspaceId?: string };
+    if (!workspaceId) throw new Error("No active workspace");
+    const days = data?.days ?? 30;
+    const since = new Date(Date.now() - days * 86_400_000).toISOString();
+    const { data: rows, error } = await (supabaseAdmin as any)
+      .from("call_turns")
+      .select("call_id, llm_model, tts_provider, stt_to_first_token_ms, stt_to_first_audio_ms")
+      .eq("workspace_id", workspaceId)
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(20_000);
+    if (error) throw new Error(error.message);
+    return { days, ...engineSpeedStats((rows ?? []) as EngineSpeedRow[]) };
   });

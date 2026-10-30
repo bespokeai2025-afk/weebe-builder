@@ -40,6 +40,12 @@ class WhisperSttSession implements SttSession {
 export class WhisperSttProvider implements SttProvider {
   readonly name = "whisper";
   readonly streaming = false;
+  /** Batch: the whole transcription happens after the endpoint, so nothing arrives before it. */
+  readonly capabilities = {
+    partials: false,
+    segmentFinalsBeforeEndpoint: false,
+    partialCanReplaceFinal: false,
+  } as const;
 
   constructor(private readonly apiKey: string) {
     if (!apiKey) throw new Error("OpenAI API key is required for Whisper");

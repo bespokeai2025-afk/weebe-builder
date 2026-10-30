@@ -18,6 +18,7 @@ import {
   type VoiceLlmProvider,
 } from "../llm/gpt";
 import { LatencyHedge } from "../llm/latency-hedge";
+import { hedgedStream } from "../llm/hedged-stream";
 import {
   WEBEE_NATIVE_CLASSIFIER_MODEL,
   WEBEE_NATIVE_OPENAI_CLASSIFIER_MODEL,
@@ -85,6 +86,27 @@ const BACKGROUND_LLM_TIMEOUT_MS = 4_000;
 const classifyHedge = new LatencyHedge({ maxDelayMs: BACKGROUND_LLM_TIMEOUT_MS * 0.75 });
 const extractHedge = new LatencyHedge({ maxDelayMs: BACKGROUND_LLM_TIMEOUT_MS * 0.75 });
 
+/**
+ * Duplicate a spoken reply whose first word is later than this server's recent median for that
+ * model (see `hedgedStream`). Per provider and model, since their first-word times differ several
+ * fold (Cerebras ~0.5 s, OpenAI gpt-4.1-mini 0.8–2 s). Capped so a slow spell on the provider
+ * cannot push the duplicate past the point where it could still help. Until a model has enough
+ * samples, 1.5 s: about the median first word seen on OpenAI gpt-4.1-mini from the server.
+ * WEBEE_NATIVE_SPEECH_HEDGE=off turns off this one; WEBEE_NATIVE_LLM_HEDGE=off turns off all hedging.
+ */
+const speechHedges = new Map<string, LatencyHedge>();
+function speechHedgeFor(provider: string, model: string): LatencyHedge | null {
+  const off = typeof process !== "undefined" ? String(process.env?.WEBEE_NATIVE_SPEECH_HEDGE ?? "") : "";
+  if (/^(off|false|0|no)$/i.test(off.trim())) return null;
+  const key = `${provider}:${model}`;
+  let hedge = speechHedges.get(key);
+  if (!hedge) {
+    hedge = new LatencyHedge({ quantile: 0.5, maxDelayMs: 2_000, initialDelayMs: 1_500 });
+    speechHedges.set(key, hedge);
+  }
+  return hedge;
+}
+
 const EXTRACT_SYSTEM = [
   "You extract structured data from a voice conversation.",
   "Return a JSON object containing only the requested fields.",
@@ -134,14 +156,27 @@ export function createOpenAiVmLlm(options: OpenAiVmLlmOptions): VmLlm {
     },
 
     generateStream(messages, opts) {
-      return gptStream(messages as ChatMsg[], {
-        model: opts?.model || defaultModel,
-        apiKey,
-        provider,
-        temperature: options.temperature ?? 0.3,
-        maxTokens: SPEECH_MAX_TOKENS,
+      const model = opts?.model || defaultModel;
+      const open = (signal?: AbortSignal) =>
+        gptStream(messages as ChatMsg[], {
+          model,
+          apiKey,
+          provider,
+          temperature: options.temperature ?? 0.3,
+          maxTokens: SPEECH_MAX_TOKENS,
+          signal,
+          breaker,
+        });
+      const hedge = speechHedgeFor(provider ?? "default", model);
+      if (!hedge) return open(opts?.signal);
+      return hedgedStream(open, hedge, {
         signal: opts?.signal,
-        breaker,
+        onHedge: (e) =>
+          console.log(
+            e.kind === "sent"
+              ? `[llm-hedge] speech ${model}: no first word after ${e.afterMs}ms — sent a duplicate`
+              : `[llm-hedge] speech ${model}: ${e.duplicate ? "duplicate" : "original"} won, first word at ${e.firstTokenMs}ms`,
+          ),
       });
     },
 
