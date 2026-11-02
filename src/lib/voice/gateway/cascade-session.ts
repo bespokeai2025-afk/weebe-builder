@@ -436,6 +436,15 @@ export class CascadeSession {
   private readonly utteranceCoalesceMs: number;
   private readonly defaultSilenceFrames: number;
 
+  /**
+   * Opening timing, for the "how long after pickup did the agent speak" question: setup (STT, TTS,
+   * graph) runs from `sessionStartedAt` to `sessionReadyAt`; any deliberate wait for the caller
+   * (begin-after-silence) and the greeting's own synthesis follow. Logged once at first audio.
+   */
+  private sessionStartedAt = 0;
+  private sessionReadyAt = 0;
+  private openingLogged = false;
+
   constructor(transport: CascadeTransport, config: CascadeSessionConfig) {
     this.transport = transport;
     this.config = config;
@@ -732,7 +741,9 @@ export class CascadeSession {
 
   /** Telephony: prepare + greet in one step (caller is already on the line). */
   async start(): Promise<CascadeSessionBanner> {
+    this.sessionStartedAt = Date.now();
     const banner = await this.prepare();
+    this.sessionReadyAt = Date.now();
     this.armVoicemailWatch();
     this.armMaxDurationTimer();
     this.armDeadAirTimer();
@@ -2016,6 +2027,15 @@ export class CascadeSession {
         `${this.log} sending first audio chunk response=${responseId} turn=${turnId} (${chunk.byteLength} bytes)`,
       );
       this.agentAudioStartedAt = Date.now();
+      if (!this.openingLogged && this.sessionStartedAt) {
+        this.openingLogged = true;
+        const now = Date.now();
+        console.log(
+          `${this.log} opening: first agent audio ${now - this.sessionStartedAt}ms after the call connected` +
+            ` (setup ${this.sessionReadyAt - this.sessionStartedAt}ms, then ${now - this.sessionReadyAt}ms` +
+            " waiting for the caller and synthesising the greeting)",
+        );
+      }
     }
     this.agentPcmBytesThisUtterance += chunk.byteLength;
     this.transport.sendAudio(chunk, { responseId, turnId });

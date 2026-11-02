@@ -55,6 +55,7 @@ import {
   selectDigitEdge,
   selectEdge,
   selectGlobalNode,
+  looksLikeEmailAnswer,
   looksLikePhoneAnswer,
   looksLikeRepairRequest,
   tryHeuristicEdgeIndex,
@@ -94,6 +95,17 @@ type StepResult =
   | { kind: "end"; reason: EndReason };
 
 const DEFAULT_MAX_STEPS = 25;
+
+/**
+ * Looser than the router's email check, which needs "x at y dot z": misheard corrections such as
+ * "rjavirani1238. email dot com" or "Arjavvir. at gmail.com" still read as someone giving an email.
+ * Only used to decide whether to wait for this turn's extraction, never to route.
+ */
+function soundsLikeEmail(text: string): boolean {
+  return /@|\be-?mail\b|\b(gmail|icloud|hotmail|outlook|yahoo|live)\b|\bdot\s+(com|co|uk|net|org)\b|\.(com|co\.uk|net|org)\b/i.test(
+    text,
+  );
+}
 
 const TURN_RULES_BASE = [
   "You are on a live phone call. Produce ONLY the next words to speak.",
@@ -310,6 +322,13 @@ export class ConversationVm {
    * step's next line, cleared once it is spoken.
    */
   private pendingDetailAsk: { nodeId: string; missing: string[] } | null = null;
+  /**
+   * Captured values the caller just tried to change, where the new value failed validation (a
+   * misheard email with no "@"). The old value is kept, so without this the next line read it back
+   * as if it were right — a caller correcting their email was read the wrong one four times.
+   * Read by the next line, cleared once it is spoken.
+   */
+  private rejectedCorrections: string[] = [];
   /** Times each extract step has sent the caller back, reset once it moves on. */
   private detailReasks = new Map<string, number>();
   private awaiting: "user" | "digit" | "transfer" | "begin_silence" | null = null;
@@ -785,21 +804,21 @@ export class ConversationVm {
           this.ended = true;
           return;
         }
-        // `start_speaker: "user"` means the agent stays silent until spoken to,
-        // which is how inbound flows avoid talking over a caller's greeting.
+        // `begin_after_user_silence_ms` (Retell's setting, and the builder's Begin step): wait up to
+        // that long for the caller, then greet — or greet as soon as they speak. It means the same
+        // whichever side is set to speak first. A user-first start with no such wait stays silent
+        // until spoken to, which is how inbound flows avoid talking over a caller's greeting.
+        // A user-first start used to ignore the wait and hold forever for a callee who said nothing.
+        const beginSilence = this.beginSilenceMs();
+        if (beginSilence > 0) {
+          this.log(`waiting up to ${beginSilence}ms for the caller before greeting`);
+          this.awaiting = "begin_silence";
+          yield { type: "await_user", nodeId: this.currentNodeId, silenceTimeoutMs: beginSilence };
+          return;
+        }
         if (this.compiled.startSpeaker === "user") {
           this.awaiting = "user";
           yield this.awaitUserDirective(this.currentNodeId);
-          return;
-        }
-        const beginSilence = this.beginSilenceMs();
-        if (beginSilence > 0) {
-          this.awaiting = "begin_silence";
-          yield {
-            type: "await_user",
-            nodeId: this.currentNodeId,
-            silenceTimeoutMs: beginSilence,
-          };
           return;
         }
         yield* this.advance(this.currentNodeId);
@@ -955,6 +974,11 @@ export class ConversationVm {
         if (hasValue && !this.capturedNames.has(key)) continue;
         const checked = validateExtractedValue({ name: key }, value);
         if (checked !== null) valid[key] = checked;
+        else if (hasValue && String(value ?? "").trim() && String(value).trim() !== String(current).trim()) {
+          // A new value for something already captured, which did not validate — a correction we
+          // could not use. Keep the old value, but stop the agent treating it as confirmed.
+          if (!this.rejectedCorrections.includes(key)) this.rejectedCorrections.push(key);
+        }
       }
       return valid;
     } catch (err) {
@@ -1054,7 +1078,12 @@ export class ConversationVm {
     // the next reply moves on. Only steps with such exits wait; every other step routes at once.
     let routeCtx = ctx;
     let gated = false;
-    if (this.pendingExtraction && edgeGateVars(node.edges).length > 0) {
+    // Same for a reply that carries an email or phone number — usually a correction. The agent's
+    // next line reads such values back, so it must see the new one (or know it could not be used)
+    // rather than repeat the old one.
+    const carriesIdentifier =
+      looksLikeEmailAnswer(latestUser) || looksLikePhoneAnswer(latestUser) || soundsLikeEmail(latestUser);
+    if (this.pendingExtraction && (edgeGateVars(node.edges).length > 0 || carriesIdentifier)) {
       const pending = this.pendingExtraction;
       this.pendingExtraction = null;
       const captured = await pending;
@@ -1765,6 +1794,9 @@ export class ConversationVm {
     const interpolated = interpolateForSpeech(raw, this.variables);
 
     const messages = this.buildSpeechMessages(node, raw);
+    // This line has now been told about any correction that did not come through.
+    const correctionNoted = this.rejectedCorrections.length > 0;
+    this.rejectedCorrections = [];
     const fallback = spokenFallback(splitPromptScript(interpolated));
     const model = nodeModel(node, this.compiled, this.fallbackModel);
     this.traceLog(
@@ -1776,7 +1808,8 @@ export class ConversationVm {
     const latestUser = this.history.filter((m) => m.role === "user").at(-1)?.content ?? "";
     const spec = this.speculativeSpeech.get(node.id);
     if (spec) {
-      if (partialMatchesFinal(spec.partial, latestUser)) {
+      // A line pre-generated before this turn's values landed knows nothing of a failed correction.
+      if (!correctionNoted && partialMatchesFinal(spec.partial, latestUser)) {
         this.speculativeSpeech.delete(node.id);
         this.turnTrace?.mark("speculative_speech_hit");
         return {
@@ -1961,6 +1994,14 @@ export class ConversationVm {
       // the node's own question went unanswered and no edge could ever match.
       tail.push(
         "The caller has already heard this node's line, and their reply did not complete its task. If they asked something, answer it briefly. Then bring them back to what THIS node's task still needs, in fresh words. Do not ask about anything else and do not move the call on.",
+      );
+    }
+    if (this.rejectedCorrections.length > 0) {
+      const names = this.rejectedCorrections.map(humaniseVariableName).join(", ");
+      tail.push(
+        `The caller has just tried to correct their ${names}, but it was not heard clearly enough to use. ` +
+          `Do not read the old ${names} back as correct. Say you did not quite catch it and ask them to spell it ` +
+          "slowly, one letter or digit at a time.",
       );
     }
     if (this.pendingDetailAsk?.nodeId === node.id) {

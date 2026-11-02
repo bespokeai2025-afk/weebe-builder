@@ -388,6 +388,27 @@ function startsWithAffirmative(t: string): boolean {
   );
 }
 
+/**
+ * A reply that opens with "yes"/"yeah"/"ok" but carries more than the yes — an email, a number,
+ * an address, a correction ("…but", "actually"), or a whole new sentence. Such a reply is not a
+ * confirmation and must go to the classifier: "Yeah, it's Arjav Virani 1 2 3 at gmail.com" — a
+ * caller giving a corrected email — was routed down "yes, it's correct" on a live test call, which
+ * confirmed an address the caller had never given and skipped the address question.
+ */
+export function carriesMoreThanAYes(t: string): boolean {
+  const rest = t
+    .replace(
+      /^(yes|yeah|yep|yup|yea|sim|si|sí|sure|ok|okay|correct|right|absolutely|definitely|of course|please|go ahead|sounds good|that works|mm[\s-]?hm|uh[\s-]?huh|y)\b[\s,.!?-]*/i,
+      "",
+    )
+    .trim();
+  if (!rest) return false;
+  if (/[0-9@]/.test(rest)) return true;
+  if (/\b(at|dot)\b/i.test(rest) && /\b(dot|com|co|uk|net|org|gmail|icloud|hotmail|outlook|yahoo)\b/i.test(rest)) return true;
+  if (/\b(but|not|no|wrong|incorrect|actually|except|however|change|instead|isn'?t|wasn'?t)\b/i.test(rest)) return true;
+  return rest.split(/\s+/).filter(Boolean).length > 5;
+}
+
 function startsWithNegative(t: string): boolean {
   return /^(no|nope|nah|not really|negative|pass)\b/i.test(t);
 }
@@ -713,7 +734,7 @@ export function tryHeuristicEdgeIndex(
   const CONTINUE =
     /^(continue|proceed|next|go on|keep going|sure thing|that's fine|fine|alright|all right)$/i;
 
-  if (YES.test(t) || startsWithAffirmative(t)) {
+  if (YES.test(t) || (startsWithAffirmative(t) && !carriesMoreThanAYes(t))) {
     const yesHit = pickYesEdge(conditions, userText, lastAgentText);
     if (yesHit !== null) return yesHit;
     // Do not score the agent's monologue against sibling edges ("how long will
@@ -758,7 +779,7 @@ export function tryHeuristicEdgeIndex(
   }
 
   // Short acks on generic / any-answer edges — skip classifier (~1–2 s).
-  if (isShortAcknowledgement(t) || startsWithAffirmative(t)) {
+  if (isShortAcknowledgement(t) || (startsWithAffirmative(t) && !carriesMoreThanAYes(t))) {
     const ack = pickHeuristicEdge(conditions, userText, (condition) => {
       const c = condition.trim().toLowerCase();
       if (edgeIsSkipAheadCondition(condition)) return false;

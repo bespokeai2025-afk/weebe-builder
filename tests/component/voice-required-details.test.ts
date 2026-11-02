@@ -186,3 +186,78 @@ describe("required details — equation exits on an ask step", () => {
     expect(spoken(out)).toContain("Got your email.");
   });
 });
+
+describe("opening — begin after user silence", () => {
+  const greetFlow = (startSpeaker: "user" | "agent", beginMs?: number) => ({
+    start_node_id: "greet",
+    start_speaker: startSpeaker,
+    ...(beginMs ? { begin_after_user_silence_ms: beginMs } : {}),
+    nodes: [{ id: "greet", type: "conversation", name: "greet", instruction: { type: "static_text", text: "Hi, this is Clare." } }] as FlowNode[],
+  });
+
+  it("a caller-first start with a silence wait greets when the wait runs out", async () => {
+    const { llm } = llmWith(() => ({}));
+    const vm = new ConversationVm({ flow: greetFlow("user", 1000), llm, hooks: { log: () => {} } });
+    const begin = await drain(vm.run({ type: "begin" }));
+    expect(begin[0]).toMatchObject({ type: "await_user", silenceTimeoutMs: 1000 });
+    expect(spoken(await drain(vm.run({ type: "silence_timeout" })))).toEqual(["Hi, this is Clare."]);
+  });
+
+  it("a caller-first start with no wait still waits to be spoken to", async () => {
+    const { llm } = llmWith(() => ({}));
+    const vm = new ConversationVm({ flow: greetFlow("user"), llm });
+    const begin = await drain(vm.run({ type: "begin" }));
+    expect(spoken(begin)).toEqual([]);
+    expect(begin[0]).toMatchObject({ type: "await_user" });
+    expect((begin[0] as { silenceTimeoutMs?: number }).silenceTimeoutMs).toBeUndefined();
+  });
+
+  it("an agent-first start with no wait greets at once", async () => {
+    const { llm } = llmWith(() => ({}));
+    const vm = new ConversationVm({ flow: greetFlow("agent"), llm });
+    expect(spoken(await drain(vm.run({ type: "begin" })))).toEqual(["Hi, this is Clare."]);
+  });
+});
+
+describe("corrections and 'yes, but…' replies", () => {
+  it("a reply that opens with 'yeah' but carries an email is not a yes", async () => {
+    const { tryHeuristicEdgeIndex, carriesMoreThanAYes } = await import("@/lib/voice/graph/router");
+    const conditions = ["Yes its correct", "no thats not correct"];
+    expect(carriesMoreThanAYes("Yeah, it's Arjav. Virani 1 2 3 at gmail.com.")).toBe(true);
+    expect(tryHeuristicEdgeIndex(conditions, "Yeah, it's Arjav. Virani 1 2 3 at gmail.com.")).toBeNull();
+    expect(carriesMoreThanAYes("Yeah but the postcode is wrong")).toBe(true);
+    // Plain confirmations still take the fast path.
+    expect(tryHeuristicEdgeIndex(conditions, "Yes")).toBe(0);
+    expect(tryHeuristicEdgeIndex(conditions, "Yeah, that's right")).toBe(0);
+  });
+
+  it("tells the next line when a corrected email could not be understood, instead of reading the old one as right", async () => {
+    let turn = 0;
+    const { llm, prompts } = llmWith(() => (turn++ === 0 ? { email_address: "old@icloud.com" } : { email_address: "rjavirani1238 email dot com" }));
+    const vm = new ConversationVm({
+      flow: {
+        start_node_id: "confirm",
+        nodes: [
+          {
+            id: "confirm",
+            type: "conversation",
+            name: "confirm",
+            instruction: { type: "prompt", text: "Read back {{email_address}} and ask if it is correct" },
+            edges: [{ id: "y", destination_node_id: "done", transition_condition: { type: "prompt", prompt: "caller confirms" } }],
+          },
+          { id: "done", type: "conversation", name: "done", instruction: { type: "static_text", text: "Done." } },
+        ] as FlowNode[],
+      },
+      llm: { ...llm, classify: async () => -1 },
+      variableNames: ["email_address"],
+      hooks: { log: () => {} },
+    });
+    await drain(vm.run({ type: "begin" }));
+    await drain(vm.run({ type: "user_utterance", text: "it's old at icloud dot com" }));
+    await drain(vm.run({ type: "user_utterance", text: "No, the right email is rjavirani1238. email dot com." }));
+    const tail = prompts.at(-1)!.at(-1)!.content;
+    expect(tail).toMatch(/tried to correct their email address/i);
+    expect(tail).toMatch(/Do not read the old/i);
+    expect(vm.getVariables().email_address).toBe("old@icloud.com");
+  });
+});
