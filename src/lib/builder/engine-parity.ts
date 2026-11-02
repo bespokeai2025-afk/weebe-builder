@@ -9,6 +9,8 @@
  */
 import type { Edge } from "@xyflow/react";
 import { compileFlow } from "@/lib/voice/graph/flow";
+import { edgeGateVars, MAX_DETAIL_REASKS, splitElseEdge } from "@/lib/voice/graph/required-details.shared";
+import type { FlowEdge } from "@/lib/voice/graph/types";
 import { resolveDeploymentMode } from "@/lib/runtime/adapter";
 import { exportAgentJson } from "./export-conversation-flow";
 import { SETTING_ENGINE_RULES, settingSupport } from "./engine-capabilities";
@@ -58,6 +60,27 @@ export function nativeEngineIssues(
       level: /no executable nodes/.test(warning) ? "error" : "warn",
       message: `WEBEE Native: ${warning}.`,
       nodeId: nodeId && nodeIds.has(nodeId) ? nodeId : undefined,
+    });
+  }
+
+  // Extract steps that gate on variables ("{{email}} exists") with no else exit: say what the
+  // engine does when a detail is missing, so the author is not surprised by the call going back.
+  const flowNodes = Array.isArray((flow as { nodes?: unknown })?.nodes)
+    ? ((flow as { nodes: Array<Record<string, unknown>> }).nodes ?? [])
+    : [];
+  for (const n of flowNodes) {
+    if (n.type !== "extract_dynamic_variables") continue;
+    if (splitElseEdge(n.edges as FlowEdge[] | undefined, n.else_edge as FlowEdge | undefined).elseEdge) continue;
+    const gates = edgeGateVars(n.edges as FlowEdge[] | undefined);
+    if (gates.length === 0) continue;
+    const id = String(n.id ?? "");
+    issues.push({
+      level: "warn",
+      message:
+        `“${String(n.name ?? id)}” checks ${gates.join(", ")} but has no else exit. If any is still missing, ` +
+        `the call goes back to the step that asked and asks for just that (up to ${MAX_DETAIL_REASKS} times), then ` +
+        `continues along this step's last exit. Add an else exit to choose where it goes instead.`,
+      nodeId: nodeIds.has(id) ? id : undefined,
     });
   }
 

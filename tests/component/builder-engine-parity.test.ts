@@ -36,3 +36,37 @@ describe("nativeEngineIssues", () => {
     expect(issues).toEqual([]);
   });
 });
+
+describe("nativeEngineIssues — gated extract steps", () => {
+  const gate = {
+    id: "t1",
+    target: "end",
+    conditionType: "equation",
+    equationJoin: "&&",
+    equations: [{ left: "{{email}}", operator: "exists", right: "" }],
+  };
+  const flowWith = (transitions: unknown[]) => [
+    node("conversation", "start", { isStart: true, dialogue: "What's your email?" }),
+    node("extract_variable", "grab", { label: "Grab email", transitions } as Partial<FlowNode["data"]>),
+    node("ending", "end"),
+    node("ending", "other"),
+  ];
+  const e: Edge[] = [{ id: "e1", source: "start", target: "grab" }];
+
+  it("explains what happens when an extract step gates on variables with no else exit", () => {
+    const issues = nativeEngineIssues(flowWith([gate]), e, native, []);
+    expect(issues).toContainEqual(
+      expect.objectContaining({
+        level: "warn",
+        nodeId: "grab",
+        message: expect.stringMatching(/checks email but has no else exit.*up to 3 times/),
+      }),
+    );
+  });
+
+  it("is quiet once the step has an else exit", () => {
+    const withElse = [gate, { id: "t2", target: "other", conditionType: "prompt", condition: "Else" }];
+    const issues = nativeEngineIssues(flowWith(withElse), e, native, []);
+    expect(issues.some((i) => /no else exit/.test(i.message))).toBe(false);
+  });
+});

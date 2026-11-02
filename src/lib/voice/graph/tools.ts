@@ -234,8 +234,21 @@ function pickVariables(body: string): Record<string, VariableValue> | undefined 
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
+/**
+ * The error text a tool result carries. Node's fetch reports every network failure as plain
+ * "fetch failed" and keeps the reason in `cause` — a booking tool pointed at a host that does not
+ * exist failed that way on every call for weeks with nothing saying why. The cause's code and host
+ * ("fetch failed (ENOTFOUND uat-api.example.com)") make it diagnosable from the call record.
+ */
 function errMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
+  if (!(err instanceof Error)) return String(err);
+  const cause = (err as Error & { cause?: unknown }).cause as
+    | { code?: unknown; hostname?: unknown; message?: unknown }
+    | undefined;
+  if (!cause || typeof cause !== "object") return err.message;
+  const detail = [cause.code, cause.hostname].filter((v) => typeof v === "string" && v).join(" ");
+  const fallback = typeof cause.message === "string" ? cause.message : "";
+  return detail || fallback ? `${err.message} (${detail || fallback})` : err.message;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

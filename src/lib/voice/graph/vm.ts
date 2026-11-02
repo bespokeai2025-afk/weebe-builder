@@ -32,6 +32,7 @@ import {
   type CompiledFlow,
 } from "./flow";
 import { shouldCaptureCollectAnswer } from "./collect-variable.shared";
+import { edgeGateVars, MAX_DETAIL_REASKS, missingGateVars, splitElseEdge } from "./required-details.shared";
 import { validateExtractedValue } from "./extraction-validation.shared";
 import { guardPrematureWrapUpStream, replacePrematureWrapUp } from "./speech-guard.shared";
 import {
@@ -303,6 +304,14 @@ export class ConversationVm {
   private lastSpokenNodeId: string | null = null;
   /** Nodes to come back to after a `return_to_previous` global node finishes. */
   private returnStack: string[] = [];
+  /**
+   * Set when an extract step sends the caller back for details its exits require
+   * (`required-details.shared.ts`): the step to ask from, and what is still missing. Read by that
+   * step's next line, cleared once it is spoken.
+   */
+  private pendingDetailAsk: { nodeId: string; missing: string[] } | null = null;
+  /** Times each extract step has sent the caller back, reset once it moves on. */
+  private detailReasks = new Map<string, number>();
   private awaiting: "user" | "digit" | "transfer" | "begin_silence" | null = null;
   private silenceAttempts = 0;
   private silenceNodeId: string | null = null;
@@ -1039,16 +1048,35 @@ export class ConversationVm {
 
     this.beginRouteRaceSpeech(latestUser);
 
+    // Exits that test variables ("{{email}} exists") must see what the caller said in THIS reply.
+    // Extraction runs alongside routing and normally lands after it, so such an exit used to read
+    // the value one turn late: the caller gives their email, the step asks for it again, and only
+    // the next reply moves on. Only steps with such exits wait; every other step routes at once.
+    let routeCtx = ctx;
+    let gated = false;
+    if (this.pendingExtraction && edgeGateVars(node.edges).length > 0) {
+      const pending = this.pendingExtraction;
+      this.pendingExtraction = null;
+      const captured = await pending;
+      if (Object.keys(captured).length > 0) {
+        this.rememberVariables(captured);
+        yield { type: "variables", nodeId: node.id, values: captured };
+      }
+      routeCtx = this.routeContext(node);
+      gated = true;
+    }
+
     const predicted = this.predictedAdvanceNodeId(latestUser);
     const instant =
-      predicted && !this.textRules.question(latestUser) ? this.instantSpeechForNode(predicted) : null;
+      !gated && predicted && !this.textRules.question(latestUser) ? this.instantSpeechForNode(predicted) : null;
 
     this.turnTrace?.mark("graph_route_edge_start");
     // A routing call already started against this turn's partial resolves here for free; the
     // `?? selectEdge(...)` arm covers both "nothing was started" and "what was started is no
-    // longer usable" (transcript moved on, or it resolved without needing the classifier).
-    const speculativeRoute = this.takeSpeculativeRoute(node, latestUser);
-    const freshRoute = () => selectEdge(node.edges ?? [], ctx, this.llm);
+    // longer usable" (transcript moved on, or it resolved without needing the classifier). A gated
+    // step routes afresh: a decision made before this turn's values landed may be stale.
+    const speculativeRoute = gated ? null : this.takeSpeculativeRoute(node, latestUser);
+    const freshRoute = () => selectEdge(node.edges ?? [], routeCtx, this.llm);
     const edgePromise = speculativeRoute
       ? speculativeRoute.then((decision) => decision ?? freshRoute())
       : freshRoute();
@@ -1261,6 +1289,7 @@ export class ConversationVm {
     if (!this.consumeSkipSpeech(node.id)) {
       yield* this.yieldSpeech(node);
     }
+    if (this.pendingDetailAsk?.nodeId === node.id) this.pendingDetailAsk = null;
     const skip = (node as { skip_response_edge?: FlowEdge }).skip_response_edge;
     if (skip?.destination_node_id) {
       return { kind: "goto", nodeId: skip.destination_node_id };
@@ -1323,10 +1352,42 @@ export class ConversationVm {
     // fall back to an explicit else_edge (round-tripped from Retell-imported flows) and, failing
     // that, the node's own last declared edge — the conventional single "continue" path when the
     // author added just one, exactly the common case for this node type.
-    const elseEdge = (node as { else_edge?: FlowEdge }).else_edge;
-    const edgeRoute = await selectEdge(node.edges ?? [], this.routeContext(node), this.llm);
-    const chosen = edgeRoute.edge ?? elseEdge ?? node.edges?.[node.edges.length - 1];
-    return this.follow(chosen, node);
+    const { main, elseEdge } = splitElseEdge(node.edges, (node as { else_edge?: FlowEdge }).else_edge);
+    const edgeRoute = await selectEdge(main, this.routeContext(node), this.llm);
+    if (edgeRoute.edge || elseEdge) {
+      this.detailReasks.delete(node.id);
+      return this.follow(edgeRoute.edge ?? elseEdge, node);
+    }
+
+    // Nothing matched and the author drew no else exit. When the exits test variables that are
+    // still empty, this step is a gate ("don't move on without the email"): following the last
+    // exit anyway — the old fallback — walked straight through it. Go back to the step that asked,
+    // and have it ask for just what is missing. Bounded, so a caller who will not give a detail is
+    // not looped forever: after MAX_DETAIL_REASKS the call moves on as before, and the log says what
+    // was never captured.
+    const missing = missingGateVars(node.edges, this.variables);
+    const askFrom = this.lastSpokenNodeId;
+    const asker = askFrom ? this.compiled.nodes.get(askFrom) : undefined;
+    const tries = this.detailReasks.get(node.id) ?? 0;
+    if (missing.length > 0 && askFrom && asker?.type === "conversation" && tries < MAX_DETAIL_REASKS) {
+      this.detailReasks.set(node.id, tries + 1);
+      this.pendingDetailAsk = { nodeId: askFrom, missing };
+      // A reply pre-generated for that step does not know what is missing.
+      this.setSpeculativeSpeech(askFrom, null);
+      this.traceLog(
+        "TRANSITION",
+        `${node.id} → ${askFrom}`,
+        `missing ${missing.join(", ")} — asking again (${tries + 1}/${MAX_DETAIL_REASKS})`,
+      );
+      return { kind: "goto", nodeId: askFrom };
+    }
+    if (missing.length > 0) {
+      this.log(
+        `extract "${node.id}": moving on without ${missing.join(", ")} after ${tries} attempt(s)`,
+      );
+    }
+    this.detailReasks.delete(node.id);
+    return this.follow(node.edges?.[node.edges.length - 1], node);
   }
 
   private async *execFunction(node: FunctionNode): AsyncGenerator<VmDirective, StepResult> {
@@ -1900,6 +1961,18 @@ export class ConversationVm {
       // the node's own question went unanswered and no edge could ever match.
       tail.push(
         "The caller has already heard this node's line, and their reply did not complete its task. If they asked something, answer it briefly. Then bring them back to what THIS node's task still needs, in fresh words. Do not ask about anything else and do not move the call on.",
+      );
+    }
+    if (this.pendingDetailAsk?.nodeId === node.id) {
+      const missing = this.pendingDetailAsk.missing;
+      const have = [...this.capturedNames].filter(
+        (k) => !missing.includes(k) && String(this.variables[k] ?? "").trim(),
+      );
+      tail.push(
+        `Still needed from the caller: ${this.pendingDetailAsk.missing.map(humaniseVariableName).join(", ")}. ` +
+          "Ask only for these, briefly and naturally" +
+          (have.length ? ` — you already have ${have.map(humaniseVariableName).join(", ")}, so do not ask for those again` : "") +
+          ".",
       );
     }
     if (missingRule) tail.push(`Reminder: ${missingRule}`);
