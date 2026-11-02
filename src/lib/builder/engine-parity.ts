@@ -9,7 +9,8 @@
  */
 import type { Edge } from "@xyflow/react";
 import { compileFlow } from "@/lib/voice/graph/flow";
-import { edgeGateVars, MAX_DETAIL_REASKS, splitElseEdge } from "@/lib/voice/graph/required-details.shared";
+import { edgeGateVars, splitElseEdge } from "@/lib/voice/graph/required-details.shared";
+import { maxDetailReasks } from "@/lib/voice/engine-config.shared";
 import type { FlowEdge } from "@/lib/voice/graph/types";
 import { resolveDeploymentMode } from "@/lib/runtime/adapter";
 import { exportAgentJson } from "./export-conversation-flow";
@@ -78,7 +79,7 @@ export function nativeEngineIssues(
       level: "warn",
       message:
         `“${String(n.name ?? id)}” checks ${gates.join(", ")} but has no else exit. If any is still missing, ` +
-        `the call goes back to the step that asked and asks for just that (up to ${MAX_DETAIL_REASKS} times), then ` +
+        `the call goes back to the step that asked and asks for just that (up to ${maxDetailReasks(n.max_detail_reasks)} times), then ` +
         `continues along this step's last exit. Add an else exit to choose where it goes instead.`,
       nodeId: nodeIds.has(id) ? id : undefined,
     });

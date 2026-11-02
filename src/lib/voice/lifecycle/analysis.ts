@@ -45,6 +45,8 @@ export interface AnalyzeCallInput {
   turns: readonly TranscriptTurn[];
   /** When the call started (ms). Without it the model guessed the year: "2023-11-02" for a 2026 call. */
   callStartedAt?: number;
+  /** The agent's IANA timezone, for the call date. UTC when unset or invalid. */
+  timezone?: string | null;
   /**
    * Tools that ran, and whether they succeeded. Without them the analysis judged outcomes from what
    * the agent SAID: a call where the agent read a slot back and the caller hung up before
@@ -98,7 +100,7 @@ export async function analyzeCall(input: AnalyzeCallInput): Promise<RetellCallAn
 
   const model = input.model || DEFAULT_ANALYSIS_MODEL;
   const schema = input.schema ?? [];
-  const context = callContextBlock(input.callStartedAt, input.toolOutcomes);
+  const context = callContextBlock(input.callStartedAt, input.toolOutcomes, input.timezone);
 
   try {
     // Built-ins and custom fields run separately and concurrently.
@@ -302,27 +304,31 @@ const SYSTEM_PROMPT = [
 ].join(" ");
 
 /**
- * Facts the transcript cannot tell the model: today's date (for any date it writes), and which
- * tools actually ran and how they ended. An outcome such as "booked" must come from a booking tool
- * that succeeded, never from the agent having said it.
+ * Facts the transcript cannot tell the model: the call's date (in the agent's timezone, for any date
+ * it writes), and which tools actually ran and how they ended. Outcomes that depend on a tool — a
+ * booking, a callback, a transfer, a record update — must come from that tool's result, never from
+ * what the agent said: an agent reading a slot back, with the booking tool never run, was reported
+ * as "booked".
  */
 export function callContextBlock(
   callStartedAt?: number,
   tools?: readonly ToolOutcomeForAnalysis[],
+  timezone?: string | null,
 ): string {
   const parts: string[] = [];
   if (callStartedAt && Number.isFinite(callStartedAt)) {
     const d = new Date(callStartedAt);
+    const zone = validTimezone(timezone) ?? "UTC";
     const day = new Intl.DateTimeFormat("en-GB", {
       weekday: "long",
       day: "numeric",
       month: "long",
       year: "numeric",
-      timeZone: "Europe/London",
+      timeZone: zone,
     }).format(d);
+    const iso = new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
     parts.push(
-      `Call date: ${day} (${d.toISOString().slice(0, 10)}). Any date you write is relative to this — ` +
-        "use this year unless the call says otherwise.",
+      `Call date: ${day} (${iso}, ${zone}). Any date you write is relative to this — use this year unless the call says otherwise.`,
     );
   }
   const list = tools ?? [];
@@ -330,18 +336,27 @@ export function callContextBlock(
     const lines = list.map(
       (t) => `- ${t.name}: ${t.ok ? "succeeded" : "FAILED"}${t.result ? ` — ${t.result.replace(/\s+/g, " ").slice(0, 240)}` : ""}`,
     );
-    parts.push(`Tools the agent ran during the call (the only source of truth for what was actually done):\n${lines.join("\n")}`);
+    parts.push(`Tools the agent ran during the call:\n${lines.join("\n")}`);
   } else {
     parts.push("The agent ran no tools during this call.");
   }
-  const booked = list.some((t) => t.ok && /book|appointment|schedul|reserv/i.test(t.name) && !/available|slot|check/i.test(t.name));
-  if (!booked) {
-    parts.push(
-      "No booking tool succeeded, so nothing was booked — even if the agent read a time back or said it was booked. " +
-        "Do not report an appointment, booking or booked outcome.",
-    );
-  }
+  parts.push(
+    "Report an action as done (booked, scheduled, transferred, updated, sent) only when a tool that " +
+      "performs it is listed above as succeeded. If the agent said it was done but no such tool " +
+      "succeeded, it was not done.",
+  );
   return parts.join("\n\n");
+}
+
+function validTimezone(zone?: string | null): string | null {
+  const z = String(zone ?? "").trim();
+  if (!z) return null;
+  try {
+    new Intl.DateTimeFormat("en-GB", { timeZone: z });
+    return z;
+  } catch {
+    return null;
+  }
 }
 
 function buildUserPrompt(args: {

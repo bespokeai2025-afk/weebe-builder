@@ -263,27 +263,28 @@ describe("corrections and 'yes, but…' replies", () => {
 });
 
 describe("post-call analysis context", () => {
-  it("gives the date and says nothing was booked when no booking tool succeeded", async () => {
+  it("dates the call in the agent's timezone and lists what the tools did", async () => {
     const { callContextBlock } = await import("@/lib/voice/lifecycle/analysis");
-    const block = callContextBlock(Date.parse("2026-11-02T11:30:00Z"), [
-      { name: "get_available_slots", ok: true, result: "Monday 2 November: 12:00 PM" },
-    ]);
-    expect(block).toMatch(/Call date: Monday,? 2 November 2026 \(2026-11-02\)/);
+    const block = callContextBlock(
+      Date.parse("2026-11-02T23:30:00Z"),
+      [{ name: "get_available_slots", ok: true, result: "Monday 2 November: 12:00 PM" }],
+      "Asia/Dubai",
+    );
+    expect(block).toMatch(/Call date: Tuesday,? 3 November 2026 \(2026-11-03, Asia\/Dubai\)/);
     expect(block).toMatch(/get_available_slots: succeeded/);
-    expect(block).toMatch(/No booking tool succeeded/);
+    expect(block).toMatch(/only when a tool that performs it is listed above as succeeded/);
   });
 
-  it("does not say that when book_appointment succeeded", async () => {
+  it("falls back to UTC for a missing or invalid timezone", async () => {
     const { callContextBlock } = await import("@/lib/voice/lifecycle/analysis");
-    const block = callContextBlock(Date.now(), [{ name: "book_appointment", ok: true, result: "Booked" }]);
-    expect(block).not.toMatch(/No booking tool succeeded/);
+    expect(callContextBlock(Date.parse("2026-11-02T11:30:00Z"), [], "Not/AZone")).toMatch(/2026-11-02, UTC/);
+    expect(callContextBlock(Date.parse("2026-11-02T11:30:00Z"), [])).toMatch(/The agent ran no tools/);
   });
 
-  it("a failed booking does not count as booked", async () => {
+  it("marks a failed tool as failed", async () => {
     const { callContextBlock } = await import("@/lib/voice/lifecycle/analysis");
     const block = callContextBlock(Date.now(), [{ name: "book_appointment", ok: false, result: "fetch failed" }]);
     expect(block).toMatch(/book_appointment: FAILED/);
-    expect(block).toMatch(/No booking tool succeeded/);
   });
 });
 

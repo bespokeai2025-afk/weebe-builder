@@ -19,6 +19,7 @@ import {
 } from "../llm/gpt";
 import { LatencyHedge } from "../llm/latency-hedge";
 import { hedgedStream } from "../llm/hedged-stream";
+import { speechFirstWordTimeoutMs, speechHedgeInitialDelayMs, speechHedgeMaxDelayMs } from "../engine-config.shared";
 import {
   WEBEE_NATIVE_CLASSIFIER_MODEL,
   WEBEE_NATIVE_OPENAI_CLASSIFIER_MODEL,
@@ -91,29 +92,24 @@ const extractHedge = new LatencyHedge({ maxDelayMs: BACKGROUND_LLM_TIMEOUT_MS * 
  * model (see `hedgedStream`). Per provider and model, since their first-word times differ several
  * fold (Cerebras ~0.5 s, OpenAI gpt-4.1-mini 0.8–2 s). Capped so a slow spell on the provider
  * cannot push the duplicate past the point where it could still help. Until a model has enough
- * samples, 1.5 s: about the median first word seen on OpenAI gpt-4.1-mini from the server.
+ * samples, a starting delay is used. Both are in engine-config.shared.ts.
  * WEBEE_NATIVE_SPEECH_HEDGE=off turns off this one; WEBEE_NATIVE_LLM_HEDGE=off turns off all hedging.
  */
 const speechHedges = new Map<string, LatencyHedge>();
 /** Never sends a duplicate — used when speech hedging is off, so the first-word deadline still applies. */
 const NO_HEDGE = new LatencyHedge({ minSamples: Number.POSITIVE_INFINITY });
 
-/**
- * Longest a spoken reply may take to produce its first word before the fallback line is spoken.
- * Normal first words are 0.5–4.5 s (gpt-4.1 at its slowest); WEBEE_NATIVE_SPEECH_FIRST_WORD_TIMEOUT_MS
- * overrides it.
- */
-function speechFirstWordTimeoutMs(): number {
-  const raw = typeof process !== "undefined" ? Number(process.env?.WEBEE_NATIVE_SPEECH_FIRST_WORD_TIMEOUT_MS) : NaN;
-  return Number.isFinite(raw) && raw > 0 ? raw : 8_000;
-}
 function speechHedgeFor(provider: string, model: string): LatencyHedge | null {
   const off = typeof process !== "undefined" ? String(process.env?.WEBEE_NATIVE_SPEECH_HEDGE ?? "") : "";
   if (/^(off|false|0|no)$/i.test(off.trim())) return null;
   const key = `${provider}:${model}`;
   let hedge = speechHedges.get(key);
   if (!hedge) {
-    hedge = new LatencyHedge({ quantile: 0.5, maxDelayMs: 2_000, initialDelayMs: 1_500 });
+    hedge = new LatencyHedge({
+      quantile: 0.5,
+      maxDelayMs: speechHedgeMaxDelayMs(),
+      initialDelayMs: speechHedgeInitialDelayMs(),
+    });
     speechHedges.set(key, hedge);
   }
   return hedge;

@@ -36,7 +36,7 @@ class FakeWs extends EventEmitter {
   }
 }
 vi.mock("ws", () => ({ WebSocket: FakeWs }));
-const { CartesiaTtsProvider, CARTESIA_NO_AUDIO_TIMEOUT_MS } = await import("@/lib/voice/tts/cartesia.provider");
+const { CartesiaTtsProvider, ttsNoAudioTimeoutMs } = await import("@/lib/voice/tts/cartesia.provider");
 
 const req = { voiceId: "v", sampleRate: 24000 } as never;
 const drain = async (it: AsyncIterable<unknown>) => {
@@ -105,7 +105,7 @@ describe("Cartesia TTS warm-up", () => {
         () => "ok",
         (e: Error) => e.message,
       );
-      await vi.advanceTimersByTimeAsync(CARTESIA_NO_AUDIO_TIMEOUT_MS + 500);
+      await vi.advanceTimersByTimeAsync(ttsNoAudioTimeoutMs() + 500);
       expect(await settled).toMatch(/no audio within/);
       expect(sockets.at(-1)!.terminated).toBe(true);
     } finally {

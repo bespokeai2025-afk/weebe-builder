@@ -16,8 +16,6 @@
 import { equationVars, parseEquationGroup } from "./equations.shared";
 import type { FlowEdge, VariableValue } from "./types";
 
-/** Times an extract step sends the caller back for missing details before the call moves on without them. */
-export const MAX_DETAIL_REASKS = 3;
 
 /** True when an edge is an equation condition (structured clauses, or `type: "equation"`). */
 function isEquationEdge(edge: FlowEdge): boolean {

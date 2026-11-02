@@ -19,6 +19,7 @@
 import { randomUUID } from "node:crypto";
 import { WebSocket } from "ws";
 import { alignPcm16, type PcmChunk, type TtsProvider, type TtsVoiceRequest } from "./types";
+import { ttsNoAudioTimeoutMs } from "../engine-config.shared";
 
 const CARTESIA_TTS_WS = "wss://api.cartesia.ai/tts/websocket";
 const CARTESIA_VERSION = "2025-04-16";
@@ -44,11 +45,12 @@ interface CartesiaServerMessage {
 }
 
 /**
- * How long text may wait for audio before the synthesis is given up. Cartesia answers in ~0.2–0.5 s;
+ * How long text may wait for audio before the synthesis is given up (engine-config.shared.ts,
+ * `ttsNoAudioTimeoutMs`). Cartesia answers in ~0.2–0.5 s;
  * a socket that has stopped responding without closing (a dropped connection) used to leave the
  * reply waiting forever, and with it the whole call — nothing else is handled until a reply ends.
  */
-export const CARTESIA_NO_AUDIO_TIMEOUT_MS = 8_000;
+export { ttsNoAudioTimeoutMs } from "../engine-config.shared";
 
 /** Bridges the WebSocket's message callbacks into an async generator. */
 class ChunkQueue {
@@ -60,7 +62,7 @@ class ChunkQueue {
   private awaitingAudioSince: number | null = null;
   private watchdog: ReturnType<typeof setInterval> | null = null;
 
-  constructor(private readonly noAudioTimeoutMs = CARTESIA_NO_AUDIO_TIMEOUT_MS) {}
+  constructor(private readonly noAudioTimeoutMs = ttsNoAudioTimeoutMs()) {}
 
   /** Text was just sent: audio is now owed. */
   noteSent(): void {

@@ -32,7 +32,9 @@ import {
   type CompiledFlow,
 } from "./flow";
 import { shouldCaptureCollectAnswer } from "./collect-variable.shared";
-import { edgeGateVars, MAX_DETAIL_REASKS, missingGateVars, splitElseEdge } from "./required-details.shared";
+import { edgeGateVars, missingGateVars, splitElseEdge } from "./required-details.shared";
+import { maxDetailReasks } from "../engine-config.shared";
+import { inferFieldKind } from "./extraction-validation.shared";
 import { validateExtractedValue } from "./extraction-validation.shared";
 import { guardPrematureWrapUpStream, replacePrematureWrapUp } from "./speech-guard.shared";
 import {
@@ -100,12 +102,17 @@ const DEFAULT_MAX_STEPS = 25;
 /**
  * Looser than the router's email check, which needs "x at y dot z": misheard corrections such as
  * "rjavirani1238. email dot com" or "Arjavvir. at gmail.com" still read as someone giving an email.
- * Only used to decide whether to wait for this turn's extraction, never to route.
+ * Shape only — an "@", the word email, a spoken "dot <word>", or a "word.word" domain — so no list of
+ * providers or domains to keep up to date. Only used to decide whether to wait for this turn's
+ * extraction, never to route.
  */
 function soundsLikeEmail(text: string): boolean {
-  return /@|\be-?mail\b|\b(gmail|icloud|hotmail|outlook|yahoo|live)\b|\bdot\s+(com|co|uk|net|org)\b|\.(com|co\.uk|net|org)\b/i.test(
-    text,
-  );
+  return /@|\be-?mail\b|\bdot\s+[a-z]{2,}\b|\b[a-z0-9-]+\.[a-z]{2,}\b/i.test(text);
+}
+
+/** A variable that holds an email, judged the same way extraction validation judges it. */
+function isEmailVariable(name: string): boolean {
+  return inferFieldKind({ name }) === "email";
 }
 
 const TURN_RULES_BASE = [
@@ -984,10 +991,10 @@ export class ConversationVm {
       // "No, my email is a RG Avvi… whatever": the caller says the email is wrong but nothing usable
       // came out of it at all. The old email must not be read back as right either.
       if (soundsLikeEmail(userText) && /\b(no|not|wrong|incorrect|isn'?t)\b/i.test(userText)) {
-        const gotEmail = Object.keys(valid).some((k) => /e-?mail/i.test(k));
+        const gotEmail = Object.keys(valid).some(isEmailVariable);
         if (!gotEmail) {
           for (const k of this.capturedNames) {
-            if (/e-?mail/i.test(k) && String(this.variables[k] ?? "").trim() && !this.rejectedCorrections.includes(k)) {
+            if (isEmailVariable(k) && String(this.variables[k] ?? "").trim() && !this.rejectedCorrections.includes(k)) {
               this.rejectedCorrections.push(k);
             }
           }
@@ -1405,13 +1412,14 @@ export class ConversationVm {
     // still empty, this step is a gate ("don't move on without the email"): following the last
     // exit anyway — the old fallback — walked straight through it. Go back to the step that asked,
     // and have it ask for just what is missing. Bounded, so a caller who will not give a detail is
-    // not looped forever: after MAX_DETAIL_REASKS the call moves on as before, and the log says what
+    // not looped forever: after `maxDetailReasks` attempts the call moves on as before, and the log says what
     // was never captured.
     const missing = missingGateVars(node.edges, this.variables);
     const askFrom = this.lastSpokenNodeId;
     const asker = askFrom ? this.compiled.nodes.get(askFrom) : undefined;
     const tries = this.detailReasks.get(node.id) ?? 0;
-    if (missing.length > 0 && askFrom && asker?.type === "conversation" && tries < MAX_DETAIL_REASKS) {
+    const maxTries = maxDetailReasks((node as { max_detail_reasks?: unknown }).max_detail_reasks);
+    if (missing.length > 0 && askFrom && asker?.type === "conversation" && tries < maxTries) {
       this.detailReasks.set(node.id, tries + 1);
       this.pendingDetailAsk = { nodeId: askFrom, missing };
       // A reply pre-generated for that step does not know what is missing.
@@ -1419,7 +1427,7 @@ export class ConversationVm {
       this.traceLog(
         "TRANSITION",
         `${node.id} → ${askFrom}`,
-        `missing ${missing.join(", ")} — asking again (${tries + 1}/${MAX_DETAIL_REASKS})`,
+        `missing ${missing.join(", ")} — asking again (${tries + 1}/${maxTries})`,
       );
       return { kind: "goto", nodeId: askFrom };
     }

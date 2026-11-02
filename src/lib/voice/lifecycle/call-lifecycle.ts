@@ -44,6 +44,8 @@ export interface NativeCallIdentity {
   analysisSchema?: AnalysisField[];
   analysisModel?: string | null;
   successCriteria?: string | null;
+  /** The agent's IANA timezone (builder setting), for dates the analysis writes. */
+  timezone?: string | null;
   /** Blended engine cost, used to report `call_cost`. */
   costCentsPerMinute?: number | null;
 }
@@ -260,6 +262,7 @@ export class NativeCallLifecycle {
         durationSeconds: this.durationSeconds(),
         disconnectionReason: disconnection,
         callStartedAt: this.startedAt,
+        timezone: this.identity.timezone ?? this.identity.dynamicVariables?.timezone ?? null,
         toolOutcomes: [...this.toolOutcomes],
       });
     } catch (err) {

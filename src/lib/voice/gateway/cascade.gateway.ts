@@ -155,6 +155,7 @@ function handleConnection(ws: WebSocket, _ctx: VoiceGatewayContext): void {
             analysisSchema: readCallAnalysisSchema(runtime.settings, runtime.analysisVariables),
             analysisModel: (runtime.settings.postCallAnalysisModel as string | undefined) ?? null,
             successCriteria: (runtime.settings.successCriteria as string | undefined) ?? null,
+            timezone: (runtime.settings.timezone as string | undefined) ?? null,
           },
           { sb, recorder: new CallRecorder(), logPrefix: LOG },
         );

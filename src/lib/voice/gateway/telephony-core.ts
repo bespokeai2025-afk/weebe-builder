@@ -342,6 +342,7 @@ export function createCallLifecycle(
       analysisSchema: config.analysisSchema,
       analysisModel: config.analysisModel,
       successCriteria: config.successCriteria,
+      timezone: typeof config.settings?.timezone === "string" ? config.settings.timezone : null,
     },
     {
       sb,
