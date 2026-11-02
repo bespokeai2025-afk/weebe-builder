@@ -43,26 +43,59 @@ interface CartesiaServerMessage {
   message?: string;
 }
 
+/**
+ * How long text may wait for audio before the synthesis is given up. Cartesia answers in ~0.2–0.5 s;
+ * a socket that has stopped responding without closing (a dropped connection) used to leave the
+ * reply waiting forever, and with it the whole call — nothing else is handled until a reply ends.
+ */
+export const CARTESIA_NO_AUDIO_TIMEOUT_MS = 8_000;
+
 /** Bridges the WebSocket's message callbacks into an async generator. */
 class ChunkQueue {
   private items: Buffer[] = [];
   private wake: (() => void) | null = null;
   private ended = false;
   private error: Error | null = null;
+  /** Text sent that has not produced audio yet: when it was sent. */
+  private awaitingAudioSince: number | null = null;
+  private watchdog: ReturnType<typeof setInterval> | null = null;
+
+  constructor(private readonly noAudioTimeoutMs = CARTESIA_NO_AUDIO_TIMEOUT_MS) {}
+
+  /** Text was just sent: audio is now owed. */
+  noteSent(): void {
+    this.awaitingAudioSince ??= Date.now();
+    if (this.watchdog) return;
+    this.watchdog = setInterval(() => {
+      if (this.ended) return this.stopWatchdog();
+      const since = this.awaitingAudioSince;
+      if (since !== null && Date.now() - since >= this.noAudioTimeoutMs) {
+        this.fail(new Error(`Cartesia TTS: no audio within ${this.noAudioTimeoutMs}ms`));
+      }
+    }, 250);
+  }
+
+  private stopWatchdog(): void {
+    if (this.watchdog) clearInterval(this.watchdog);
+    this.watchdog = null;
+  }
 
   push(chunk: Buffer): void {
+    this.awaitingAudioSince = null;
     this.items.push(chunk);
     this.signal();
   }
 
   end(): void {
     this.ended = true;
+    this.stopWatchdog();
     this.signal();
   }
 
   fail(err: Error): void {
     this.error ??= err;
     this.ended = true;
+    this.stopWatchdog();
     this.signal();
   }
 
@@ -225,6 +258,7 @@ export class CartesiaTtsProvider implements TtsProvider {
             context_id: contextId,
           }),
         );
+        queue.noteSent();
         try {
           yield* queue.drain();
         } finally {
@@ -268,6 +302,7 @@ export class CartesiaTtsProvider implements TtsProvider {
                   continue: true,
                 }),
               );
+              queue.noteSent();
             }
             // Closes the context: a final chunk with `continue` left unset (defaults false) tells
             // Cartesia no more text is coming for this context_id, so it finalises and sends `done`.

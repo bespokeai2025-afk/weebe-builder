@@ -45,6 +45,13 @@ function stop(a: Attempt): void {
 
 export interface HedgedStreamOptions {
   signal?: AbortSignal;
+  /**
+   * Give up when no request has produced a word by then: every request is stopped and the stream
+   * fails, so the caller speaks its fallback line. Without it a stalled provider held the reply —
+   * and the whole call, which handles nothing else until a reply ends — for the transport's 25 s
+   * timeout (plus the hedge delay): a live test call sat silent for ~27 s.
+   */
+  firstTokenTimeoutMs?: number;
   /** Called when the duplicate is sent and when one of the two wins, for the call log. */
   onHedge?(event: { kind: "sent"; afterMs: number } | { kind: "won"; duplicate: boolean; firstTokenMs: number }): void;
 }
@@ -69,7 +76,16 @@ export async function* hedgedStream(
 
   const attempts: Attempt[] = [launch()];
   // Settles to the attempt that produced the first token, or rejects when every attempt failed.
-  const winner = await new Promise<{ a: Attempt; r: IteratorResult<string> }>((resolve, reject) => {
+  const resolveHooks: Array<() => void> = [];
+  const winner = await new Promise<{ a: Attempt; r: IteratorResult<string> }>((resolveRaw, rejectRaw) => {
+    const resolve = (v: { a: Attempt; r: IteratorResult<string> }) => {
+      for (const h of resolveHooks) h();
+      resolveRaw(v);
+    };
+    const reject = (e: unknown) => {
+      for (const h of resolveHooks) h();
+      rejectRaw(e);
+    };
     let settled = false;
     let failures = 0;
     let lastError: unknown;
@@ -120,6 +136,22 @@ export async function* hedgedStream(
     };
 
     watch(attempts[0]!);
+    const deadlineMs = options.firstTokenTimeoutMs;
+    const deadline =
+      deadlineMs && deadlineMs > 0
+        ? setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            if (timer) clearTimeout(timer);
+            timer = null;
+            for (const a of attempts) stop(a);
+            reject(new Error(`no first word within ${deadlineMs}ms`));
+          }, deadlineMs)
+        : null;
+    const clearDeadline = () => {
+      if (deadline) clearTimeout(deadline);
+    };
+    resolveHooks.push(clearDeadline);
     if (delay !== null) {
       timer = setTimeout(() => {
         timer = null;

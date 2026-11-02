@@ -95,6 +95,18 @@ const extractHedge = new LatencyHedge({ maxDelayMs: BACKGROUND_LLM_TIMEOUT_MS * 
  * WEBEE_NATIVE_SPEECH_HEDGE=off turns off this one; WEBEE_NATIVE_LLM_HEDGE=off turns off all hedging.
  */
 const speechHedges = new Map<string, LatencyHedge>();
+/** Never sends a duplicate — used when speech hedging is off, so the first-word deadline still applies. */
+const NO_HEDGE = new LatencyHedge({ minSamples: Number.POSITIVE_INFINITY });
+
+/**
+ * Longest a spoken reply may take to produce its first word before the fallback line is spoken.
+ * Normal first words are 0.5–4.5 s (gpt-4.1 at its slowest); WEBEE_NATIVE_SPEECH_FIRST_WORD_TIMEOUT_MS
+ * overrides it.
+ */
+function speechFirstWordTimeoutMs(): number {
+  const raw = typeof process !== "undefined" ? Number(process.env?.WEBEE_NATIVE_SPEECH_FIRST_WORD_TIMEOUT_MS) : NaN;
+  return Number.isFinite(raw) && raw > 0 ? raw : 8_000;
+}
 function speechHedgeFor(provider: string, model: string): LatencyHedge | null {
   const off = typeof process !== "undefined" ? String(process.env?.WEBEE_NATIVE_SPEECH_HEDGE ?? "") : "";
   if (/^(off|false|0|no)$/i.test(off.trim())) return null;
@@ -167,10 +179,10 @@ export function createOpenAiVmLlm(options: OpenAiVmLlmOptions): VmLlm {
           signal,
           breaker,
         });
-      const hedge = speechHedgeFor(provider ?? "default", model);
-      if (!hedge) return open(opts?.signal);
+      const hedge = speechHedgeFor(provider ?? "default", model) ?? NO_HEDGE;
       return hedgedStream(open, hedge, {
         signal: opts?.signal,
+        firstTokenTimeoutMs: speechFirstWordTimeoutMs(),
         onHedge: (e) =>
           console.log(
             e.kind === "sent"

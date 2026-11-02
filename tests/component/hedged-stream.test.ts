@@ -119,4 +119,25 @@ describe("LatencyHedge initial delay", () => {
     expect(h.delayMs()).toBe(500);
     expect(new LatencyHedge({ minSamples: 3 }).delayMs()).toBeNull();
   });
+
+  it("gives up when no request produces a word by the deadline, and stops them all", async () => {
+    const { open, calls } = fakeOpen([
+      { firstMs: 5_000, words: ["never"] },
+      { firstMs: 5_000, words: ["never"] },
+    ]);
+    const t0 = Date.now();
+    await expect(
+      collect(hedgedStream(open, trainedHedge(20), { firstTokenTimeoutMs: 150 })),
+    ).rejects.toThrow("no first word within 150ms");
+    expect(Date.now() - t0).toBeLessThan(1_000);
+    await sleep(20);
+    expect(calls.every((c) => c.aborted)).toBe(true);
+  });
+
+  it("the deadline does not fire once a word has arrived", async () => {
+    const { open } = fakeOpen([{ firstMs: 10, words: ["a", "b", "c"] }]);
+    const words = await collect(hedgedStream(open, new LatencyHedge({ minSamples: 3 }), { firstTokenTimeoutMs: 100 }));
+    expect(words).toEqual(["a", "b", "c"]);
+    await sleep(150);
+  });
 });

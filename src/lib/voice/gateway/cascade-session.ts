@@ -1889,7 +1889,7 @@ export class CascadeSession {
         !t.firstAudioAt &&
         !t.ctrl.signal.aborted &&
         !this.closed &&
-        /socket closed|closed during synthesis|closed before stop/i.test(message);
+        /socket closed|closed during synthesis|closed before stop|no audio within/i.test(message);
       if (!retryable) throw err;
       console.warn(`${this.log} TTS dropped, retrying once: ${message}`);
       await pumpAudio(openAudio());
