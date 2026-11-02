@@ -493,7 +493,7 @@ function getAppUrl(): string {
   return (
     process.env.PUBLIC_APP_URL ||
     process.env.VITE_PUBLIC_APP_URL ||
-    "https://webeereceptionist.com"
+    "https://webeesmartdash.com"
   );
 }
 

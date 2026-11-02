@@ -274,7 +274,7 @@ export function WatiIntegrationSettings() {
                     In WATI → <strong>Connectors → Webhooks</strong>, keep{" "}
                     <strong>only one</strong> webhook (delete extra entries like webee2).
                   </li>
-                  <li>Paste the URL below — production uses webeereceptionist.com.</li>
+                  <li>Paste the URL below — production uses webeesmartdash.com.</li>
                   <li>
                     Enable: Message received, Sent Message is REPLIED, Template Message Sent,
                     Delivered, Read.

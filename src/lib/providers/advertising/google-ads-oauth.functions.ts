@@ -45,6 +45,8 @@ export function isAllowedOAuthOrigin(origin: string): boolean {
     return false;
   }
   const allowed = new Set<string>([
+    "webeesmartdash.com",
+    "www.webeesmartdash.com",
     "webeereceptionist.com",
     "www.webeereceptionist.com",
     "webespokeai.com",

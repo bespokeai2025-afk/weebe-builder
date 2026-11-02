@@ -252,7 +252,7 @@ export function buildWatiInboundWebhookUrl(workspaceId: string, origin?: string)
     process.env.WATI_WEBHOOK_BASE_URL?.trim() ||
     process.env.PUBLIC_APP_URL?.trim() ||
     process.env.VITE_PUBLIC_APP_URL?.trim() ||
-    "https://webeereceptionist.com"
+    "https://webeesmartdash.com"
   ).replace(/\/$/, "");
   return `${base}/api/webhook/wati-inbound?workspace=${workspaceId}`;
 }
