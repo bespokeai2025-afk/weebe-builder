@@ -497,9 +497,17 @@ function parseV3BatchResults(
   });
 }
 
-function newWatiLocalMessageId(leadId?: string): string {
-  if (leadId) return `lead_${leadId}`;
-  return crypto.randomUUID();
+/**
+ * The id WATI echoes back on delivery/read webhooks, and the `external_id` of the logged message.
+ *
+ * Unique per send. It used to be `lead_<leadId>` — the same for every message to a lead — while
+ * `whatsapp_messages` is unique on (workspace_id, external_id). So once a lead had been messaged,
+ * every later campaign to them failed to log the message (184 sent, 44 logged on one campaign), and
+ * their delivered/read webhooks matched the OLD campaign's row, so new campaigns showed 0 delivered.
+ */
+export function newWatiLocalMessageId(leadId?: string): string {
+  const unique = crypto.randomUUID();
+  return leadId ? `lead_${leadId}_${unique.slice(0, 8)}` : unique;
 }
 
 async function sendWatiTemplateMessageV1(opts: {
