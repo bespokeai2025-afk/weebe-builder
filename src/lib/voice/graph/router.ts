@@ -365,6 +365,20 @@ function edgeExpectsAddress(condition: string): boolean {
   );
 }
 
+/** An exit that asks for the whole address, not just some of it. */
+function edgeWantsCompleteAddress(condition: string): boolean {
+  return /\b(full|complete|whole|entire)\b[^.]{0,30}\baddress\b|\bpost ?codes?\b|\bzip\b/i.test(condition);
+}
+
+/** A UK postcode ("LS22 7AG", "SW1A 1AA"), a US ZIP, or the caller naming their postcode. */
+export function hasPostcodeLike(text: string): boolean {
+  return (
+    /\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/i.test(text) ||
+    /\b\d{5}(?:-\d{4})?\b/.test(text) ||
+    /\bpost ?code\b/i.test(text)
+  );
+}
+
 /** Street / city / postcode answers common in qualification flows. */
 export function looksLikeAddressAnswer(userText: string): boolean {
   const t = userText.trim();
@@ -831,6 +845,12 @@ export function tryHeuristicEdgeIndex(
     const address = pickHeuristicEdge(conditions, userText, (condition) =>
       edgeExpectsAddress(condition),
     );
+    // "13 Cordon Road" is an address but not a full one. When the exit asks for the full or
+    // complete address or the postcode, a reply without a postcode goes to the classifier, which
+    // reads the condition, instead of being waved through — a live call skipped the postcode so.
+    if (address !== null && edgeWantsCompleteAddress(conditions[address] ?? "") && !hasPostcodeLike(userText)) {
+      return null;
+    }
     if (address !== null) return address;
     if (!conditions.some((condition) => edgeExpectsAddress(condition))) {
       const generic = pickHeuristicEdge(conditions, userText, (condition) =>

@@ -164,6 +164,41 @@ export function parseToolOutputVariables(
   }
 }
 
+/**
+ * A tool's declared outputs — Retell's `response_variables`, `{ variable: "path.in.result" }` — read
+ * out of its JSON result. Native used to ignore them: flows reading `{{booking_message}}` or
+ * `{{slot_message}}` (declared as `message`) always saw them empty, so a "booking_message contains
+ * Booked" exit could never fire after a successful booking. Paths are dot-separated, with numeric
+ * segments for array items; objects and arrays are kept as JSON text.
+ */
+export function mapToolResponseVariables(
+  output: string,
+  mapping: Record<string, unknown> | null | undefined,
+): Record<string, VariableValue> {
+  const entries = Object.entries(mapping ?? {}).filter(
+    ([name, path]) => name.trim() && typeof path === "string" && path.trim(),
+  ) as Array<[string, string]>;
+  if (entries.length === 0) return {};
+  let root: unknown;
+  try {
+    root = JSON.parse(output.trim());
+  } catch {
+    return {};
+  }
+  const out: Record<string, VariableValue> = {};
+  for (const [name, path] of entries) {
+    let cur: unknown = root;
+    for (const seg of path.trim().split(".")) {
+      if (cur === null || cur === undefined) break;
+      cur = Array.isArray(cur) && /^\d+$/.test(seg) ? cur[Number(seg)] : (cur as Record<string, unknown>)[seg];
+    }
+    if (cur === undefined || cur === null) continue;
+    out[name.trim()] =
+      typeof cur === "string" || typeof cur === "number" || typeof cur === "boolean" ? cur : JSON.stringify(cur);
+  }
+  return out;
+}
+
 /** Fill `{{placeholders}}` from call context. Shared by static TTS and LLM prompts. */
 export function resolveVariables(
   text: string,

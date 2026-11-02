@@ -25,7 +25,7 @@ export interface GraphSessionCallbacks {
   ): Promise<void>;
   onTranscript?(role: "agent" | "user", text: string): void;
   onVariables?(values: Record<string, VariableValue>): void;
-  onToolCall?(toolId: string, result: string, ok: boolean): void;
+  onToolCall?(toolId: string, result: string, ok: boolean, toolName?: string): void;
   /** Builder canvas highlight — fire on every node the VM is currently in. */
   onNodeActive?(nodeId: string): void;
   /** Bridge the call. Resolve true once connected, false if it could not be. */
@@ -155,7 +155,7 @@ export class GraphSession {
         return null;
 
       case "tool_call":
-        this.cb.onToolCall?.(directive.toolId, directive.result, directive.ok);
+        this.cb.onToolCall?.(directive.toolId, directive.result, directive.ok, directive.toolName);
         return null;
 
       case "sms":

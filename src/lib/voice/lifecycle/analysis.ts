@@ -34,8 +34,23 @@ const VOICEMAIL_KEYWORDS = [
   "please record",
 ];
 
+/** A tool the agent ran during the call, as the analysis sees it. */
+export interface ToolOutcomeForAnalysis {
+  name: string;
+  ok: boolean;
+  result?: string;
+}
+
 export interface AnalyzeCallInput {
   turns: readonly TranscriptTurn[];
+  /** When the call started (ms). Without it the model guessed the year: "2023-11-02" for a 2026 call. */
+  callStartedAt?: number;
+  /**
+   * Tools that ran, and whether they succeeded. Without them the analysis judged outcomes from what
+   * the agent SAID: a call where the agent read a slot back and the caller hung up before
+   * book_appointment ever ran was reported as "booked".
+   */
+  toolOutcomes?: readonly ToolOutcomeForAnalysis[];
   agentName?: string | null;
   /** Free-text definition of a successful call, from the agent's settings. */
   successCriteria?: string | null;
@@ -83,6 +98,7 @@ export async function analyzeCall(input: AnalyzeCallInput): Promise<RetellCallAn
 
   const model = input.model || DEFAULT_ANALYSIS_MODEL;
   const schema = input.schema ?? [];
+  const context = callContextBlock(input.callStartedAt, input.toolOutcomes);
 
   try {
     // Built-ins and custom fields run separately and concurrently.
@@ -104,6 +120,7 @@ export async function analyzeCall(input: AnalyzeCallInput): Promise<RetellCallAn
               transcript,
               agentName: input.agentName,
               successCriteria: input.successCriteria,
+              context,
               schema: [],
               durationSeconds: input.durationSeconds,
               disconnectionReason: input.disconnectionReason,
@@ -123,6 +140,7 @@ export async function analyzeCall(input: AnalyzeCallInput): Promise<RetellCallAn
         model,
         apiKey,
         agentName: input.agentName,
+        context,
         signal: input.signal,
       }),
     ]);
@@ -175,7 +193,14 @@ async function mapPool<T, R>(
 export async function extractCustomFields(
   transcript: string,
   schema: readonly AnalysisField[],
-  opts: { model: string; apiKey: string; agentName?: string | null; signal?: AbortSignal },
+  opts: {
+    model: string;
+    apiKey: string;
+    agentName?: string | null;
+    /** Call date and tool outcomes — see `callContextBlock`. */
+    context?: string;
+    signal?: AbortSignal;
+  },
 ): Promise<Record<string, unknown>> {
   const fields = schema.filter((f) => f.name);
   if (fields.length === 0) return {};
@@ -196,7 +221,7 @@ export async function extractCustomFields(
           { role: "system", content: FIELD_SYSTEM_PROMPT },
           {
             role: "user",
-            content: `${opts.agentName ? `Agent: ${opts.agentName}\n\n` : ""}Transcript:\n${transcript}\n\n${spec}`,
+            content: `${opts.agentName ? `Agent: ${opts.agentName}\n\n` : ""}${opts.context ? `${opts.context}\n\n` : ""}Transcript:\n${transcript}\n\n${spec}`,
           },
         ],
         {
@@ -276,15 +301,59 @@ const SYSTEM_PROMPT = [
   "Never invent facts that are not in the transcript. Use null for anything the transcript does not state.",
 ].join(" ");
 
+/**
+ * Facts the transcript cannot tell the model: today's date (for any date it writes), and which
+ * tools actually ran and how they ended. An outcome such as "booked" must come from a booking tool
+ * that succeeded, never from the agent having said it.
+ */
+export function callContextBlock(
+  callStartedAt?: number,
+  tools?: readonly ToolOutcomeForAnalysis[],
+): string {
+  const parts: string[] = [];
+  if (callStartedAt && Number.isFinite(callStartedAt)) {
+    const d = new Date(callStartedAt);
+    const day = new Intl.DateTimeFormat("en-GB", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      timeZone: "Europe/London",
+    }).format(d);
+    parts.push(
+      `Call date: ${day} (${d.toISOString().slice(0, 10)}). Any date you write is relative to this — ` +
+        "use this year unless the call says otherwise.",
+    );
+  }
+  const list = tools ?? [];
+  if (list.length > 0) {
+    const lines = list.map(
+      (t) => `- ${t.name}: ${t.ok ? "succeeded" : "FAILED"}${t.result ? ` — ${t.result.replace(/\s+/g, " ").slice(0, 240)}` : ""}`,
+    );
+    parts.push(`Tools the agent ran during the call (the only source of truth for what was actually done):\n${lines.join("\n")}`);
+  } else {
+    parts.push("The agent ran no tools during this call.");
+  }
+  const booked = list.some((t) => t.ok && /book|appointment|schedul|reserv/i.test(t.name) && !/available|slot|check/i.test(t.name));
+  if (!booked) {
+    parts.push(
+      "No booking tool succeeded, so nothing was booked — even if the agent read a time back or said it was booked. " +
+        "Do not report an appointment, booking or booked outcome.",
+    );
+  }
+  return parts.join("\n\n");
+}
+
 function buildUserPrompt(args: {
   transcript: string;
   agentName?: string | null;
   successCriteria?: string | null;
+  context?: string;
   schema: readonly AnalysisField[];
   durationSeconds: number;
   disconnectionReason?: string | null;
 }): string {
-  const parts = [`Transcript:\n${args.transcript}`];
+  const parts = [...(args.context ? [args.context] : []), `Transcript:\n${args.transcript}`];
   if (args.agentName) parts.push(`Agent name: ${args.agentName}`);
   parts.push(`Call duration: ${args.durationSeconds} seconds`);
   if (args.disconnectionReason) parts.push(`How the call ended: ${args.disconnectionReason}`);

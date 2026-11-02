@@ -47,6 +47,7 @@ import {
   humaniseVariableName,
   lookupRuntimeValue,
   missingVariableNames,
+  mapToolResponseVariables,
   missingVariablesRule,
   parseToolOutputVariables,
 } from "./variables.shared";
@@ -980,6 +981,18 @@ export class ConversationVm {
           if (!this.rejectedCorrections.includes(key)) this.rejectedCorrections.push(key);
         }
       }
+      // "No, my email is a RG Avvi… whatever": the caller says the email is wrong but nothing usable
+      // came out of it at all. The old email must not be read back as right either.
+      if (soundsLikeEmail(userText) && /\b(no|not|wrong|incorrect|isn'?t)\b/i.test(userText)) {
+        const gotEmail = Object.keys(valid).some((k) => /e-?mail/i.test(k));
+        if (!gotEmail) {
+          for (const k of this.capturedNames) {
+            if (/e-?mail/i.test(k) && String(this.variables[k] ?? "").trim() && !this.rejectedCorrections.includes(k)) {
+              this.rejectedCorrections.push(k);
+            }
+          }
+        }
+      }
       return valid;
     } catch (err) {
       this.log(`turn extraction failed on node "${node.id}": ${errMessage(err)}`);
@@ -1506,12 +1519,29 @@ export class ConversationVm {
       `${outcome.ok ? "ok" : "fail"} ${truncate(outcome.output, 160)}`,
     );
     const fromOutput = parseToolOutputVariables(invocation.toolName, outcome.output);
-    const mergedVars = { ...fromOutput, ...(outcome.variables ?? {}) };
+    const declaredMapping = (registered as { response_variables?: Record<string, unknown> } | undefined)
+      ?.response_variables;
+    const declared = mapToolResponseVariables(outcome.output, declaredMapping);
+    // Everything the tool returned stays usable in this call's prompts and conditions. What is
+    // reported as captured on the call (webhooks, CRM, post-call) is the tool's declared outputs
+    // when it declares any — Retell's behaviour — not every field of its response.
+    const mergedVars = { ...fromOutput, ...(outcome.variables ?? {}), ...declared };
     if (Object.keys(mergedVars).length > 0) {
       this.rememberVariables(mergedVars);
-      yield { type: "variables", nodeId: node.id, values: mergedVars };
+      const declaresOutputs = Object.keys(declaredMapping ?? {}).some((k) => k.trim());
+      const reported = declaresOutputs ? declared : mergedVars;
+      if (Object.keys(reported).length > 0) {
+        yield { type: "variables", nodeId: node.id, values: reported };
+      }
     }
-    yield { type: "tool_call", nodeId: node.id, toolId, result: outcome.output, ok: outcome.ok };
+    yield {
+      type: "tool_call",
+      nodeId: node.id,
+      toolId,
+      toolName: invocation.toolName,
+      result: outcome.output,
+      ok: outcome.ok,
+    };
     // Routing conditions like "the booking succeeded" can only be judged if the
     // result is part of the conversation the router sees.
     this.history.push({

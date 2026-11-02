@@ -1423,15 +1423,14 @@ export class CascadeSession {
       onVariables: (values) => {
         this.mergeCollectedVariables(values);
       },
-      onToolCall: (toolId, result, ok) => {
+      onToolCall: (toolId, result, ok, toolName) => {
         console.info(
           `${this.log} [FUNCTION_RESULT] ${toolId} ${ok ? "ok" : "fail"} ${String(result).slice(0, 160)}`,
         );
-        this.lifecycleRef?.recordToolCall({
-          name: toolId,
-          type: "custom",
-          success: ok,
-        });
+        this.lifecycleRef?.recordToolCall(
+          { name: toolId, type: "custom", success: ok },
+          { label: toolName || toolId, result: String(result ?? "") },
+        );
         this.transport.onToolCall?.(toolId, result, ok);
       },
       onTransfer: async (options) => {

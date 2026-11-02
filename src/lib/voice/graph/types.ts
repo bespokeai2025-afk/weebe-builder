@@ -222,6 +222,8 @@ export interface ToolCallDirective {
   type: "tool_call";
   nodeId: string;
   toolId: string;
+  /** The tool's readable name (e.g. "book_appointment"); `toolId` is often a generated id. */
+  toolName?: string;
   result: string;
   ok: boolean;
 }

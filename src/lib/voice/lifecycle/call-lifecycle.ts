@@ -9,7 +9,7 @@
  * Relative imports only (reachable from vite.config.ts).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { analyzeCall } from "./analysis";
+import { analyzeCall, type ToolOutcomeForAnalysis } from "./analysis";
 import { CallRecorder } from "./recording";
 import { formatTranscript, mergeTurns, toTranscriptObject } from "./transcript";
 import { emitVoiceEvent } from "./webhook";
@@ -81,6 +81,8 @@ export class NativeCallLifecycle {
   /** Variables captured in-call, tracked apart from the setup ones. */
   private readonly collectedVariables: Record<string, string> = {};
   private readonly toolCalls: RetellToolCall[] = [];
+  /** What each tool did, by readable name — for the analysis pass only, not the webhook. */
+  private readonly toolOutcomes: ToolOutcomeForAnalysis[] = [];
 
   constructor(identity: NativeCallIdentity, deps: NativeCallLifecycleDeps = {}) {
     this.identity = identity;
@@ -189,7 +191,12 @@ export class NativeCallLifecycle {
   }
 
   /** Record a tool invocation for the call's tool-call history. */
-  recordToolCall(entry: RetellToolCall): void {
+  recordToolCall(entry: RetellToolCall, detail?: { label?: string; result?: string }): void {
+    this.toolOutcomes.push({
+      name: detail?.label || entry.name,
+      ok: entry.success,
+      result: detail?.result ?? "",
+    });
     this.toolCalls.push({
       ...entry,
       start_time_sec:
@@ -252,6 +259,8 @@ export class NativeCallLifecycle {
         model: this.identity.analysisModel ?? null,
         durationSeconds: this.durationSeconds(),
         disconnectionReason: disconnection,
+        callStartedAt: this.startedAt,
+        toolOutcomes: [...this.toolOutcomes],
       });
     } catch (err) {
       console.warn(
