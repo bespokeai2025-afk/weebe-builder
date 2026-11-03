@@ -2464,6 +2464,7 @@ export async function launchWatiCampaignFromWebee(
     ok: boolean;
     messageId?: string;
     error?: string;
+    sentAt?: string;
     senderChannel?: string | null;
   }> = [];
 
@@ -2522,7 +2523,7 @@ export async function launchWatiCampaignFromWebee(
         status: "sent",
         provider: "wati",
         sender_channel: result.senderChannel ?? null,
-        sent_at: sendStartedAt,
+        sent_at: result.sentAt ?? sendStartedAt,
       };
       const { error: insErr } = await sb.from("whatsapp_messages").insert(msgRow);
       if (insErr && /sender_channel|column/.test(insErr.message ?? "")) {
@@ -2536,6 +2537,13 @@ export async function launchWatiCampaignFromWebee(
       if (result.error) errors.push(`${result.phone}: ${formatWatiSendError(result.error)}`);
     }
   }
+
+  // The inbox sync may already have imported WATI's copy of some of these sends (its history can
+  // land before this log is written on a large campaign). Fold those copies into the rows just
+  // logged, so each message exists once with WATI's real time and status.
+  await absorbImportedWatiCopies(sb, workspaceId, campaignId).catch((err) =>
+    console.warn("[wati-campaign] absorbing imported copies failed:", (err as Error).message),
+  );
 
   const sentPhones = allSendResults
     .filter((r) => r.ok)
@@ -3323,3 +3331,58 @@ export const purchaseTwilioNumber = createServerFn({ method: "POST" })
       sid: purchased.sid,
     };
   });
+
+
+/**
+ * Merge WATI-imported copies of this campaign's messages into the rows the campaign logged: same
+ * contact, same text up to spacing, close in time (wati-message-match.shared.ts). The logged row
+ * keeps its tracking id (delivery webhooks match on it) and takes WATI's earlier time and any
+ * further-along status; the imported copy is removed.
+ */
+async function absorbImportedWatiCopies(sb: any, workspaceId: string, campaignId: string): Promise<void> {
+  const { sameWatiMessageText, watiSendMatchWindowMs, watiStatusMovesForward, earlierIso } = await import(
+    "@/lib/whatsapp/wati-message-match.shared"
+  );
+  const { data: logged } = await sb
+    .from("whatsapp_messages")
+    .select("id, contact_phone, body, sent_at, status")
+    .eq("workspace_id", workspaceId)
+    .eq("campaign_id", campaignId)
+    .eq("direction", "outbound");
+  const rows = (logged ?? []) as Array<{ id: string; contact_phone: string; body: string | null; sent_at: string | null; status: string }>;
+  if (rows.length === 0) return;
+  const windowMs = watiSendMatchWindowMs();
+  const times = rows.map((r) => Date.parse(String(r.sent_at))).filter(Number.isFinite);
+  const from = new Date(Math.min(...times) - windowMs).toISOString();
+  const to = new Date(Math.max(...times) + windowMs).toISOString();
+  const phones = [...new Set(rows.map((r) => r.contact_phone))];
+
+  for (let i = 0; i < phones.length; i += 200) {
+    const { data: copies } = await sb
+      .from("whatsapp_messages")
+      .select("id, contact_phone, body, sent_at, status, wati_status, external_id")
+      .eq("workspace_id", workspaceId)
+      .eq("direction", "outbound")
+      .is("campaign_id", null)
+      .not("external_id", "like", "lead\\_%")
+      .in("contact_phone", phones.slice(i, i + 200))
+      .gte("sent_at", from)
+      .lte("sent_at", to);
+    for (const copy of (copies ?? []) as Array<{ id: string; contact_phone: string; body: string | null; sent_at: string | null; status: string; wati_status: string | null }>) {
+      const copyMs = Date.parse(String(copy.sent_at));
+      const match = rows
+        .filter((r) => r.contact_phone === copy.contact_phone && sameWatiMessageText(r.body, copy.body))
+        .map((r) => ({ r, gap: Math.abs(Date.parse(String(r.sent_at)) - copyMs) }))
+        .filter((m) => Number.isFinite(m.gap) && m.gap <= windowMs)
+        .sort((a, b) => a.gap - b.gap)[0]?.r;
+      if (!match) continue;
+      const patch: Record<string, unknown> = {};
+      const earliest = earlierIso(match.sent_at, copy.sent_at);
+      if (earliest && earliest !== match.sent_at) patch.sent_at = earliest;
+      if (copy.wati_status) patch.wati_status = copy.wati_status;
+      if (copy.status && watiStatusMovesForward(match.status, copy.status)) patch.status = copy.status;
+      if (Object.keys(patch).length > 0) await sb.from("whatsapp_messages").update(patch).eq("id", match.id);
+      await sb.from("whatsapp_messages").delete().eq("id", copy.id);
+    }
+  }
+}

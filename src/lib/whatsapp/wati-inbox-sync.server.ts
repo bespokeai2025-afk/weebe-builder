@@ -3,6 +3,13 @@
  */
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import {
+  earlierIso,
+  isOurWatiSendLog,
+  sameWatiMessageText,
+  watiSendMatchWindowMs,
+  watiStatusMovesForward,
+} from "./wati-message-match.shared";
 import { watiApiV1Base } from "@/lib/whatsapp/wati-api-base.shared";
 import {
   getWatiConnectionForWorkspace,
@@ -326,34 +333,28 @@ function parseSentAtMs(value: unknown): number | null {
   return Number.isNaN(ms) ? null : ms;
 }
 
-/** Compare message text ignoring spacing and case — WATI's history and our send log differ in whitespace. */
-function sameText(a: string | null | undefined, b: string | null | undefined): boolean {
-  const norm = (t: string | null | undefined) => String(t ?? "").replace(/\s+/g, " ").trim().toLowerCase();
-  return norm(a) !== "" && norm(a) === norm(b);
-}
-
 /**
- * How far apart our log of a send and WATI's history entry for it may be. Our campaign log stamps
- * the time after the whole batch returns — 25–33 s after WATI's own timestamp on a live campaign —
- * and WATI's history carries no link back to our send (localMessageId is null on broadcasts).
- * WATI_SYNC_SEND_MATCH_WINDOW_SECONDS overrides it.
+ * Our own log of the send that WATI's history entry describes (same text up to spacing, close in
+ * time), if there is one. Used to fold an older imported copy into it.
  */
-function sendMatchWindowMs(): number {
-  const n = Number(process.env.WATI_SYNC_SEND_MATCH_WINDOW_SECONDS);
-  return (Number.isFinite(n) && n > 0 ? n : 600) * 1000;
-}
-
-/** Delivery only moves forward (sent → delivered → read); a failure replaces a plain "sent". */
-function statusMovesForward(current: string | null | undefined, next: string): boolean {
-  const rank: Record<string, number> = { pending: 0, queued: 0, sent: 1, delivered: 2, read: 3, replied: 4 };
-  const cur = String(current ?? "");
-  if (next === "failed") return cur === "" || cur === "pending" || cur === "queued" || cur === "sent";
-  return (rank[next] ?? -1) > (rank[cur] ?? -1);
-}
-
-/** A message this app logged when sending it (not one imported from WATI): no WATI/Meta id yet. */
-function isOurSendLog(row: { whatsapp_message_id?: string | null; campaign_id?: string | null; external_id?: string | null }): boolean {
-  return !row.whatsapp_message_id && (!!row.campaign_id || /^lead_/.test(String(row.external_id ?? "")));
+export function findOurSendLogFor(
+  parsed: ParsedWatiInboxMessage,
+  existing: Array<{ id?: string; external_id?: string | null; whatsapp_message_id?: string | null; campaign_id?: string | null; sent_at?: string | null; body?: string | null; direction?: string | null; status?: string | null }>,
+): (typeof existing)[number] | null {
+  if (parsed.direction !== "outbound") return null;
+  const parsedMs = Date.parse(String(parsed.sent_at));
+  if (Number.isNaN(parsedMs)) return null;
+  let best: (typeof existing)[number] | null = null;
+  let bestGap = Infinity;
+  for (const row of existing) {
+    if (row.direction !== "outbound" || !isOurWatiSendLog(row) || !sameWatiMessageText(row.body, parsed.body)) continue;
+    const gap = Math.abs(Date.parse(String(row.sent_at)) - parsedMs);
+    if (Number.isFinite(gap) && gap <= watiSendMatchWindowMs() && gap < bestGap) {
+      best = row;
+      bestGap = gap;
+    }
+  }
+  return best;
 }
 
 export function findDuplicateMessage(
@@ -402,11 +403,11 @@ export function findDuplicateMessage(
     if (
       parsed.direction === "outbound" &&
       row.direction === "outbound" &&
-      isOurSendLog(row) &&
+      isOurWatiSendLog(row) &&
       existingMs != null &&
       parsedMs != null &&
-      Math.abs(existingMs - parsedMs) <= sendMatchWindowMs() &&
-      sameText(row.body, parsed.body)
+      Math.abs(existingMs - parsedMs) <= watiSendMatchWindowMs() &&
+      sameWatiMessageText(row.body, parsed.body)
     ) {
       return row;
     }
@@ -534,20 +535,47 @@ export async function syncWatiInboxForPhones(
 
     const toInsert: Record<string, unknown>[] = [];
     const toPatch: Array<{ id: string; patch: Record<string, unknown> }> = [];
+    const toDelete: string[] = [];
     let phoneInserted = 0;
 
     for (const raw of watiMessages) {
       const parsed = parseWatiV1InboxMessage(raw, phone);
       if (!parsed) continue;
 
+      // An imported copy stored before this sync learned to match our own send logs: fold it into
+      // ours and delete it, so chats heal on their next sync without a manual clean-up.
+      const importedCopy = existing.find(
+        (r) => r.external_id && r.external_id === parsed.external_id && !isOurWatiSendLog(r) && r.direction === "outbound",
+      );
+      const ourLog = importedCopy ? findOurSendLogFor(parsed, existing) : null;
+      if (importedCopy?.id && ourLog?.id && ourLog.id !== importedCopy.id) {
+        toDelete.push(importedCopy.id);
+        const healed: Record<string, unknown> = {};
+        if (parsed.wati_status) healed.wati_status = parsed.wati_status;
+        if (parsed.status && watiStatusMovesForward(ourLog.status, parsed.status)) healed.status = parsed.status;
+        const earliest = earlierIso(ourLog.sent_at, parsed.sent_at);
+        if (earliest && earliest !== ourLog.sent_at) healed.sent_at = earliest;
+        if (Object.keys(healed).length > 0) toPatch.push({ id: ourLog.id, patch: healed });
+        continue;
+      }
+
       const duplicate = findDuplicateMessage(parsed, existing);
       if (duplicate) {
         const patch: Record<string, unknown> = {};
         // Our send log says "sent" until a webhook says otherwise; WATI's history is the record of
         // what actually happened (a campaign message WATI marked FAILED still showed as sent here).
-        if (parsed.direction === "outbound" && isOurSendLog(duplicate) && parsed.wati_status) {
-          patch.wati_status = parsed.wati_status;
-          if (parsed.status && statusMovesForward(duplicate.status, parsed.status)) patch.status = parsed.status;
+        // A reply stored before the campaign's send time was corrected was never credited to it.
+        if (parsed.direction === "inbound" && !duplicate.campaign_id) {
+          const credited = attributeReplyToCampaign(parsed.sent_at, campaignSends);
+          if (credited) patch.campaign_id = credited;
+        }
+        if (parsed.direction === "outbound" && isOurWatiSendLog(duplicate)) {
+          if (parsed.wati_status) patch.wati_status = parsed.wati_status;
+          if (parsed.status && watiStatusMovesForward(duplicate.status, parsed.status)) patch.status = parsed.status;
+          // WATI's timestamp is when it actually went out; ours lagged by up to minutes, which put
+          // the campaign message after the customer's reply in the chat.
+          const earliest = earlierIso(duplicate.sent_at, parsed.sent_at);
+          if (earliest && earliest !== duplicate.sent_at) patch.sent_at = earliest;
         }
         if (parsed.sender_channel && !duplicate.sender_channel) {
           patch.sender_channel = parsed.sender_channel;
@@ -602,9 +630,18 @@ export async function syncWatiInboxForPhones(
       });
     }
 
+    if (toDelete.length > 0) {
+      const { error } = await admin.from("whatsapp_messages").delete().in("id", toDelete);
+      if (error) console.warn("[wati-inbox-sync] removing merged copies failed:", error.message);
+    }
+    const campaignsTouched = new Set<string>();
     for (const { id, patch } of toPatch) {
       const { error } = await admin.from("whatsapp_messages").update(patch).eq("id", id);
       if (!error) phoneInserted++;
+      if (!error && typeof patch.campaign_id === "string") campaignsTouched.add(patch.campaign_id);
+    }
+    for (const row of toInsert) {
+      if (row.direction === "inbound" && typeof row.campaign_id === "string") campaignsTouched.add(row.campaign_id);
     }
 
     for (const row of toInsert) {
@@ -631,6 +668,10 @@ export async function syncWatiInboxForPhones(
           });
         }
       }
+    }
+    if (campaignsTouched.size > 0) {
+      const { refreshWatiCampaignStats } = await import("./wati-message-status.server");
+      for (const id of campaignsTouched) await refreshWatiCampaignStats(workspaceId, id).catch(() => {});
     }
 
     // A send from the inbox writes an optimistic row under a synthesised id; once WATI reports the

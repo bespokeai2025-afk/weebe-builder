@@ -231,6 +231,11 @@ async function storeInboundMessage(
   // in the DB — a read-then-write pre-check would race under retries).
   const isNewMessage = await upsertWhatsappMessage(sb, row, { insertOnly: true });
   await syncWhatsappConversation(workspaceId, message.contact_phone);
+  if (isNewMessage && row.campaign_id) {
+    // A reply credited to a campaign: its "replied" count must move with it.
+    const { refreshWatiCampaignStats } = await import("@/lib/whatsapp/wati-message-status.server");
+    await refreshWatiCampaignStats(workspaceId, row.campaign_id).catch(() => {});
+  }
 
   if (isNewMessage) {
     // BuzzChat → CRM Lead Pipeline: match or create a lead for this reply.

@@ -355,6 +355,8 @@ export type WatiTemplateSendResult = {
   ok: boolean;
   messageId?: string;
   error?: string;
+  /** When this message's request went to WATI (its chunk, for batch sends). */
+  sentAt?: string;
 };
 
 function watiAuthHeaders(apiKey: string): Record<string, string> {
@@ -584,6 +586,7 @@ export async function sendWatiTemplateMessagesBatch(opts: {
     if (useV1) break;
     const chunk = validItems.slice(i, i + WATI_V3_SEND_CHUNK_SIZE);
     const localIdsByPhone = new Map<string, string>();
+    const chunkSentAt = new Date().toISOString();
     const v3 = await postWatiTemplateSendV3({
       tenantId: opts.tenantId,
       apiKey: opts.apiKey,
@@ -607,7 +610,9 @@ export async function sendWatiTemplateMessagesBatch(opts: {
       break;
     }
 
-    allResults.push(...parseV3BatchResults(chunk, v3.data, v3.ok, v3.text, localIdsByPhone));
+    allResults.push(
+      ...parseV3BatchResults(chunk, v3.data, v3.ok, v3.text, localIdsByPhone).map((r) => ({ ...r, sentAt: chunkSentAt })),
+    );
 
     if (i + WATI_V3_SEND_CHUNK_SIZE < validItems.length) {
       await new Promise((r) => setTimeout(r, 200));
@@ -624,6 +629,7 @@ export async function sendWatiTemplateMessagesBatch(opts: {
 
   for (const item of remaining) {
     const localMessageId = newWatiLocalMessageId(item.leadId);
+    const itemSentAt = new Date().toISOString();
     const v1 = await sendWatiTemplateMessageV1({
       tenantId: opts.tenantId,
       apiKey: opts.apiKey,
@@ -640,6 +646,7 @@ export async function sendWatiTemplateMessagesBatch(opts: {
       ok: v1.ok,
       messageId: v1.ok ? localMessageId : undefined,
       error: v1.error,
+      sentAt: itemSentAt,
     });
     await new Promise((r) => setTimeout(r, 120));
   }

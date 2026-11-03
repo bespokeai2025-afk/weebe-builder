@@ -190,6 +190,11 @@ async function getWatiConn(workspaceId: string): Promise<WatiConn | null> {
   return data as WatiConn;
 }
 
+/** Recount a WATI campaign's delivered/read/failed/replied from its messages. */
+export async function refreshWatiCampaignStats(workspaceId: string, campaignId: string): Promise<void> {
+  await refreshCampaignStatsForMessage(workspaceId, campaignId);
+}
+
 async function refreshCampaignStatsForMessage(
   workspaceId: string,
   campaignId: string,
@@ -215,6 +220,16 @@ async function refreshCampaignStatsForMessage(
   // failed as both "sent" and "failed". Only failed/delivered/read reflect the
   // reconciled, post-launch truth; sent is intentionally left untouched here.
 
+  // Replies: contacts who answered this campaign. Never counted before, so "replied" stayed at its
+  // launch value of 0 however many people wrote back.
+  const { data: replyRows } = await sb()
+    .from("whatsapp_messages")
+    .select("contact_phone")
+    .eq("workspace_id", workspaceId)
+    .eq("campaign_id", campaignId)
+    .eq("direction", "inbound");
+  const replied = new Set(((replyRows ?? []) as Array<{ contact_phone: string | null }>).map((r) => r.contact_phone).filter(Boolean)).size;
+
   const { data: campaign } = await sb()
     .from("whatsapp_campaigns")
     .select("stats")
@@ -234,7 +249,7 @@ async function refreshCampaignStatsForMessage(
   await sb()
     .from("whatsapp_campaigns")
     .update({
-      stats: { ...prevStats, delivered, read, failed, errors },
+      stats: { ...prevStats, delivered, read, failed, replied, errors },
       updated_at: new Date().toISOString(),
     })
     .eq("id", campaignId);
