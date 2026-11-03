@@ -5,6 +5,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
   earlierIso,
+  hasDetailedWatiStatus,
   isOurWatiSendLog,
   sameWatiMessageText,
   watiSendMatchWindowMs,
@@ -244,7 +245,11 @@ export function parseWatiV1InboxMessage(
     sent_at: sentAt,
     sender_channel: senderChannel,
     status: direction === "inbound" ? "delivered" : status,
-    wati_status: idOrNull(rawStatus),
+    // For a failed message, WATI's own reason ("Meta has restricted it for higher quality
+    // messaging…", "Message undeliverable") — the bare "FAILED" told nobody why.
+    wati_status: idOrNull(
+      String(rawStatus ?? "").toUpperCase() === "FAILED" && msg.failedDetail ? msg.failedDetail : rawStatus,
+    ),
     conversation_id: idOrNull(msg.conversationId ?? msg.conversation_id),
     ticket_id: idOrNull(msg.ticketId ?? msg.ticket_id),
     ...media,
@@ -339,7 +344,7 @@ function parseSentAtMs(value: unknown): number | null {
  */
 export function findOurSendLogFor(
   parsed: ParsedWatiInboxMessage,
-  existing: Array<{ id?: string; external_id?: string | null; whatsapp_message_id?: string | null; campaign_id?: string | null; sent_at?: string | null; body?: string | null; direction?: string | null; status?: string | null }>,
+  existing: Array<{ id?: string; external_id?: string | null; whatsapp_message_id?: string | null; campaign_id?: string | null; sent_at?: string | null; body?: string | null; direction?: string | null; status?: string | null; wati_status?: string | null }>,
 ): (typeof existing)[number] | null {
   if (parsed.direction !== "outbound") return null;
   const parsedMs = Date.parse(String(parsed.sent_at));
@@ -369,6 +374,7 @@ export function findDuplicateMessage(
     sender_channel?: string | null;
     campaign_id?: string | null;
     status?: string | null;
+    wati_status?: string | null;
   }>,
 ): (typeof existing)[number] | null {
   for (const row of existing) {
@@ -502,7 +508,7 @@ export async function syncWatiInboxForPhones(
     let existingQuery = admin
       .from("whatsapp_messages")
       .select(
-        "id, external_id, whatsapp_message_id, sent_at, body, direction, sender_channel, campaign_id, status",
+        "id, external_id, whatsapp_message_id, sent_at, body, direction, sender_channel, campaign_id, status, wati_status",
       )
       .eq("workspace_id", workspaceId);
     existingQuery = tail
@@ -522,6 +528,7 @@ export async function syncWatiInboxForPhones(
       sender_channel?: string | null;
       campaign_id?: string | null;
       status?: string | null;
+      wati_status?: string | null;
     }>;
 
     // Captured before the loop below starts appending parsed rows to `existing`.
@@ -551,7 +558,7 @@ export async function syncWatiInboxForPhones(
       if (importedCopy?.id && ourLog?.id && ourLog.id !== importedCopy.id) {
         toDelete.push(importedCopy.id);
         const healed: Record<string, unknown> = {};
-        if (parsed.wati_status) healed.wati_status = parsed.wati_status;
+        if (parsed.wati_status && !hasDetailedWatiStatus(ourLog.wati_status)) healed.wati_status = parsed.wati_status;
         if (parsed.status && watiStatusMovesForward(ourLog.status, parsed.status)) healed.status = parsed.status;
         const earliest = earlierIso(ourLog.sent_at, parsed.sent_at);
         if (earliest && earliest !== ourLog.sent_at) healed.sent_at = earliest;
@@ -564,13 +571,17 @@ export async function syncWatiInboxForPhones(
         const patch: Record<string, unknown> = {};
         // Our send log says "sent" until a webhook says otherwise; WATI's history is the record of
         // what actually happened (a campaign message WATI marked FAILED still showed as sent here).
+        // A failure stored as a bare "FAILED" gets WATI's reason once the history carries it.
+        if (parsed.wati_status && hasDetailedWatiStatus(parsed.wati_status) && !hasDetailedWatiStatus(duplicate.wati_status)) {
+          patch.wati_status = parsed.wati_status;
+        }
         // A reply stored before the campaign's send time was corrected was never credited to it.
         if (parsed.direction === "inbound" && !duplicate.campaign_id) {
           const credited = attributeReplyToCampaign(parsed.sent_at, campaignSends);
           if (credited) patch.campaign_id = credited;
         }
         if (parsed.direction === "outbound" && isOurWatiSendLog(duplicate)) {
-          if (parsed.wati_status) patch.wati_status = parsed.wati_status;
+          if (parsed.wati_status && !hasDetailedWatiStatus(duplicate.wati_status)) patch.wati_status = parsed.wati_status;
           if (parsed.status && watiStatusMovesForward(duplicate.status, parsed.status)) patch.status = parsed.status;
           // WATI's timestamp is when it actually went out; ours lagged by up to minutes, which put
           // the campaign message after the customer's reply in the chat.

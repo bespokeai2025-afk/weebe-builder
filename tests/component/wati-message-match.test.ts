@@ -78,3 +78,30 @@ describe("healing an old imported copy", () => {
     expect(findOurSendLogFor(parsed, [importedCopy])).toBeNull();
   });
 });
+
+describe("failure reasons", () => {
+  it("tells a detailed reason from a bare status word", async () => {
+    const { hasDetailedWatiStatus } = await import("@/lib/whatsapp/wati-message-match.shared");
+    expect(hasDetailedWatiStatus("FAILED")).toBe(false);
+    expect(hasDetailedWatiStatus("Message undeliverable")).toBe(true);
+    expect(hasDetailedWatiStatus(null)).toBe(false);
+  });
+
+  it("the sync keeps WATI's failedDetail for a failed message", async () => {
+    const { parseWatiV1InboxMessage } = await import("@/lib/whatsapp/wati-inbox-sync.server");
+    const row = parseWatiV1InboxMessage(
+      {
+        id: "6ae9e02e0955b5ec072b2656",
+        eventType: "broadcastMessage",
+        statusString: "FAILED",
+        failedDetail: "Message undeliverable as Meta has restricted it for higher quality messaging - retry again in a few days",
+        text: "Hi Mr.Ms. Hosam",
+        created: "2026-11-03T13:22:54.441Z",
+        owner: true,
+      } as never,
+      "971500000292",
+    );
+    expect(row?.wati_status).toMatch(/Meta has restricted it/);
+    expect(row?.status).toBe("failed");
+  });
+});

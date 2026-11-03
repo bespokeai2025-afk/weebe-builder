@@ -50,3 +50,12 @@ export function earlierIso(a: string | null | undefined, b: string | null | unde
   if (Number.isNaN(tb)) return a as string;
   return ta <= tb ? (a as string) : (b as string);
 }
+
+/**
+ * A stored WATI status that says more than a bare status word — e.g. a failure reason saved from the
+ * webhook. A merge must not replace it with "FAILED".
+ */
+export function hasDetailedWatiStatus(value: string | null | undefined): boolean {
+  const v = String(value ?? "").trim();
+  return v !== "" && !/^(SENT|DELIVERED|READ|FAILED|PENDING|QUEUED|REPLIED)$/i.test(v);
+}

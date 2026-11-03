@@ -3379,7 +3379,7 @@ async function absorbImportedWatiCopies(sb: any, workspaceId: string, campaignId
       const patch: Record<string, unknown> = {};
       const earliest = earlierIso(match.sent_at, copy.sent_at);
       if (earliest && earliest !== match.sent_at) patch.sent_at = earliest;
-      if (copy.wati_status) patch.wati_status = copy.wati_status;
+      if (copy.wati_status) patch.wati_status = copy.wati_status; // our fresh log has none of its own yet
       if (copy.status && watiStatusMovesForward(match.status, copy.status)) patch.status = copy.status;
       if (Object.keys(patch).length > 0) await sb.from("whatsapp_messages").update(patch).eq("id", match.id);
       await sb.from("whatsapp_messages").delete().eq("id", copy.id);
