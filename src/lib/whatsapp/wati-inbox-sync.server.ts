@@ -326,7 +326,37 @@ function parseSentAtMs(value: unknown): number | null {
   return Number.isNaN(ms) ? null : ms;
 }
 
-function findDuplicateMessage(
+/** Compare message text ignoring spacing and case — WATI's history and our send log differ in whitespace. */
+function sameText(a: string | null | undefined, b: string | null | undefined): boolean {
+  const norm = (t: string | null | undefined) => String(t ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+  return norm(a) !== "" && norm(a) === norm(b);
+}
+
+/**
+ * How far apart our log of a send and WATI's history entry for it may be. Our campaign log stamps
+ * the time after the whole batch returns — 25–33 s after WATI's own timestamp on a live campaign —
+ * and WATI's history carries no link back to our send (localMessageId is null on broadcasts).
+ * WATI_SYNC_SEND_MATCH_WINDOW_SECONDS overrides it.
+ */
+function sendMatchWindowMs(): number {
+  const n = Number(process.env.WATI_SYNC_SEND_MATCH_WINDOW_SECONDS);
+  return (Number.isFinite(n) && n > 0 ? n : 600) * 1000;
+}
+
+/** Delivery only moves forward (sent → delivered → read); a failure replaces a plain "sent". */
+function statusMovesForward(current: string | null | undefined, next: string): boolean {
+  const rank: Record<string, number> = { pending: 0, queued: 0, sent: 1, delivered: 2, read: 3, replied: 4 };
+  const cur = String(current ?? "");
+  if (next === "failed") return cur === "" || cur === "pending" || cur === "queued" || cur === "sent";
+  return (rank[next] ?? -1) > (rank[cur] ?? -1);
+}
+
+/** A message this app logged when sending it (not one imported from WATI): no WATI/Meta id yet. */
+function isOurSendLog(row: { whatsapp_message_id?: string | null; campaign_id?: string | null; external_id?: string | null }): boolean {
+  return !row.whatsapp_message_id && (!!row.campaign_id || /^lead_/.test(String(row.external_id ?? "")));
+}
+
+export function findDuplicateMessage(
   parsed: ParsedWatiInboxMessage,
   existing: Array<{
     id?: string;
@@ -336,6 +366,8 @@ function findDuplicateMessage(
     body?: string | null;
     direction?: string | null;
     sender_channel?: string | null;
+    campaign_id?: string | null;
+    status?: string | null;
   }>,
 ): (typeof existing)[number] | null {
   for (const row of existing) {
@@ -361,6 +393,20 @@ function findDuplicateMessage(
       Math.abs(existingMs - parsedMs) <= 5000 &&
       row.direction === parsed.direction &&
       sameContent
+    ) {
+      return row;
+    }
+    // WATI's history entry for a message we sent and logged ourselves: same contact (the caller
+    // already filtered by phone), same direction, same text up to spacing, near the same time.
+    // Without this, 72% of campaign messages were stored twice and showed twice in the inbox.
+    if (
+      parsed.direction === "outbound" &&
+      row.direction === "outbound" &&
+      isOurSendLog(row) &&
+      existingMs != null &&
+      parsedMs != null &&
+      Math.abs(existingMs - parsedMs) <= sendMatchWindowMs() &&
+      sameText(row.body, parsed.body)
     ) {
       return row;
     }
@@ -455,7 +501,7 @@ export async function syncWatiInboxForPhones(
     let existingQuery = admin
       .from("whatsapp_messages")
       .select(
-        "id, external_id, whatsapp_message_id, sent_at, body, direction, sender_channel, campaign_id",
+        "id, external_id, whatsapp_message_id, sent_at, body, direction, sender_channel, campaign_id, status",
       )
       .eq("workspace_id", workspaceId);
     existingQuery = tail
@@ -474,6 +520,7 @@ export async function syncWatiInboxForPhones(
       direction?: string | null;
       sender_channel?: string | null;
       campaign_id?: string | null;
+      status?: string | null;
     }>;
 
     // Captured before the loop below starts appending parsed rows to `existing`.
@@ -496,6 +543,12 @@ export async function syncWatiInboxForPhones(
       const duplicate = findDuplicateMessage(parsed, existing);
       if (duplicate) {
         const patch: Record<string, unknown> = {};
+        // Our send log says "sent" until a webhook says otherwise; WATI's history is the record of
+        // what actually happened (a campaign message WATI marked FAILED still showed as sent here).
+        if (parsed.direction === "outbound" && isOurSendLog(duplicate) && parsed.wati_status) {
+          patch.wati_status = parsed.wati_status;
+          if (parsed.status && statusMovesForward(duplicate.status, parsed.status)) patch.status = parsed.status;
+        }
         if (parsed.sender_channel && !duplicate.sender_channel) {
           patch.sender_channel = parsed.sender_channel;
         }

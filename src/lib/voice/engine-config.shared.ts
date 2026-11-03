@@ -20,6 +20,8 @@ export const ENGINE_CONFIG_ENV = {
   speechHedgeMaxDelayMs: "WEBEE_NATIVE_SPEECH_HEDGE_MAX_MS",
   ttsNoAudioTimeoutMs: "WEBEE_NATIVE_TTS_NO_AUDIO_TIMEOUT_MS",
   maxDetailReasks: "WEBEE_NATIVE_MAX_DETAIL_REASKS",
+  identifierExtractionWaitMs: "WEBEE_NATIVE_IDENTIFIER_EXTRACTION_WAIT_MS",
+  toolArgsWaitMs: "WEBEE_NATIVE_TOOL_ARGS_WAIT_MS",
 } as const;
 
 /**
@@ -53,4 +55,21 @@ export function maxDetailReasks(nodeOverride?: unknown): number {
   const n = Number(nodeOverride);
   if (Number.isFinite(n) && n >= 0) return Math.floor(n);
   return Math.floor(envNumber(ENGINE_CONFIG_ENV.maxDetailReasks, 3));
+}
+
+/**
+ * How long a reply that carries an email or phone number waits for this turn's extraction before
+ * the turn goes on (so the agent can read the new value back). Exits that test variables always
+ * wait in full; this only bounds the courtesy wait, which cost 3–4 s per such reply uncapped.
+ */
+export function identifierExtractionWaitMs(): number {
+  return envNumber(ENGINE_CONFIG_ENV.identifierExtractionWaitMs, 1_500);
+}
+
+/**
+ * How long a function step waits for the model to work out its tool's arguments when every
+ * required argument is already known from the call. Past it the tool runs with the known values.
+ */
+export function toolArgsWaitMs(): number {
+  return envNumber(ENGINE_CONFIG_ENV.toolArgsWaitMs, 1_200);
 }

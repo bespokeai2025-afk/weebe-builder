@@ -2455,6 +2455,9 @@ export async function launchWatiCampaignFromWebee(
   failed += leads.length - sendItems.length;
 
   const batches = splitItemsByChannelAllocations(sendItems, gate.channelAllocations);
+  // When the messages went out — not when the last batch came back, which put our log ~30 s after
+  // WATI's own timestamp and made the inbox sync store every campaign message a second time.
+  const sendStartedAt = new Date().toISOString();
   const allSendResults: Array<{
     phone: string;
     leadId?: string;
@@ -2519,7 +2522,7 @@ export async function launchWatiCampaignFromWebee(
         status: "sent",
         provider: "wati",
         sender_channel: result.senderChannel ?? null,
-        sent_at: new Date().toISOString(),
+        sent_at: sendStartedAt,
       };
       const { error: insErr } = await sb.from("whatsapp_messages").insert(msgRow);
       if (insErr && /sender_channel|column/.test(insErr.message ?? "")) {

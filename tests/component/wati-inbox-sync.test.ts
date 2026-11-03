@@ -159,3 +159,47 @@ describe("parseWatiV1InboxMessage", () => {
     expect(parsed?.body).toBe("Thanks for your interest!");
   });
 });
+
+describe("findDuplicateMessage — our campaign send vs WATI's history copy", () => {
+  const ours = {
+    id: "ours",
+    external_id: "lead_0360b7a1-ea3a-4ec3-82da-c77766843663_1a2b3c4d",
+    whatsapp_message_id: null,
+    sent_at: "2026-11-03T13:23:25.000Z",
+    body: "Hi Mr.Ms. Hosam, This is Khisha from Avenue 7. I'm reaching out regarding Tilal Aura",
+    direction: "outbound",
+    sender_channel: null,
+    campaign_id: "acc2e956",
+    status: "sent",
+  };
+  const watiCopy = (over: Record<string, unknown> = {}) =>
+    ({
+      contact_phone: "+971500000292",
+      body: "Hi Mr.Ms. Hosam,  This is Khisha from Avenue 7. I'm reaching out regarding Tilal Aura",
+      direction: "outbound",
+      external_id: "6ae9e02e0955b5ec072b2656",
+      whatsapp_message_id: null,
+      sent_at: "2026-11-03T13:22:54.000Z",
+      sender_channel: "campaign",
+      status: "failed",
+      wati_status: "FAILED",
+      ...over,
+    }) as never;
+
+  it("matches WATI's copy of a message we logged, despite the 31 s gap and spacing", async () => {
+    const { findDuplicateMessage } = await import("@/lib/whatsapp/wati-inbox-sync.server");
+    expect(findDuplicateMessage(watiCopy(), [ours])?.id).toBe("ours");
+  });
+
+  it("does not merge a different message, or one far apart in time", async () => {
+    const { findDuplicateMessage } = await import("@/lib/whatsapp/wati-inbox-sync.server");
+    expect(findDuplicateMessage(watiCopy({ body: "Hi Hosam, We specialise in Tilal Al Ghaf" }), [ours])).toBeNull();
+    expect(findDuplicateMessage(watiCopy({ sent_at: "2026-11-03T15:00:00.000Z" }), [ours])).toBeNull();
+  });
+
+  it("never merges into a row WATI already identified (an imported message)", async () => {
+    const { findDuplicateMessage } = await import("@/lib/whatsapp/wati-inbox-sync.server");
+    const imported = { ...ours, external_id: "6ac61aaa656bd5a1ab3f5543", campaign_id: null };
+    expect(findDuplicateMessage(watiCopy(), [imported])).toBeNull();
+  });
+});

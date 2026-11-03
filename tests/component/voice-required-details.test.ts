@@ -392,3 +392,176 @@ describe("address quick-match and postcodes", () => {
     expect(hasPostcodeLike("13 Cordon Road")).toBe(false);
   });
 });
+
+describe("function step outcome and passed-in corrections", () => {
+  const bookFlow = (edges: unknown[] = []) => ({
+    start_node_id: "book",
+    tools: [{ tool_id: "tool-book", name: "book_appointment", type: "custom", url: "https://example.invalid/book" }],
+    nodes: [
+      { id: "book", type: "function", name: "Book", tool_id: "tool-book", tool_type: "local", wait_for_result: true, edges },
+      { id: "done", type: "conversation", name: "done", instruction: { type: "static_text", text: "Booked." } },
+    ] as unknown as FlowNode[],
+  });
+
+  it("a failed tool with no exit to follow is spoken about, not left in silence", async () => {
+    const { llm, prompts } = llmWith(() => ({}));
+    const vm = new ConversationVm({
+      flow: bookFlow(),
+      llm,
+      hooks: { log: () => {}, executeTool: async () => ({ ok: false, output: '{"error":"fetch failed (ENOTFOUND x)"}' }) },
+    });
+    const out = await drain(vm.run({ type: "begin" }));
+    expect(spoken(out).length).toBeGreaterThan(0);
+    expect(prompts.at(-1)!.at(-1)!.content).toMatch(/"book_appointment" step did not work/);
+    expect(prompts.at(-1)!.at(-1)!.content).toMatch(/Do not say it was done/);
+    // The caller replies while still on that step: the agent answers instead of going silent.
+    const before = prompts.length;
+    const reply = await drain(vm.run({ type: "user_utterance", text: "So is it booked?" }));
+    expect(spoken(reply).length).toBeGreaterThan(0);
+    expect(prompts.length).toBeGreaterThan(before);
+  });
+
+  it("does not ask the extractor for tool outputs", async () => {
+    const asked: string[][] = [];
+    const llm: VmLlm = {
+      async generate() { return "line"; },
+      async *generateStream() { yield "line"; },
+      async classify() { return -1; },
+      async extract(_m, fields) { asked.push(fields.map((f) => f.name)); return {}; },
+    };
+    const vm = new ConversationVm({
+      flow: {
+        start_node_id: "book",
+        tools: [{ tool_id: "t", name: "get_available_slots", type: "custom", url: "https://example.invalid" }],
+        nodes: [
+          { id: "book", type: "function", name: "slots", tool_id: "t", tool_type: "local", wait_for_result: true,
+            edges: [{ id: "e", destination_node_id: "ask", transition_condition: { type: "prompt", prompt: "" } }] },
+          { id: "ask", type: "conversation", name: "ask", instruction: { type: "prompt", text: "Ask for {{email_address}}" } },
+        ] as unknown as FlowNode[],
+      },
+      llm,
+      hooks: { log: () => {}, executeTool: async () => ({ ok: true, output: JSON.stringify({ message: "slots…", slot_count: 42 }) }) },
+    });
+    await drain(vm.run({ type: "begin" }));
+    await drain(vm.run({ type: "user_utterance", text: "my email is a at b dot com" }));
+    expect(asked.at(-1)).toContain("email_address");
+    expect(asked.at(-1)).not.toContain("message");
+    expect(asked.at(-1)).not.toContain("slot_count");
+  });
+
+  it("a passed-in email is replaced when the caller says a new one, not when the model guesses", async () => {
+    let next: Record<string, VariableValue> = {};
+    const { llm } = llmWith(() => next);
+    const vm = new ConversationVm({
+      flow: {
+        start_node_id: "ask",
+        nodes: [{ id: "ask", type: "conversation", name: "ask", instruction: { type: "prompt", text: "Confirm {{email_address}}" } }] as FlowNode[],
+      },
+      llm: { ...llm, classify: async () => -1 },
+      variables: { email_address: "nathanpratt1994@icloud.com" },
+      hooks: { log: () => {} },
+    });
+    await drain(vm.run({ type: "begin" }));
+    next = { email_address: "someone.else@example.com" };
+    await drain(vm.run({ type: "user_utterance", text: "yes that's right" }));
+    expect(vm.getVariables().email_address).toBe("nathanpratt1994@icloud.com");
+    next = { email_address: "nathanbrett1994@icloud.com" };
+    await drain(vm.run({ type: "user_utterance", text: "No, email is nathanbrett1994@icloud.com" }));
+    expect(vm.getVariables().email_address).toBe("nathanbrett1994@icloud.com");
+  });
+});
+
+describe("an answer that does not validate", () => {
+  it("is not read back as confirmed when it is what the step asked for", async () => {
+    let turn = 0;
+    const { llm, prompts } = llmWith(() => (turn++ === 0 ? { email_address: "arjav virani at" } : {}));
+    const vm = new ConversationVm({
+      flow: {
+        start_node_id: "ask",
+        nodes: [{ id: "ask", type: "conversation", name: "ask", instruction: { type: "prompt", text: "Ask for {{email_address}}" } }] as FlowNode[],
+      },
+      llm: { ...llm, classify: async () => -1 },
+      variableNames: ["email_address"],
+      hooks: { log: () => {} },
+    });
+    await drain(vm.run({ type: "begin" }));
+    await drain(vm.run({ type: "user_utterance", text: "it's arjav virani at" }));
+    expect(vm.getVariables().email_address ?? "").toBe("");
+    expect(prompts.at(-1)!.at(-1)!.content).toMatch(/did not come through as a valid value/);
+  });
+
+  it("a bad guess about a field this step is not asking for changes nothing", async () => {
+    let turn = 0;
+    const { llm, prompts } = llmWith(() => (turn++ === 0 ? { email_address: "junk at" } : {}));
+    const vm = new ConversationVm({
+      flow: {
+        start_node_id: "ask",
+        nodes: [{ id: "ask", type: "conversation", name: "ask", instruction: { type: "prompt", text: "Ask what type of property it is" } }] as FlowNode[],
+      },
+      llm: { ...llm, classify: async () => -1 },
+      variableNames: ["email_address"],
+      hooks: { log: () => {} },
+    });
+    await drain(vm.run({ type: "begin" }));
+    await drain(vm.run({ type: "user_utterance", text: "it's a house, email me at junk" }));
+    expect(prompts.at(-1)!.at(-1)!.content).not.toMatch(/did not come through as a valid value/);
+  });
+});
+
+describe("function step speed", () => {
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  it("starts the tool before the 'one moment' line is spoken, and skips a slow model when required args are known", async () => {
+    const order: string[] = [];
+    let extractCalls = 0;
+    const llm: VmLlm = {
+      async generate() { return "line"; },
+      async *generateStream() { yield "line"; },
+      async classify() { return 0; },
+      async extract() {
+        extractCalls++;
+        await sleep(5_000); // a model that would hold the tool for 5 s
+        return {};
+      },
+    };
+    const vm = new ConversationVm({
+      flow: {
+        start_node_id: "book",
+        tools: [
+          {
+            tool_id: "t",
+            name: "book_appointment",
+            type: "custom",
+            url: "https://example.invalid",
+            parameters: { type: "object", required: ["email"], properties: { email: { type: "string" } } },
+          },
+        ],
+        nodes: [
+          {
+            id: "book", type: "function", name: "book", tool_id: "t", tool_type: "local", wait_for_result: true,
+            speak_during_execution: true, execution_message_description: "One moment while I book that in.",
+            edges: [{ id: "e", destination_node_id: "done", transition_condition: { type: "prompt", prompt: "" } }],
+          },
+          { id: "done", type: "conversation", name: "done", instruction: { type: "static_text", text: "Done." } },
+        ] as unknown as FlowNode[],
+      },
+      llm,
+      variables: { email: "a@b.com" },
+      hooks: {
+        log: () => {},
+        executeTool: async (inv) => {
+          order.push(`tool:${JSON.stringify(inv.args)}`);
+          return { ok: true, output: "{}" };
+        },
+      },
+    });
+    const t0 = Date.now();
+    for await (const d of vm.run({ type: "begin" })) {
+      if (d.type === "speak" && d.text?.startsWith("One moment")) order.push("filler");
+    }
+    expect(extractCalls).toBe(1);
+    expect(Date.now() - t0).toBeLessThan(3_000);
+    expect(order[0]).toBe("filler");
+    expect(order[1]).toBe('tool:{"email":"a@b.com"}');
+  }, 10_000);
+});

@@ -33,8 +33,9 @@ import {
 } from "./flow";
 import { shouldCaptureCollectAnswer } from "./collect-variable.shared";
 import { edgeGateVars, missingGateVars, splitElseEdge } from "./required-details.shared";
-import { maxDetailReasks } from "../engine-config.shared";
+import { identifierExtractionWaitMs, maxDetailReasks, toolArgsWaitMs } from "../engine-config.shared";
 import { inferFieldKind } from "./extraction-validation.shared";
+import { normaliseSpokenEmails } from "./spoken-identifiers.shared";
 import { validateExtractedValue } from "./extraction-validation.shared";
 import { guardPrematureWrapUpStream, replacePrematureWrapUp } from "./speech-guard.shared";
 import {
@@ -51,6 +52,7 @@ import {
   missingVariableNames,
   mapToolResponseVariables,
   missingVariablesRule,
+  referencedVariableNames,
   parseToolOutputVariables,
 } from "./variables.shared";
 import type { CallTurnTrace } from "./latency-trace";
@@ -108,6 +110,18 @@ const DEFAULT_MAX_STEPS = 25;
  */
 function soundsLikeEmail(text: string): boolean {
   return /@|\be-?mail\b|\bdot\s+[a-z]{2,}\b|\b[a-z0-9-]+\.[a-z]{2,}\b/i.test(text);
+}
+
+/**
+ * True when the caller said this value in their reply. Compared on letters and digits only, with
+ * spoken emails ("x at y dot com") normalised, so it does not depend on punctuation or spacing.
+ */
+function saidInReply(userText: string, value: VariableValue): boolean {
+  const squash = (t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const v = squash(String(value ?? ""));
+  if (v.length < 2) return false;
+  const spoken = normaliseSpokenEmails(userText).replace(/\s+at\s+/gi, "@").replace(/\s+dot\s+/gi, ".");
+  return squash(spoken).includes(v) || squash(userText).includes(v);
 }
 
 /** A variable that holds an email, judged the same way extraction validation judges it. */
@@ -337,6 +351,19 @@ export class ConversationVm {
    * Read by the next line, cleared once it is spoken.
    */
   private rejectedCorrections: string[] = [];
+  /**
+   * Answers to what the current step asked for that did not validate (a postcode heard as
+   * "MP4123"). Nothing was saved, so without this the agent read the bad value back as if right
+   * and moved on with it. Read by the next line, cleared once it is spoken.
+   */
+  private unusableAnswers: string[] = [];
+  /** Variables that came from tool results — never asked of the turn extractor. */
+  private toolOutputNames = new Set<string>();
+  /**
+   * A function step that finished with no exit to follow: what happened, so the agent can say so —
+   * on the spot, and again if the caller replies while the call is still on that step.
+   */
+  private toolOutcomeNote: { nodeId: string; name: string; instruction: string } | null = null;
   /** Times each extract step has sent the caller back, reset once it moves on. */
   private detailReasks = new Map<string, number>();
   private awaiting: "user" | "digit" | "transfer" | "begin_silence" | null = null;
@@ -948,7 +975,11 @@ export class ConversationVm {
     const node = this.currentNode();
     if (!node || node.type !== "conversation") return {};
     if (!shouldCaptureCollectAnswer(userText)) return {};
-    const names = [...new Set([...this.declaredVariableNames, ...Object.keys(this.variables)])];
+    // Tool results are not something the caller says: asking the extractor for them made every
+    // extraction slower (20+ extra fields after a calendar lookup) and risked overwriting them.
+    const names = [...new Set([...this.declaredVariableNames, ...Object.keys(this.variables)])].filter(
+      (n) => !this.toolOutputNames.has(n),
+    );
     if (names.length === 0) return {};
 
     const fields = names.map((n) => ({
@@ -971,6 +1002,9 @@ export class ConversationVm {
           this.strongClassifierModel ?? this.classifierModel ?? nodeModel(node, this.compiled, this.fallbackModel),
       });
       const valid: Record<string, VariableValue> = {};
+      // Only the details this step is asking for can be "an answer that did not come through" — a
+      // stray guess about some other field must not make the agent ask about something else.
+      const askedForNow = new Set(referencedVariableNames(String(node.instruction?.text ?? "")));
       for (const [key, value] of Object.entries(extracted)) {
         const current = this.variables[key];
         const hasValue = current !== undefined && current !== null && String(current).trim() !== "";
@@ -979,13 +1013,17 @@ export class ConversationVm {
         // caller correcting themselves never gets applied to the variable CRM/post-call data
         // actually reads, even though the agent's next line already reads the correction back
         // correctly off conversation history.
-        if (hasValue && !this.capturedNames.has(key)) continue;
         const checked = validateExtractedValue({ name: key }, value);
+        // …unless the caller said the new value in this very reply: that is a correction ("Email is
+        // nathanbrett1994@icloud.com"), and the booking must go out with it, not the passed-in one.
+        if (hasValue && !this.capturedNames.has(key) && !(checked !== null && saidInReply(userText, checked))) continue;
         if (checked !== null) valid[key] = checked;
         else if (hasValue && String(value ?? "").trim() && String(value).trim() !== String(current).trim()) {
           // A new value for something already captured, which did not validate — a correction we
           // could not use. Keep the old value, but stop the agent treating it as confirmed.
           if (!this.rejectedCorrections.includes(key)) this.rejectedCorrections.push(key);
+        } else if (!hasValue && String(value ?? "").trim() && askedForNow.has(key) && !this.unusableAnswers.includes(key)) {
+          this.unusableAnswers.push(key);
         }
       }
       // "No, my email is a RG Avvi… whatever": the caller says the email is wrong but nothing usable
@@ -1103,16 +1141,27 @@ export class ConversationVm {
     // rather than repeat the old one.
     const carriesIdentifier =
       looksLikeEmailAnswer(latestUser) || looksLikePhoneAnswer(latestUser) || soundsLikeEmail(latestUser);
-    if (this.pendingExtraction && (edgeGateVars(node.edges).length > 0 || carriesIdentifier)) {
+    const gatedOnVars = edgeGateVars(node.edges).length > 0;
+    if (this.pendingExtraction && (gatedOnVars || carriesIdentifier)) {
       const pending = this.pendingExtraction;
-      this.pendingExtraction = null;
-      const captured = await pending;
-      if (Object.keys(captured).length > 0) {
-        this.rememberVariables(captured);
-        yield { type: "variables", nodeId: node.id, values: captured };
+      // Exits that test variables need the value, so they wait for it. A reply that merely carries
+      // an email or number waits only briefly (extraction can take 3–4 s): past that the turn goes
+      // on and the value lands when extraction finishes.
+      const captured = gatedOnVars
+        ? await pending
+        : await Promise.race([
+            pending,
+            new Promise<null>((r) => setTimeout(() => r(null), identifierExtractionWaitMs())),
+          ]);
+      if (captured) {
+        this.pendingExtraction = null;
+        if (Object.keys(captured).length > 0) {
+          this.rememberVariables(captured);
+          yield { type: "variables", nodeId: node.id, values: captured };
+        }
+        routeCtx = this.routeContext(node);
+        gated = true;
       }
-      routeCtx = this.routeContext(node);
-      gated = true;
     }
 
     const predicted = this.predictedAdvanceNodeId(latestUser);
@@ -1218,6 +1267,14 @@ export class ConversationVm {
         }
         this.ended = true;
         yield { type: "end_call", nodeId: node.id, reason: "user_hangup" };
+        return;
+      }
+      if (node.type === "function" && this.toolOutcomeNote?.nodeId === node.id) {
+        // Still on a function step whose result led nowhere: keep talking about it, not silence.
+        this.log(`routing miss on "${node.id}" — answering from the tool's outcome`);
+        yield* this.speakToolOutcome(node);
+        this.awaiting = "user";
+        yield this.awaitUserDirective(node.id);
         return;
       }
       this.log(`routing miss on "${node.id}" — staying on ${node.type}, not generating speech`);
@@ -1441,15 +1498,15 @@ export class ConversationVm {
   }
 
   private async *execFunction(node: FunctionNode): AsyncGenerator<VmDirective, StepResult> {
-    if (node.speak_during_execution) {
-      const filler = spokenExecutionFiller(
-        interpolate(String(node.execution_message_description ?? "").trim(), this.variables),
-      );
-      if (filler) yield { type: "speak", nodeId: node.id, text: filler, interruptible: true };
-    }
-
     const toolId = String(node.tool_id ?? "").trim() || `tool-${node.id}`;
     const registered = findRegisteredTool(this.compiled.tools, String(node.name ?? ""), toolId);
+    // Work out the arguments while the "one moment…" line is spoken, not after it: the two used to
+    // run back to back, and with the tool call itself a function step took 5–9 s.
+    const argsPromise = this.buildToolArgs(node, registered);
+    const filler = node.speak_during_execution
+      ? spokenExecutionFiller(interpolate(String(node.execution_message_description ?? "").trim(), this.variables))
+      : "";
+
     const invocation = {
       toolId: String(registered?.tool_id ?? registered?.name ?? toolId),
       toolName: String(registered?.name ?? node.name ?? toolId).trim() || toolId,
@@ -1478,14 +1535,15 @@ export class ConversationVm {
         typeof (node as { mcp_tool?: string }).mcp_tool === "string"
           ? interpolate(String((node as { mcp_tool: string }).mcp_tool), this.variables)
           : undefined,
-      args: await this.buildToolArgs(node, registered),
+      args: {} as Record<string, unknown>,
       variables: { ...this.variables },
     };
 
     this.traceLog("FUNCTION_START", node.id, invocation.toolName);
-    this.traceLog("FUNCTION_ARGS", node.id, JSON.stringify(invocation.args).slice(0, 160));
 
     const run = async () => {
+      invocation.args = await argsPromise;
+      this.traceLog("FUNCTION_ARGS", node.id, JSON.stringify(invocation.args).slice(0, 160));
       if (!this.hooks.executeTool) {
         this.log(`no executeTool hook; node "${node.id}" tool "${toolId}" skipped`);
         return { ok: false, output: JSON.stringify({ error: "no tool executor configured" }) };
@@ -1500,15 +1558,23 @@ export class ConversationVm {
     const finishFunction = async (): Promise<StepResult> => {
       const edgeRoute = await selectEdge(node.edges ?? [], this.routeContext(node), this.llm);
       const chosen = edgeRoute.edge ?? (node.else_edge as FlowEdge | undefined);
-      if (chosen?.destination_node_id) return this.follow(chosen, node);
+      if (chosen?.destination_node_id) {
+        this.toolOutcomeNote = null;
+        return this.follow(chosen, node);
+      }
       this.traceLog("FUNCTION_WAIT", node.id, "no outgoing edge — staying after tool");
       return { kind: "await", what: "user" };
     };
+    const speaksAfter = (registered as { speak_after_execution?: unknown } | undefined)?.speak_after_execution;
 
     // `wait_for_result: false` is Retell's fire-and-forget mode: the flow moves on
     // immediately and the tool's result never influences routing.
+    // The tool starts now; the "one moment…" line is spoken while it runs, not before it.
+    const outcomePromise = run();
+    if (filler) yield { type: "speak", nodeId: node.id, text: filler, interruptible: true };
+
     if (node.wait_for_result === false) {
-      void run()
+      void outcomePromise
         .then((outcome) => {
           this.traceLog(
             "FUNCTION_RESULT",
@@ -1520,12 +1586,22 @@ export class ConversationVm {
       return finishFunction();
     }
 
-    const outcome = await run();
+    const outcome = await outcomePromise;
     this.traceLog(
       "FUNCTION_RESULT",
       node.id,
       `${outcome.ok ? "ok" : "fail"} ${truncate(outcome.output, 160)}`,
     );
+    this.toolOutcomeNote = {
+      nodeId: node.id,
+      name: invocation.toolName,
+      instruction: outcome.ok
+        ? `The "${invocation.toolName}" step has finished. Its result: ${truncate(outcome.output, 400)}. ` +
+          "Tell the caller briefly, in plain words, what this means for them, then ask how they would like to continue."
+        : `The "${invocation.toolName}" step did not work: ${truncate(outcome.output, 200)}. ` +
+          "Tell the caller briefly and kindly that you could not complete it just now. Do not say it was done. " +
+          "Offer what can be done instead — trying again, or someone following up — and ask which they would prefer.",
+    };
     const fromOutput = parseToolOutputVariables(invocation.toolName, outcome.output);
     const declaredMapping = (registered as { response_variables?: Record<string, unknown> } | undefined)
       ?.response_variables;
@@ -1536,6 +1612,7 @@ export class ConversationVm {
     const mergedVars = { ...fromOutput, ...(outcome.variables ?? {}), ...declared };
     if (Object.keys(mergedVars).length > 0) {
       this.rememberVariables(mergedVars);
+      for (const k of Object.keys(mergedVars)) this.toolOutputNames.add(k);
       const declaresOutputs = Object.keys(declaredMapping ?? {}).some((k) => k.trim());
       const reported = declaresOutputs ? declared : mergedVars;
       if (Object.keys(reported).length > 0) {
@@ -1564,7 +1641,27 @@ export class ConversationVm {
     if (!outcome.ok && node.else_edge?.destination_node_id) {
       return { kind: "goto", nodeId: node.else_edge.destination_node_id };
     }
-    return finishFunction();
+    const next = await finishFunction();
+    // Nowhere to go: say what happened rather than leave the caller in silence — a failed booking
+    // used to end on "One moment while I book that in" and then only "Are you still there?". After a
+    // success the tool's own speak_after_execution decides, as on Retell.
+    if (next.kind === "await" && (!outcome.ok || speaksAfter === true)) {
+      yield* this.speakToolOutcome(node);
+    }
+    return next;
+  }
+
+  /** A line about the last tool's outcome, spoken from the function step (see `toolOutcomeNote`). */
+  private async *speakToolOutcome(node: FlowNode): AsyncGenerator<VmDirective> {
+    const note = this.toolOutcomeNote;
+    if (!note || note.nodeId !== node.id) return;
+    const spoken: FlowNode = {
+      id: node.id,
+      type: "conversation",
+      name: node.name,
+      instruction: { type: "prompt", text: note.instruction },
+    } as FlowNode;
+    yield* this.yieldSpeech(spoken);
   }
 
   private async *execPressDigit(node: FlowNode): AsyncGenerator<VmDirective, StepResult> {
@@ -1833,8 +1930,9 @@ export class ConversationVm {
 
     const messages = this.buildSpeechMessages(node, raw);
     // This line has now been told about any correction that did not come through.
-    const correctionNoted = this.rejectedCorrections.length > 0;
+    const correctionNoted = this.rejectedCorrections.length > 0 || this.unusableAnswers.length > 0;
     this.rejectedCorrections = [];
+    this.unusableAnswers = [];
     const fallback = spokenFallback(splitPromptScript(interpolated));
     const model = nodeModel(node, this.compiled, this.fallbackModel);
     this.traceLog(
@@ -2034,6 +2132,13 @@ export class ConversationVm {
         "The caller has already heard this node's line, and their reply did not complete its task. If they asked something, answer it briefly. Then bring them back to what THIS node's task still needs, in fresh words. Do not ask about anything else and do not move the call on.",
       );
     }
+    if (this.unusableAnswers.length > 0) {
+      const names = this.unusableAnswers.map(humaniseVariableName).join(", ");
+      tail.push(
+        `What the caller just gave as their ${names} did not come through as a valid value, so nothing was saved. ` +
+          `Do not read it back or treat it as confirmed. Say you did not quite catch it and ask for it again, slowly.`,
+      );
+    }
     if (this.rejectedCorrections.length > 0) {
       const names = this.rejectedCorrections.map(humaniseVariableName).join(", ");
       tail.push(
@@ -2102,22 +2207,37 @@ export class ConversationVm {
     }));
 
     const fromVars = this.toolArgsFromVariables(fields.map((f) => f.name));
-    try {
-      const instruction = String(node.instruction?.text ?? "").trim();
-      const messages = instruction
-        ? [
-            ...this.history,
-            { role: "system" as const, content: interpolateForSpeech(instruction, this.variables) },
-          ]
-        : this.history;
-      const extracted = await this.llm.extract(messages, fields, {
-        model: nodeModel(node, this.compiled, this.fallbackModel),
+    const instruction = String(node.instruction?.text ?? "").trim();
+    const messages = instruction
+      ? [
+          ...this.history,
+          { role: "system" as const, content: interpolateForSpeech(instruction, this.variables) },
+        ]
+      : this.history;
+    // A structured pull-these-fields-out task, like turn extraction: the classifier models, not the
+    // node's speech model (gpt-4.1 took 1.5–4 s here on every function step).
+    const extraction = this.llm
+      .extract(messages, fields, {
+        model: this.strongClassifierModel ?? this.classifierModel ?? nodeModel(node, this.compiled, this.fallbackModel),
+      })
+      .then((extracted) => ({ ...fromVars, ...extracted }))
+      .catch((err: unknown) => {
+        this.log(`tool argument extraction failed on node "${node.id}": ${errMessage(err)}`);
+        return fromVars;
       });
-      return { ...fromVars, ...extracted };
-    } catch (err) {
-      this.log(`tool argument extraction failed on node "${node.id}": ${errMessage(err)}`);
-      return fromVars;
-    }
+
+    // When every required argument is already known from the call, do not hold the tool for the
+    // model beyond a short wait. What it returns in time still wins — a caller asking for a new day
+    // overrides a value captured earlier.
+    const required = Array.isArray((schema as { required?: unknown })?.required)
+      ? ((schema as { required: unknown[] }).required.map(String))
+      : [];
+    const haveRequired = required.length > 0 && required.every((name) => fromVars[name] !== undefined && String(fromVars[name]).trim() !== "");
+    if (!haveRequired) return extraction;
+    return Promise.race([
+      extraction,
+      new Promise<Record<string, unknown>>((r) => setTimeout(() => r(fromVars), toolArgsWaitMs())),
+    ]);
   }
 
   private toolArgsFromVariables(names: string[]): Record<string, unknown> {

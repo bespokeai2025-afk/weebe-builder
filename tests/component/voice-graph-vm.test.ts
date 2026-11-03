@@ -1587,8 +1587,11 @@ describe("ConversationVm function nodes", () => {
     expect(speech(await drain(vm.run({ type: "begin" })))).toEqual(["Booked"]);
   });
 
-  it("does not generate LLM speech from a function node after a routing miss", async () => {
-    const llm = fakeLlm({ generate: () => "I am working on booking your appointment now." });
+  // Silence after a failed tool left a caller hearing only "Are you still there?" on a live test call.
+  // The line is built from the tool's outcome — never from the node's own instruction, which is what
+  // used to produce "I am working on booking your appointment now" — and says it was not done.
+  it("speaks about a failed tool from its outcome, never from the function node's instruction", async () => {
+    const llm = fakeLlm({ generate: () => "Sorry, I couldn't book that just now." });
     const vm = new ConversationVm({
       flow: flowOf([
         {
@@ -1604,10 +1607,15 @@ describe("ConversationVm function nodes", () => {
       llm,
       hooks: { executeTool: async () => ({ ok: false, output: '{"error":"fetch failed"}' }) },
     });
-    await drain(vm.run({ type: "begin" }));
+    const begin = await drain(vm.run({ type: "begin" }));
+    expect(begin.some((d) => d.type === "speak")).toBe(true);
     const after = await drain(vm.run({ type: "user_utterance", text: "Okay." }));
-    expect(speech(after)).toEqual([]);
-    expect(after.some((d) => d.type === "speak")).toBe(false);
+    expect(after.some((d) => d.type === "speak")).toBe(true);
+    for (const messages of llm.calls.generate) {
+      const tail = messages.at(-1)!.content;
+      expect(tail).not.toContain("Call book_appointment with name and email.");
+      expect(tail).toMatch(/did not work/);
+    }
 
     const goodbye = await drain(vm.run({ type: "user_utterance", text: "No, goodbye." }));
     expect(goodbye.some((d) => d.type === "end_call")).toBe(true);
