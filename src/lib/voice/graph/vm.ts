@@ -56,6 +56,7 @@ import {
   parseToolOutputVariables,
 } from "./variables.shared";
 import type { CallTurnTrace } from "./latency-trace";
+import { promptCharCount } from "./traced-llm";
 import {
   selectDigitEdge,
   selectEdge,
@@ -308,6 +309,33 @@ const SPEECH_HISTORY_MESSAGES = 6;
 export type SpeechWarmTarget =
   | { kind: "static"; text: string }
   | { kind: "prompt"; nodeId: string; messages: LlmMessage[]; model: string };
+
+/**
+ * A speculative run's tokens, with its timings recorded on the turn that adopted it.
+ *
+ * A run started before the endpoint belongs to no turn yet and marks no trace itself, so without
+ * this a turn answered from one reported no model, prompt size, request or first-token time — the
+ * turns where speculation worked looked like turns that never called the model. Marks keep the
+ * first value, so a run that was already traced is unchanged. A first token that came before the
+ * final transcript shows as a negative time: that much of the model's wait was hidden.
+ */
+async function* timedAdoptedRun(
+  run: SpeculativeSpeechRun,
+  trace: CallTurnTrace | null,
+): AsyncGenerator<string> {
+  if (trace) {
+    if (run.promptChars !== undefined) trace.setSpeechLlm(run.model, run.promptChars);
+    if (run.requestedAt !== undefined) trace.mark("llm_speech_request_start", run.requestedAt);
+  }
+  let first = true;
+  for await (const delta of streamSpeculativeTokens(run)) {
+    if (first && delta) {
+      first = false;
+      trace?.mark("llm_speech_first_token", run.firstTokenAt ?? Date.now());
+    }
+    yield delta;
+  }
+}
 
 export class ConversationVm {
   private readonly compiled: CompiledFlow;
@@ -780,18 +808,43 @@ export class ConversationVm {
     return out;
   }
 
-  /** Start one speculative generation run; false if one is already in flight for this node. */
+  /**
+   * Start the reply for `target` from a transcript the caller may not have finished, before the
+   * endpoint — the gateway's pre-endpoint work.
+   *
+   * Goes through the same client as the turn's own reply (its token limit, temperature, duplicate
+   * hedging and first-word deadline), replacing any run already in flight for that node, since the
+   * caller has said more since it started. It used to call the provider directly with a 64-token
+   * cap and none of those, so an adopted reply could stop mid-sentence and a stalled provider was
+   * waited on for the transport's 25 s. Untraced: the turn does not exist yet, and the turn that
+   * adopts the run records its timings (`prepareSpeech`).
+   */
+  startPreEndpointSpeech(target: Extract<SpeechWarmTarget, { kind: "prompt" }>, partial: string): void {
+    this.startSpeculativeRun(target, partial, { replace: true, untraced: true });
+  }
+
+  /**
+   * Start one speculative generation run. Without `replace`, false if one is already in flight for
+   * this node.
+   */
   private startSpeculativeRun(
     target: Extract<SpeechWarmTarget, { kind: "prompt" }>,
     userText: string,
+    options: { replace?: boolean; untraced?: boolean } = {},
   ): boolean {
-    if (this.speculativeSpeech.has(target.nodeId)) return false;
+    if (this.speculativeSpeech.has(target.nodeId)) {
+      if (!options.replace) return false;
+      this.setSpeculativeSpeech(target.nodeId, null);
+    }
 
     const ctrl = new AbortController();
     const tokens: string[] = [];
+    const timing: { firstTokenAt?: number } = {};
+    const requestedAt = Date.now();
     const started = this.llm.generateStream!(target.messages, {
       model: target.model,
       signal: ctrl.signal,
+      ...(options.untraced ? { untraced: true } : {}),
     });
     const done = (async () => {
       try {
@@ -799,6 +852,7 @@ export class ConversationVm {
         if (!stream) return "";
         for await (const delta of stream) {
           if (ctrl.signal.aborted) break;
+          if (delta && timing.firstTokenAt === undefined) timing.firstTokenAt = Date.now();
           tokens.push(delta);
         }
       } catch {
@@ -806,12 +860,19 @@ export class ConversationVm {
       }
       return tokens.join("").trim();
     })();
-    this.speculativeSpeech.set(target.nodeId, {
+    const run: SpeculativeSpeechRun = {
       partial: userText,
       ctrl,
       tokens,
       done,
-    });
+      requestedAt,
+      get firstTokenAt() {
+        return timing.firstTokenAt;
+      },
+      model: target.model,
+      promptChars: promptCharCount(target.messages),
+    };
+    this.speculativeSpeech.set(target.nodeId, run);
     return true;
   }
 
@@ -1951,7 +2012,7 @@ export class ConversationVm {
         return {
           kind: "generated",
           stream: guardPrematureWrapUpStream(
-            streamSpeculativeTokens(spec),
+            timedAdoptedRun(spec, this.turnTrace),
             fallback,
             node.type === "end",
           ),
@@ -1996,6 +2057,47 @@ export class ConversationVm {
     }
   }
 
+  /**
+   * The opening of every spoken reply's system message: the same bytes on every turn of the call,
+   * which is what lets the provider serve it from its prompt cache (see `buildSpeechMessages`).
+   */
+  private callWideSpeechSystem(): string[] {
+    const system: string[] = [];
+    const persona = this.compiled.globalPrompt.trim();
+    if (persona) {
+      system.push(
+        "Who you are and the overall call — background for tone and personality only. It never adds questions, confirmations or steps; when it conflicts with THIS node's task, the node's task wins:\n" +
+          persona,
+      );
+    }
+    if (this.languageLock) system.push(this.languageLock);
+    return system;
+  }
+
+  /**
+   * Open the speech model's connection and cache this call's prompt prefix, once per call, so
+   * the first generated reply does not pay for both.
+   *
+   * A flow that opens with scripted lines makes its first model call several turns in, from a
+   * cold start: a new connection and a prefix the provider has not cached yet. Measured on
+   * gpt-4.1-mini with a prompt this size: ~1.45 s to the first word uncached, ~1.25 s cached.
+   * Sent while the greeting plays, for every model a generated line in this flow uses. Costs one
+   * prefix's input tokens per model per call. WEBEE_NATIVE_LLM_WARMUP=off turns it off.
+   */
+  warmSpeechPrompt(): void {
+    if (!this.llm.warm) return;
+    const system = this.callWideSpeechSystem();
+    if (system.length === 0) return;
+    // `undefined` is the client's own default model — what a node naming none is answered by.
+    const models = new Set<string | undefined>();
+    for (const node of this.compiled.nodes.values()) {
+      if (responseModeFromInstruction(node.instruction?.type) === "static") continue;
+      models.add(nodeModel(node, this.compiled, this.fallbackModel));
+    }
+    const messages: LlmMessage[] = [{ role: "system", content: system.join("\n") }];
+    for (const model of models) void this.llm.warm(messages, model ? { model } : undefined);
+  }
+
   private buildSpeechMessages(node: FlowNode, raw: string): LlmMessage[] {
     const interpolated = interpolateForSpeech(raw, this.variables);
     const { script, directions, task } = splitPromptScript(interpolated);
@@ -2024,14 +2126,7 @@ export class ConversationVm {
     // "Confirm details naturally if available", and with it visible but unranked the model
     // confirmed the email the caller had just given instead of reading back the mobile number the
     // node was for. Stated plainly that the node wins, it stayed on task.
-    const persona = this.compiled.globalPrompt.trim();
-    if (persona) {
-      system.push(
-        "Who you are and the overall call — background for tone and personality only. It never adds questions, confirmations or steps; when it conflicts with THIS node's task, the node's task wins:\n" +
-          persona,
-      );
-    }
-    if (this.languageLock) system.push(this.languageLock);
+    system.push(...this.callWideSpeechSystem());
     system.push(buildTurnRules(interpolate(raw, this.variables), node.type === "end"));
     if (node.name) {
       system.push(`Current node: ${node.name}. Stay on this node only.`);

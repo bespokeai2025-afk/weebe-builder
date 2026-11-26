@@ -256,19 +256,21 @@ describe("Fish batch ASR (/v1/asr)", () => {
     globalThis.fetch = realFetch;
   });
 
-  it("names the model in the header, sends no ignored prompt field, and strips speaker markers", async () => {
+  it("asks for transcribe-1-pro without markers or cues, sends no ignored prompt field, and strips any that arrive", async () => {
     const { fishTranscribe } = await import("@/lib/voice/stt/fish");
     const seen: Array<{ headers: Record<string, string>; body: FormData }> = [];
     globalThis.fetch = (async (_url: string, init: RequestInit) => {
       seen.push({ headers: init.headers as Record<string, string>, body: init.body as FormData });
-      return new Response(JSON.stringify({ text: "<|speaker:0|> Six bedrooms, yes.", duration: 1 }), {
+      return new Response(JSON.stringify({ text: "<|speaker:0|> Six bedrooms, [laughter] yes.", duration: 1 }), {
         status: 200,
       });
     }) as typeof fetch;
 
     const text = await fishTranscribe(buildWav([Buffer.alloc(320)], 16000), "key", "en-GB", ["Virani"]);
     expect(text).toBe("Six bedrooms, yes.");
-    expect(seen[0]!.headers.model).toBe("transcribe-1");
+    expect(seen[0]!.headers.model).toBe("transcribe-1-pro");
+    expect(seen[0]!.body.get("diarize")).toBe("false");
+    expect(seen[0]!.body.get("tag_audio_events")).toBe("false");
     expect(seen[0]!.body.get("language")).toBe("en");
     expect(seen[0]!.body.get("prompt")).toBeNull();
   });

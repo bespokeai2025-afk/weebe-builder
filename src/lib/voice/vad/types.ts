@@ -16,8 +16,17 @@ export type VadEvent =
   | { type: "speech_start"; rms: number }
   /** Still inside an utterance. */
   | { type: "speech"; rms: number }
-  /** Endpoint reached; `frames` is the complete utterance including pre-roll. */
-  | { type: "utterance_end"; frames: Buffer[]; reason: "endpoint" | "max_duration" }
+  /**
+   * Endpoint reached; `frames` is the complete utterance including pre-roll. `trailingSilenceFrames`
+   * is how many of those frames at the end were silence, so the caller's last word can be placed
+   * in time (endpoint time minus that silence).
+   */
+  | {
+      type: "utterance_end";
+      frames: Buffer[];
+      reason: "endpoint" | "max_duration";
+      trailingSilenceFrames: number;
+    }
   /** Endpoint reached but the utterance was too short to be speech. */
   | { type: "discarded"; frameCount: number };
 
@@ -39,7 +48,8 @@ export interface EndpointingOptions {
    * Consecutive silent frames that close an utterance.
    *
    * This is the single biggest lever on perceived latency: every frame of
-   * hangover is added to every turn's response time. Frames are ~20 ms.
+   * hangover is added to every turn's response time. The cascade session regroups caller audio
+   * into fixed frames of `VAD_FRAME_MS` (cascade-tuning.shared), whatever size the transport sends.
    */
   silenceFramesTrigger?: number;
   /** Consecutive loud frames required to open an utterance; rejects clicks. */
@@ -133,8 +143,9 @@ export class Endpointer {
 
     if (this.frames.length >= this.maxUtteranceFrames) {
       const captured = this.frames;
+      const trailingSilenceFrames = isSpeech ? 0 : this.silentFrames + 1;
       this.reset();
-      return { type: "utterance_end", frames: captured, reason: "max_duration" };
+      return { type: "utterance_end", frames: captured, reason: "max_duration", trailingSilenceFrames };
     }
 
     if (isSpeech) {
@@ -147,10 +158,11 @@ export class Endpointer {
 
     const captured = this.frames;
     const frameCount = captured.length;
+    const trailingSilenceFrames = this.silentFrames;
     this.reset();
 
     if (frameCount < this.minSpeechFrames) return { type: "discarded", frameCount };
-    return { type: "utterance_end", frames: captured, reason: "endpoint" };
+    return { type: "utterance_end", frames: captured, reason: "endpoint", trailingSilenceFrames };
   }
 
   private rememberPreRoll(frame: Buffer): void {

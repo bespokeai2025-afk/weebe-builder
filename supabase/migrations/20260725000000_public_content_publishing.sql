@@ -194,4 +194,6 @@ REVOKE INSERT, UPDATE, DELETE ON public.growthmind_publication_executions FROM a
 INSERT INTO public.growthmind_public_sites (workspace_id, site_key, display_name, canonical_host, allowed_origins)
 SELECT 'c13db1d5-22e4-44ad-b678-6f296c31a947', 'webespokeai', 'WeBespoke AI', 'www.webespokeai.com',
        ARRAY['https://webespokeai.com','https://www.webespokeai.com']
-WHERE NOT EXISTS (SELECT 1 FROM public.growthmind_public_sites WHERE site_key = 'webespokeai');
+WHERE NOT EXISTS (SELECT 1 FROM public.growthmind_public_sites WHERE site_key = 'webespokeai')
+  -- Only where that workspace exists, so a fresh database can be built from these migrations.
+  AND EXISTS (SELECT 1 FROM public.workspaces WHERE id = 'c13db1d5-22e4-44ad-b678-6f296c31a947');

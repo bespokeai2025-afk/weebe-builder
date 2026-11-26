@@ -21,7 +21,8 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { pcm16View } from "./audio";
+import { pcm16FrameBytes, pcm16View, regroupPcm16 } from "./audio";
+import { BurstTranscripts, joinBurstTranscripts } from "./burst-transcripts";
 import { GraphSession } from "./graph-session";
 import { buildGraphRuntime, type GraphRuntime } from "./graph-agent";
 import { transcriptCaughtUpToAudio } from "../graph/spoken-transcript.shared";
@@ -57,7 +58,8 @@ import {
   normalizeEnglishLockedSttText,
   resolveSttLanguageCode,
 } from "../language-lock.shared";
-import { resolveCascadeTuning, resolveUtteranceCoalesceMs, BROWSER_VAD_FRAME_MS } from "../cascade-tuning.shared";
+import { resolveCascadeTuning, resolveUtteranceCoalesceMs, VAD_FRAME_MS } from "../cascade-tuning.shared";
+import { LATENCY_BUDGET_MS } from "../call-latency-stats.shared";
 import {
   looksLikeCommitReadyPartial,
   looksLikeCompleteShortReply,
@@ -103,13 +105,14 @@ import {
   type VoiceAudioState,
   type VoiceRuntimeConfig,
 } from "../voice-runtime-config.shared";
+import { canonicalUtterance } from "../speculative-speech.shared";
 import {
   partialMatchesFinal,
   startSpeculativeFlat,
-  startSpeculativeSpeech,
   streamSpeculativeTokens,
   type SpeculativeFlatRun,
 } from "./speculative-flat";
+import { speechPromptWarmupEnabled } from "../engine-config.shared";
 
 /** Partial must be unchanged this long before speculative LLM starts. */
 const PARTIAL_STABLE_MS = 220;
@@ -138,8 +141,6 @@ const MAX_SPECULATIVE_FANOUT_ROUNDS = 2;
  * is the one started from the partial that matches the final transcript — usually the last.
  */
 const MAX_SPECULATIVE_ROUTE_ROUNDS = 4;
-/** Turnaround target from the plan; exceeding it is logged, not enforced. */
-const LATENCY_BUDGET_MS = 800;
 /** Nudge this many times before giving up on real speech that STT keeps returning empty for. */
 const MAX_STT_MISS_NUDGES = 2;
 const STT_MISS_NUDGE_TEXT = "Sorry, I didn't catch that — could you say that again?";
@@ -173,8 +174,8 @@ export interface CascadeTransport {
   onNodeActive?(nodeId: string): void;
   onToolCall?(toolId: string, result: string, ok: boolean): void;
   /**
-   * Speech-to-first-audio latency for the turn that just started speaking — the same
-   * end-to-end number persisted to `call_turns.speech_to_first_audio_ms`, surfaced live so a
+   * Caller's last word → first audio for the turn that just started speaking — the same number
+   * persisted to `call_turns.voice_end_to_first_audio_ms`, surfaced live so a
    * test-call UI can show a running latency badge the way Retell's own test-call widget does,
    * without needing to wait for the call to end and the debugger's Latency tab to poll for it.
    */
@@ -241,8 +242,10 @@ export interface CascadeSessionBanner {
 interface Turn {
   id: number;
   ctrl: AbortController;
-  /** Endpoint timestamp, the reference point for the latency budget. */
+  /** Endpoint timestamp (after the end-of-speech wait and utterance coalescing). */
   startedAt: number;
+  /** When the caller's last word ended — the reference point for the latency budget. */
+  voiceEndAt?: number | null;
   sttAt?: number;
   /** Graph routing finished and TTS pipeline is starting. */
   speakAt?: number;
@@ -406,6 +409,10 @@ export class CascadeSession {
   private lastAcceptedUserAt = 0;
   /** When the caller started the utterance now being collected (first burst, survives coalescing). */
   private utteranceSpeechStartAt: number | null = null;
+  /** When the caller's last word of that utterance ended (latest burst wins). */
+  private utteranceVoiceEndAt: number | null = null;
+  /** Caller audio short of one VAD frame, carried to the next chunk (see `pushCallerAudio`). */
+  private callerAudioRemainder: Buffer = Buffer.alloc(0);
   /** When the agent began / was first heard replying to the last accepted caller turn. */
   private replySpeakAt: number | null = null;
   private replyAudioStartAt: number | null = null;
@@ -432,6 +439,8 @@ export class CascadeSession {
   private turnPipeline: Promise<void> = Promise.resolve();
   /** Frames accumulated across brief mid-thought pauses before STT runs. */
   private pendingUtteranceFrames: Buffer[] = [];
+  /** Each speech burst's transcript in the utterance being collected — see `requestBurstTranscript`. */
+  private readonly burstTranscripts = new BurstTranscripts();
   private utteranceCoalesceTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly utteranceCoalesceMs: number;
   private readonly defaultSilenceFrames: number;
@@ -618,7 +627,7 @@ export class CascadeSession {
       keywords: this.config.boostedKeywords,
       onPartial: (text) => {
         this.transport.onPartialTranscript?.(text, "user");
-        this.onCallerPartial(text);
+        this.onCallerPartial(this.withFinishedSegments(text));
       },
       onFinal: (text) => this.onCallerSegmentFinal(text),
     });
@@ -662,6 +671,7 @@ export class CascadeSession {
       this.graphVm.setLatencyHooks(this.buildVmLatencyHooks());
       this.graph = this.buildGraphSession(runtime);
       this.warmTts();
+      if (speechPromptWarmupEnabled()) this.graphVm.warmSpeechPrompt();
       console.log(
         `${this.log} session ready mode=graph call=${this.config.callId} voice=${this.voiceProfile!.voiceId}` +
           ` stt=${banner.stt} tts=${banner.tts} tts_model=${this.fishTtsModel} vad=${banner.vad}`,
@@ -751,10 +761,29 @@ export class CascadeSession {
     return banner;
   }
 
-  /** Feed one PCM16 mono frame from the caller, at the session's sample rate. */
+  /**
+   * Caller audio in (PCM16 mono at the session's sample rate), at whatever chunk size the
+   * transport sends.
+   *
+   * Every VAD setting is a frame count (end-of-speech wait, barge-in, minimum speech, pre-roll), so
+   * frames are regrouped to a fixed `VAD_FRAME_MS` here. Without this a Twilio call (20 ms chunks)
+   * ran every one of those settings at 40% of its configured length: a 400 ms end-of-speech wait
+   * was really 160 ms, and the 900 ms hold for a half-finished sentence was really 360 ms.
+   */
   pushCallerAudio(chunk: Buffer): void {
+    if (!this.vad || this.closed || chunk.byteLength === 0) return;
+    const { frames, remainder } = regroupPcm16(
+      this.callerAudioRemainder,
+      chunk,
+      pcm16FrameBytes(this.sampleRate, VAD_FRAME_MS),
+    );
+    this.callerAudioRemainder = remainder;
+    for (const frame of frames) this.processCallerFrame(frame);
+  }
+
+  private processCallerFrame(chunk: Buffer): void {
     const detector = this.vad;
-    if (!detector || this.closed || chunk.byteLength === 0) return;
+    if (!detector || this.closed) return;
 
     // The recording keeps what the caller actually sent; detection and transcription get the
     // cleaned audio.
@@ -1169,12 +1198,30 @@ export class CascadeSession {
    * partials start from those instead (`SttCapabilities`).
    */
   private onCallerSegmentFinal(raw: string): void {
-    if (this.sttCaps.partials || !this.sttCaps.segmentFinalsBeforeEndpoint) return;
+    // Also on providers that stream partials. Deepgram does, but a one-word reply ("Yes") often
+    // comes back only as a finished segment, with no partial before it — and that segment used to
+    // be dropped here, so nothing started before the endpoint and the whole reply waited for it:
+    // `partial_commit` false on every turn of a Deepgram test call.
+    if (!this.sttCaps.segmentFinalsBeforeEndpoint) return;
     if (!this.callerSpeaking) return;
     const text = raw.trim();
     if (!text) return;
     this.finalSegmentsThisUtterance.push(text);
     this.onCallerPartial(this.finalSegmentsThisUtterance.join(" "), { alreadyStable: true });
+  }
+
+  /**
+   * What the caller has said so far this utterance: the finished segments, then the partial.
+   *
+   * On a provider that finishes segments before the endpoint, a partial covers only the speech
+   * since the last finished segment (it restarts there), so on its own it is the end of what was
+   * said, not all of it — a reply started from it could never match the final transcript.
+   */
+  private withFinishedSegments(partial: string): string {
+    if (!this.sttCaps.segmentFinalsBeforeEndpoint || this.finalSegmentsThisUtterance.length === 0) {
+      return partial;
+    }
+    return [...this.finalSegmentsThisUtterance, partial.trim()].filter(Boolean).join(" ");
   }
 
   private onCallerPartial(raw: string, opts: { alreadyStable?: boolean } = {}): void {
@@ -1209,7 +1256,8 @@ export class CascadeSession {
       this.partialStableSince = Date.now();
       this.abortSpeculativeFlat("partial changed");
       if (destKey && destKey === this.speculativeGraphDestKey) {
-        /* same predicted dest — keep speculative LLM / TTS */
+        // Same predicted step — keep the run until the longer partial is stable, when
+        // maybeStartSpeculativeGraph restarts it from those words.
       } else {
         this.speculativeGraphKey = "";
         this.speculativeGraphDestKey = destKey;
@@ -1279,19 +1327,19 @@ export class CascadeSession {
       return;
     }
 
-    const key = target.nodeId;
+    // Keyed by the words too: when the caller says more and the same step is still predicted, the
+    // reply is restarted from the longer partial (the earlier run is aborted). Keyed by step alone,
+    // the first run was kept, and it was either thrown away at the endpoint — its partial no longer
+    // matches the final — or, before matching was made strict, spoken for half of what was said.
+    const key = `${target.nodeId}\n${canonicalUtterance(partial)}`;
     this.speculativeGraphDestKey = `prompt:${target.nodeId}`;
     if (this.speculativeGraphKey === key) return;
     this.speculativeGraphKey = key;
 
-    const run = startSpeculativeSpeech({
-      apiKey: this.config.apiKey,
-      model: target.model,
-      messages: [...target.messages, { role: "user", content: partial }],
+    vm.startPreEndpointSpeech(
+      { ...target, messages: [...target.messages, { role: "user", content: partial }] },
       partial,
-      provider: resolveWebeeLlmProvider(this.config.settings),
-    });
-    vm.setSpeculativeSpeech(target.nodeId, run);
+    );
     this.markUtterance("speculative_llm_start");
     console.log(
       `${this.log} speculative graph LLM started node=${target.nodeId} (${partial.slice(0, 40)})`,
@@ -1336,16 +1384,11 @@ export class CascadeSession {
     if (targets.length === 0) return;
     this.fanoutRoundsThisUtterance += 1;
 
-    const provider = resolveWebeeLlmProvider(this.config.settings);
     for (const target of targets) {
-      const run = startSpeculativeSpeech({
-        apiKey: this.config.apiKey,
-        model: target.model,
-        messages: [...target.messages, { role: "user", content: partial }],
+      vm.startPreEndpointSpeech(
+        { ...target, messages: [...target.messages, { role: "user", content: partial }] },
         partial,
-        provider,
-      });
-      vm.setSpeculativeSpeech(target.nodeId, run);
+      );
     }
     this.markUtterance("speculative_llm_start");
     console.log(
@@ -1601,6 +1644,8 @@ export class CascadeSession {
     frames: Buffer[],
     endpointAt: number,
     speechStartAt: number | null = null,
+    voiceEndAt: number | null = null,
+    burstTranscripts: Array<Promise<string>> = [],
   ): Promise<void> {
     // Retell-like: never drop the utterance before STT. Laptop-speaker echo is
     // empty/hallucinated text; a real "yes" must be allowed to interrupt.
@@ -1617,7 +1662,10 @@ export class CascadeSession {
     // Only where the provider says a complete-looking partial is the whole utterance
     // (`SttCapabilities.partialCanReplaceFinal`); otherwise it would drop anything said after the
     // last pause.
+    // After a pause the partial covers only the last burst on providers whose partials restart at
+    // each finalize, so it cannot stand in for a multi-burst turn.
     const skipSttFinal =
+      burstTranscripts.length <= 1 &&
       this.englishTurnRules &&
       this.sttCaps.partialCanReplaceFinal &&
       shouldSkipSttFinal(
@@ -1629,12 +1677,16 @@ export class CascadeSession {
     try {
       if (skipSttFinal) {
         userText = normalizeEnglishLockedSttText(partialFallback, this.sttLanguage);
-        void this.stt?.finalizeUtterance(frames).catch(() => {});
+        if (burstTranscripts.length === 0) void this.stt?.finalizeUtterance(frames).catch(() => {});
         console.log(
           `${this.log} skipping STT final — commit-ready partial "${userText.slice(0, 40)}"`,
         );
       } else {
-        userText = this.stt ? await this.stt.finalizeUtterance(frames) : "";
+        if (burstTranscripts.length > 0) {
+          userText = await joinBurstTranscripts(burstTranscripts);
+        } else {
+          userText = this.stt ? await this.stt.finalizeUtterance(frames) : "";
+        }
         userText = normalizeEnglishLockedSttText(userText, this.sttLanguage);
       }
     } catch (err) {
@@ -1760,6 +1812,7 @@ export class CascadeSession {
     this.clearSilenceTimer();
 
     const t = this.beginTurn(endpointAt);
+    t.voiceEndAt = voiceEndAt;
     t.sttAt = Date.now();
     if (this.graph) {
       const trace = this.startTurnTrace(t);
@@ -2163,6 +2216,7 @@ export class CascadeSession {
   private startTurnTrace(t: Turn): CallTurnTrace {
     const trace = new CallTurnTrace(t.id, t.startedAt, this.log);
     t.trace = trace;
+    if (t.voiceEndAt != null) trace.setVoiceEnd(t.voiceEndAt);
     for (const { name, at } of this.pendingMarks) trace.mark(name, at);
     this.pendingMarks = [];
     this.fanoutRoundsThisUtterance = 0;
@@ -2201,7 +2255,7 @@ export class CascadeSession {
     // Reads the partial for English "unfinished" cues; other languages keep the configured wait.
     if (!this.englishTurnRules) return;
     const hangoverMs = resolveEndpointHangoverMs(partial, baseMs, this.graphVm?.currentInstructionText);
-    const frames = Math.max(3, Math.round(hangoverMs / BROWSER_VAD_FRAME_MS));
+    const frames = Math.max(3, Math.round(hangoverMs / VAD_FRAME_MS));
     this.vad?.setSilenceFramesTrigger(frames);
     // Buffered, not written to this.turn: partials arrive before beginTurn
     // creates the turn this window applies to. Recorded so the adaptive window
@@ -2232,7 +2286,7 @@ export class CascadeSession {
           }
           const extendedFrames = Math.max(
             frames,
-            Math.round(INCOMPLETE_PARTIAL_HANGOVER_MS / BROWSER_VAD_FRAME_MS),
+            Math.round(INCOMPLETE_PARTIAL_HANGOVER_MS / VAD_FRAME_MS),
           );
           this.vad.setSilenceFramesTrigger(extendedFrames);
           this.pendingEndpointing = { hangoverMs: INCOMPLETE_PARTIAL_HANGOVER_MS, heldForIncomplete: true };
@@ -2256,7 +2310,26 @@ export class CascadeSession {
       this.utteranceCoalesceTimer = null;
     }
     this.pendingUtteranceFrames = [];
+    this.burstTranscripts.clear();
   }
+
+  /**
+   * Ask for one burst's transcript as soon as the VAD closes it, instead of after the coalescing
+   * wait.
+   *
+   * The coalescing wait (80–320 ms) exists so a caller who pauses and carries on ("24 Main Street"
+   * … "Dubai") is one turn, not two. The transcript used to be requested only once it was over, so
+   * the wait sat in front of the 0.4 s transcript round trip on every turn. Requested here, the two
+   * overlap. If the caller does carry on, their next burst gets its own transcript and the turn's
+   * text is the bursts' transcripts in order — the same words the single request would have
+   * returned, since each covers only its own audio.
+   */
+  private requestBurstTranscript(frames: Buffer[]): void {
+    const stt = this.stt;
+    if (!stt) return;
+    this.burstTranscripts.request(() => stt.finalizeUtterance(frames));
+  }
+
 
   /**
    * Retell-style utterance coalescing: wait briefly after endpoint so
@@ -2271,9 +2344,12 @@ export class CascadeSession {
       this.pendingUtteranceFrames = [];
       const speechStartAt = this.utteranceSpeechStartAt;
       this.utteranceSpeechStartAt = null;
+      const voiceEndAt = this.utteranceVoiceEndAt;
+      this.utteranceVoiceEndAt = null;
+      const transcripts = this.burstTranscripts.take();
       if (frames.length === 0) return;
       this.turnPipeline = this.turnPipeline
-        .then(() => this.processTurn(frames, Date.now(), speechStartAt))
+        .then(() => this.processTurn(frames, Date.now(), speechStartAt, voiceEndAt, transcripts))
         .catch((err: Error) => {
           console.error(`${this.log} processTurn unhandled: ${err.message}`);
           this.endPlayback();
@@ -2364,16 +2440,22 @@ export class CascadeSession {
   private reportLatency(t: Turn): void {
     const span = (from: number, to?: number) => (to ? `${Math.round(to - from)}ms` : "n/a");
     const total = t.firstAudioAt ? Math.round(t.firstAudioAt - t.startedAt) : null;
+    // What the caller hears: their last word → the reply's first audio. `total` starts later, after
+    // the end-of-speech wait and utterance coalescing, which the caller also sits through.
+    const heard =
+      t.firstAudioAt && t.voiceEndAt != null ? Math.round(t.firstAudioAt - t.voiceEndAt) : total;
     console.log(
       `${this.log} turn ${t.id} latency` +
+        ` wait=${t.voiceEndAt != null ? span(t.voiceEndAt, t.startedAt) : "n/a"}` +
         ` endpoint→stt=${span(t.startedAt, t.sttAt)}` +
         ` stt→speak=${t.sttAt && t.speakAt ? span(t.sttAt, t.speakAt) : "n/a"}` +
         ` speak→audio=${t.speakAt ? span(t.speakAt, t.firstAudioAt) : "n/a"}` +
         ` stt→audio=${t.sttAt ? span(t.sttAt, t.firstAudioAt) : "n/a"}` +
         ` total=${total !== null ? `${total}ms` : "n/a"}` +
-        `${total !== null && total > LATENCY_BUDGET_MS ? " OVER BUDGET" : ""}`,
+        ` heard=${heard !== null ? `${heard}ms` : "n/a"}` +
+        `${heard !== null && heard > LATENCY_BUDGET_MS ? " OVER BUDGET" : ""}`,
     );
-    if (total !== null) this.transport.onTurnLatency?.(total);
+    if (heard !== null) this.transport.onTurnLatency?.(heard);
     this.persistTurnLatency(t);
   }
 
@@ -2464,7 +2546,11 @@ export class CascadeSession {
         return;
       case "discarded":
         this.callerSpeaking = false;
-        if (this.pendingUtteranceFrames.length === 0) this.utteranceSpeechStartAt = null;
+        if (this.pendingUtteranceFrames.length === 0) {
+          this.utteranceSpeechStartAt = null;
+          // Segments of a false start; kept while an earlier burst of this utterance is pending.
+          this.finalSegmentsThisUtterance = [];
+        }
         this.speechFrames = 0;
         this.abortSpeculativeFlat("discarded");
         this.speculativeGraphKey = "";
@@ -2489,6 +2575,10 @@ export class CascadeSession {
         this.callerSpeaking = false;
         this.speechFrames = 0;
         this.pendingUtteranceFrames.push(...event.frames);
+        this.requestBurstTranscript(event.frames);
+        // Endpoint time minus the silence that closed it. Frames arrive in real time, so this is
+        // when the caller actually stopped — what they hear the reply's delay from.
+        this.utteranceVoiceEndAt = Date.now() - event.trailingSilenceFrames * VAD_FRAME_MS;
         this.restoreHangover();
         this.scheduleUtteranceProcessing();
         return;

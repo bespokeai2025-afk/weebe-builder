@@ -56,6 +56,13 @@ export type LatencyMark =
  */
 export type TurnLatencyRecord = {
   turnIndex: number;
+  /**
+   * The caller's last word → first audio: what the caller actually waits. Includes the
+   * end-of-speech wait and utterance coalescing, which `speechToFirstAudioMs` starts after.
+   */
+  voiceEndToFirstAudioMs: number | null;
+  /** The caller's last word → the turn starting (end-of-speech wait + coalescing). */
+  endOfSpeechWaitMs: number | null;
   speechToFirstAudioMs: number | null;
   endpointToSttFinalMs: number | null;
   sttToRouteMs: number | null;
@@ -81,6 +88,7 @@ export class CallTurnTrace {
   private readonly marks = new Map<LatencyMark, number>();
   private sttFinalAt: number | null = null;
   private userSpeechStartAt: number | null = null;
+  private voiceEndAt: number | null = null;
   private hangoverMs: number | null = null;
   private heldForIncomplete: boolean | null = null;
   private edgeRouteMethod: RouteMethod | null = null;
@@ -98,6 +106,12 @@ export class CallTurnTrace {
   setSttFinal(at: number): void {
     this.sttFinalAt = at;
     this.mark("stt_final", at);
+  }
+
+  /** When the caller's last word ended (before the end-of-speech wait). */
+  setVoiceEnd(at: number): void {
+    // Never after the turn origin: the wait cannot be negative.
+    this.voiceEndAt = Math.min(at, this.turnOrigin);
   }
 
   setUserSpeechStart(at: number): void {
@@ -155,8 +169,15 @@ export class CallTurnTrace {
    * with a turn that produced no usable marks.
    */
   toRecord(): TurnLatencyRecord {
+    const firstAudio = this.marks.get("tts_first_audio");
     return {
       turnIndex: this.turnId,
+      voiceEndToFirstAudioMs:
+        this.voiceEndAt === null || firstAudio === undefined
+          ? null
+          : Math.round(firstAudio - this.voiceEndAt),
+      endOfSpeechWaitMs:
+        this.voiceEndAt === null ? null : Math.round(this.turnOrigin - this.voiceEndAt),
       // "Speech" here means speech END (the VAD endpoint the caller's turn started at,
       // `turnOrigin`) → first audio — the same thing Retell calls end-to-end latency. This used
       // to be measured from `userSpeechStartAt` (speech START) instead, which silently folded the
@@ -191,6 +212,7 @@ export class CallTurnTrace {
   hasTimings(): boolean {
     const r = this.toRecord();
     return (
+      r.voiceEndToFirstAudioMs !== null ||
       r.speechToFirstAudioMs !== null ||
       r.sttToFirstAudioMs !== null ||
       r.sttToFirstTokenMs !== null
@@ -198,6 +220,7 @@ export class CallTurnTrace {
   }
 
   flushSummary(): void {
+    const heard = this.toRecord().voiceEndToFirstAudioMs;
     const fromStt = (name: LatencyMark) => {
       const ms = this.msSinceStt(name);
       return ms !== null ? `${ms}ms` : "n/a";
@@ -222,7 +245,9 @@ export class CallTurnTrace {
         // Negative = speculation started before the endpoint, which is the whole point of it:
         // that much of the LLM round trip was already spent while the caller was still talking.
         ` spec_llm=${fromStt("speculative_llm_start")}` +
-        ` speech→audio=${fromSpeech("tts_first_audio")}`,
+        ` speech→audio=${fromSpeech("tts_first_audio")}` +
+        ` eos_wait=${this.voiceEndAt === null ? "n/a" : `${Math.round(this.turnOrigin - this.voiceEndAt)}ms`}` +
+        ` heard=${heard === null ? "n/a" : `${heard}ms`}`,
     );
   }
 }

@@ -32,6 +32,11 @@ npm run build
 if command -v systemctl >/dev/null 2>&1; then
   sudo systemctl restart "$SERVICE_NAME"
   sudo systemctl is-active --quiet "$SERVICE_NAME"
+  # The automation worker runs the same build; restart it too when it is installed.
+  WORKER_SERVICE="${WORKER_SERVICE:-webee-automation-worker}"
+  if systemctl is-enabled --quiet "$WORKER_SERVICE" 2>/dev/null; then
+    sudo systemctl restart "$WORKER_SERVICE"
+  fi
 else
   echo "WARN: systemctl not found; restart the app process manually." >&2
 fi

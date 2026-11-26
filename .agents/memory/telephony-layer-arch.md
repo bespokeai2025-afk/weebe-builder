@@ -31,7 +31,7 @@ Use entirely separate DB tables (`telephony_configs`, `phone_numbers`, `telephon
 ```bash
 supabase db push
 # or via Supabase dashboard SQL editor:
-# paste contents of supabase/migrations/20260613_telephony_layer.sql
+# paste contents of supabase/migrations/20260613235901_telephony_layer.sql
 ```
 
 ## Dashboard pages

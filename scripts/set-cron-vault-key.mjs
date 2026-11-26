@@ -5,17 +5,27 @@
 //   node scripts/set-cron-vault-key.mjs
 //
 // Needs SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY and SUPABASE_ACCESS_TOKEN in .env.
+import { readFileSync } from "node:fs";
+
 try {
   process.loadEnvFile(".env");
 } catch {
   // Fall back to the environment.
 }
 
-// Same guard as scripts/prod-entry.mjs: these env vars have been saved with a non-URL value
-// before, and the app silently falls back to the project URL.
-const CANONICAL_SUPABASE_URL = "https://ugrsdmmztnfgeajhwhzy.supabase.co";
+// These env vars have been saved with a non-URL value before; fall back to supabase/config.toml's
+// project_id (the project this repo is linked to) rather than a URL written into the script.
 const isSupabaseUrl = (v) => typeof v === "string" && /^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/.test(v.trim());
-const url = [process.env.SUPABASE_URL, process.env.VITE_SUPABASE_URL].find(isSupabaseUrl)?.trim() ?? CANONICAL_SUPABASE_URL;
+const configRef = (() => {
+  try {
+    return readFileSync("supabase/config.toml", "utf8").match(/^\s*project_id\s*=\s*"([a-z0-9-]+)"/m)?.[1];
+  } catch {
+    return undefined;
+  }
+})();
+const url =
+  [process.env.SUPABASE_URL, process.env.VITE_SUPABASE_URL].find(isSupabaseUrl)?.trim() ??
+  (configRef ? `https://${configRef}.supabase.co` : undefined);
 const key = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "").trim();
 const token = process.env.SUPABASE_ACCESS_TOKEN;
 if (!url || !key || !token) {

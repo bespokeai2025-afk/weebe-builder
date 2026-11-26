@@ -62,7 +62,9 @@ export interface SttCapabilities {
   partials: boolean;
   /**
    * Sends each finished segment as soon as it hears a pause — before the engine's end-of-speech
-   * wait is over. With no partials, these are what the pre-endpoint work starts from.
+   * wait is over. The pre-endpoint work starts from these as well as from partials; a short reply
+   * may arrive only as a segment. When true, a partial covers only the speech after the last
+   * finished segment, and the engine joins the two.
    */
   segmentFinalsBeforeEndpoint: boolean;
   /**

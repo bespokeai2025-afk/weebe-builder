@@ -40,17 +40,29 @@ const CONNECT_TIMEOUT_MS = 8_000;
 const FINALIZE_TIMEOUT_MS = 2_000;
 const TRANSCRIBE_MODEL = "fish-audio/transcribe-1";
 /**
- * Batch model, sent in the `model` header. Without the header Fish silently serves (and bills)
- * `transcribe-1`; naming it keeps that explicit. `transcribe-1-pro` is no slower on short clips but
- * adds speaker markers to the text, which `cleanFishTranscript` strips.
+ * Batch model, sent in the `model` header. `transcribe-1` retires on 31 Dec 2026 (Fish then serves
+ * `transcribe-1-pro` at the same price), so we ask for `transcribe-1-pro` now and turn off its
+ * speaker markers and sound cues with `diarize=false` / `tag_audio_events=false`
+ * (docs.fish.audio/developer-guide/models-pricing/migrate-from-transcribe-1).
  */
-const BATCH_MODEL = "transcribe-1";
+const BATCH_MODEL = "transcribe-1-pro";
 /** One quick retry on 429 / 5xx: Fish sends no Retry-After, and a live turn cannot wait long. */
 const BATCH_RETRY_DELAY_MS = 250;
 
-/** Strip `transcribe-1-pro` speaker markers (`<|speaker:0|>`) so only spoken words remain. */
+/**
+ * Sound cues Fish adds to transcripts ("[laughter]", "[pause]"), in square, full-width or
+ * lenticular brackets. From 31 Dec 2026 every Fish path is served by transcribe-1-pro, which adds
+ * them by default, and the compatible socket cannot turn them off.
+ */
+const FISH_AUDIO_CUE = /(?:\[|［|【)[a-z][a-z _-]{0,30}(?:\]|］|】)/gi;
+
+/** Strip speaker markers (`<|speaker:0|>`) and sound cues so only spoken words remain. */
 export function cleanFishTranscript(text: string): string {
-  return text.replace(/<\|speaker:\d+\|>/g, " ").replace(/\s+/g, " ").trim();
+  return text
+    .replace(/<\|speaker:\d+\|>/g, " ")
+    .replace(FISH_AUDIO_CUE, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export interface FishAsrResponse {
@@ -81,6 +93,8 @@ export async function fishTranscribe(
     // Lowercase ISO 639-1 only; forms like `en-US` can be rejected with 400.
     if (language) form.append("language", language.slice(0, 2).toLowerCase());
     form.append("ignore_timestamps", "true");
+    form.append("diarize", "false");
+    form.append("tag_audio_events", "false");
     return fetch(FISH_ASR_URL, {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, model: BATCH_MODEL },

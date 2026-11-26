@@ -14,7 +14,29 @@
  * Usage: SUPABASE_ACCESS_TOKEN=... node scripts/provision-notification-sweep.mjs
  * (Uses the Supabase Management API SQL endpoint, like refresh-supabase-types.mjs.)
  */
-const PROJECT_REF = "ugrsdmmztnfgeajhwhzy";
+import { readFileSync } from "node:fs";
+
+try {
+  process.loadEnvFile(".env");
+} catch {
+  // Fall back to the environment.
+}
+// The project to sweep: SUPABASE_URL's ref, else supabase/config.toml's project_id.
+const PROJECT_REF = (() => {
+  const url = [process.env.SUPABASE_URL, process.env.VITE_SUPABASE_URL].find((v) =>
+    /^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/.test(String(v ?? "").trim()),
+  );
+  if (url) return new URL(url.trim()).host.split(".")[0];
+  try {
+    return readFileSync("supabase/config.toml", "utf8").match(/^\s*project_id\s*=\s*"([a-z0-9-]+)"/m)?.[1];
+  } catch {
+    return undefined;
+  }
+})();
+if (!PROJECT_REF) {
+  console.error("Set SUPABASE_URL (or supabase/config.toml project_id) to the project to sweep");
+  process.exit(1);
+}
 const token = process.env.SUPABASE_ACCESS_TOKEN;
 if (!token) {
   console.error("SUPABASE_ACCESS_TOKEN is required");

@@ -46,11 +46,22 @@ function flowWithStaticEdge(): ConversationFlow {
 }
 
 describe("partialMatchesFinal", () => {
-  it("matches identical and prefix variants", () => {
+  it("matches the same words whatever the punctuation, case or fillers", () => {
     expect(partialMatchesFinal("yes", "yes")).toBe(true);
-    expect(partialMatchesFinal("yes", "yes.")).toBe(true);
-    expect(partialMatchesFinal("my name is ar", "my name is arjo")).toBe(true);
+    expect(partialMatchesFinal("yes", "Yes.")).toBe(true);
+    expect(partialMatchesFinal("yes that's right", "Yes, that's right.")).toBe(true);
+    expect(partialMatchesFinal("um yes", "yes please")).toBe(true);
+    expect(partialMatchesFinal("it’s empty", "It's empty!")).toBe(true);
+  });
+
+  it("rejects a final that says more, or something else", () => {
+    // A reply written for the partial would answer words the caller had not finished saying.
+    expect(partialMatchesFinal("my name is ar", "my name is arjo")).toBe(false);
+    expect(partialMatchesFinal("yes", "yes but I'm not the owner")).toBe(false);
+    expect(partialMatchesFinal("yes but I'm not the owner", "yes")).toBe(false);
+    expect(partialMatchesFinal("no", "I know")).toBe(false);
     expect(partialMatchesFinal("hello", "goodbye")).toBe(false);
+    expect(partialMatchesFinal("", "")).toBe(false);
   });
 });
 

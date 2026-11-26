@@ -121,7 +121,7 @@ function fmtCost(cents?: number | null) {
 
 function channelLabel(fromNumber?: string | null, callType?: string | null) {
   // HyperStream web calls use from_number="web" as a proxy until the
-  // provider column migration is applied (20260613_calls_provider_channel.sql).
+  // provider column migration is applied (20260613235900_calls_provider_channel.sql).
   if (fromNumber === "web") return "web";
   if (callType === "inbound") return "phone_call";
   return "phone_call";

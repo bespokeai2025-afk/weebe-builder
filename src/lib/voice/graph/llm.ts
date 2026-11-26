@@ -163,6 +163,14 @@ export function createOpenAiVmLlm(options: OpenAiVmLlmOptions): VmLlm {
       return complete(messages, opts?.model || defaultModel, { maxTokens: SPEECH_MAX_TOKENS });
     },
 
+    async warm(messages, opts) {
+      // One output token: the request exists for the connection and the cached prefix it leaves.
+      await complete(messages, opts?.model || defaultModel, {
+        maxTokens: 1,
+        timeoutMs: BACKGROUND_LLM_TIMEOUT_MS,
+      }).catch(() => {});
+    },
+
     generateStream(messages, opts) {
       const model = opts?.model || defaultModel;
       const open = (signal?: AbortSignal) =>

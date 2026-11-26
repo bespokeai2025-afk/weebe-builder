@@ -79,6 +79,10 @@ export function lockCallVoiceProfile(input: {
       sampleRate: input.sampleRate,
       model: resolveOpenAiTtsModel(input.model),
     };
+    // OpenAI's speech endpoint takes a speed, so the agent's Voice Speed applies here too (the
+    // builder's 0.5–2 range sits inside OpenAI's 0.25–4).
+    const speed = Number(input.settings?.voiceSpeed);
+    if (Number.isFinite(speed) && speed > 0) req.speed = Math.min(2, Math.max(0.5, speed));
     return { ...req, lockedAt: Date.now() };
   }
 

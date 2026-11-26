@@ -21,14 +21,33 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { serveStatic } from "srvx/static";
 
-// SECURITY/RESILIENCE GUARD (mirrors vite.config.ts): the SUPABASE_URL /
-// VITE_SUPABASE_URL secrets have repeatedly been saved with the service-role
-// key pasted in place of the URL. Normalize before the server bundle loads so
-// every process.env read sees a valid URL.
-const CANONICAL_SUPABASE_URL = "https://ugrsdmmztnfgeajhwhzy.supabase.co";
-const isValidSupabaseUrl = (v) => typeof v === "string" && /^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/.test(v);
-for (const key of ["VITE_SUPABASE_URL", "SUPABASE_URL"]) {
-  if (!isValidSupabaseUrl(process.env[key])) process.env[key] = CANONICAL_SUPABASE_URL;
+// SECURITY/RESILIENCE GUARD (mirrors src/lib/supabase-url-guard.ts, which this plain-JS entry
+// can't import): the SUPABASE_URL / VITE_SUPABASE_URL secrets have repeatedly been saved with the
+// service-role key pasted in place of the URL. Normalize before the server bundle loads so every
+// process.env read sees a valid URL — taken from the other URL variable or from the project ref in
+// a legacy JWT key, never from a URL written here.
+const isValidSupabaseUrl = (v) => typeof v === "string" && /^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/.test(v.trim());
+const refFromJwt = (key) => {
+  try {
+    const part = String(key ?? "").trim().split(".")[1];
+    const ref = JSON.parse(Buffer.from(part, "base64url").toString("utf8")).ref;
+    return typeof ref === "string" && /^[a-z0-9-]+$/.test(ref) ? ref : undefined;
+  } catch {
+    return undefined;
+  }
+};
+const resolvedSupabaseUrl =
+  [process.env.VITE_SUPABASE_URL, process.env.SUPABASE_URL].find(isValidSupabaseUrl)?.trim().replace(/\/$/, "") ??
+  [process.env.SUPABASE_SERVICE_ROLE_KEY, process.env.SUPABASE_PUBLISHABLE_KEY, process.env.VITE_SUPABASE_PUBLISHABLE_KEY]
+    .map(refFromJwt)
+    .filter(Boolean)
+    .map((ref) => `https://${ref}.supabase.co`)[0];
+if (resolvedSupabaseUrl) {
+  for (const key of ["VITE_SUPABASE_URL", "SUPABASE_URL"]) {
+    if (!isValidSupabaseUrl(process.env[key])) process.env[key] = resolvedSupabaseUrl;
+  }
+} else {
+  console.warn("[supabase] No valid SUPABASE_URL / VITE_SUPABASE_URL and no project ref to derive one from.");
 }
 
 const server = (await import("../dist/server/server.js")).default;

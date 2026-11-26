@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  heardLatencyMs,
   LATENCY_BUDGET_MS,
   percentiles,
   retellLatencyCategories,
@@ -176,12 +177,14 @@ describe("stageBreakdown", () => {
   it("covers every stage of the turn, in pipeline order", () => {
     const stages = stageBreakdown([turn(0)]);
     expect(stages.map((s) => s.key)).toEqual([
+      "end_of_speech_wait_ms",
       "endpoint_to_stt_final_ms",
       "stt_to_route_ms",
       "stt_to_first_token_ms",
       "stt_to_first_sentence_ms",
       "stt_to_first_audio_ms",
       "speech_to_first_audio_ms",
+      "voice_end_to_first_audio_ms",
     ]);
   });
 
@@ -189,5 +192,27 @@ describe("stageBreakdown", () => {
     const stages = stageBreakdown([turn(0, { stt_to_route_ms: null })]);
     expect(stages.find((s) => s.key === "stt_to_route_ms")!.stats).toBeNull();
     expect(stages.find((s) => s.key === "stt_to_first_audio_ms")!.stats!.p50).toBe(420);
+  });
+});
+
+describe("heardLatencyMs", () => {
+  it("uses the caller's last word when recorded", () => {
+    expect(
+      heardLatencyMs({ voice_end_to_first_audio_ms: 1300, speech_to_first_audio_ms: 750, stt_to_first_audio_ms: 400 }),
+    ).toBe(1300);
+  });
+
+  it("falls back to the endpoint number, then transcript → audio, for older turns", () => {
+    expect(heardLatencyMs({ voice_end_to_first_audio_ms: null, speech_to_first_audio_ms: 750 })).toBe(750);
+    expect(heardLatencyMs({ speech_to_first_audio_ms: null, stt_to_first_audio_ms: 400 })).toBe(400);
+    expect(heardLatencyMs({})).toBeNull();
+  });
+
+  it("judges the budget on what the caller heard", () => {
+    const rows = [
+      turn(0, { voice_end_to_first_audio_ms: 1100, speech_to_first_audio_ms: 600 }),
+      turn(1, { voice_end_to_first_audio_ms: 1500, speech_to_first_audio_ms: 900 }),
+    ];
+    expect(withinBudget(rows, 1200)).toMatchObject({ measured: 2, within: 1 });
   });
 });

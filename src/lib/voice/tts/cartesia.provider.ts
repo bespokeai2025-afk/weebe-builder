@@ -19,10 +19,11 @@
 import { randomUUID } from "node:crypto";
 import { WebSocket } from "ws";
 import { alignPcm16, type PcmChunk, type TtsProvider, type TtsVoiceRequest } from "./types";
-import { ttsNoAudioTimeoutMs } from "../engine-config.shared";
+import { cartesiaMaxBufferDelayMs, ttsNoAudioTimeoutMs } from "../engine-config.shared";
+import { shouldFlushTtsPhrase } from "./phrase-chunking.shared";
 
 const CARTESIA_TTS_WS = "wss://api.cartesia.ai/tts/websocket";
-const CARTESIA_VERSION = "2025-04-16";
+export const CARTESIA_VERSION = "2025-04-16";
 const CONNECT_TIMEOUT_MS = 10_000;
 
 /** WEBEE Native default — Cartesia's Sonic-2 model, a well-supported stable release. */
@@ -148,7 +149,18 @@ async function connectCartesiaSocket(apiKey: string): Promise<WebSocket> {
   return ws;
 }
 
-function attachCartesiaHandlers(ws: WebSocket, queue: ChunkQueue, contextId: string): void {
+interface CartesiaHandlerHooks {
+  onAudio?: () => void;
+  /** Return true when the error was handled and must not end the reply. */
+  onError?: (message: string) => boolean;
+}
+
+function attachCartesiaHandlers(
+  ws: WebSocket,
+  queue: ChunkQueue,
+  contextId: string,
+  hooks: CartesiaHandlerHooks = {},
+): void {
   ws.on("message", (raw) => {
     let msg: CartesiaServerMessage;
     try {
@@ -158,7 +170,10 @@ function attachCartesiaHandlers(ws: WebSocket, queue: ChunkQueue, contextId: str
     }
     if (msg.context_id && msg.context_id !== contextId) return;
     if (msg.type === "chunk") {
-      if (msg.data) queue.push(Buffer.from(msg.data, "base64"));
+      if (msg.data) {
+        hooks.onAudio?.();
+        queue.push(Buffer.from(msg.data, "base64"));
+      }
       if (msg.done) queue.end();
       return;
     }
@@ -167,7 +182,9 @@ function attachCartesiaHandlers(ws: WebSocket, queue: ChunkQueue, contextId: str
       return;
     }
     if (msg.type === "error") {
-      queue.fail(new Error(`Cartesia TTS error: ${msg.message ?? `status ${msg.status_code}`}`));
+      const message = msg.message ?? `status ${msg.status_code}`;
+      if (hooks.onError?.(message)) return;
+      queue.fail(new Error(`Cartesia TTS error: ${message}`));
       return;
     }
   });
@@ -181,6 +198,28 @@ function attachCartesiaHandlers(ws: WebSocket, queue: ChunkQueue, contextId: str
  * short limit only ever discards ones left over from an abandoned turn.
  */
 const WARM_SOCKET_MAX_AGE_MS = 30_000;
+
+/**
+ * Set once Cartesia refuses `max_buffer_delay_ms` (an API version that predates it): from then on
+ * this server leaves the field out rather than paying a failed first try on every reply.
+ */
+let bufferDelayRejected = false;
+
+/** Test hook. */
+export function resetCartesiaBufferDelayForTests(): void {
+  bufferDelayRejected = false;
+}
+
+/** The `max_buffer_delay_ms` to send, or null to leave it out. */
+function bufferDelayToSend(): number | null {
+  return bufferDelayRejected ? null : cartesiaMaxBufferDelayMs();
+}
+
+function detachSocket(ws: WebSocket): void {
+  ws.removeAllListeners();
+  ws.on("error", () => {});
+  ws.terminate();
+}
 
 export class CartesiaTtsProvider implements TtsProvider {
   readonly name = "cartesia";
@@ -272,6 +311,17 @@ export class CartesiaTtsProvider implements TtsProvider {
     );
   }
 
+  /**
+   * Stream a reply as the model writes it.
+   *
+   * Cartesia holds streamed text until it has "enough context", for up to `max_buffer_delay_ms`
+   * (3000 ms by its default). Every reply used to stream raw tokens without that field, so the
+   * first phrase could sit in Cartesia's buffer for most of that time before any audio. By default
+   * the reply is now cut into phrases here (the same boundaries as Fish, phrase-chunking.shared)
+   * with buffering off, so the first phrase is spoken the moment it is complete. One `context_id`
+   * still carries the whole reply, so the phrases are synthesised as one continuous line.
+   * WEBEE_NATIVE_CARTESIA_MAX_BUFFER_DELAY_MS above 0 hands buffering back to Cartesia.
+   */
   synthesizeStream(
     textStream: AsyncIterable<string>,
     req: TtsVoiceRequest,
@@ -279,47 +329,101 @@ export class CartesiaTtsProvider implements TtsProvider {
     const self = this;
     return alignPcm16(
       (async function* (): AsyncGenerator<Buffer> {
-        const contextId = randomUUID();
         const queue = new ChunkQueue();
-        const ws = await self.takeSocket();
-        attachCartesiaHandlers(ws, queue, contextId);
-
         const model = resolveCartesiaTtsModel(req.model ?? self.defaultModel);
         const voice = buildVoice(req);
         const outputFormat = buildOutputFormat(req.sampleRate);
+        let bufferDelayMs = bufferDelayToSend();
+        // Decided once per reply: a fallback mid-reply keeps the phrases already cut.
+        const cutPhrases = bufferDelayMs === 0;
+
+        let ws!: WebSocket;
+        let contextId = "";
+        let gotAudio = false;
+        let switching = false;
+        /** Everything sent on this reply, so it can be replayed on a new context. */
+        const sent: Array<{ transcript: string; more: boolean }> = [];
+
+        const transmit = (transcript: string, more: boolean) => {
+          if (ws.readyState !== WebSocket.OPEN) return;
+          ws.send(
+            JSON.stringify({
+              model_id: model,
+              transcript,
+              voice,
+              output_format: outputFormat,
+              language: "en",
+              context_id: contextId,
+              // Unset on the last message: that closes the context so Cartesia finalises and
+              // sends `done`.
+              ...(more ? { continue: true } : {}),
+              ...(bufferDelayMs !== null ? { max_buffer_delay_ms: bufferDelayMs } : {}),
+            }),
+          );
+          queue.noteSent();
+        };
+        const send = (transcript: string, more: boolean) => {
+          sent.push({ transcript, more });
+          if (!switching) transmit(transcript, more);
+        };
+
+        // Older API versions refuse the field. Before any audio, retry the reply on a new context
+        // without it (the text so far is replayed), and stop sending it on this server.
+        const fallBackWithoutBufferDelay = async () => {
+          bufferDelayRejected = true;
+          bufferDelayMs = null;
+          switching = true;
+          console.warn(
+            "[cartesia-tts] max_buffer_delay_ms refused by this API version — sending replies without it " +
+              "(Cartesia then buffers up to 3 s; update CARTESIA_VERSION to remove that wait)",
+          );
+          detachSocket(ws);
+          try {
+            bind(await connectCartesiaSocket(self.apiKey));
+          } catch (err) {
+            queue.fail(err instanceof Error ? err : new Error(String(err)));
+            return;
+          }
+          for (const m of sent) transmit(m.transcript, m.more);
+          switching = false;
+        };
+
+        const bind = (sock: WebSocket) => {
+          ws = sock;
+          contextId = randomUUID();
+          attachCartesiaHandlers(sock, queue, contextId, {
+            onAudio: () => {
+              gotAudio = true;
+            },
+            onError: (message) => {
+              if (gotAudio || bufferDelayMs === null || !/max_buffer_delay/i.test(message)) return false;
+              void fallBackWithoutBufferDelay();
+              return true;
+            },
+          });
+        };
+        bind(await self.takeSocket());
 
         const pumpDone = (async () => {
           try {
+            let buffered = "";
+            let flushedOnce = false;
             for await (const segment of textStream) {
               if (!segment) continue;
-              if (ws.readyState !== WebSocket.OPEN) return;
-              ws.send(
-                JSON.stringify({
-                  model_id: model,
-                  transcript: segment,
-                  voice,
-                  output_format: outputFormat,
-                  language: "en",
-                  context_id: contextId,
-                  continue: true,
-                }),
-              );
-              queue.noteSent();
+              if (!switching && ws.readyState !== WebSocket.OPEN) return;
+              if (!cutPhrases) {
+                send(segment, true);
+                continue;
+              }
+              buffered += segment;
+              if (shouldFlushTtsPhrase(buffered, flushedOnce)) {
+                send(buffered, true);
+                buffered = "";
+                flushedOnce = true;
+              }
             }
-            // Closes the context: a final chunk with `continue` left unset (defaults false) tells
-            // Cartesia no more text is coming for this context_id, so it finalises and sends `done`.
-            if (ws.readyState === WebSocket.OPEN) {
-              ws.send(
-                JSON.stringify({
-                  model_id: model,
-                  transcript: "",
-                  voice,
-                  output_format: outputFormat,
-                  language: "en",
-                  context_id: contextId,
-                }),
-              );
-            }
+            // The rest of the reply (or "" when nothing is left) closes the context.
+            send(buffered, false);
           } catch (err) {
             queue.fail(err instanceof Error ? err : new Error(String(err)));
           }

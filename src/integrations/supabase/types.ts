@@ -2210,6 +2210,8 @@ export type Database = {
           partial_commit: boolean | null
           speculative_hit: boolean | null
           speech_to_first_audio_ms: number | null
+          voice_end_to_first_audio_ms: number | null
+          end_of_speech_wait_ms: number | null
           stt_to_first_audio_ms: number | null
           stt_to_first_sentence_ms: number | null
           stt_to_first_token_ms: number | null
@@ -2235,6 +2237,8 @@ export type Database = {
           partial_commit?: boolean | null
           speculative_hit?: boolean | null
           speech_to_first_audio_ms?: number | null
+          voice_end_to_first_audio_ms?: number | null
+          end_of_speech_wait_ms?: number | null
           stt_to_first_audio_ms?: number | null
           stt_to_first_sentence_ms?: number | null
           stt_to_first_token_ms?: number | null
@@ -2260,6 +2264,8 @@ export type Database = {
           partial_commit?: boolean | null
           speculative_hit?: boolean | null
           speech_to_first_audio_ms?: number | null
+          voice_end_to_first_audio_ms?: number | null
+          end_of_speech_wait_ms?: number | null
           stt_to_first_audio_ms?: number | null
           stt_to_first_sentence_ms?: number | null
           stt_to_first_token_ms?: number | null

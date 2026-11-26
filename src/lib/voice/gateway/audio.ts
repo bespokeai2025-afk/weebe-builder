@@ -121,3 +121,30 @@ export function pcm16ToBase64(samples: Int16Array): string {
 export function pcm16ToBuffer(samples: Int16Array): Buffer {
   return Buffer.from(samples.buffer, samples.byteOffset, samples.byteLength);
 }
+
+/** Bytes in one PCM16 mono frame of `frameMs` at `sampleRate` (always a whole sample). */
+export function pcm16FrameBytes(sampleRate: number, frameMs: number): number {
+  return Math.max(2, Math.round((sampleRate * frameMs) / 1000) * 2);
+}
+
+/**
+ * Cut audio into fixed-size frames, carrying what is left over to the next call.
+ *
+ * Transports send different chunk sizes (Twilio 20 ms, the browser 50 ms), and the VAD's settings
+ * are frame counts, so they only mean a duration once every frame is the same length. The
+ * remainder is copied so it never pins the transport's (possibly pooled) buffer.
+ */
+export function regroupPcm16(
+  remainder: Buffer,
+  chunk: Buffer,
+  frameBytes: number,
+): { frames: Buffer[]; remainder: Buffer } {
+  const buf = remainder.byteLength ? Buffer.concat([remainder, chunk]) : chunk;
+  const frames: Buffer[] = [];
+  let off = 0;
+  while (buf.byteLength - off >= frameBytes) {
+    frames.push(buf.subarray(off, off + frameBytes));
+    off += frameBytes;
+  }
+  return { frames, remainder: Buffer.from(buf.subarray(off)) };
+}

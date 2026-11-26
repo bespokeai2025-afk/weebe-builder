@@ -6,11 +6,20 @@
  * over a week of production traffic.
  */
 
-export const LATENCY_BUDGET_MS = 800;
+/**
+ * Target for what the caller hears: their last word → the agent's first audio
+ * (`heardLatencyMs`). Includes the end-of-speech wait, so it is not comparable with the old
+ * 800 ms target, which was measured from after that wait.
+ */
+export const LATENCY_BUDGET_MS = 1200;
 
 export type CallTurnRow = {
   call_id: string;
   turn_index: number;
+  /** Caller's last word → first audio. Null on turns recorded before it existed. */
+  voice_end_to_first_audio_ms?: number | null;
+  /** Caller's last word → turn start (end-of-speech wait + coalescing). */
+  end_of_speech_wait_ms?: number | null;
   speech_to_first_audio_ms: number | null;
   endpoint_to_stt_final_ms: number | null;
   stt_to_route_ms: number | null;
@@ -25,6 +34,21 @@ export type CallTurnRow = {
   node_id: string | null;
   created_at: string;
 };
+
+type HeardLatencyFields = {
+  voice_end_to_first_audio_ms?: number | null;
+  speech_to_first_audio_ms?: number | null;
+  stt_to_first_audio_ms?: number | null;
+};
+
+/**
+ * The reply delay the caller heard. Older turns have no last-word time, so they fall back to the
+ * endpoint-based number (about 0.4–0.7 s lower), then to transcript → audio.
+ */
+export function heardLatencyMs(r: HeardLatencyFields): number | null {
+  const v = r.voice_end_to_first_audio_ms ?? r.speech_to_first_audio_ms ?? r.stt_to_first_audio_ms;
+  return typeof v === "number" ? v : null;
+}
 
 export type Percentiles = {
   p50: number;
@@ -57,12 +81,14 @@ export function percentiles(values: number[]): Percentiles | null {
 }
 
 const STAGES = [
+  ["end_of_speech_wait_ms", "End-of-speech wait"],
   ["endpoint_to_stt_final_ms", "Endpoint → STT final"],
   ["stt_to_route_ms", "STT → route resolved"],
   ["stt_to_first_token_ms", "STT → first LLM token"],
   ["stt_to_first_sentence_ms", "STT → first sentence"],
   ["stt_to_first_audio_ms", "STT → first audio"],
   ["speech_to_first_audio_ms", "Speech end → first audio"],
+  ["voice_end_to_first_audio_ms", "Caller's last word → first audio"],
 ] as const;
 
 export type StageStat = { key: string; label: string; stats: Percentiles | null };
@@ -109,9 +135,7 @@ export function retellLatencyCategories(rows: CallTurnRow[]): LatencyCategorySta
   const tts = rows
     .map((r) => diff(r.stt_to_first_audio_ms, r.stt_to_first_token_ms))
     .filter((v): v is number => typeof v === "number");
-  const endToEnd = rows
-    .map((r) => r.speech_to_first_audio_ms)
-    .filter((v): v is number => typeof v === "number");
+  const endToEnd = rows.map(heardLatencyMs).filter((v): v is number => typeof v === "number");
 
   return [
     { category: "endToEnd", label: "End to end latency", stats: percentiles(endToEnd) },
@@ -179,8 +203,8 @@ export function speculationStat(rows: CallTurnRow[]): SpeculationStat {
   let hits = 0;
   for (const r of rows) {
     if (r.speculative_hit) hits++;
-    const v = r.speech_to_first_audio_ms ?? r.stt_to_first_audio_ms;
-    if (typeof v !== "number") continue;
+    const v = heardLatencyMs(r);
+    if (v === null) continue;
     (r.speculative_hit ? withHit : withoutHit).push(v);
   }
   const a = percentiles(withHit)?.p50 ?? null;
@@ -197,9 +221,7 @@ export function speculationStat(rows: CallTurnRow[]): SpeculationStat {
 
 /** Share of turns at or under the budget — the headline "are we Retell-fast" number. */
 export function withinBudget(rows: CallTurnRow[], budgetMs = LATENCY_BUDGET_MS) {
-  const vals = rows
-    .map((r) => r.speech_to_first_audio_ms ?? r.stt_to_first_audio_ms)
-    .filter((v): v is number => typeof v === "number");
+  const vals = rows.map(heardLatencyMs).filter((v): v is number => typeof v === "number");
   if (vals.length === 0) return { measured: 0, within: 0, share: 0, budgetMs };
   const within = vals.filter((v) => v <= budgetMs).length;
   return { measured: vals.length, within, share: within / vals.length, budgetMs };
@@ -217,10 +239,11 @@ export type NodeLatency = {
   promptCharsP50: number | null;
 };
 
-/** Per-step response time — the same number the Latency page shows: speech end → first audio. */
+/** Per-step response time — the same number the Latency page shows: caller's last word → first audio. */
 export function nodeLatencySummary(
   rows: Array<
     Pick<CallTurnRow, "node_id" | "speech_to_first_audio_ms" | "stt_to_first_audio_ms" | "edge_route_method"> & {
+      voice_end_to_first_audio_ms?: number | null;
       prompt_chars?: number | null;
     }
   >,
@@ -235,7 +258,7 @@ export function nodeLatencySummary(
   const out: NodeLatency[] = [];
   for (const [nodeId, list] of byNode) {
     const ms = percentiles(
-      list.map((r) => r.speech_to_first_audio_ms ?? r.stt_to_first_audio_ms).filter((v): v is number => typeof v === "number"),
+      list.map(heardLatencyMs).filter((v): v is number => typeof v === "number"),
     );
     if (!ms) continue;
     const prompt = percentiles(list.map((r) => r.prompt_chars).filter((v): v is number => typeof v === "number"));

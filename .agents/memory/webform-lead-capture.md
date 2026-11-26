@@ -8,7 +8,7 @@ description: Architecture of the webform lead capture system — DB tables, publ
 - `webform_submissions` — raw + mapped payloads per submission, linked to lead.
 - `leads` extended with: `source_type`, `source_detail`, `source_page`, `utm_source`, `utm_medium`, `utm_campaign`, `referrer`, `external_source_id`.
 - `webform_rate_limits` — in-DB rate limiting (key, count, window_start).
-- Migration: `20260722000001_webform_lead_capture.sql` — manual apply in Supabase SQL Editor.
+- Migration: `20260722000003_webform_lead_capture.sql` — manual apply in Supabase SQL Editor.
 
 ## Key files
 - `src/lib/lead-gen/webforms.server.ts` — core engine: field mapping, spam check, dedup, lead creation, email notify.

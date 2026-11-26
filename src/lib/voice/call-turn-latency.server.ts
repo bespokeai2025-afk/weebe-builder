@@ -30,6 +30,8 @@ function toRow(ctx: CallTurnContext, rec: TurnLatencyRecord) {
     workspace_id: ctx.workspaceId,
     call_id: ctx.callId,
     turn_index: rec.turnIndex,
+    voice_end_to_first_audio_ms: rec.voiceEndToFirstAudioMs,
+    end_of_speech_wait_ms: rec.endOfSpeechWaitMs,
     speech_to_first_audio_ms: rec.speechToFirstAudioMs,
     endpoint_to_stt_final_ms: rec.endpointToSttFinalMs,
     stt_to_route_ms: rec.sttToRouteMs,
@@ -57,6 +59,14 @@ function toRow(ctx: CallTurnContext, rec: TurnLatencyRecord) {
   };
 }
 
+/** Columns added after the table; a database without them yet still gets the rest of the row. */
+const NEWER_COLUMNS = ["voice_end_to_first_audio_ms", "end_of_speech_wait_ms"] as const;
+let newerColumnsMissing = false;
+
+function isMissingColumnError(message: string): boolean {
+  return NEWER_COLUMNS.some((c) => message.includes(c));
+}
+
 /**
  * Write one turn. Upserts on (call_id, turn_index) so a retried flush cannot
  * double-count a turn in the percentiles.
@@ -66,10 +76,22 @@ export async function recordCallTurnLatency(
   rec: TurnLatencyRecord,
 ): Promise<void> {
   if (!ctx.workspaceId || !ctx.callId) return;
+  const upsert = (row: Record<string, unknown>) =>
+    (supabaseAdmin as any).from("call_turns").upsert(row, { onConflict: "call_id,turn_index" });
+  const withoutNewer = (row: Record<string, unknown>) => {
+    const copy = { ...row };
+    for (const c of NEWER_COLUMNS) delete copy[c];
+    return copy;
+  };
   try {
-    const { error } = await (supabaseAdmin as any)
-      .from("call_turns")
-      .upsert(toRow(ctx, rec), { onConflict: "call_id,turn_index" });
+    const row = toRow(ctx, rec);
+    let { error } = await upsert(newerColumnsMissing ? withoutNewer(row) : row);
+    if (error && !newerColumnsMissing && isMissingColumnError(error.message)) {
+      // Migration 20261119000000 not applied yet: keep recording everything else.
+      newerColumnsMissing = true;
+      console.warn("[call-turn-latency] heard-latency columns missing — apply migration 20261119000000");
+      ({ error } = await upsert(withoutNewer(row)));
+    }
     if (error) throw new Error(error.message);
   } catch (e) {
     console.warn("[call-turn-latency] write failed", {

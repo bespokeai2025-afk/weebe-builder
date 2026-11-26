@@ -15,7 +15,6 @@ import { WebeeMigrationDialog } from "@/components/builder/WebeeMigrationDialog"
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { OPENAI_TTS_VOICES } from "@/lib/voice/tts/openai-voices.shared";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -114,11 +113,9 @@ import { cn } from "@/lib/utils";
 import { MODELS, HYPERSTREAM_MODELS } from "@/lib/builder/pricing";
 import { searchElevenLabsVoices, previewElevenLabsVoice, previewRetellVoice } from "@/lib/builder/retell.functions";
 import { listElevenLabsVoices, cloneElevenLabsVoice } from "@/lib/builder/elevenlabs-voices.functions";
-import { listFishVoices, previewFishVoice, type FishVoice } from "@/lib/voice/fish-voices.functions";
 import { WEBEE_NATIVE_LLM_MODELS, defaultModelForProvider } from "@/lib/voice/webee-native.shared";
 import { ModelSpeedLine, ModelSpeedWarning, VoiceSpeedHint, useEngineSpeed } from "./EngineSpeedHint";
-import { FishVoiceCloneDialog } from "@/components/builder/FishVoiceCloneDialog";
-import { formatFishVoiceLabel, formatFishVoiceSubtitle, fishVoiceGroup } from "@/lib/voice/fish-voice-label.shared";
+import { VoicePickerDialog, VoiceSummaryButton } from "@/components/builder/voice-picker/VoicePickerDialog";
 import { extractPostCallVariables, type PostCallExtracted } from "@/lib/builder/post-call-extract.functions";
 import { saveHyperStreamTestCall, updateCallSentiment } from "@/lib/builder/save-hyperstream-call.functions";
 import { LATENCY_BUDGET_MS } from "@/lib/voice/call-latency-stats.shared";
@@ -126,8 +123,7 @@ import { CallLatencyBreakdown } from "@/components/calls/CallLatencyBreakdown";
 import { PostCallCostBreakdown } from "./PostCallCostBreakdown";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { agentVoicePatch } from "@/lib/builder/agent-voice.shared";
-import { listCartesiaVoices, listRetellVoices } from "@/lib/builder/voice-catalog.functions";
+import { listRetellVoices } from "@/lib/builder/voice-catalog.functions";
 import { toast } from "sonner";
 import { LanguagePicker } from "@/components/builder/LanguagePicker";
 import { COMPONENT_ICONS, paletteButtons } from "@/components/builder/builder-palette";
@@ -230,23 +226,7 @@ export function Builder({
     () => [...new Set(retellVoiceOptions.map((v) => v.group))],
     [retellVoiceOptions],
   );
-  const fetchCartesiaVoices = useServerFn(listCartesiaVoices);
-  const cartesiaActive = isWebeeNative && settings.webeeTtsProvider === "cartesia";
   const engineSpeed = useEngineSpeed(isWebeeNative);
-  const [cartesiaSearch, setCartesiaSearch] = useState("");
-  const [cartesiaQuery, setCartesiaQuery] = useState("");
-  useEffect(() => {
-    const t = setTimeout(() => setCartesiaQuery(cartesiaSearch.trim()), 350);
-    return () => clearTimeout(t);
-  }, [cartesiaSearch]);
-  const { data: cartesiaCatalog, error: cartesiaCatalogError, isFetching: cartesiaLoading } = useQuery({
-    queryKey: ["cartesia-voice-catalog", cartesiaQuery],
-    queryFn: () => fetchCartesiaVoices({ data: { query: cartesiaQuery || undefined } }),
-    enabled: cartesiaActive,
-    staleTime: 10 * 60_000,
-    retry: 1,
-    throwOnError: false,
-  });
   const preAutoLayoutPositions = useBuilderStore((s) => s.preAutoLayoutPositions);
   const [rf, setRf] = useState<ReturnType<typeof useReactFlow> | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -330,17 +310,6 @@ export function Builder({
   const [elHsVoicesError, setElHsVoicesError] = useState<string | null>(null);
   const [elHsUploading, setElHsUploading] = useState(false);
   const elHsFileInputRef = useRef<HTMLInputElement | null>(null);
-  const [fishVoices, setFishVoices] = useState<FishVoice[]>([]);
-  const [fishVoicesLoading, setFishVoicesLoading] = useState(false);
-  const [fishVoicesError, setFishVoicesError] = useState<string | null>(null);
-  const [fishSearch, setFishSearch] = useState("");
-  const [fishLanguage, setFishLanguage] = useState<"en" | "all">("en");
-  const [fishTag, setFishTag] = useState("");
-  const [fishPreviewText, setFishPreviewText] = useState("Hi there! How can I help you today?");
-  const [fishPlayingId, setFishPlayingId] = useState<string | null>(null);
-  const [fishTtsLoadingId, setFishTtsLoadingId] = useState<string | null>(null);
-  const fishAudioRef = useRef<HTMLAudioElement | null>(null);
-  const fishTtsCacheRef = useRef<Map<string, string>>(new Map());
   const hsVoiceProvider = settings.voiceOutputProvider ?? "openai";
 
   function fileToBase64(file: File): Promise<string> {
@@ -386,27 +355,6 @@ export function Builder({
       .finally(() => setElHsVoicesLoading(false));
   }, [hsVoiceProvider]);
 
-  // Fish Audio catalog for WEBEE Native — English browse by default, search on demand.
-  useEffect(() => {
-    if (!isWebeeNative) return;
-    setFishVoicesLoading(true);
-    setFishVoicesError(null);
-    const term = fishSearch.trim();
-    const timer = setTimeout(() => {
-      listFishVoices({
-        data: {
-          search: term || undefined,
-          language: fishLanguage,
-          tag: fishTag || undefined,
-          page: 1,
-        },
-      })
-        .then((result) => setFishVoices(result.voices))
-        .catch((e: Error) => setFishVoicesError(e.message))
-        .finally(() => setFishVoicesLoading(false));
-    }, term ? 350 : 0);
-    return () => clearTimeout(timer);
-  }, [isWebeeNative, fishSearch, fishLanguage, fishTag]);
   const retAudioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -1714,110 +1662,14 @@ export function Builder({
                         </p>
                       )}
                     </div>
+                    {/* Text-to-speech provider, voice, cloning and voice settings all live in the
+                        voice picker; the rail only shows the current choice. */}
                     <div className="space-y-1.5">
-                      <Label className="text-[10px] text-muted-foreground">Text-to-speech</Label>
-                      <Select
-                        value={settings.webeeTtsProvider ?? "fish"}
-                        onValueChange={(v) =>
-                          setSettings({ webeeTtsProvider: v as "fish" | "openai" | "cartesia" })
-                        }
-                      >
-                        <SelectTrigger className="h-8 text-[11px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="fish">Fish Audio</SelectItem>
-                          <SelectItem value="openai">OpenAI</SelectItem>
-                          <SelectItem value="cartesia">Cartesia</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Label className="text-[10px] text-muted-foreground">Voice</Label>
+                      <VoiceSummaryButton onClick={() => setVoicePickerOpen(true)} />
                       <VoiceSpeedHint speed={engineSpeed} provider={settings.webeeTtsProvider ?? "fish"} />
                     </div>
-                    {settings.webeeTtsProvider === "cartesia" && (
-                      <div className="space-y-1.5">
-                        <Label className="text-[10px] text-muted-foreground">Cartesia voice</Label>
-                        <Input
-                          className="h-8 text-[11px]"
-                          placeholder="Search your Cartesia library (name, accent, style)"
-                          value={cartesiaSearch}
-                          onChange={(e) => setCartesiaSearch(e.target.value)}
-                        />
-                        {cartesiaQuery && !cartesiaLoading && cartesiaCatalog?.length === 0 && (
-                          <p className="text-[10px] text-muted-foreground">No voices match &ldquo;{cartesiaQuery}&rdquo;.</p>
-                        )}
-                        {cartesiaCatalog && cartesiaCatalog.length > 0 && (
-                          <Select
-                            value={
-                              cartesiaCatalog.some((v) => v.id === settings.cartesiaVoice)
-                                ? settings.cartesiaVoice
-                                : ""
-                            }
-                            onValueChange={(v) => setSettings(agentVoicePatch("cartesia", v))}
-                          >
-                            <SelectTrigger className="h-8 text-[11px]">
-                              <SelectValue placeholder="Pick from your Cartesia library" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {cartesiaCatalog.map((v) => (
-                                <SelectItem key={v.id} value={v.id} textValue={v.name}>
-                                  {v.name}
-                                  {v.language ? ` · ${v.language}` : ""}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
-                        <Input
-                          className="h-8 text-[11px]"
-                          placeholder="…or paste a voice ID"
-                          value={settings.cartesiaVoice ?? ""}
-                          onChange={(e) => setSettings(agentVoicePatch("cartesia", e.target.value))}
-                        />
-                        <p className="text-[10px] text-muted-foreground">
-                          {cartesiaCatalogError
-                            ? `Could not load your Cartesia library (${(cartesiaCatalogError as Error).message}). Paste a voice ID instead.`
-                            : "Leave blank to use Cartesia's default sample voice."}
-                        </p>
-                      </div>
-                    )}
-                    {settings.webeeTtsProvider === "openai" && (
-                      <>
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] text-muted-foreground">OpenAI voice</Label>
-                          <Select
-                            value={settings.openaiVoice ?? "alloy"}
-                            onValueChange={(v) =>
-                              setSettings({ openaiVoice: v as BuilderSettings["openaiVoice"] })
-                            }
-                          >
-                            <SelectTrigger className="h-8 text-[11px]">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {OPENAI_TTS_VOICES.map((v) => (
-                                <SelectItem key={v} value={v} className="capitalize">
-                                  {v}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] text-muted-foreground">
-                            Delivery direction (optional)
-                          </Label>
-                          <Input
-                            className="h-8 text-[11px]"
-                            placeholder="Warm, unhurried, British English."
-                            value={settings.webeeTtsInstructions ?? ""}
-                            onChange={(e) => setSettings({ webeeTtsInstructions: e.target.value })}
-                          />
-                          <p className="text-[10px] text-muted-foreground">
-                            How the voice should sound. Used by the gpt-4o voices only.
-                          </p>
-                        </div>
-                      </>
-                    )}
+                    <VoicePickerDialog open={voicePickerOpen} onOpenChange={setVoicePickerOpen} />
                     <div className="space-y-1.5">
                       <Label className="text-[10px] text-muted-foreground">LLM</Label>
                       <Select
@@ -1882,329 +1734,6 @@ export function Builder({
                         choices={WEBEE_NATIVE_LLM_MODELS[settings.webeeLlmProvider ?? "openai"] ?? []}
                       />
                     </div>
-                    {/* Voice picker moved into a dialog. Filters, search,
-                        clone button, preview text and the scrolling library
-                        needed far more room than the settings rail affords —
-                        inline it squeezed every control into a few pixels. The
-                        rail now shows the chosen voice and opens this.
-                        Fish-only: this browses Fish's clone/library voices, so it's
-                        meaningless (and was confusingly shown alongside the OpenAI
-                        voice dropdown above) once OpenAI is the selected TTS provider. */}
-                    {settings.webeeTtsProvider !== "openai" && (
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] text-muted-foreground">Voice</Label>
-                      <button
-                        type="button"
-                        onClick={() => setVoicePickerOpen(true)}
-                        className="flex w-full items-center gap-2 rounded-md border border-border dark:border-white/[0.08] bg-muted/40 dark:bg-white/[0.02] px-2.5 py-2 text-left transition-colors hover:border-foreground/20 dark:hover:border-white/[0.16] hover:bg-muted dark:hover:bg-white/[0.04]"
-                      >
-                        <Waves className="h-3.5 w-3.5 shrink-0 text-primary" />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[11px] font-medium">
-                            {settings.webeeVoiceName || "Choose a voice"}
-                          </span>
-                          <span className="block text-[9px] text-muted-foreground">
-                            {settings.webeeVoiceId ? "Fish Audio · tap to change" : "Browse clones and library"}
-                          </span>
-                        </span>
-                        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      </button>
-                    </div>
-                    )}
-
-                    <Dialog open={voicePickerOpen} onOpenChange={setVoicePickerOpen}>
-                      <DialogContent className="max-w-2xl gap-0 p-0">
-                        <DialogHeader className="border-b border-border dark:border-white/[0.06] px-5 py-3">
-                          <DialogTitle className="text-sm">Choose a voice</DialogTitle>
-                        </DialogHeader>
-                        <div className="max-h-[70vh] overflow-y-auto px-5 py-4">
-                    {settings.webeeVoiceId && (
-                      <div className="flex items-center gap-2 rounded-md border border-primary/20 bg-primary/[0.04] px-2.5 py-1.5">
-                        <Waves className="h-3 w-3 text-primary shrink-0" />
-                        <span className="text-[11px] font-medium text-primary truncate leading-tight flex-1 min-w-0">
-                          {settings.webeeVoiceName ||
-                            formatFishVoiceLabel(
-                              fishVoices.find((x) => x.voiceId === settings.webeeVoiceId) ?? {
-                                title: "Selected voice",
-                                languages: [],
-                                tags: [],
-                                owned: false,
-                              },
-                            )}
-                        </span>
-                        <button
-                          type="button"
-                          className="text-[11px] text-muted-foreground hover:text-destructive shrink-0"
-                          onClick={() => setSettings(agentVoicePatch("fish", "", ""))}
-                        >
-                          ×
-                        </button>
-                      </div>
-                    )}
-                    <div className="flex flex-wrap gap-1">
-                      {(
-                        [
-                          { id: "en", label: "English" },
-                          { id: "all", label: "All languages" },
-                        ] as const
-                      ).map(({ id, label }) => (
-                        <button
-                          key={id}
-                          type="button"
-                          className={cn(
-                            "text-[9px] px-2 py-0.5 rounded-md border font-medium transition-colors",
-                            fishLanguage === id
-                              ? "border-primary/60 bg-primary/10 text-primary"
-                              : "border-border dark:border-white/[0.08] text-muted-foreground hover:border-foreground/20 dark:hover:border-white/[0.16]",
-                          )}
-                          onClick={() => setFishLanguage(id)}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                      {(["", "male", "female", "narration"] as const).map((tag) => (
-                        <button
-                          key={tag || "any"}
-                          type="button"
-                          className={cn(
-                            "text-[9px] px-2 py-0.5 rounded-md border font-medium transition-colors capitalize",
-                            fishTag === tag
-                              ? "border-primary/60 bg-primary/10 text-primary"
-                              : "border-border dark:border-white/[0.08] text-muted-foreground hover:border-foreground/20 dark:hover:border-white/[0.16]",
-                          )}
-                          onClick={() => setFishTag(tag)}
-                        >
-                          {tag || "Any style"}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="flex gap-1">
-                      <Input
-                        value={fishSearch}
-                        onChange={(e) => setFishSearch(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            setFishVoicesLoading(true);
-                            listFishVoices({
-                              data: {
-                                search: fishSearch.trim() || undefined,
-                                language: fishLanguage,
-                                tag: fishTag || undefined,
-                              },
-                            })
-                              .then((r) => setFishVoices(r.voices))
-                              .catch((err: Error) => setFishVoicesError(err.message))
-                              .finally(() => setFishVoicesLoading(false));
-                          }
-                        }}
-                        placeholder="Search by name, accent, or style…"
-                        className="h-7 text-[10px] flex-1"
-                      />
-                      <FishVoiceCloneDialog
-                        onCloned={(voiceId, voiceName) => {
-                          setSettings({
-                            ...agentVoicePatch("fish", voiceId, voiceName),
-                            webeeVoiceOwned: true,
-                          });
-                          setFishVoicesLoading(true);
-                          listFishVoices({
-                            data: { language: fishLanguage, tag: fishTag || undefined },
-                          })
-                            .then((r) => setFishVoices(r.voices))
-                            .catch((err: Error) => setFishVoicesError(err.message))
-                            .finally(() => setFishVoicesLoading(false));
-                        }}
-                      />
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 px-2 text-[9px] shrink-0"
-                        disabled={fishVoicesLoading}
-                        onClick={() => {
-                          setFishVoicesLoading(true);
-                          listFishVoices({
-                            data: {
-                              search: fishSearch.trim() || undefined,
-                              language: fishLanguage,
-                              tag: fishTag || undefined,
-                            },
-                          })
-                            .then((r) => setFishVoices(r.voices))
-                            .catch((err: Error) => setFishVoicesError(err.message))
-                            .finally(() => setFishVoicesLoading(false));
-                        }}
-                      >
-                        <Search className="h-2.5 w-2.5 mr-1" />
-                        {fishVoicesLoading ? "…" : "Search"}
-                      </Button>
-                    </div>
-                    {fishVoicesError && (
-                      <p className="text-[9px] text-destructive/80 leading-snug bg-destructive/5 border border-destructive/20 rounded px-2 py-1.5">
-                        {fishVoicesError}
-                      </p>
-                    )}
-                    {!fishVoicesLoading && !fishVoicesError && fishVoices.length === 0 && (
-                      <p className="text-[9px] text-muted-foreground/70 leading-snug">
-                        No voices found. Try English + a search like “British”, “narrator”, or “female”.
-                      </p>
-                    )}
-                    {(fishVoices.length > 0 || fishVoicesLoading) && (
-                      <>
-                        <div className="space-y-1">
-                          <Label className="text-[9px] text-muted-foreground">Preview text</Label>
-                          <Input
-                            value={fishPreviewText}
-                            onChange={(e) => setFishPreviewText(e.target.value)}
-                            placeholder="Hi there! How can I help you today?"
-                            className="h-6 text-[9px]"
-                          />
-                        </div>
-                        {fishVoicesLoading ? (
-                          <div className="flex items-center gap-1.5 py-2 text-[9px] text-muted-foreground">
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                            Loading voices…
-                          </div>
-                        ) : (
-                          <div className="max-h-44 overflow-y-auto rounded border border-border dark:border-white/[0.06] divide-y divide-border dark:divide-white/[0.04]">
-                            {(["yours", "library"] as const).map((group) => {
-                              const groupVoices = fishVoices.filter((v) => fishVoiceGroup(v) === group);
-                              if (groupVoices.length === 0) return null;
-                              return (
-                                <div key={group}>
-                                  <p className="sticky top-0 z-10 bg-background/95 px-2 py-1 text-[8px] uppercase tracking-wide text-muted-foreground border-b border-border/60 dark:border-white/[0.04]">
-                                    {group === "yours" ? "Your clones" : "Voice library"}
-                                  </p>
-                                  {groupVoices.map((v) => (
-                                    <div
-                                      key={v.voiceId}
-                                      className="flex w-full items-start gap-1.5 px-2 py-1.5 hover:bg-muted dark:hover:bg-white/[0.04] transition-colors"
-                                    >
-                                      <button
-                                        type="button"
-                                        className="flex flex-1 items-start gap-1.5 text-left min-w-0"
-                                        onClick={() => {
-                                          setSettings({
-                                            ...agentVoicePatch("fish", v.voiceId, formatFishVoiceLabel(v)),
-                                            webeeVoiceOwned: v.owned,
-                                          });
-                                          if (fishAudioRef.current) {
-                                            fishAudioRef.current.pause();
-                                            fishAudioRef.current = null;
-                                          }
-                                          setFishPlayingId(null);
-                                          setFishTtsLoadingId(null);
-                                        }}
-                                      >
-                                        <Check
-                                          className={cn(
-                                            "h-2.5 w-2.5 mt-0.5 shrink-0",
-                                            settings.webeeVoiceId === v.voiceId ? "text-primary" : "text-transparent",
-                                          )}
-                                        />
-                                        <div className="min-w-0">
-                                          <p className="text-[9px] font-medium leading-tight truncate">
-                                            {formatFishVoiceLabel(v)}
-                                          </p>
-                                          <p className="text-[8px] text-muted-foreground leading-tight">
-                                            {formatFishVoiceSubtitle(v)}
-                                          </p>
-                                          {v.description && (
-                                            <p className="text-[8px] text-muted-foreground/60 leading-tight line-clamp-1">
-                                              {v.description}
-                                            </p>
-                                          )}
-                                        </div>
-                                      </button>
-                                      <button
-                                        type="button"
-                                        className="shrink-0 mt-0.5 text-muted-foreground hover:text-primary transition-colors disabled:opacity-40"
-                                        title={fishPlayingId === v.voiceId ? "Stop preview" : "Play preview"}
-                                        disabled={fishTtsLoadingId === v.voiceId}
-                                        onClick={async (e) => {
-                                          e.stopPropagation();
-                                          if (fishPlayingId === v.voiceId) {
-                                            fishAudioRef.current?.pause();
-                                            fishAudioRef.current = null;
-                                            setFishPlayingId(null);
-                                            return;
-                                          }
-                                          if (fishAudioRef.current) {
-                                            fishAudioRef.current.pause();
-                                            fishAudioRef.current = null;
-                                          }
-                                          setFishPlayingId(null);
-                                          const ttsText =
-                                            fishPreviewText.trim() || "Hi there! How can I help you today?";
-                                          const cacheKey = `${v.voiceId}|${ttsText}`;
-                                          const cachedUrl = fishTtsCacheRef.current.get(cacheKey);
-                                          const playUrl = (url: string) => {
-                                            const audio = new Audio(url);
-                                            fishAudioRef.current = audio;
-                                            setFishPlayingId(v.voiceId);
-                                            audio.play().catch(() => {});
-                                            audio.onended = () => {
-                                              fishAudioRef.current = null;
-                                              setFishPlayingId(null);
-                                            };
-                                          };
-                                          if (cachedUrl) {
-                                            playUrl(cachedUrl);
-                                            return;
-                                          }
-                                          setFishTtsLoadingId(v.voiceId);
-                                          try {
-                                            const result = await previewFishVoice({
-                                              data: { voiceId: v.voiceId, text: ttsText },
-                                            });
-                                            if (result.audio) {
-                                              const bytes = Uint8Array.from(atob(result.audio), (c) =>
-                                                c.charCodeAt(0),
-                                              );
-                                              const blob = new Blob([bytes], {
-                                                type: result.mimeType ?? "audio/wav",
-                                              });
-                                              const url = URL.createObjectURL(blob);
-                                              fishTtsCacheRef.current.set(cacheKey, url);
-                                              playUrl(url);
-                                            } else {
-                                              toast.error("Preview unavailable", {
-                                                description: result.missingKey
-                                                  ? "No Fish Audio API key configured."
-                                                  : "TTS returned no audio.",
-                                              });
-                                            }
-                                          } catch {
-                                            toast.error("Preview failed");
-                                          } finally {
-                                            setFishTtsLoadingId(null);
-                                          }
-                                        }}
-                                      >
-                                        {fishTtsLoadingId === v.voiceId ? (
-                                          <span className="h-2.5 w-2.5 block rounded-full border border-current border-t-transparent animate-spin" />
-                                        ) : fishPlayingId === v.voiceId ? (
-                                          <Square className="h-2.5 w-2.5 fill-current" />
-                                        ) : (
-                                          <Play className="h-2.5 w-2.5" />
-                                        )}
-                                      </button>
-                                    </div>
-                                  ))}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </>
-                    )}
-                        </div>
-                        <DialogFooter className="border-t border-border dark:border-white/[0.06] px-5 py-3">
-                          <Button size="sm" onClick={() => setVoicePickerOpen(false)}>
-                            Done
-                          </Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
                   </div>
                 )}
               </CollapsibleContent>

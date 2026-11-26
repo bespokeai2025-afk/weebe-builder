@@ -79,7 +79,7 @@ describe("notification catalogue integrity", () => {
 
   it("DB check-constraint migration lists every catalogue key (lockstep)", () => {
     const sql = readFileSync(
-      "supabase/migrations/20260922000000_notification_catalogue_dedup.sql",
+      "supabase/migrations/20260922000001_notification_catalogue_dedup.sql",
       "utf8",
     );
     for (const k of NOTIFICATION_EVENT_KEYS) {

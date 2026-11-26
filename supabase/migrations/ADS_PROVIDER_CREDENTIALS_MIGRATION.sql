@@ -51,8 +51,9 @@ CREATE TABLE IF NOT EXISTS growthmind_ad_sync_log (
 );
 
 -- Make account_id nullable on existing installs (migration may have created it NOT NULL)
-ALTER TABLE growthmind_ad_sync_log
-  ALTER COLUMN account_id DROP NOT NULL;
+-- (ADS_ANALYTICS_MIGRATION.sql creates the table without the column, so add it first.)
+ALTER TABLE growthmind_ad_sync_log ADD COLUMN IF NOT EXISTS account_id UUID;
+ALTER TABLE growthmind_ad_sync_log ALTER COLUMN account_id DROP NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_gm_ad_sync_log_ws
   ON growthmind_ad_sync_log (workspace_id);
@@ -73,8 +74,8 @@ CREATE TABLE IF NOT EXISTS growthmind_ad_budget_alerts (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-ALTER TABLE growthmind_ad_budget_alerts
-  ALTER COLUMN account_id DROP NOT NULL;
+ALTER TABLE growthmind_ad_budget_alerts ADD COLUMN IF NOT EXISTS account_id UUID;
+ALTER TABLE growthmind_ad_budget_alerts ALTER COLUMN account_id DROP NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_gm_ad_alerts_ws
   ON growthmind_ad_budget_alerts (workspace_id);

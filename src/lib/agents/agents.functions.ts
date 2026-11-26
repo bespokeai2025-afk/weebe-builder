@@ -451,7 +451,7 @@ export const upsertMyAgent = createServerFn({ method: "POST" })
       ...(typeof data.costSeconds === "number" ? { cost_seconds: data.costSeconds } : {}),
     };
 
-    let savedId: string;
+    let savedId: string | null = null;
     if (data.id) {
       const { data: row, error } = await supabase
         .from("agents")
@@ -460,8 +460,12 @@ export const upsertMyAgent = createServerFn({ method: "POST" })
         .select("id")
         .maybeSingle();
       if (error) throw new Error(error.message);
-      savedId = (row?.id as string) ?? data.id;
-    } else {
+      // No row matched: the builder is holding an id this database doesn't have (or can't show this
+      // user) — e.g. a flow kept in the browser from another Supabase project. Save it as a new
+      // agent below instead of reporting a save that wrote nothing.
+      savedId = (row?.id as string) ?? null;
+    }
+    if (!savedId) {
       // Before inserting, check for an existing row with the same Retell agent ID
       // to prevent duplicate rows when the builder store loses its currentAgentRowId.
       let existingId: string | null = null;
@@ -497,7 +501,7 @@ export const upsertMyAgent = createServerFn({ method: "POST" })
       }
     }
 
-    return { id: savedId };
+    return { id: savedId as string };
   });
 
 /** Add seconds to an agent's cost counter (atomic-ish increment via read-modify-write). */

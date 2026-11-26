@@ -154,20 +154,38 @@ App Runner runs your container, gives you HTTPS + a public URL, and autoscales.
 
 ---
 
-## Option C — Single EC2 instance (cheapest, most manual)
+## Option C — Single EC2 instance (what production uses)
 
-```bash
-# On an Amazon Linux 2023 / Ubuntu instance with Node 22+ installed:
-git clone <your repo> && cd <repo>
-npm ci
-VITE_SUPABASE_URL=... VITE_SUPABASE_PUBLISHABLE_KEY=... npm run build
+One Ubuntu instance running the app under systemd behind nginx, deployed by
+`.github/workflows/deploy.yml` on every push to `main`.
 
-# Run under a process manager (pm2/systemd) with runtime secrets exported:
-PORT=8080 npm run start:aws
-```
+**First-time setup** (once per server):
 
-Put **Nginx** or an ALB in front for TLS, and keep the process alive with
-`pm2` or a `systemd` unit. You manage patching, restarts, and scaling yourself.
+1. Launch Ubuntu 24.04 with at least 8 GB RAM (the build uses a 5.6 GB heap;
+   the bootstrap adds swap on smaller instances), 30 GB disk. Attach an
+   **Elastic IP** so the address survives stop/start. Security group: 22, 80, 443.
+2. Point the domain's A records (apex and `www`) at the Elastic IP.
+3. On the server, give it read access to the repo with a deploy key and clone:
+   ```bash
+   ssh-keygen -t ed25519 -N "" -f ~/.ssh/github_deploy
+   cat ~/.ssh/github_deploy.pub   # add on GitHub: repo → Settings → Deploy keys (read-only)
+   printf 'Host github.com\n  IdentityFile ~/.ssh/github_deploy\n' >> ~/.ssh/config
+   sudo mkdir -p /var/www/html && sudo chown "$USER" /var/www/html
+   git clone git@github.com:<owner>/<repo>.git /var/www/html/webespoke
+   ```
+4. Copy `.env` to `/var/www/html/webespoke/.env` (set the public URLs to the domain).
+5. `bash deploy/bootstrap-ec2.sh <domain>` (add `--worker` for the automation worker).
+6. `sudo certbot --nginx -d <domain> -d www.<domain> --redirect` once DNS resolves.
+
+**Automatic deploys:** add the repository secrets `EC2_HOST` (Elastic IP),
+`EC2_USER` (`ubuntu`), `EC2_SSH_KEY` (a private key whose public half is in the
+server's `~/.ssh/authorized_keys`) and `EC2_DEPLOY_PATH`
+(`/var/www/html/webespoke`). Each push to `main` then runs
+`scripts/deploy-remote.sh` on the server.
+
+The service must start through `scripts/prod-entry.mjs` (as
+`deploy/webespoke.service` does): that entry mounts the voice WebSockets.
+Starting `dist/server/server.js` directly serves pages but no voice calls.
 
 ---
 

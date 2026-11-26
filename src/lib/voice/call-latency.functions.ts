@@ -12,6 +12,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
   engineSpeedStats,
+  heardLatencyMs,
   LATENCY_BUDGET_MS,
   nodeLatencySummary,
   percentiles,
@@ -25,7 +26,8 @@ import {
 } from "./call-latency-stats.shared";
 
 const TURN_COLUMNS =
-  "call_id, turn_index, speech_to_first_audio_ms, endpoint_to_stt_final_ms, " +
+  "call_id, turn_index, voice_end_to_first_audio_ms, end_of_speech_wait_ms, " +
+  "speech_to_first_audio_ms, endpoint_to_stt_final_ms, " +
   "stt_to_route_ms, stt_to_first_token_ms, stt_to_first_sentence_ms, " +
   "stt_to_first_audio_ms, edge_route_method, global_route_method, " +
   "speculative_hit, partial_commit, interrupted, node_id, created_at";
@@ -48,7 +50,7 @@ export const listLatencyCalls = createServerFn({ method: "GET" })
 
     let q = (supabaseAdmin as any)
       .from("call_turns")
-      .select("call_id, created_at, is_test_call, speech_to_first_audio_ms, agent_id")
+      .select("call_id, created_at, is_test_call, voice_end_to_first_audio_ms, speech_to_first_audio_ms, agent_id")
       .eq("workspace_id", workspaceId)
       .order("created_at", { ascending: false })
       .limit(2000);
@@ -76,7 +78,8 @@ export const listLatencyCalls = createServerFn({ method: "GET" })
           agentId: (r.agent_id as string | null) ?? null,
         };
       entry.turns += 1;
-      if (typeof r.speech_to_first_audio_ms === "number") entry.values.push(r.speech_to_first_audio_ms);
+      const heard = heardLatencyMs(r as Parameters<typeof heardLatencyMs>[0]);
+      if (heard !== null) entry.values.push(heard);
       // Rows arrive newest-first, so the last one seen is the call's start.
       entry.startedAt = String(r.created_at);
       byCall.set(id, entry);
@@ -193,7 +196,9 @@ export const getAgentNodeLatency = createServerFn({ method: "GET" })
     const since = new Date(Date.now() - days * 86_400_000).toISOString();
     let q = (supabaseAdmin as any)
       .from("call_turns")
-      .select("node_id, speech_to_first_audio_ms, stt_to_first_audio_ms, edge_route_method, prompt_chars, is_test_call")
+      .select(
+        "node_id, voice_end_to_first_audio_ms, speech_to_first_audio_ms, stt_to_first_audio_ms, edge_route_method, prompt_chars, is_test_call",
+      )
       .eq("workspace_id", workspaceId)
       .eq("agent_id", data.agentId)
       .gte("created_at", since)

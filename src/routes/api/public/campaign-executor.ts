@@ -18,7 +18,7 @@
  *   );
  *
  * Ads data is also synced on a dedicated 15-minute cron via:
- *   POST /api/public/ads-sync  (x-cron-secret auth, see 20260722000000_ads_sync_cron.sql)
+ *   POST /api/public/ads-sync  (x-cron-secret auth, see 20260722000001_ads_sync_cron.sql)
  *
  * Manual trigger (for testing):
  *   curl -X POST https://<host>/api/public/campaign-executor \

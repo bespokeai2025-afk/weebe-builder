@@ -39,8 +39,13 @@ ENV NODE_ENV=production
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
-# Built SSR server + static client assets.
+# Built SSR server + static client assets (+ the voice gateway and automation worker bundles).
 COPY --from=builder /app/dist ./dist
+# `start:aws` starts through this entry: it serves the static files and mounts the voice
+# WebSockets. Without it the container exits on start.
+COPY scripts/prod-entry.mjs ./scripts/prod-entry.mjs
+# Silero speech-detection model for WEBEE Native calls (found at models/silero_vad.onnx).
+COPY models ./models
 
 # srvx reads PORT; bind to all interfaces so a load balancer can reach it.
 ENV PORT=8080

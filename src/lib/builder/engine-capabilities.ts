@@ -29,11 +29,22 @@ const FISH_ONLY_NATIVE: EngineRule = {
   when: notFishTts,
 };
 
+const cartesiaTts = (s: BuilderSettings) => s.webeeTtsProvider === "cartesia";
+
+const NOT_ON_CARTESIA: EngineRule = {
+  support: "none",
+  note: "Cartesia voices don't take this setting on WEBEE Native yet.",
+  when: cartesiaTts,
+};
+
 export const SETTING_ENGINE_RULES: Partial<
   Record<keyof BuilderSettings, Partial<Record<DeploymentMode, EngineRule>>>
 > = {
   voiceEmotion: { WEBEE_NATIVE: FISH_ONLY_NATIVE },
   voiceTemperature: { WEBEE_NATIVE: FISH_ONLY_NATIVE },
+  volume: { WEBEE_NATIVE: FISH_ONLY_NATIVE },
+  voiceSpeed: { WEBEE_NATIVE: NOT_ON_CARTESIA },
+  enableDynamicVoiceSpeed: { WEBEE_NATIVE: NOT_ON_CARTESIA },
   ambientSound: {
     WEBEE_NATIVE: {
       support: "partial",

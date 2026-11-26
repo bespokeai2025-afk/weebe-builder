@@ -27,7 +27,7 @@ export function createTracedVmLlm(
     },
 
     generateStream(messages, opts) {
-      const trace = getTrace();
+      const trace = opts?.untraced ? null : getTrace();
       trace?.setSpeechLlm(opts?.model, promptCharCount(messages));
       const innerStream = inner.generateStream?.(messages, opts);
       // No streaming on the inner client: still return a stream (callers `for await` it), with
@@ -72,5 +72,7 @@ export function createTracedVmLlm(
     async extract(messages, fields, opts) {
       return inner.extract(messages, fields, opts);
     },
+
+    ...(inner.warm ? { warm: (messages, opts) => inner.warm!(messages, opts) } : {}),
   };
 }

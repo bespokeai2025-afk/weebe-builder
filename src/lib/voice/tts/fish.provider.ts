@@ -23,6 +23,7 @@
  */
 import { WebSocket } from "ws";
 import { decode, encode } from "@msgpack/msgpack";
+import { shouldFlushTtsPhrase } from "./phrase-chunking.shared";
 import {
   alignPcm16,
   splitSpeakableChunks,
@@ -393,32 +394,8 @@ function stopSession(sock: FishSocket): void {
   timer.unref?.();
 }
 
-/** With no clause punctuation yet, flush at a word boundary once this much text is waiting. */
-const FISH_FIRST_FLUSH_FALLBACK_CHARS = 60;
-
-/**
- * When to flush the Fish live buffer.
- *
- * Fish buffers text and generates "once it has enough context for natural-sounding speech"; a
- * flush forces whatever is buffered out as a finished piece, with an ending's intonation and a
- * pause after it. The first flush used to fire after 12 characters, mid-phrase — "Perfect, and |
- * is the property…" — which put an audible break inside the sentence (a 380ms gap measured at
- * exactly that cut), the "voice breaks then carries on" effect. Flushing at the first clause
- * boundary instead (a comma or full stop, where a speaker pauses anyway) reached first audio just
- * as fast in measurement (676 vs 695ms median) with less dead air inside the line.
- */
-export function shouldFlushFishLiveBuffer(
-  buffered: string,
-  alreadyFlushed: boolean,
-): boolean {
-  const ready = buffered.trim();
-  if (!ready) return false;
-  if (!alreadyFlushed) {
-    if (ready.length >= 6 && /[.!?,;:]["'”’)]?$/.test(ready)) return true;
-    return ready.length >= FISH_FIRST_FLUSH_FALLBACK_CHARS && /\s$/.test(buffered);
-  }
-  return /[.!?]["'”’)]?$/.test(ready) && ready.length >= 24;
-}
+/** When to flush the Fish live buffer — shared with Cartesia (see phrase-chunking.shared.ts). */
+export const shouldFlushFishLiveBuffer = shouldFlushTtsPhrase;
 
 /** Stream text into the socket's current session, then stop it. */
 async function pumpFishText(sock: FishSocket, textStream: AsyncIterable<string>): Promise<void> {

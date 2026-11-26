@@ -1,13 +1,17 @@
-# Install:
+# Install (deploy/bootstrap-ec2.sh does this for you):
 #   sudo cp deploy/webespoke.service /etc/systemd/system/webespoke.service
 #   sudo systemctl daemon-reload
 #   sudo systemctl enable --now webespoke
 #
 # Adjust User, Group, WorkingDirectory, and EnvironmentFile for your host.
+#
+# Starts through scripts/prod-entry.mjs, the same entry as `npm run start`. That entry serves the
+# static files with the right cache headers and mounts the voice WebSockets (browser test calls,
+# Twilio, FreJun). Starting dist/server/server.js directly serves the pages but no voice: calls
+# connect and die.
 
 [Unit]
 Description=Webespoke AI Builder (TanStack Start)
-Documentation=https://github.com/your-org/webespoke
 After=network-online.target
 Wants=network-online.target
 
@@ -18,7 +22,7 @@ Group=ubuntu
 WorkingDirectory=/var/www/html/webespoke
 Environment=NODE_ENV=production
 EnvironmentFile=/var/www/html/webespoke/.env
-ExecStart=/var/www/html/webespoke/node_modules/.bin/srvx serve --prod --entry dist/server/server.js --static dist/client --host 127.0.0.1 --port 3000
+ExecStart=/var/www/html/webespoke/node_modules/.bin/srvx serve --prod --entry scripts/prod-entry.mjs --host 127.0.0.1 --port 3000
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=30

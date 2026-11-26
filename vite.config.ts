@@ -6,7 +6,7 @@
 // You can pass additional config via defineConfig({ vite: { ... } }) if needed.
 // SECURITY: env-guard MUST be the first import — it normalizes a corrupted
 // VITE_SUPABASE_URL/SUPABASE_URL secret before any plugin captures process.env.
-import { CANONICAL_SUPABASE_URL } from "./env-guard";
+import { SUPABASE_PROJECT_URL } from "./env-guard";
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import path from "node:path";
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
@@ -125,11 +125,11 @@ export default defineConfig({
     // SECURITY: never widen this to "WEBESPOKE_" — that would bake WEBESPOKE_ADMIN_PASSWORD
     // into the client bundle at build time. Only this exact (non-secret) var is exposed.
     envPrefix: ["VITE_", "WEBESPOKE_API_BASE_URL"],
-    // Hard override: guarantees the client bundle always gets the pinned public URL,
-    // never whatever is currently stored in the VITE_SUPABASE_URL secret (see guard above).
-    define: {
-      "import.meta.env.VITE_SUPABASE_URL": JSON.stringify(CANONICAL_SUPABASE_URL),
-    },
+    // The client bundle always gets the validated project URL from env-guard, never a corrupted
+    // VITE_SUPABASE_URL secret (see guard above).
+    define: SUPABASE_PROJECT_URL
+      ? { "import.meta.env.VITE_SUPABASE_URL": JSON.stringify(SUPABASE_PROJECT_URL) }
+      : {},
     server: {
       host: "0.0.0.0",
       port: 5000,

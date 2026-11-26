@@ -144,6 +144,10 @@ describe("agent voice table", () => {
   });
   it("writes a provider's voice to its own field", () => {
     expect(agentVoicePatch("fish", "abc", "Sarah")).toEqual({ webeeVoiceId: "abc", webeeVoiceName: "Sarah" });
-    expect(agentVoicePatch("cartesia", "uuid")).toEqual({ cartesiaVoice: "uuid" });
+    expect(agentVoicePatch("cartesia", "uuid", "Brooke")).toEqual({
+      cartesiaVoice: "uuid",
+      cartesiaVoiceName: "Brooke",
+    });
+    expect(agentVoicePatch("openai", "nova")).toEqual({ openaiVoice: "nova" });
   });
 });

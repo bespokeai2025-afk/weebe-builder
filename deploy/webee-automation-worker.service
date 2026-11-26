@@ -11,8 +11,8 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=ubuntu
-WorkingDirectory=/home/ubuntu/webee
-EnvironmentFile=/home/ubuntu/webee/.env
+WorkingDirectory=/var/www/html/webespoke
+EnvironmentFile=/var/www/html/webespoke/.env
 ExecStartPre=/usr/bin/node dist/automation-worker.mjs --check
 ExecStart=/usr/bin/node dist/automation-worker.mjs
 Restart=always

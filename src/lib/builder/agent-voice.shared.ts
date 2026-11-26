@@ -31,7 +31,7 @@ export const VOICE_SLOTS: Record<VoiceProviderSlot, SlotFields> = {
   retell: { id: "voiceId", label: "OmniVoice" },
   fish: { id: "webeeVoiceId", name: "webeeVoiceName", label: "Fish Audio" },
   openai: { id: "openaiVoice", label: "OpenAI" },
-  cartesia: { id: "cartesiaVoice", label: "Cartesia" },
+  cartesia: { id: "cartesiaVoice", name: "cartesiaVoiceName", label: "Cartesia" },
   elevenlabs: { id: "elevenLabsVoiceId", name: "elevenLabsVoiceName", label: "ElevenLabs" },
   elevenlabs_output: { id: "voiceOutputId", name: "voiceOutputName", label: "ElevenLabs" },
 };

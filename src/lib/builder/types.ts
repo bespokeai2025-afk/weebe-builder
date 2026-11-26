@@ -525,6 +525,8 @@ export interface BuilderSettings {
   webeeTtsProvider?: "fish" | "openai" | "cartesia";
   /** Cartesia voice id (a UUID from the Cartesia voice library), used when webeeTtsProvider === "cartesia". */
   cartesiaVoice?: string;
+  /** Display name of `cartesiaVoice`, saved by the voice picker (calls only use the id). */
+  cartesiaVoiceName?: string;
   /** OpenAI speech model (defaults to gpt-4o-mini-tts). */
   webeeTtsModel?: string;
   /** Delivery direction for the gpt-4o voices, e.g. "Warm, unhurried, British English." */

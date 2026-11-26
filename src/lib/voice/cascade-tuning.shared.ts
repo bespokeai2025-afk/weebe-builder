@@ -1,16 +1,18 @@
 /**
  * Map Builder speech settings → cascade VAD / barge-in parameters.
  *
- * Browser mic chunks are ~50 ms (1200 samples @ 24 kHz), so silence frame counts
- * translate directly to perceived response delay.
+ * Every VAD setting here is a frame count, and a frame is `VAD_FRAME_MS` long on every transport:
+ * the cascade session regroups caller audio into frames of that size before detection, because
+ * transports send different sizes (browser 50 ms, Twilio 20 ms, the browser fallback ~85 ms) and a
+ * frame count only means a duration when the frame size is fixed.
  */
 import type { EndpointingOptions } from "./vad/types";
 
 /** Default end-of-speech wait when the agent leaves it unset. */
 export const DEFAULT_SILENCE_MS = 400;
 
-/** Approximate ms per VAD frame in the browser relay path. */
-export const BROWSER_VAD_FRAME_MS = 50;
+/** Length of one VAD frame, in ms, on every transport (see the note at the top). */
+export const VAD_FRAME_MS = 50;
 
 export interface CascadeTuningInput {
   /** Builder hyperstreamSilenceDurationMs — ms of silence before end-of-speech. */
@@ -42,7 +44,7 @@ export function resolveCascadeTuning(input: CascadeTuningInput = {}): CascadeTun
   }
   silenceMs = clamp(silenceMs, 300, 1200);
 
-  const silenceFramesTrigger = Math.max(4, Math.round(silenceMs / BROWSER_VAD_FRAME_MS));
+  const silenceFramesTrigger = Math.max(4, Math.round(silenceMs / VAD_FRAME_MS));
   // High interruption sensitivity → fewer frames to barge in (3 ≈ 150 ms, 10 ≈ 500 ms).
   const bargeInSpeechFrames = Math.max(3, Math.round(3 + (1 - interruption) * 7));
 

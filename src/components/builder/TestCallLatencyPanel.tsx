@@ -15,7 +15,7 @@ import {
   getCallLatencyDetail,
   listLatencyCalls,
 } from "@/lib/voice/call-latency.functions";
-import { LATENCY_BUDGET_MS } from "@/lib/voice/call-latency-stats.shared";
+import { heardLatencyMs, LATENCY_BUDGET_MS } from "@/lib/voice/call-latency-stats.shared";
 
 function ms(v: number | null | undefined) {
   return typeof v === "number" ? `${v}ms` : "—";
@@ -167,15 +167,16 @@ export function TestCallLatencyPanel() {
 
             {/* Per-turn table */}
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[620px] text-[10px]">
+              <table className="w-full min-w-[680px] text-[10px]">
                 <thead>
                   <tr className="text-muted-foreground">
                     <th className="py-1 pr-2 text-left font-normal">#</th>
+                    <th className="py-1 pr-2 text-right font-normal">Wait</th>
                     <th className="py-1 pr-2 text-right font-normal">STT</th>
                     <th className="py-1 pr-2 text-right font-normal">Route</th>
                     <th className="py-1 pr-2 text-right font-normal">1st token</th>
                     <th className="py-1 pr-2 text-right font-normal">1st audio</th>
-                    <th className="py-1 pr-2 text-right font-normal">Speech→audio</th>
+                    <th className="py-1 pr-2 text-right font-normal">Heard</th>
                     <th className="py-1 pr-2 text-left font-normal">Path</th>
                     <th className="py-1 text-left font-normal">Node</th>
                   </tr>
@@ -184,6 +185,7 @@ export function TestCallLatencyPanel() {
                   {detail.turns.map((t) => (
                     <tr key={t.turn_index} className="border-t border-border/60 dark:border-white/[0.04]">
                       <td className="py-1 pr-2 text-muted-foreground">{t.turn_index}</td>
+                      <td className="py-1 pr-2 text-right">{ms(t.end_of_speech_wait_ms)}</td>
                       <td className="py-1 pr-2 text-right">{ms(t.endpoint_to_stt_final_ms)}</td>
                       <td className="py-1 pr-2 text-right">{ms(t.stt_to_route_ms)}</td>
                       <td className="py-1 pr-2 text-right">{ms(t.stt_to_first_token_ms)}</td>
@@ -191,10 +193,11 @@ export function TestCallLatencyPanel() {
                       <td
                         className={cn(
                           "py-1 pr-2 text-right font-medium",
-                          budgetTone(t.speech_to_first_audio_ms),
+                          budgetTone(heardLatencyMs(t)),
                         )}
+                        title="Caller's last word → first audio"
                       >
-                        {ms(t.speech_to_first_audio_ms)}
+                        {ms(heardLatencyMs(t))}
                       </td>
                       <td className={cn("py-1 pr-2 font-sans", methodTone(t.edge_route_method))}>
                         {t.edge_route_method ?? "—"}

@@ -14,7 +14,7 @@ description: How voice_provider is stored and why DDL migrations can't run from 
 ```
 supabase db push
 ```
-The migration file `supabase/migrations/20260609_voice_provider.sql` is already written and idempotent. After it is applied, `voice_provider` can be read from the DB column instead of `settings.voiceProvider`.
+The migration file `supabase/migrations/20260609235900_voice_provider.sql` is already written and idempotent. After it is applied, `voice_provider` can be read from the DB column instead of `settings.voiceProvider`.
 
 ## Twilio credentials pattern
 - `TWILIO_ACCOUNT_SID` — always comes from `process.env.TWILIO_ACCOUNT_SID`

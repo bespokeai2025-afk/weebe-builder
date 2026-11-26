@@ -1,6 +1,6 @@
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- ADS SYNC CONFIG — app_config rows
--- Run this AFTER applying 20260722000000_ads_sync_cron.sql (or the combined
+-- Run this AFTER applying 20260722000001_ads_sync_cron.sql (or the combined
 -- migrations file) in the Supabase SQL Editor.
 --
 -- Replace <CRON_SECRET> with the value of your CRON_SECRET environment variable

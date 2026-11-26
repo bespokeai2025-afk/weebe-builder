@@ -121,13 +121,20 @@ describe("Fish realtime STT session", () => {
     expect(fish.received.filter((m) => m.type === "finalize")).toHaveLength(1);
   });
 
-  it("sends audio in chunks of about 80 ms, not every small frame", async () => {
+  it("sends audio in chunks of about 40 ms (Fish's 20-40 ms advice), not every small frame", async () => {
     session = await open();
     for (let i = 0; i < 8; i++) session.push(frame(20));
     await tick();
     const audio = fish.received.filter((m) => m.type === "audio");
-    expect(audio).toHaveLength(2);
-    expect((audio[0]!.data as Uint8Array).byteLength).toBe(16000 * 2 * 0.08);
+    expect(audio).toHaveLength(4);
+    expect((audio[0]!.data as Uint8Array).byteLength).toBe(16000 * 2 * 0.04);
+  });
+
+  it("sends each 50 ms cascade frame straight away", async () => {
+    session = await open();
+    for (let i = 0; i < 3; i++) session.push(frame(50));
+    await tick();
+    expect(fish.received.filter((m) => m.type === "audio")).toHaveLength(3);
   });
 
   it("returns nothing quickly when Fish heard no speech", async () => {
@@ -190,6 +197,10 @@ describe("Fish realtime STT session", () => {
 describe("helpers", () => {
   it("strips sound tags and speaker markers", () => {
     expect(cleanFishLiveText("<|speaker:0|>Yes [sighs] I suppose [pause] so")).toBe("Yes I suppose so");
+  });
+
+  it("strips sound tags in full-width and lenticular brackets too", () => {
+    expect(cleanFishLiveText("Yes ［laughter］ that is 【cough】 right")).toBe("Yes that is right");
   });
 
   it("limits keyword hints to Fish's 100 terms of 32 characters", () => {

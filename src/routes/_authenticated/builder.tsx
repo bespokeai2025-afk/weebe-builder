@@ -86,7 +86,10 @@ function BuilderPage() {
           },
         });
         const latest = useBuilderStore.getState();
-        if (!latest.currentAgentRowId) latest.setCurrentAgentRowId(id);
+        // Adopt the saved row's id — new, or replacing a stale id the server could not find —
+        // unless the user has switched to another agent while this save was in flight.
+        const sentId = snap.currentAgentRowId ?? null;
+        if (latest.currentAgentRowId === sentId && id !== sentId) latest.setCurrentAgentRowId(id);
         if (latest.editRevision === revisionAtStart) latest.bumpSaveVersion();
         setLastSavedAt(Date.now());
         if (!opts?.silent) {

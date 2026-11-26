@@ -65,7 +65,7 @@ export const saveHyperStreamTestCall = createServerFn({ method: "POST" })
     const now = new Date();
     const startedAt = new Date(now.getTime() - (data.durationSeconds ?? 0) * 1000);
     // NOTE: `provider` and `channel_type` columns require migration
-    // supabase/migrations/20260613_calls_provider_channel.sql — apply via CLI.
+    // supabase/migrations/20260613235900_calls_provider_channel.sql — apply via CLI.
     // Until then we use from_number="web" as a proxy for HyperStream calls.
     const row: Record<string, unknown> = {
       workspace_id: workspaceId,

@@ -41,7 +41,7 @@ The `growthmind_ad_sync_log` will populate once the first 15-minute cron tick fi
 | Item | Status |
 |------|--------|
 | `CRON_SECRET` set in Replit Secrets | ✅ Already configured |
-| `20260722000000_ads_sync_cron.sql` — creates pg_cron job | ✅ Applied 2026-06-17 |
+| `20260722000001_ads_sync_cron.sql` — creates pg_cron job | ✅ Applied 2026-06-17 |
 | `ADS_ANALYTICS_MIGRATION.sql` — creates ad sync tables | ✅ Applied 2026-06-17 |
 | `APPLY_ADS_SYNC_CONFIG.sql` — sets app_config rows | ✅ Applied 2026-06-17 |
 
@@ -54,7 +54,7 @@ The `growthmind_ad_sync_log` will populate once the first 15-minute cron tick fi
 Open the **Supabase SQL Editor** for the production project and run:
 
 ```
-supabase/migrations/20260722000000_ads_sync_cron.sql
+supabase/migrations/20260722000001_ads_sync_cron.sql
 ```
 
 This creates:

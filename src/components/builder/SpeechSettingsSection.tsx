@@ -283,6 +283,9 @@ export function SpeechSettingsSection({ isRetell }: { isRetell: boolean }) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const player = usePronunciationPlayer();
   const backchannelSupported = useSettingSupported("enableBackchannel");
+  // On WEBEE Native the voice picker owns speed, volume, expressiveness and emotion, shown only
+  // for the providers that apply them. Other engines keep them here.
+  const voiceInPicker = resolveDeploymentMode(settings) === "WEBEE_NATIVE";
 
   const pronunciationDictionary = settings.pronunciationDictionary ?? [];
 
@@ -621,6 +624,13 @@ export function SpeechSettingsSection({ isRetell }: { isRetell: boolean }) {
             </CollapsibleTrigger>
             <CollapsibleContent className="space-y-3 pt-2">
 
+              {voiceInPicker ? (
+                <p className="text-[10px] leading-snug text-muted-foreground">
+                  Voice speed, volume, expressiveness and emotion are set in the Voice picker, next to
+                  the voice they apply to.
+                </p>
+              ) : (
+                <>
               {/* Voice Speed */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
@@ -667,6 +677,9 @@ export function SpeechSettingsSection({ isRetell }: { isRetell: boolean }) {
                   <EngineSupportNote setting="voiceEmotion" />
                 </div>
               </div>
+
+                </>
+              )}
 
               {/* Call timings grid */}
               <div className="grid grid-cols-2 gap-2">
@@ -739,7 +752,7 @@ export function SpeechSettingsSection({ isRetell }: { isRetell: boolean }) {
               {/* Toggles */}
               <div className="space-y-2">
                 {([
-                  ["Dynamic voice speed", "enableDynamicVoiceSpeed"],
+                  ...(voiceInPicker ? [] : [["Dynamic voice speed", "enableDynamicVoiceSpeed"]]),
                   ["Normalize for speech", "normalizeForSpeech"],
                   ["Allow user DTMF", "allowUserDtmf"],
                   ["DTMF can interrupt", "allowDtmfInterruption"],

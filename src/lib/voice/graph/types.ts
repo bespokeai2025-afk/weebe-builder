@@ -347,8 +347,21 @@ export interface VmLlm {
    */
   generateStream?(
     messages: LlmMessage[],
-    options?: { model?: string; signal?: AbortSignal },
+    options?: {
+      model?: string;
+      signal?: AbortSignal;
+      /**
+       * Leave the turn trace alone. For a reply started before the caller has finished, whose
+       * turn does not exist yet; its timings are recorded on the turn that adopts it.
+       */
+      untraced?: boolean;
+    },
   ): AsyncIterable<string>;
+  /**
+   * Open the connection and let the provider cache `messages` as a prompt prefix, asking for no
+   * reply worth reading. Best-effort: never throws.
+   */
+  warm?(messages: LlmMessage[], options?: { model?: string }): Promise<void>;
   /**
    * Pick one of `choices` given the conversation. Must return an index into
    * `choices`, or -1 when none apply.

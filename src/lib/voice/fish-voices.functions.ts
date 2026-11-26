@@ -32,6 +32,8 @@ export interface FishVoice {
   description: string | null;
   /** True when the workspace owns this model (its own clone). */
   owned: boolean;
+  /** A sample Fish hosts for this voice, when it has one (plays without a TTS call). */
+  sampleUrl?: string;
 }
 
 export interface ListFishVoicesInput {
@@ -58,6 +60,7 @@ interface FishModelItem {
   description?: string | null;
   languages?: string[];
   tags?: string[];
+  samples?: Array<{ audio?: string | null }>;
 }
 
 interface FishModelResponse {
@@ -106,6 +109,9 @@ function mapFishItem(item: FishModelItem, owned: boolean): FishVoice | null {
     tags: item.tags ?? [],
     description: item.description ?? null,
     owned,
+    sampleUrl: (item.samples ?? [])
+      .map((sample) => String(sample?.audio ?? "").trim())
+      .find((url) => /^https:\/\//i.test(url)),
   };
 }
 
@@ -264,15 +270,24 @@ export const listFishVoices = createServerFn({ method: "POST" })
       );
     }
 
-    const cacheKey = `${workspaceId ?? "platform"}:${JSON.stringify(data)}`;
-    const cached = catalogCache.get(cacheKey);
-    const now = Date.now();
-    if (cached && now - cached.at < CACHE_TTL_MS) return cached.result;
-
-    const result = await listFishVoicesInternal(apiKey, data);
-    catalogCache.set(cacheKey, { at: now, result });
-    return result;
+    return listFishVoicesCached(workspaceId, apiKey, data);
   });
+
+/** The Fish catalogue for one query, cached per workspace for ten minutes. */
+export async function listFishVoicesCached(
+  workspaceId: string | null,
+  apiKey: string,
+  input: ListFishVoicesInput,
+): Promise<FishVoiceListResult> {
+  const cacheKey = `${workspaceId ?? "platform"}:${JSON.stringify(input)}`;
+  const cached = catalogCache.get(cacheKey);
+  const now = Date.now();
+  if (cached && now - cached.at < CACHE_TTL_MS) return cached.result;
+
+  const result = await listFishVoicesInternal(apiKey, input);
+  catalogCache.set(cacheKey, { at: now, result });
+  return result;
+}
 
 /** Look up a single voice by id (for selected-voice chip when off-page). */
 export const getFishVoice = createServerFn({ method: "POST" })
@@ -365,63 +380,69 @@ export const getFishApiKeyStatus = createServerFn({ method: "GET" })
     };
   });
 
+/** Create a private Fish clone from an audio sample and drop the workspace's cached catalogue. */
+export async function createFishClone(
+  workspaceId: string | null,
+  input: { title: string; audio: Buffer; fileName?: string; mimeType?: string },
+): Promise<{ voiceId: string; title: string; state: string }> {
+  const apiKey = await resolveFishApiKey(workspaceId);
+  if (!apiKey) {
+    throw new Error(
+      "WEBEE Native voice is not connected. Add a Fish Audio API key under Settings → Integrations → Voice Engines.",
+    );
+  }
+
+  const title = input.title?.trim() ?? "";
+  if (!title) throw new Error("Voice name is required");
+  if (input.audio.byteLength === 0) throw new Error("Audio file is empty");
+  if (input.audio.byteLength > 20 * 1024 * 1024) {
+    throw new Error("Audio must be 20 MB or smaller");
+  }
+
+  const form = new FormData();
+  form.append("type", "tts");
+  form.append("title", title);
+  form.append("train_mode", "fast");
+  form.append("visibility", "private");
+  const fileName = input.fileName?.trim() || "sample.wav";
+  const blob = new Blob([new Uint8Array(input.audio)], { type: input.mimeType ?? "audio/wav" });
+  form.append("voices", blob, fileName);
+
+  const res = await fetch(`${FISH_API_BASE}/model`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}` },
+    body: form,
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => String(res.status));
+    throw new Error(`Voice clone failed (${res.status}): ${body}`);
+  }
+
+  const json = (await res.json()) as Record<string, unknown>;
+  const voiceId = String(json._id ?? json.model_id ?? json.reference_id ?? json.id ?? "").trim();
+  if (!voiceId) throw new Error("Fish Audio did not return a voice id");
+
+  for (const cacheKey of catalogCache.keys()) {
+    if (cacheKey.startsWith(`${workspaceId ?? "platform"}:`)) catalogCache.delete(cacheKey);
+  }
+
+  return { voiceId, title, state: String(json.state ?? "trained") };
+}
+
 /** Upload an audio sample and create a private Fish voice clone for this workspace. */
 export const createFishVoice = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator(
     (input: { title: string; audioBase64: string; fileName?: string; mimeType?: string }) => input,
   )
-  .handler(async ({ context, data }) => {
-    const workspaceId = context.workspaceId ?? null;
-    const apiKey = await resolveFishApiKey(workspaceId);
-    if (!apiKey) {
-      throw new Error(
-        "WEBEE Native voice is not connected. Add a Fish Audio API key under Settings → Integrations → Voice Engines.",
-      );
-    }
-
-    const title = data.title?.trim() ?? "";
-    if (!title) throw new Error("Voice name is required");
-
-    const buf = Buffer.from(data.audioBase64, "base64");
-    if (buf.byteLength === 0) throw new Error("Audio file is empty");
-    if (buf.byteLength > 20 * 1024 * 1024) {
-      throw new Error("Audio must be 20 MB or smaller");
-    }
-
-    const form = new FormData();
-    form.append("type", "tts");
-    form.append("title", title);
-    form.append("train_mode", "fast");
-    form.append("visibility", "private");
-    const fileName = data.fileName?.trim() || "sample.wav";
-    const blob = new Blob([buf], { type: data.mimeType ?? "audio/wav" });
-    form.append("voices", blob, fileName);
-
-    const res = await fetch(`${FISH_API_BASE}/model`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}` },
-      body: form,
-    });
-    if (!res.ok) {
-      const body = await res.text().catch(() => String(res.status));
-      throw new Error(`Voice clone failed (${res.status}): ${body}`);
-    }
-
-    const json = (await res.json()) as Record<string, unknown>;
-    const voiceId = String(json._id ?? json.model_id ?? json.reference_id ?? json.id ?? "").trim();
-    if (!voiceId) throw new Error("Fish Audio did not return a voice id");
-
-    for (const cacheKey of catalogCache.keys()) {
-      if (cacheKey.startsWith(`${workspaceId ?? "platform"}:`)) catalogCache.delete(cacheKey);
-    }
-
-    return {
-      voiceId,
-      title,
-      state: String(json.state ?? "trained"),
-    };
-  });
+  .handler(async ({ context, data }) =>
+    createFishClone(context.workspaceId ?? null, {
+      title: data.title,
+      audio: Buffer.from(data.audioBase64, "base64"),
+      fileName: data.fileName,
+      mimeType: data.mimeType,
+    }),
+  );
 
 export const saveFishApiKey = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

@@ -60,7 +60,7 @@ per-workspace key). So the flag is safe to flip on whenever `RETELL_API_KEY`
 exists. It's currently set in the `shared` env (covers dev + prod).
 
 **Applied state (as of this project):** the migration
-(`20260724000000_live_call_sessions.sql`) is already applied to Supabase and all
+(`20260724000002_live_call_sessions.sql`) is already applied to Supabase and all
 WEBEE-DEPLOYED agents are subscribed to `transcript_updated` — `SUPABASE_ACCESS_TOKEN`
 is NOT present, so DDL can't be re-run via the Management API; the table + unique
 constraint were verified via a service-role `onConflict` upsert instead.

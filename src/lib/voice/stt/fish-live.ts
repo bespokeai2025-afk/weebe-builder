@@ -35,8 +35,12 @@ const FINALIZE_TIMEOUT_MS = 2_000;
  * audio. Wait this long for the turn to open before deciding Fish heard no speech at all.
  */
 const TURN_OPEN_GRACE_MS = 250;
-/** Fish recommends 80–100 ms of audio per message; the cascade delivers smaller frames. */
-const SEND_CHUNK_MS = 80;
+/**
+ * Fish recommends 20–40 ms of audio per message for live audio: each draft waits for the message
+ * carrying its audio, so smaller messages mean earlier drafts. The cascade's 50 ms frames
+ * therefore go out one per message.
+ */
+const SEND_CHUNK_MS = 40;
 /** Fish closes a session after 30 s without a client message. */
 const KEEPALIVE_AFTER_MS = 10_000;
 const SUPPORTED_SAMPLE_RATES = new Set([8000, 12000, 16000, 22050, 24000, 32000, 44100, 48000]);
@@ -59,7 +63,7 @@ type FishLiveMessage = {
 
 /** Speaker markers and sound tags ("[laughter]", "[pause]") are not words the caller said. */
 export function cleanFishLiveText(text: string): string {
-  return cleanFishTranscript(text.replace(/\[[a-z][a-z _-]{0,30}\]/gi, " "));
+  return cleanFishTranscript(text);
 }
 
 /** Keyword hints in the shape Fish accepts: at most 100, each at most 32 characters. */
