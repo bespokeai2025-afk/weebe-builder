@@ -13,6 +13,7 @@ import { analyzeCall, type ToolOutcomeForAnalysis } from "./analysis";
 import { CallRecorder } from "./recording";
 import { formatTranscript, mergeTurns, toTranscriptObject } from "./transcript";
 import { emitVoiceEvent } from "./webhook";
+import { callCostLogLines, type CallUsageMeter } from "../usage-meter.shared";
 import type {
   AnalysisField,
   DisconnectionReason,
@@ -72,6 +73,8 @@ export class NativeCallLifecycle {
   private endedAt: number | null = null;
   /** Mutable because rates are loaded asynchronously, after the call is up. */
   private costCentsPerMinute: number | null;
+  /** What the call actually used — when set, it prices the call instead of the blended rate. */
+  private usageMeter: CallUsageMeter | null = null;
   /** Set once STT/TTS providers actually resolve — see `setProviderInfo`. */
   private sttProviderName: string | null = null;
   private ttsProviderName: string | null = null;
@@ -116,6 +119,14 @@ export class NativeCallLifecycle {
   setProviderInfo(info: { sttProvider?: string | null; ttsProvider?: string | null }): void {
     if (info.sttProvider) this.sttProviderName = info.sttProvider;
     if (info.ttsProvider) this.ttsProviderName = info.ttsProvider;
+  }
+
+  /**
+   * Price the call from what it used (tokens, characters, audio seconds) rather than the blended
+   * per-minute rate. The post-call analysis is metered into the same meter.
+   */
+  setUsageMeter(meter: CallUsageMeter): void {
+    this.usageMeter = meter;
   }
 
   get recorder(): CallRecorder | null {
@@ -232,6 +243,12 @@ export class NativeCallLifecycle {
       this.runAnalysis(disconnection),
     ]);
 
+    if (this.usageMeter) {
+      for (const line of callCostLogLines(this.usageMeter.cost(), this.durationSeconds())) {
+        console.log(`${this.logPrefix} ${line}`);
+      }
+    }
+
     await this.fireAndWait("call_analyzed", {
       call_status: "ended",
       disconnection_reason: disconnection,
@@ -264,6 +281,7 @@ export class NativeCallLifecycle {
         callStartedAt: this.startedAt,
         timezone: this.identity.timezone ?? this.identity.dynamicVariables?.timezone ?? null,
         toolOutcomes: [...this.toolOutcomes],
+        ...(this.usageMeter ? { onUsage: (u) => this.usageMeter?.addLlm(u, "analysis") } : {}),
       });
     } catch (err) {
       console.warn(
@@ -347,7 +365,14 @@ export class NativeCallLifecycle {
       call.duration_ms = this.endedAt - this.startedAt;
     }
     const perMinute = this.costCentsPerMinute;
-    if (perMinute != null && this.endedAt) {
+    if (this.usageMeter && this.endedAt) {
+      // USD cents, as Retell reports `combined_cost`.
+      const cost = this.usageMeter.cost();
+      call.call_cost = {
+        combined_cost: Number((cost.totalUsd * 100).toFixed(4)),
+        total_duration_seconds: durationSeconds,
+      };
+    } else if (perMinute != null && this.endedAt) {
       call.call_cost = {
         combined_cost: Number(((durationSeconds / 60) * perMinute).toFixed(4)),
         total_duration_seconds: durationSeconds,

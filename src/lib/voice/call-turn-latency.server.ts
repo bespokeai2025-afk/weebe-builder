@@ -73,8 +73,13 @@ const NEWER_COLUMNS = [
   "speech_end_reference",
   "llm_service_tier",
 ] as const;
-/** Columns this database has reported missing — left out of every later write on this server. */
+/**
+ * Columns this database has reported missing — left out of later writes. Forgotten after a few
+ * minutes, so a migration applied while the server is running is picked up without a restart.
+ */
 const missingColumns = new Set<string>();
+const MISSING_COLUMN_RECHECK_MS = 5 * 60_000;
+let missingColumnsSince = 0;
 
 /** The newer column a write was refused for, from PostgREST's "Could not find the 'x' column". */
 function missingColumnIn(message: string): string | null {
@@ -100,11 +105,13 @@ export async function recordCallTurnLatency(
     (supabaseAdmin as any).from("call_turns").upsert(row, { onConflict: "call_id,turn_index" });
   try {
     const row: Record<string, unknown> = toRow(ctx, rec);
+    if (missingColumns.size && Date.now() - missingColumnsSince > MISSING_COLUMN_RECHECK_MS) missingColumns.clear();
     for (const c of missingColumns) delete row[c];
     let { error } = await upsert(row);
     for (let tries = 0; error && tries < NEWER_COLUMNS.length; tries++) {
       const column = missingColumnIn(error.message);
       if (!column || !(column in row)) break;
+      if (missingColumns.size === 0) missingColumnsSince = Date.now();
       missingColumns.add(column);
       delete row[column];
       console.warn(`[call-turn-latency] call_turns has no ${column} yet — apply the latest call_turns migration`);

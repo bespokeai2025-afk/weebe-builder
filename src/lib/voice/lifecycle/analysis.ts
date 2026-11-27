@@ -11,6 +11,7 @@
  * Relative imports only (reachable from vite.config.ts).
  */
 import { gptComplete, resolveVoiceLlmApiKey } from "../llm/gpt";
+import type { LlmUsage } from "../usage-meter.shared";
 import type { AnalysisField, RetellCallAnalysis, TranscriptTurn } from "./types";
 import { formatTranscript, mergeTurns } from "./transcript";
 
@@ -63,6 +64,8 @@ export interface AnalyzeCallInput {
   durationSeconds: number;
   disconnectionReason?: string | null;
   signal?: AbortSignal;
+  /** Tokens each analysis request used — the call's cost meter. */
+  onUsage?: (usage: LlmUsage) => void;
 }
 
 /**
@@ -133,6 +136,7 @@ export async function analyzeCall(input: AnalyzeCallInput): Promise<RetellCallAn
           model,
           apiKey,
           temperature: 0,
+          onUsage: input.onUsage,
           maxTokens: 900,
           responseFormat: "json_object",
           signal: input.signal,
@@ -144,6 +148,7 @@ export async function analyzeCall(input: AnalyzeCallInput): Promise<RetellCallAn
         agentName: input.agentName,
         context,
         signal: input.signal,
+        onUsage: input.onUsage,
       }),
     ]);
     const analysis = normalizeAnalysis(builtInsRaw, [], voicemailHeuristic);
@@ -202,6 +207,7 @@ export async function extractCustomFields(
     /** Call date and tool outcomes — see `callContextBlock`. */
     context?: string;
     signal?: AbortSignal;
+    onUsage?: (usage: LlmUsage) => void;
   },
 ): Promise<Record<string, unknown>> {
   const fields = schema.filter((f) => f.name);
@@ -230,6 +236,7 @@ export async function extractCustomFields(
           model: opts.model,
           apiKey: opts.apiKey,
           temperature: 0,
+          onUsage: opts.onUsage,
           // A field may itself be a structured JSON summary, so it gets real room.
           maxTokens: 1200,
           responseFormat: "json_object",

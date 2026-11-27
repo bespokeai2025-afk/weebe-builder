@@ -31,6 +31,7 @@ import {
   ROUTE_REPLY_TOOL_CHOICE,
   RouteReplyArgumentsParser,
 } from "./route-reply.shared";
+import type { LlmPurpose, LlmUsage } from "../usage-meter.shared";
 import type { LlmMessage, VariableValue, VmLlm } from "./types";
 
 export interface OpenAiVmLlmOptions {
@@ -52,6 +53,8 @@ export interface OpenAiVmLlmOptions {
   temperature?: number;
   /** OpenAI prompt-cache routing key shared by every request of one agent — see `GptStreamOptions`. */
   promptCacheKey?: string;
+  /** Tokens each request used, and what for — the call's cost meter (`usage-meter.shared.ts`). */
+  onUsage?: (usage: LlmUsage, purpose: LlmPurpose) => void;
 }
 
 const CLASSIFY_SYSTEM = [
@@ -155,7 +158,14 @@ export function createOpenAiVmLlm(options: OpenAiVmLlmOptions): VmLlm {
     cerebras: WEBEE_NATIVE_CLASSIFIER_MODEL,
   };
 
-  const complete = (messages: LlmMessage[], model: string, extra: Record<string, unknown> = {}) =>
+  const meter = (purpose: LlmPurpose) =>
+    options.onUsage ? { onUsage: (u: LlmUsage) => options.onUsage!(u, purpose) } : {};
+  const complete = (
+    messages: LlmMessage[],
+    model: string,
+    extra: Record<string, unknown> = {},
+    purpose: LlmPurpose = "speech",
+  ) =>
     gptComplete(messages as ChatMsg[], {
       model,
       apiKey,
@@ -163,6 +173,7 @@ export function createOpenAiVmLlm(options: OpenAiVmLlmOptions): VmLlm {
       temperature: options.temperature ?? 0.3,
       breaker,
       promptCacheKey: options.promptCacheKey,
+      ...meter(purpose),
       ...extra,
     });
 
@@ -191,6 +202,7 @@ export function createOpenAiVmLlm(options: OpenAiVmLlmOptions): VmLlm {
           signal,
           breaker,
           promptCacheKey: options.promptCacheKey,
+          ...meter("speech"),
         });
       const hedge = speechHedgeFor(provider ?? "default", model) ?? NO_HEDGE;
       return hedgedStream(open, hedge, {
@@ -241,6 +253,7 @@ export function createOpenAiVmLlm(options: OpenAiVmLlmOptions): VmLlm {
             signal: opts?.signal,
             breaker,
             promptCacheKey: options.promptCacheKey,
+            ...meter("speech"),
             tools: [ROUTE_REPLY_TOOL],
             toolChoice: ROUTE_REPLY_TOOL_CHOICE,
             toolArguments: true,
@@ -299,7 +312,7 @@ export function createOpenAiVmLlm(options: OpenAiVmLlmOptions): VmLlm {
           responseFormat: "json_object",
           timeoutMs: BACKGROUND_LLM_TIMEOUT_MS,
           fallbackModels: classifierFallbacks,
-        }),
+        }, "routing"),
       );
 
       return parseTransitionIndex(raw, choices);
@@ -340,7 +353,7 @@ export function createOpenAiVmLlm(options: OpenAiVmLlmOptions): VmLlm {
           responseFormat: "json_object",
           timeoutMs: BACKGROUND_LLM_TIMEOUT_MS,
           fallbackModels: classifierFallbacks,
-        }),
+        }, "routing"),
       );
 
       let parsed: unknown;

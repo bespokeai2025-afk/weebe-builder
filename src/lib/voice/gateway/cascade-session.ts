@@ -44,6 +44,10 @@ import type { SttCapabilities } from "../stt/types";
 import { resolveCartesiaTtsModel } from "../providers/cartesia.config.shared";
 import { openAiServiceTier } from "../engine-config.shared";
 import { shouldFlushTtsPhrase } from "../tts/phrase-chunking.shared";
+import { callerMidUtterance, startedDuringPlayback } from "../listen-reset.shared";
+import { CallUsageMeter } from "../usage-meter.shared";
+import { resolveDeepgramSttModel } from "../providers/deepgram.config.shared";
+import { cartesiaSttSupportsKeyterms, resolveCartesiaSttModel } from "../providers/cartesia.config.shared";
 import {
   computeTurnTimings,
   perceivedBudgetMs,
@@ -357,6 +361,11 @@ export class CascadeSession {
   /** UK postcode shapes are only recognised for agents that work in the UK. */
   private readonly ukPostcodes: boolean;
   private sttName = "fish";
+  /** STT model the call streams to, for pricing (`usage`). */
+  private sttModelId = "";
+  private sttKeyterms = false;
+  /** Tokens, characters and audio seconds this call used — what prices it. */
+  readonly usage = new CallUsageMeter();
   /** What the STT provider sends before the endpoint — declared in the provider's own file. */
   private sttCaps: SttCapabilities = {
     partials: true,
@@ -432,6 +441,12 @@ export class CascadeSession {
   /** Dest identity for keeping speculative work across growing partials. */
   private speculativeGraphDestKey = "";
   private callerSpeaking = false;
+  /**
+   * The open utterance has had at least one frame loud enough to count as the caller over the
+   * agent (`bargeInMinRms`) — what separates a real "yes" from the agent's own echo. Unlike
+   * `speechFrames` it is not reset by the short silence after the word.
+   */
+  private utteranceLoud = false;
   private lastSpeechRms = 0;
   /** Dedupe rapid identical caller utterances (echo / double endpoint). */
   private lastAcceptedUserText = "";
@@ -652,6 +667,19 @@ export class CascadeSession {
     });
     this.sttName = sttProvider.name;
     this.sttCaps = sttProvider.capabilities;
+    {
+      const st = (this.config.settings ?? null) as Record<string, unknown> | null;
+      const hasKeywords = (this.config.boostedKeywords?.length ?? 0) > 0;
+      if (this.sttName === "deepgram") {
+        this.sttModelId = resolveDeepgramSttModel(st);
+        this.sttKeyterms = hasKeywords;
+      } else if (this.sttName === "cartesia") {
+        this.sttModelId = resolveCartesiaSttModel(st, this.sttLanguage);
+        this.sttKeyterms = hasKeywords && cartesiaSttSupportsKeyterms(this.sttModelId);
+      } else {
+        this.sttModelId = this.sttName;
+      }
+    }
     this.stt = await sttProvider.open({
       sampleRate: this.sampleRate,
       language: this.sttLanguage,
@@ -687,6 +715,7 @@ export class CascadeSession {
       sttProvider: this.sttName,
       ttsProvider: this.tts?.name ?? null,
     });
+    this.lifecycleRef?.setUsageMeter(this.usage);
 
     const banner: CascadeSessionBanner = {
       mode: runtime ? "graph" : "flat",
@@ -735,6 +764,7 @@ export class CascadeSession {
         settings: this.config.settings ?? null,
         variables: this.config.variables,
         startSpeaker: this.config.startSpeaker,
+        onLlmUsage: (u, purpose) => this.usage.addLlm(u, purpose),
       });
       if (runtime) return runtime;
       if (!expectsGraph) return null;
@@ -843,10 +873,10 @@ export class CascadeSession {
       // "yes" needing to be said twice. The withheld tail is replayed first, only once the VAD
       // has confirmed a real caller is speaking, so echo is still discarded.
       if (this.withheldSttFrames.length > 0) {
-        if (this.callerSpeaking) for (const held of this.withheldSttFrames) this.stt?.push(held);
+        if (this.callerSpeaking) for (const held of this.withheldSttFrames) this.feedStt(held);
         this.withheldSttFrames = [];
       }
-      this.stt?.push(chunk);
+      this.feedStt(chunk);
     } else {
       this.withheldSttFrames.push(chunk);
       if (this.withheldSttFrames.length > WITHHELD_STT_FRAMES_MAX) this.withheldSttFrames.shift();
@@ -861,6 +891,13 @@ export class CascadeSession {
       .catch((err: Error) => {
         console.error(`${this.log} VAD error: ${err.message}`);
       });
+  }
+
+  /** Caller audio to the recogniser, metered by duration (how STT is billed). */
+  private feedStt(frame: Buffer): void {
+    if (!this.stt) return;
+    this.stt.push(frame);
+    this.usage.addSttAudio(this.sttName, this.sttModelId, frame.byteLength / (this.sampleRate * 2), this.sttKeyterms);
   }
 
   /** A keypad digit from the caller. Only graph mode routes on digits. */
@@ -1443,6 +1480,7 @@ export class CascadeSession {
       history: this.history,
       partialUserText: partial,
       provider: resolveWebeeLlmProvider(this.config.settings),
+      onUsage: (u) => this.usage.addLlm(u, "speech"),
     });
     this.markUtterance("speculative_llm_start");
     console.log(`${this.log} speculative flat LLM started (${partial.slice(0, 40)})`);
@@ -1520,8 +1558,7 @@ export class CascadeSession {
         if (nodeId) this.transport.onNodeActive?.(nodeId);
         console.log(`${this.log} awaiting caller input (duplex — mic open during playback)`);
         this.responses.markListening();
-        this.vad?.reset();
-        this.stt?.clearInputBuffer?.();
+        this.resetListening("now awaiting input");
         // A reminder nudge re-affirms the *same* wait it interrupted, not a new one — restarting
         // the silence-timeout clock and the reminder count here would let a silent caller be
         // "still there?"-ed forever and would defeat the node's own timeout edge (the bug this
@@ -1553,8 +1590,7 @@ export class CascadeSession {
       onAwaitDigit: () => {
         this.awaitingCallerInput = true;
         this.responses.markListening();
-        this.vad?.reset();
-        this.stt?.clearInputBuffer?.();
+        this.resetListening("now awaiting a digit");
       },
       onEnd: (reason) => {
         console.log(
@@ -1631,6 +1667,7 @@ export class CascadeSession {
         apiKey: self.config.apiKey,
         provider: resolveWebeeLlmProvider(self.config.settings),
         signal: t.ctrl.signal,
+        onUsage: (u) => self.usage.addLlm(u, "speech"),
       })) {
         if (first && delta) {
           t.trace?.mark("llm_speech_first_token");
@@ -1815,8 +1852,11 @@ export class CascadeSession {
     const recentlyPlayed =
       this.ttsStreamEndedAt > 0 &&
       Date.now() - this.ttsStreamEndedAt < this.runtime.interruption.postTtsGraceMs;
+    // Kept across the end of playback (`resetListening`), so it can still be the agent's own echo:
+    // check it against what the agent said, the same as while it was playing.
+    const overlappedPlayback = startedDuringPlayback(speechStartAt, this.lastPlaybackEndAt);
     if (
-      (agentStillPlaying || recentlyPlayed) &&
+      (agentStillPlaying || recentlyPlayed || overlappedPlayback) &&
       looksLikePlaybackEcho(userText, this.lastAgentText)
     ) {
       console.log(
@@ -1943,6 +1983,8 @@ export class CascadeSession {
     // "First speakable": the first phrase handed to the voice for synthesis — the moment that
     // gates audio. Fish and Cartesia cut phrases with `shouldFlushTtsPhrase`, so the same rule
     // applied to the text on its way in marks the same moment; a complete line is speakable at once.
+    const ttsModel = String(this.voiceProfile?.model ?? this.fishTtsModel ?? tts.name);
+    const meterTts = (text: string) => this.usage.addTts(tts.name, ttsModel, text);
     const markSpeakable = () => {
       if (t.firstSpeakableAt) return;
       t.firstSpeakableAt = Date.now();
@@ -1955,6 +1997,7 @@ export class CascadeSession {
             let buffered = "";
             let marked = false;
             for await (const piece of src) {
+              meterTts(piece);
               if (!marked) {
                 buffered += piece;
                 if (shouldFlushTtsPhrase(buffered, false)) {
@@ -1969,6 +2012,7 @@ export class CascadeSession {
     const openAudio = () => {
       if (typeof speakable === "string") {
         markSpeakable();
+        meterTts(speakable);
         return tts.synthesize(speakable, req);
       }
       return tts.synthesizeStream(speakable, req);
@@ -2186,6 +2230,29 @@ export class CascadeSession {
     this.playbackTimer = setTimeout(() => this.endPlayback(), timeout);
   }
 
+  /**
+   * Start listening afresh — unless the caller is already part-way through an answer.
+   *
+   * Resetting the VAD here used to throw away a "yes" said over the agent's last words: the open
+   * utterance was wiped, what was left of the word was too short to count, so no turn started —
+   * while STT kept the word and glued it onto the caller's next answer ("Yes. Yes, it is
+   * correct.", "No, no. No, no." on a live call). They had to say everything twice.
+   */
+  private resetListening(reason: string): void {
+    if (callerMidUtterance({ callerSpeaking: this.callerSpeaking, utteranceLoud: this.utteranceLoud })) {
+      console.log(`${this.log} ${reason} while the caller is speaking — keeping their words`);
+      return;
+    }
+    this.vad?.reset();
+    this.stt?.clearInputBuffer?.();
+    this.callerSpeaking = false;
+    this.utteranceLoud = false;
+    this.speechFrames = 0;
+    this.partialNormalized = "";
+    this.partialStableSince = 0;
+    this.finalSegmentsThisUtterance = [];
+  }
+
   private endPlayback(): void {
     if (this.speakingFlag || this.playheadAt > 0) this.lastPlaybackEndAt = Date.now();
     if (this.playbackTimer) {
@@ -2199,13 +2266,7 @@ export class CascadeSession {
     this.flushPendingAgentTranscript("complete");
     this.agentPcmBytesThisUtterance = 0;
     this.responses.markListening();
-    this.vad?.reset();
-    this.stt?.clearInputBuffer?.();
-    this.callerSpeaking = false;
-    this.speechFrames = 0;
-    this.partialNormalized = "";
-    this.partialStableSince = 0;
-    this.finalSegmentsThisUtterance = [];
+    this.resetListening("playback ended");
 
     const pending = this.pendingDuplexUserText;
     if (pending) {
@@ -2318,7 +2379,7 @@ export class CascadeSession {
     const baseMs = this.runtime.endpointing.silenceDurationMs;
     // Reads the partial for English "unfinished" cues; other languages keep the configured wait.
     if (!this.englishTurnRules) return;
-    const hangoverMs = resolveEndpointHangoverMs(partial, baseMs, this.graphVm?.currentInstructionText);
+    const hangoverMs = resolveEndpointHangoverMs(partial, baseMs);
     const frames = Math.max(3, Math.round(hangoverMs / VAD_FRAME_MS));
     this.vad?.setSilenceFramesTrigger(frames);
     // Buffered, not written to this.turn: partials arrive before beginTurn
@@ -2668,7 +2729,8 @@ export class CascadeSession {
           this.clearSilenceTimer();
           this.clearReminderTimer();
         }
-        if (this.bargeInActive && event.rms < this.runtime.interruption.bargeInMinRms) {
+        this.utteranceLoud = !(this.bargeInActive && event.rms < this.runtime.interruption.bargeInMinRms);
+        if (!this.utteranceLoud) {
           this.speechFrames = 0;
         }
         this.warmTts();
@@ -2679,6 +2741,7 @@ export class CascadeSession {
         if (this.bargeInActive && event.rms < this.runtime.interruption.bargeInMinRms) {
           break;
         }
+        this.utteranceLoud = true;
         this.speechFrames += 1;
         break;
       case "silence":
@@ -2686,6 +2749,7 @@ export class CascadeSession {
         return;
       case "discarded":
         this.callerSpeaking = false;
+        this.utteranceLoud = false;
         if (this.pendingUtteranceFrames.length === 0) {
           this.utteranceSpeechStartAt = null;
           // Segments of a false start; kept while an earlier burst of this utterance is pending.
@@ -2713,6 +2777,7 @@ export class CascadeSession {
           `${this.log} VAD utterance_end frames=${event.frames.length} reason=${event.reason}`,
         );
         this.callerSpeaking = false;
+        this.utteranceLoud = false;
         this.speechFrames = 0;
         this.pendingUtteranceFrames.push(...event.frames);
         this.requestBurstTranscript(event.frames);

@@ -308,16 +308,17 @@ describe("cascade tuning", () => {
     expect(resolveUtteranceCoalesceMs("Twenty Four Street Dubai", 600)).toBe(600);
   });
 
-  it("commits generic collect-path partials without waiting on STT final", async () => {
+  it("commits a bare yes/no-type reply without waiting on STT final — and only that", async () => {
     const { looksLikeCommitReadyPartial, shouldSkipSttFinal, resolveEndpointHangoverMs } =
       await import("@/lib/voice/turn-commit.shared");
     expect(looksLikeCommitReadyPartial("Yes.")).toBe(true);
-    expect(looksLikeCommitReadyPartial("SW1A 1AA")).toBe(true);
-    expect(looksLikeCommitReadyPartial("07700900123")).toBe(true);
-    expect(looksLikeCommitReadyPartial("Mister.")).toBe(true);
+    // No content-specific shortcuts: postcodes, phone numbers and titles take the normal path.
+    expect(looksLikeCommitReadyPartial("SW1A 1AA")).toBe(false);
+    expect(looksLikeCommitReadyPartial("07700900123")).toBe(false);
+    expect(looksLikeCommitReadyPartial("Mister.")).toBe(false);
     expect(looksLikeCommitReadyPartial("Twenty Four Street Dubai")).toBe(false);
     expect(shouldSkipSttFinal("yes", true)).toBe(true);
-    expect(shouldSkipSttFinal("SW1A 1AA")).toBe(true);
+    expect(shouldSkipSttFinal("SW1A 1AA")).toBe(false);
     expect(shouldSkipSttFinal("Twenty Four Street Dubai")).toBe(false);
     expect(resolveEndpointHangoverMs("yes", 500)).toBe(250);
     expect(resolveEndpointHangoverMs("Twenty Four Street Dubai", 500)).toBe(500);
@@ -527,27 +528,31 @@ describe("phone-shaped replies", () => {
   });
 });
 
-describe("a phone number read out in groups", () => {
+describe("a number read out in groups", () => {
   it("holds the turn open after a digit group, even when STT adds a full stop", async () => {
-    const { looksLikeIncompletePartial, looksLikePartialPhoneNumber, resolveEndpointHangoverMs, INCOMPLETE_PARTIAL_HANGOVER_MS } =
+    const { looksLikeIncompletePartial, looksLikeNumberBeingReadOut, resolveEndpointHangoverMs, INCOMPLETE_PARTIAL_HANGOVER_MS } =
       await import("@/lib/voice/turn-commit.shared");
-    expect(looksLikePartialPhoneNumber("O seven seven double o.")).toBe(true);
-    expect(looksLikePartialPhoneNumber("077 00")).toBe(true);
-    expect(looksLikePartialPhoneNumber("o seven seven")).toBe(true); // the first group, as heard live
+    expect(looksLikeNumberBeingReadOut("O seven seven double o.")).toBe(true);
+    expect(looksLikeNumberBeingReadOut("077 00")).toBe(true);
+    expect(looksLikeNumberBeingReadOut("o seven seven")).toBe(true); // the first group, as heard live
     expect(looksLikeIncompletePartial("O seven seven double o.")).toBe(true);
     expect(resolveEndpointHangoverMs("O seven seven double o.", 400)).toBe(INCOMPLETE_PARTIAL_HANGOVER_MS);
   });
 
-  it("does not hold a full number, an amount, a year or a date", async () => {
-    const { looksLikePartialPhoneNumber } = await import("@/lib/voice/turn-commit.shared");
-    expect(looksLikePartialPhoneNumber("O seven seven double o nine hundred one two three.")).toBe(false);
-    expect(looksLikePartialPhoneNumber("07700 900123")).toBe(false);
-    expect(looksLikePartialPhoneNumber("$50,000.")).toBe(false);
-    expect(looksLikePartialPhoneNumber("In 2023.")).toBe(false);
-    expect(looksLikePartialPhoneNumber("It's 28 December 2001.")).toBe(false);
-    expect(looksLikePartialPhoneNumber("Yes.")).toBe(false);
-    expect(looksLikePartialPhoneNumber("12")).toBe(false);
-    expect(looksLikePartialPhoneNumber("Seven.")).toBe(false);
-    expect(looksLikePartialPhoneNumber("Twelve. High Street, Manchester, M1 1AA.")).toBe(false);
+  it("is judged by shape alone — any length, any kind of number", async () => {
+    const { looksLikeNumberBeingReadOut } = await import("@/lib/voice/turn-commit.shared");
+    expect(looksLikeNumberBeingReadOut("O seven seven double o nine hundred one two three.")).toBe(true);
+    expect(looksLikeNumberBeingReadOut("07700 900123")).toBe(true);
+  });
+
+  it("does not hold an amount, a year, a date or a single number", async () => {
+    const { looksLikeNumberBeingReadOut } = await import("@/lib/voice/turn-commit.shared");
+    expect(looksLikeNumberBeingReadOut("$50,000.")).toBe(false);
+    expect(looksLikeNumberBeingReadOut("In 2023.")).toBe(false);
+    expect(looksLikeNumberBeingReadOut("It's 28 December 2001.")).toBe(false);
+    expect(looksLikeNumberBeingReadOut("Yes.")).toBe(false);
+    expect(looksLikeNumberBeingReadOut("12")).toBe(false);
+    expect(looksLikeNumberBeingReadOut("Seven.")).toBe(false);
+    expect(looksLikeNumberBeingReadOut("Twelve. High Street, Manchester, M1 1AA.")).toBe(false);
   });
 });

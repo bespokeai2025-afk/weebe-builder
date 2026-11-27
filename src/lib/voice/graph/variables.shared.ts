@@ -445,6 +445,69 @@ export function missingVariableNames(
   });
 }
 
+/**
+ * A prompt step's text with every sentence that reads a not-yet-known value taken out.
+ *
+ * Why: "I have your last name as {{last_name}} is that correct?" with no last name became the
+ * script line "I have your last name as  is that correct?". The missing-variable rule told the
+ * model to ask instead, but the script — restated as the last thing it reads — won, and a live
+ * call said the line with the gap. A sentence built around a value cannot be said without it, so it
+ * leaves the script; `missingReadbackTask` says what to do instead. Sentences are cut at . ? ! or a
+ * line break; text with nothing missing comes back unchanged.
+ */
+export function withoutMissingReadbacks(
+  text: string,
+  missing: string[],
+  variables: Record<string, VariableValue> = {},
+): { text: string; dropped: string[]; lines: string[] } {
+  const wanted = new Set(missing.filter(Boolean));
+  if (wanted.size === 0 || !text || !text.includes("{{")) return { text, dropped: [], lines: [] };
+  const dropped = new Set<string>();
+  const lines: string[] = [];
+  const out = text.replace(/[^.?!\n]+[.?!]*/g, (sentence) => {
+    const hit = referencedVariableNames(sentence).filter((n) => wanted.has(n));
+    if (hit.length === 0) return sentence;
+    for (const n of hit) dropped.add(n);
+    // The line's shape, with each missing value marked by what it is, so the model knows what it
+    // is collecting ("…address as «property address line2» «city» post code «postcode property»")
+    // instead of a list of field names.
+    lines.push(
+      resolveVariables(
+        sentence.replace(new RegExp(PLACEHOLDER.source, "g"), (m, name: string) =>
+          wanted.has(name) ? `«${humaniseVariableName(name)}»` : m,
+        ),
+        variables,
+        { stripUnresolved: true },
+      )
+        .replace(/\s+/g, " ")
+        .trim(),
+    );
+    return "";
+  });
+  return {
+    text: out.replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim(),
+    dropped: [...dropped],
+    lines,
+  };
+}
+
+/** What a step does in place of the sentences `withoutMissingReadbacks` took out. */
+export function missingReadbackTask(dropped: string[], lines: string[] = []): string | null {
+  const names = [...new Set(dropped.filter(Boolean))].map(humaniseVariableName);
+  if (names.length === 0) return null;
+  const listed = names.length === 1 ? names[0]! : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+  const it = names.length === 1 ? "it" : "them";
+  const shape = lines.length
+    ? ` The line it reads back, once known (the «» parts are what is missing — never say this line now): ${lines.map((l) => `"${l}"`).join(" ")}`
+    : "";
+  return (
+    `This step confirms the caller's ${listed}, but ${names.length === 1 ? "it is" : "they are"} not known yet.${shape} ` +
+    `If the caller's most recent reply gives ${it}, say ${it} back in their words and ask if that is right. ` +
+    `Otherwise ask the caller for what is missing in one short, natural question, in the words a person would use ` +
+    `for the whole thing the line reads back, not a list of field names. Never say a sentence with a gap where ${it} would go.`
+  );
+}
+
 /** "mobile_number" → "mobile number", for asking a caller in plain words. */
 export function humaniseVariableName(name: string): string {
   return name

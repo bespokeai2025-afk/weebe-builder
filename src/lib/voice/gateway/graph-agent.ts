@@ -11,6 +11,7 @@
  */
 
 import { resolveRoutingMode } from "../graph/route-reply.shared";
+import type { LlmPurpose, LlmUsage } from "../usage-meter.shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ConversationVm } from "../graph/vm";
 import { createOpenAiVmLlm } from "../graph/llm";
@@ -63,6 +64,8 @@ export interface BuildGraphRuntimeOptions {
   /** Web test calls override inbound `start_speaker: user` so the agent greets first. */
   startSpeaker?: "agent" | "user";
   sendSms?(message: string, variables: Record<string, VariableValue>): Promise<boolean>;
+  /** Tokens each LLM request used, and what for — the call's cost meter. */
+  onLlmUsage?: (usage: LlmUsage, purpose: LlmPurpose) => void;
 }
 
 function applyStartSpeaker(flow: ConversationFlow, speaker?: "agent" | "user"): ConversationFlow {
@@ -259,6 +262,7 @@ export async function buildGraphRuntime(
       temperature: typeof flow.model_temperature === "number" ? flow.model_temperature : undefined,
       // One agent's calls share the same long system prefix; one key keeps them on one cache.
       promptCacheKey: options.agentId ? `webee-agent-${options.agentId}` : undefined,
+      onUsage: options.onLlmUsage,
     }),
     () => vm.getTurnTrace(),
   );

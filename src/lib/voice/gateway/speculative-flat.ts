@@ -12,6 +12,8 @@ export interface SpeculativeFlatOptions {
   history: ChatMsg[];
   partialUserText: string;
   provider?: import("../llm/gpt").VoiceLlmProvider;
+  /** Tokens the request used — the call's cost meter. */
+  onUsage?: (usage: import("../usage-meter.shared").LlmUsage) => void;
 }
 
 export type SpeculativeFlatRun = SpeculativeSpeechRun;
@@ -34,6 +36,7 @@ export function startSpeculativeFlat(options: SpeculativeFlatOptions): Speculati
         provider: options.provider,
         signal: ctrl.signal,
         maxTokens: 80,
+        onUsage: options.onUsage,
       })) {
         if (ctrl.signal.aborted) break;
         tokens.push(delta);

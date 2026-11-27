@@ -1156,29 +1156,26 @@ export function Builder({
                     <span className="text-[11px] font-semibold tracking-tight text-foreground">Live Transcript</span>
                     {callActive && <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse ml-0.5" />}
                     {!callActive && <span className="text-[10px] text-muted-foreground ml-1">· ended</span>}
-                    {liveLatencyMs !== null && (
-                      <span
-                        className={cn(
-                          "ml-1.5 rounded px-1.5 py-0.5 text-[10px] font-medium tabular-nums",
-                          liveLatencyMs <= LATENCY_BUDGET_MS
-                            ? "bg-emerald-500/10 text-emerald-300"
-                            : liveLatencyMs <= LATENCY_BUDGET_MS * 1.5
-                              ? "bg-amber-500/10 text-amber-300"
-                              : "bg-red-500/10 text-red-300",
-                        )}
-                        title={
-                          liveLatencyDetail?.perceivedMs !== undefined
-                            ? `Last turn: reply ${liveLatencyDetail.perceivedMs} ms after the turn was committed (the figure Retell reports), ` +
-                              `heard ${liveLatencyMs} ms after the caller's last word` +
-                              (liveLatencyDetail.waitMs !== undefined ? ` (includes a ${liveLatencyDetail.waitMs} ms end-of-speech wait)` : "")
-                            : "Caller's last word → the agent's first audio, for the last turn"
-                        }
-                      >
-                        {liveLatencyDetail?.perceivedMs !== undefined
-                          ? `${liveLatencyDetail.perceivedMs}ms · heard ${liveLatencyMs}ms`
-                          : `${liveLatencyMs}ms`}
-                      </span>
-                    )}
+                    {liveLatencyMs !== null && (() => {
+                      // One figure: the counted latency (turn committed → first audio), the way
+                      // Retell reports it. Only when a turn has none, the caller's wait stands in.
+                      const shownMs = liveLatencyDetail?.perceivedMs ?? liveLatencyMs;
+                      return (
+                        <span
+                          className={cn(
+                            "ml-1.5 rounded px-1.5 py-0.5 text-[10px] font-medium tabular-nums",
+                            shownMs <= LATENCY_BUDGET_MS
+                              ? "bg-emerald-500/10 text-emerald-300"
+                              : shownMs <= LATENCY_BUDGET_MS * 1.5
+                                ? "bg-amber-500/10 text-amber-300"
+                                : "bg-red-500/10 text-red-300",
+                          )}
+                          title="Last turn's latency: turn committed → the agent's first audio"
+                        >
+                          {`${shownMs}ms`}
+                        </span>
+                      );
+                    })()}
                   </div>
                   {!callActive && (
                     <button

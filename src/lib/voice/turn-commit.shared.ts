@@ -1,18 +1,17 @@
 /**
- * When a streaming STT partial is already a finished collect-path answer,
- * skip Fish finalize and shorten VAD hangover + coalesce — Retell-style commit.
+ * When a streaming STT partial is already a finished answer — and when it is plainly not.
+ *
+ * Only signals that hold for any agent, whatever it collects: the recogniser's own punctuation,
+ * words a finished sentence cannot end on, a bare yes/no-type reply, and numbers being read out
+ * (judged by their shape). Nothing here knows about addresses, postcodes, titles or phone
+ * numbers — rules like that suited one flow and misjudged the rest, so they are not the builder's
+ * to assume. A step that needs more patience gets it from its own end-of-speech setting.
  */
 
 import { isLikelyEnglishSttHallucination, isMostlyNonLatinScript } from "./language-lock.shared";
-import { looksLikePhoneAnswer, spokenDigitCount } from "./graph/router";
+import { spokenDigitCount } from "./graph/router";
 
-/** A bare salutation ("Mr.", "Dr") — a complete one-word answer to any "how should I address you". */
-function looksLikeTitleAnswer(text: string): boolean {
-  return /^(mr|mrs|miss|ms|mister|dr|doctor|mx|sir|madam)\b\.?$/i.test(text.trim());
-}
-
-const UK_POSTCODE = /\b[A-Z]{1,2}\d{1,2}[A-Z]?\s*\d[A-Z]{2}\b/i;
-
+/** A bare reply that answers a yes/no-type question on its own: "Yes.", "Okay, sure". */
 export function looksLikeCompleteShortReply(text: string): boolean {
   const t = text
     .trim()
@@ -24,36 +23,12 @@ export function looksLikeCompleteShortReply(text: string): boolean {
   );
 }
 
-export function looksLikeUkPostcode(text: string): boolean {
-  return UK_POSTCODE.test(text.trim());
-}
-
-/** Digit/spoken phone that is long enough to treat as complete. */
-export function looksLikeCompletePhoneAnswer(text: string): boolean {
-  const t = text.trim();
-  if (!t || !looksLikePhoneAnswer(t)) return false;
-  const digits = t.replace(/\D/g, "");
-  if (digits.length >= 10) return true;
-  const numberWords =
-    t.match(
-      /\b(zero|oh|o|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|double|triple|quadruple)\b/gi,
-    ) ?? [];
-  return numberWords.length >= 8;
-}
-
-/**
- * Partial is a finished collect-path answer. Addresses stay out — callers often
- * pause between street and city, and those need the longer coalesce.
- */
+/** Partial is a finished answer that can be committed straight away. */
 export function looksLikeCommitReadyPartial(text: string): boolean {
   const t = text.trim();
   if (!t || t.length < 2) return false;
   if (isMostlyNonLatinScript(t) || isLikelyEnglishSttHallucination(t)) return false;
-  if (looksLikeCompleteShortReply(t)) return true;
-  if (looksLikeTitleAnswer(t)) return true;
-  if (looksLikeUkPostcode(t) && t.split(/\s+/).length <= 4) return true;
-  if (looksLikeCompletePhoneAnswer(t)) return true;
-  return false;
+  return looksLikeCompleteShortReply(t);
 }
 
 /**
@@ -80,51 +55,41 @@ const DANGLING_WORDS = new Set([
   // hesitation
   "um", "uh", "er", "erm", "hmm", "ah", "eh", "like", "well", "just", "kind",
   "sort",
-  // spelling / dictation in progress
-  "double", "triple",
 ]);
 
-/** Outward code with no inward half yet — "PR5" before "6XQ" arrives. */
-const PARTIAL_POSTCODE_TAIL = /\b[a-z]{1,2}\d{1,2}[a-z]?$/i;
-
-/**
- * True when the partial looks cut off mid-utterance.
- *
- * This is the half that was missing. `resolveEndpointHangoverMs` could only
- * ever shorten the silence window, so `silenceDurationMs` had to be set high
- * (400–700ms) defensively to avoid clipping anyone — a tax on every single
- * turn. Detecting incompleteness lets the base window come down and the extra
- * patience be spent only where it is actually needed.
- */
 /** Tokens that read out digits: numerals, digit words, "oh"/"o", "double"/"triple". */
 const DIGIT_TOKEN = /^(\d+|zero|oh|o|one|two|three|four|five|six|seven|eight|nine|double|triple|quadruple|hundred|thousand)$/;
 
 /**
- * A number being read out digit by digit that has not reached phone length yet: "O seven seven
- * double o", "077 00". Callers pause between digit groups, and STT ends each group with a full
- * stop — on a test call the turn was cut after "O seven seven double o." and the rest of the
- * number was lost. Judged by shape: nearly every word is a digit, 3–9 digits so far (a phone is
- * 10+; callers pause after the first group, "o seven seven"). Amounts ("$50,000"), years
- * ("In 2023"), dates and single numbers ("12", "Seven.") are not shaped like this.
- *
- * Limit: this needs the recogniser's in-progress text by the time the caller pauses. Deepgram's
- * arrives ~1 s into speech from India, so an early pause can still end the turn.
+ * A number being read out digit by digit — any kind (a reference, an account, a phone number).
+ * Callers pause between digit groups and the recogniser ends each group with a full stop, so
+ * neither the pause nor the punctuation means they are done: on a test call the turn was cut
+ * after "O seven seven double o." and the rest of the number was lost. Judged by shape only:
+ * nearly every word is a digit, and at least three digits so far. Amounts ("$50,000"), years
+ * ("In 2023"), dates and single numbers ("12", "Seven.") are not shaped like this. The cost of a
+ * finished number is the longer end-of-speech wait, once.
  */
-export function looksLikePartialPhoneNumber(text: string): boolean {
+export function looksLikeNumberBeingReadOut(text: string): boolean {
   if (/[$£€%]|\d{1,3}(,\d{3})+/.test(text)) return false;
   const words = text.toLowerCase().replace(/[.,!?;:\-]+/g, " ").split(/\s+/).filter(Boolean);
   if (words.length === 0) return false;
   const digitWords = words.filter((w) => DIGIT_TOKEN.test(w)).length;
   if (digitWords / words.length < 0.8) return false;
-  const digits = spokenDigitCount(text);
-  return digits >= 3 && digits < 10;
+  return spokenDigitCount(text) >= 3;
 }
 
+/**
+ * True when the partial looks cut off mid-utterance.
+ *
+ * `resolveEndpointHangoverMs` could otherwise only shorten the silence window, so it had to be set
+ * high defensively — a tax on every turn. Detecting incompleteness lets the base window come down
+ * and the extra patience be spent only where it is needed.
+ */
 export function looksLikeIncompletePartial(text: string): boolean {
   const t = text.trim().toLowerCase().replace(/[,;:\-]+$/g, "");
   if (!t) return false;
   // Ahead of the punctuation rule: here the full stop is the recogniser's, not the caller's.
-  if (looksLikePartialPhoneNumber(text)) return true;
+  if (looksLikeNumberBeingReadOut(text)) return true;
   // Terminal punctuation is the caller's own signal that they are done.
   if (/[.!?]$/.test(text.trim())) return false;
   // A commit-ready answer is complete by definition; never hold it back.
@@ -136,73 +101,26 @@ export function looksLikeIncompletePartial(text: string): boolean {
 
   if (DANGLING_WORDS.has(last)) return true;
 
-  // Mid-number: a lone short digit run is almost never a finished answer,
-  // but a long one (phone number) usually is.
-  if (/^\d+$/.test(last) && last.length <= 3 && words.length <= 2) return true;
-
-  // Half a postcode, with nothing after it.
-  if (words.length <= 3 && PARTIAL_POSTCODE_TAIL.test(last) && /\d/.test(last)) {
-    return !looksLikeUkPostcode(t);
-  }
+  // The recogniser's own punctuation: it ends a finished thought with a full stop, and leaves a
+  // comma where the speaker paused mid-list ("12 High Street, Manchester," … "M1 1AA").
+  if (/,$/.test(text.trim()) && words.length >= 2) return true;
 
   return false;
 }
 
-/** Silence hangover after last speech, given the current partial. */
 /** Longest we will wait on an unfinished-sounding partial. */
 export const INCOMPLETE_PARTIAL_HANGOVER_MS = 900;
 
-/**
- * A street name with nothing after it yet — "123 Main Street". Deliberately NOT part of
- * `looksLikeIncompletePartial` itself: applied blindly, this clashed with genuinely finished
- * answers to a plain "what's your street name" question ("fourteen Bluebell Way" must stay
- * complete — see `semantic-endpointing.test.ts`). The two cases are textually identical; the only
- * real difference is what the flow actually asked for, which is exactly what
- * `looksLikeAskingForFullAddress` below checks before this pattern is allowed to extend anything.
- */
-const STREET_CUE =
-  /\b(street|st|road|rd|avenue|ave|lane|ln|drive|dr|court|ct|way|place|pl|boulevard|blvd|close|crescent|terrace|gardens?)$/i;
-
-/**
- * True when the node currently asking clearly wants a full address (street + city/postcode) in
- * one answer, not just a street name — e.g. "...the full property address... including the
- * street address, city, and postcode". Only nodes matching this get the street-fragment patience
- * extension below; a node that only ever asks for a street name is unaffected.
- */
-export function looksLikeAskingForFullAddress(instructionText: string | undefined): boolean {
-  const t = (instructionText ?? "").toLowerCase();
-  if (!t.includes("address")) return false;
-  return /\b(full|complete|whole)\b/.test(t) || /\b(street|road|city|town|postcode|post code)\b.*\b(and|,)\b/.test(t);
-}
-
-export function resolveEndpointHangoverMs(
-  partialText: string | undefined,
-  baseMs: number,
-  nodeInstructionText?: string,
-): number {
+/** Silence hangover after last speech, given the current partial. */
+export function resolveEndpointHangoverMs(partialText: string | undefined, baseMs: number): number {
   const t = partialText?.trim() ?? "";
   if (!t) return baseMs;
-  if (looksLikeCompleteShortReply(t) || looksLikeTitleAnswer(t)) {
-    return Math.min(baseMs, 250);
-  }
   if (looksLikeCommitReadyPartial(t)) {
-    return Math.min(baseMs, 350);
+    return Math.min(baseMs, 250);
   }
   // Mid-thought: hold the window open rather than clipping the caller. Only
   // ever extends, never shortens, so a deliberately long base is respected.
   if (looksLikeIncompletePartial(t)) {
-    return Math.max(baseMs, INCOMPLETE_PARTIAL_HANGOVER_MS);
-  }
-  // A street-only fragment ("123 Main Street") reads as grammatically complete, so nothing above
-  // catches it — but if THIS node explicitly asked for a full address, the caller giving it in two
-  // beats (street, then a pause, then city/postcode) is the normal, expected shape of the answer.
-  const lower = t.toLowerCase().replace(/[,;:\-]+$/g, "");
-  if (
-    STREET_CUE.test(lower) &&
-    !t.includes(",") &&
-    !looksLikeUkPostcode(t) &&
-    looksLikeAskingForFullAddress(nodeInstructionText)
-  ) {
     return Math.max(baseMs, INCOMPLETE_PARTIAL_HANGOVER_MS);
   }
   return baseMs;
@@ -215,11 +133,8 @@ export function resolveUtteranceCoalesceMs(
 ): number {
   const t = partialText?.trim() ?? "";
   if (!t) return baseMs;
-  if (looksLikeCompleteShortReply(t) || looksLikeTitleAnswer(t)) {
-    return Math.min(baseMs, 50);
-  }
   if (looksLikeCommitReadyPartial(t)) {
-    return Math.min(baseMs, 80);
+    return Math.min(baseMs, 50);
   }
   return baseMs;
 }

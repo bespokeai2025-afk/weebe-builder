@@ -52,8 +52,10 @@ import {
   missingVariableNames,
   mapToolResponseVariables,
   missingVariablesRule,
+  missingReadbackTask,
   referencedVariableNames,
   parseToolOutputVariables,
+  withoutMissingReadbacks,
 } from "./variables.shared";
 import type { CallTurnTrace } from "./latency-trace";
 import { promptCharCount } from "./traced-llm";
@@ -465,15 +467,6 @@ export class ConversationVm {
 
   get priorNodeId(): string | null {
     return this.previousNodeId;
-  }
-
-  /**
-   * The current node's own instruction/dialogue text, for signals that need to know what the
-   * flow author is actually asking for — e.g. whether the caller is expected to give a multi-part
-   * answer (a full address in one go) rather than judging patience purely from the partial text.
-   */
-  get currentInstructionText(): string {
-    return this.currentNode()?.instruction?.text ?? "";
   }
 
   /** Snapshot of collected variables, for post-call analysis and webhooks. */
@@ -1019,10 +1012,21 @@ export class ConversationVm {
 
   /** What the agent's line must do at `node`: its script or task, variables filled. */
   private speechTaskOf(node: FlowNode): string {
-    const raw = String(node.instruction?.text ?? "").trim();
+    const { raw, readbackTask } = this.speakablePrompt(String(node.instruction?.text ?? "").trim());
     const interpolated = interpolateForSpeech(raw, this.variables);
     const { script, task } = splitPromptScript(interpolated);
-    return (script.trim() || task.trim() || interpolated).slice(0, 1_500);
+    return [script.trim() || task.trim() || interpolated.trim(), readbackTask].filter(Boolean).join("\n").slice(0, 1_500);
+  }
+
+  /**
+   * A prompt step's text for its spoken line. Sentences that read a value nobody has given yet
+   * come out (`withoutMissingReadbacks`), and `readbackTask` says what to do in their place —
+   * otherwise the script line keeps the gap and the model says it ("I have your last name as is
+   * that correct?" on a live call).
+   */
+  private speakablePrompt(raw: string): { raw: string; readbackTask: string | null } {
+    const { text, dropped, lines } = withoutMissingReadbacks(raw, missingVariableNames(raw, this.variables), this.variables);
+    return { raw: text, readbackTask: missingReadbackTask(dropped, lines) };
   }
 
   private routeReplyOption(edge: FlowEdge): RouteReplyOption {
@@ -2188,11 +2192,13 @@ export class ConversationVm {
     const interpolated = interpolateForSpeech(raw, this.variables);
 
     const messages = this.buildSpeechMessages(node, raw);
+    // The fallback must not say a sentence whose value is missing either.
+    const speakableInterpolated = interpolateForSpeech(this.speakablePrompt(raw).raw, this.variables);
     // This line has now been told about any correction that did not come through.
     const correctionNoted = this.rejectedCorrections.length > 0 || this.unusableAnswers.length > 0;
     this.rejectedCorrections = [];
     this.unusableAnswers = [];
-    const fallback = spokenFallback(splitPromptScript(interpolated));
+    const fallback = spokenFallback(splitPromptScript(speakableInterpolated));
     const model = nodeModel(node, this.compiled, this.fallbackModel);
     this.traceLog(
       "NODE_TASK",
@@ -2297,7 +2303,8 @@ export class ConversationVm {
   }
 
   private buildSpeechMessages(node: FlowNode, raw: string): LlmMessage[] {
-    const interpolated = interpolateForSpeech(raw, this.variables);
+    const { raw: speakable, readbackTask } = this.speakablePrompt(raw);
+    const interpolated = interpolateForSpeech(speakable, this.variables);
     const { script, directions, task } = splitPromptScript(interpolated);
     // Ordered so the longest possible PREFIX of this message is byte-identical across turns —
     // not just within a node, but across the whole call. Providers that cache repeated prompt
@@ -2325,7 +2332,7 @@ export class ConversationVm {
     // confirmed the email the caller had just given instead of reading back the mobile number the
     // node was for. Stated plainly that the node wins, it stayed on task.
     system.push(...this.callWideSpeechSystem());
-    system.push(buildTurnRules(interpolate(raw, this.variables), node.type === "end"));
+    system.push(buildTurnRules(interpolate(speakable || raw, this.variables), node.type === "end"));
     if (node.name) {
       system.push(`Current node: ${node.name}. Stay on this node only.`);
     }
@@ -2383,7 +2390,10 @@ export class ConversationVm {
     if (directions.length) {
       system.push(`Style (do not read aloud): ${directions.join("; ")}`);
     }
-    if (!script.trim() && !task.trim()) {
+    if (readbackTask) {
+      system.push(`Task (do not read aloud):\n${readbackTask}`);
+    }
+    if (!script.trim() && !task.trim() && !readbackTask) {
       system.push(`Task: ${interpolated}`);
     }
     // Repeated as the very last instruction, after the script itself: a smaller/faster model
@@ -2414,7 +2424,7 @@ export class ConversationVm {
     // A separate trailing message, so the cached system prefix above is untouched.
     const tail: string[] = [
       "Your next line carries out only THIS node's task — no other question, and no step from elsewhere in the call:\n" +
-        (script.trim() || task.trim() || interpolated),
+        [script.trim() || task.trim() || interpolated.trim(), readbackTask].filter(Boolean).join("\n"),
     ];
     if (node.id === this.lastSpokenNodeId) {
       // Staying on a node the caller already heard (routing miss or self-loop). Without this the

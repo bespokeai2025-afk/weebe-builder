@@ -8,6 +8,7 @@
  */
 
 import { openAiServiceTier } from "../engine-config.shared";
+import { estimateTokens, type LlmUsage } from "../usage-meter.shared";
 
 export type ChatRole = "system" | "user" | "assistant";
 export interface ChatMsg {
@@ -300,6 +301,54 @@ export interface GptStreamOptions {
    * route-and-reply call, whose reply is a tool argument so routing never reaches the voice.
    */
   toolArguments?: boolean;
+  /**
+   * Called once per request with the tokens it used — reported by the provider, or estimated from
+   * characters when a stream was cut off before its usage arrived (the provider still bills it).
+   */
+  onUsage?: (usage: LlmUsage) => void;
+}
+
+/** Shape of an OpenAI-compatible `usage` object. */
+interface ProviderUsage {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  prompt_tokens_details?: { cached_tokens?: number } | null;
+}
+
+function reportUsage(
+  options: GptStreamOptions,
+  auth: VoiceLlmAuth,
+  usage: ProviderUsage | null | undefined,
+  serviceTier: string | null | undefined,
+  fallback: { messages: ChatMsg[]; outputChars: number },
+): void {
+  if (!options.onUsage) return;
+  const model = requestModel(options, auth);
+  try {
+    if (usage && typeof usage.prompt_tokens === "number") {
+      options.onUsage({
+        provider: auth.provider,
+        model,
+        inputTokens: usage.prompt_tokens,
+        cachedTokens: usage.prompt_tokens_details?.cached_tokens ?? 0,
+        outputTokens: usage.completion_tokens ?? 0,
+        serviceTier: serviceTier ?? null,
+      });
+      return;
+    }
+    const inputChars = fallback.messages.reduce((n, m) => n + String(m.content ?? "").length, 0);
+    options.onUsage({
+      provider: auth.provider,
+      model,
+      inputTokens: estimateTokens(inputChars),
+      cachedTokens: 0,
+      outputTokens: estimateTokens(fallback.outputChars),
+      serviceTier: serviceTier ?? openAiServiceTier() ?? null,
+      estimated: true,
+    });
+  } catch {
+    /* metering never breaks a call */
+  }
 }
 
 /**
@@ -389,6 +438,8 @@ function buildChatBody(
     // gpt-oss-120b thinks before it speaks; low effort keeps voice TTFT usable.
     if (textModel.startsWith("gpt-oss-")) body.reasoning_effort = "low";
   }
+  // Usage arrives as one extra chunk at the end of the stream, only when asked for.
+  if (stream && options.onUsage && auth.provider === "openai") body.stream_options = { include_usage: true };
   if (options.responseFormat) body.response_format = { type: options.responseFormat };
   if (options.tools?.length) {
     body.tools = options.tools;
@@ -427,6 +478,10 @@ async function* streamChat(
   const reader = res.body!.getReader();
   const dec = new TextDecoder();
   let lineBuf = "";
+  let usage: ProviderUsage | null = null;
+  let serviceTier: string | null = null;
+  let outputChars = 0;
+  try {
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -438,6 +493,8 @@ async function* streamChat(
       if (!payload || payload === "[DONE]") continue;
       try {
         const chunk = JSON.parse(payload) as {
+          usage?: ProviderUsage | null;
+          service_tier?: string | null;
           choices?: Array<{
             delta?: {
               content?: string | null;
@@ -446,15 +503,24 @@ async function* streamChat(
             };
           }>;
         };
+        if (chunk.usage) usage = chunk.usage;
+        if (chunk.service_tier) serviceTier = chunk.service_tier;
         const d = chunk.choices?.[0]?.delta;
         const delta = options.toolArguments
           ? d?.tool_calls?.find((c) => (c.index ?? 0) === 0)?.function?.arguments
           : d?.content;
-        if (delta) yield delta;
+        if (delta) {
+          outputChars += delta.length;
+          yield delta;
+        }
       } catch {
         /* skip malformed SSE line */
       }
     }
+  }
+  } finally {
+    // Also on abort or an early `return` from the consumer: the request was made and is billed.
+    reportUsage(options, auth, usage, serviceTier, { messages, outputChars });
   }
 }
 
@@ -482,8 +548,14 @@ async function completeOnce(
     const text = await res.text().catch(() => String(res.status));
     throw new Error(`Voice LLM ${auth.provider} ${res.status}: ${text}`);
   }
-  const json = (await res.json()) as { choices?: Array<{ message?: { content?: string | null } }> };
-  return (json.choices?.[0]?.message?.content ?? "").trim();
+  const json = (await res.json()) as {
+    choices?: Array<{ message?: { content?: string | null } }>;
+    usage?: ProviderUsage | null;
+    service_tier?: string | null;
+  };
+  const content = (json.choices?.[0]?.message?.content ?? "").trim();
+  reportUsage(options, auth, json.usage, json.service_tier, { messages, outputChars: content.length });
+  return content;
 }
 
 /**
