@@ -26,6 +26,11 @@ import {
   WEBEE_NATIVE_OPENAI_SPEECH_MODEL,
   WEBEE_NATIVE_SPEECH_MODEL,
 } from "../webee-native.shared";
+import {
+  ROUTE_REPLY_TOOL,
+  ROUTE_REPLY_TOOL_CHOICE,
+  RouteReplyArgumentsParser,
+} from "./route-reply.shared";
 import type { LlmMessage, VariableValue, VmLlm } from "./types";
 
 export interface OpenAiVmLlmOptions {
@@ -198,6 +203,79 @@ export function createOpenAiVmLlm(options: OpenAiVmLlmOptions): VmLlm {
               : `[llm-hedge] speech ${model}: ${e.duplicate ? "duplicate" : "original"} won, first word at ${e.firstTokenMs}ms`,
           ),
       });
+    },
+
+    routeAndReply(messages, opts) {
+      const model = opts?.model || defaultModel;
+      const parser = new RouteReplyArgumentsParser();
+      const queue: string[] = [];
+      let finished = false;
+      let wake: (() => void) | null = null;
+      const signal = () => {
+        const w = wake;
+        wake = null;
+        w?.();
+      };
+      let resolveTransition!: (n: number | null) => void;
+      let rejectTransition!: (err: unknown) => void;
+      const transition = new Promise<number | null>((res, rej) => {
+        resolveTransition = res;
+        rejectTransition = rej;
+      });
+      transition.catch(() => {}); // the caller handles it; never an unhandled rejection
+      let transitionSettled = false;
+      const settle = (n: number | null) => {
+        if (transitionSettled) return;
+        transitionSettled = true;
+        resolveTransition(n);
+      };
+
+      void (async () => {
+        try {
+          for await (const fragment of gptStream(messages as ChatMsg[], {
+            model,
+            apiKey,
+            provider,
+            temperature: options.temperature ?? 0.3,
+            maxTokens: SPEECH_MAX_TOKENS,
+            signal: opts?.signal,
+            breaker,
+            promptCacheKey: options.promptCacheKey,
+            tools: [ROUTE_REPLY_TOOL],
+            toolChoice: ROUTE_REPLY_TOOL_CHOICE,
+            toolArguments: true,
+            // The route is on the critical path: same bound as a classifier call.
+            timeoutMs: BACKGROUND_LLM_TIMEOUT_MS * 2,
+          })) {
+            const got = parser.push(fragment);
+            if (got.transition !== undefined) settle(got.transition);
+            if (got.reply) {
+              queue.push(got.reply);
+              signal();
+            }
+          }
+          settle(parser.hasTransition ? parser.transition : null);
+        } catch (err) {
+          if (!transitionSettled) {
+            transitionSettled = true;
+            rejectTransition(err);
+          }
+        } finally {
+          finished = true;
+          signal();
+        }
+      })();
+
+      async function* reply(): AsyncGenerator<string> {
+        for (;;) {
+          while (queue.length) yield queue.shift()!;
+          if (finished) return;
+          await new Promise<void>((r) => {
+            wake = r;
+          });
+        }
+      }
+      return { transition, reply: reply() };
     },
 
     async classify(messages, choices, opts) {

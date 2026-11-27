@@ -24,6 +24,12 @@ import {
   type CallTurnRow,
   type EngineSpeedRow,
 } from "./call-latency-stats.shared";
+import {
+  computeTurnTimings,
+  perceivedBudgetMs,
+  summarizeTurnTimings,
+  type TurnTimingRow,
+} from "./turn-timings.shared";
 
 const TURN_COLUMNS =
   "call_id, turn_index, voice_end_to_first_audio_ms, end_of_speech_wait_ms, " +
@@ -109,18 +115,22 @@ export const getCallLatencyDetail = createServerFn({ method: "GET" })
     const { workspaceId } = context as { workspaceId?: string };
     if (!workspaceId) throw new Error("No active workspace");
 
+    // Every column, not a fixed list: the turn-timing columns exist only once their migration has
+    // run, and naming a missing column would fail the whole query.
     const { data: rows, error } = await (supabaseAdmin as any)
       .from("call_turns")
-      .select(TURN_COLUMNS)
+      .select("*")
       .eq("workspace_id", workspaceId)
       .eq("call_id", data.callId)
       .order("turn_index", { ascending: true });
     if (error) throw new Error(error.message);
 
-    const turns = (rows ?? []) as CallTurnRow[];
+    const turns = (rows ?? []) as Array<CallTurnRow & TurnTimingRow>;
     return {
       callId: data.callId,
-      turns,
+      turns: turns.map((t) => ({ ...t, timings: computeTurnTimings(t) })),
+      timings: summarizeTurnTimings(turns),
+      perceivedBudgetMs: perceivedBudgetMs(),
       stages: stageBreakdown(turns),
       categories: retellLatencyCategories(turns),
       budget: withinBudget(turns),

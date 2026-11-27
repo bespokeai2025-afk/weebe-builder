@@ -135,7 +135,11 @@ export function retellLatencyCategories(rows: CallTurnRow[]): LatencyCategorySta
   const tts = rows
     .map((r) => diff(r.stt_to_first_audio_ms, r.stt_to_first_token_ms))
     .filter((v): v is number => typeof v === "number");
-  const endToEnd = rows.map(heardLatencyMs).filter((v): v is number => typeof v === "number");
+  // Retell's "End to end" is turn committed → first audio (`perceived_ms` in turn-timings), not
+  // the caller's wait, which also includes the end-of-speech wait.
+  const endToEnd = rows
+    .map((r) => r.speech_to_first_audio_ms ?? heardLatencyMs(r))
+    .filter((v): v is number => typeof v === "number");
 
   return [
     { category: "endToEnd", label: "End to end latency", stats: percentiles(endToEnd) },

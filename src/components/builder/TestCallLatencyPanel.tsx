@@ -15,7 +15,8 @@ import {
   getCallLatencyDetail,
   listLatencyCalls,
 } from "@/lib/voice/call-latency.functions";
-import { heardLatencyMs, LATENCY_BUDGET_MS } from "@/lib/voice/call-latency-stats.shared";
+import { LATENCY_BUDGET_MS } from "@/lib/voice/call-latency-stats.shared";
+import type { TurnTimings } from "@/lib/voice/turn-timings.shared";
 
 function ms(v: number | null | undefined) {
   return typeof v === "number" ? `${v}ms` : "—";
@@ -27,6 +28,21 @@ function budgetTone(v: number | null | undefined) {
   if (v <= LATENCY_BUDGET_MS) return "text-emerald-300";
   if (v <= LATENCY_BUDGET_MS * 1.5) return "text-amber-300";
   return "text-rose-300";
+}
+
+/** Perceived (turn committed → first audio) against its own, tighter target. */
+function perceivedTone(v: number | null | undefined, budgetMs: number) {
+  if (typeof v !== "number") return "text-muted-foreground";
+  if (v <= budgetMs) return "text-emerald-300";
+  if (v <= budgetMs * 1.5) return "text-amber-300";
+  return "text-rose-300";
+}
+
+/** Where "the caller's last word" came from, so an estimate is never shown as exact. */
+function speechEndNote(t: TurnTimings) {
+  if (t.speechEndReference === "endpoint") return "No last-word time recorded: measured from the turn commit";
+  if (t.speechEndReference === "estimated_from_silence") return "Last word estimated from the silence that ended the turn";
+  return "Last word from the caller's final speech frame";
 }
 
 /** An LLM classify on the critical path is the expensive path — call it out. */
@@ -153,13 +169,20 @@ export function TestCallLatencyPanel() {
               </span>
             </div>
 
-            {/* Stage medians */}
-            <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 sm:grid-cols-3">
-              {detail.stages.map((s) => (
+            {/* Turn timings: median · p95, measured turns only. Perceived is the headline. */}
+            <div className="grid grid-cols-1 gap-x-4 gap-y-0.5 sm:grid-cols-2">
+              {detail.timings.map((s) => (
                 <div key={s.key} className="flex items-baseline justify-between gap-2 text-[10px]">
-                  <span className="truncate text-muted-foreground">{s.label}</span>
-                  <span className="shrink-0 font-mono text-foreground">
-                    {s.stats ? `${s.stats.p50}ms` : "—"}
+                  <span className={cn("truncate", s.key === "perceivedMs" ? "font-medium text-foreground" : "text-muted-foreground")}>
+                    {s.label}
+                  </span>
+                  <span
+                    className={cn(
+                      "shrink-0 font-mono",
+                      s.key === "perceivedMs" ? perceivedTone(s.summary?.median, detail.perceivedBudgetMs) : "text-foreground",
+                    )}
+                  >
+                    {s.summary ? `${s.summary.median}ms · p95 ${s.summary.p95}ms` : "not measured"}
                   </span>
                 </div>
               ))}
@@ -167,16 +190,19 @@ export function TestCallLatencyPanel() {
 
             {/* Per-turn table */}
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[680px] text-[10px]">
+              <table className="w-full min-w-[860px] text-[10px]">
                 <thead>
                   <tr className="text-muted-foreground">
                     <th className="py-1 pr-2 text-left font-normal">#</th>
-                    <th className="py-1 pr-2 text-right font-normal">Wait</th>
-                    <th className="py-1 pr-2 text-right font-normal">STT</th>
-                    <th className="py-1 pr-2 text-right font-normal">Route</th>
-                    <th className="py-1 pr-2 text-right font-normal">1st token</th>
-                    <th className="py-1 pr-2 text-right font-normal">1st audio</th>
-                    <th className="py-1 pr-2 text-right font-normal">Heard</th>
+                    <th className="py-1 pr-2 text-right font-normal" title="Caller's last word → turn committed">Endpointing</th>
+                    <th className="py-1 pr-2 text-right font-normal" title="Committed → final transcript">ASR</th>
+                    <th className="py-1 pr-2 text-right font-normal" title="Transcript → route decided">Workflow</th>
+                    <th className="py-1 pr-2 text-right font-normal" title="Model request → first token">LLM TTFT</th>
+                    <th className="py-1 pr-2 text-right font-normal" title="Model request → first phrase handed to TTS">Speakable</th>
+                    <th className="py-1 pr-2 text-right font-normal" title="First phrase → first audio">TTS</th>
+                    <th className="py-1 pr-2 text-right font-normal" title="Turn committed → first audio">Perceived</th>
+                    <th className="py-1 pr-2 text-right font-normal" title="Caller's last word → first audio">Caller wait</th>
+                    <th className="py-1 pr-2 text-right font-normal" title="Caller's last word → agent finished speaking">Full turn</th>
                     <th className="py-1 pr-2 text-left font-normal">Path</th>
                     <th className="py-1 text-left font-normal">Node</th>
                   </tr>
@@ -185,20 +211,22 @@ export function TestCallLatencyPanel() {
                   {detail.turns.map((t) => (
                     <tr key={t.turn_index} className="border-t border-border/60 dark:border-white/[0.04]">
                       <td className="py-1 pr-2 text-muted-foreground">{t.turn_index}</td>
-                      <td className="py-1 pr-2 text-right">{ms(t.end_of_speech_wait_ms)}</td>
-                      <td className="py-1 pr-2 text-right">{ms(t.endpoint_to_stt_final_ms)}</td>
-                      <td className="py-1 pr-2 text-right">{ms(t.stt_to_route_ms)}</td>
-                      <td className="py-1 pr-2 text-right">{ms(t.stt_to_first_token_ms)}</td>
-                      <td className="py-1 pr-2 text-right">{ms(t.stt_to_first_audio_ms)}</td>
-                      <td
-                        className={cn(
-                          "py-1 pr-2 text-right font-medium",
-                          budgetTone(heardLatencyMs(t)),
-                        )}
-                        title="Caller's last word → first audio"
-                      >
-                        {ms(heardLatencyMs(t))}
+                      <td className="py-1 pr-2 text-right">{ms(t.timings.endpointingMs)}</td>
+                      <td className="py-1 pr-2 text-right">{ms(t.timings.asrMs)}</td>
+                      <td className="py-1 pr-2 text-right">{ms(t.timings.workflowMs)}</td>
+                      <td className="py-1 pr-2 text-right">{ms(t.timings.llmTtftMs)}</td>
+                      <td className="py-1 pr-2 text-right">{ms(t.timings.llmFirstSpeakableMs)}</td>
+                      <td className="py-1 pr-2 text-right">{ms(t.timings.ttsFirstAudioMs)}</td>
+                      <td className={cn("py-1 pr-2 text-right font-medium", perceivedTone(t.timings.perceivedMs, detail.perceivedBudgetMs))}>
+                        {ms(t.timings.perceivedMs)}
                       </td>
+                      <td
+                        className={cn("py-1 pr-2 text-right", budgetTone(t.timings.callerWaitMs))}
+                        title={speechEndNote(t.timings)}
+                      >
+                        {ms(t.timings.callerWaitMs)}
+                      </td>
+                      <td className="py-1 pr-2 text-right">{ms(t.timings.fullTurnMs)}</td>
                       <td className={cn("py-1 pr-2 font-sans", methodTone(t.edge_route_method))}>
                         {t.edge_route_method ?? "—"}
                         {t.speculative_hit && <span className="ml-1 text-emerald-300">spec</span>}

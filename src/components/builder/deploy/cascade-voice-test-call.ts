@@ -539,7 +539,14 @@ export async function runCascadeVoiceTestCall(session: TestCallSession): Promise
 
       if (msg.type === "turn.latency") {
         const ms = typeof msg.ms === "number" ? msg.ms : Number(msg.ms);
-        if (Number.isFinite(ms)) onLatencyUpdateRef.current?.(ms);
+        const perceivedMs = Number(msg.perceivedMs);
+        const waitMs = Number(msg.waitMs);
+        if (Number.isFinite(ms)) {
+          onLatencyUpdateRef.current?.(ms, {
+            ...(Number.isFinite(perceivedMs) ? { perceivedMs } : {}),
+            ...(Number.isFinite(waitMs) ? { waitMs } : {}),
+          });
+        }
         return;
       }
 

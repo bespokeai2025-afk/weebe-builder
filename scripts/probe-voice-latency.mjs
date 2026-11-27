@@ -58,6 +58,23 @@ const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 /** What the caller says, chosen by the first pattern the agent's last line matches. */
 const ANSWERS = [
   [/calendar|available slot|day and time/i, null], // stop before anything gets booked
+  // Business-funding (MCA-style) flows — matched first, they are specific.
+  [/get funded|funding today/i, "Yes."],
+  [/EIN or .*social security|social security number used for the business/i, "It's an EIN."],
+  [/social security number/i, "Five two nine, one two, five zero one one."],
+  [/\bEIN\b|tax id/i, "One two three, four five, six seven eight nine."],
+  [/amount.*(request|looking)|how much (funding|are you)/i, "Fifty thousand dollars."],
+  [/business (was )?started|start date/i, "In 2019."],
+  [/business name/i, "Ram Realtors."],
+  [/home number|alternate number/i, "Five one two, five five five, one two three four."],
+  [/type of business|business do you operate/i, "It's a real estate business."],
+  [/monthly revenue/i, "About forty thousand a month."],
+  [/business address/i, "123 Main Street, Dallas, Texas, 75201."],
+  [/home address/i, "12 Elm Street, Austin, Texas, 73301."],
+  [/percentage|how much of the business/i, "Sixty percent."],
+  [/date of birth/i, "The twenty eighth of December, 1990."],
+  [/upload link|do you see it/i, "Yes, I see it."],
+  [/send them now|stay on the line/i, "Sure."],
   [/correct\?|is that (all )?(correct|right)|just to (confirm|recap)|to recap|confirm/i, "Yes, that's right."],
   [/sound (ok|okay|good)|will that be (ok|okay)|is that (ok|okay)\?/i, "Yes."],
   [/mobile|phone number/i, "Oh seven seven double oh, nine hundred, one two three."],

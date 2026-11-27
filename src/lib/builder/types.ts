@@ -547,6 +547,11 @@ export interface BuilderSettings {
   /** Speech model id for the selected provider (e.g. gpt-4o-mini, gpt-oss-120b). */
   webeeSpeechModel?: string;
   /**
+   * How WEBEE Native routes turns the quick rules cannot decide. "separate" (default): a classifier
+   * call, then the reply. "combined": one call picks the step and writes the reply.
+   */
+  webeeRoutingMode?: "separate" | "combined";
+  /**
    * OpenAI Realtime model ID (only used when deploymentMode === "OPENAI_NATIVE").
    * Defaults to "gpt-4o-realtime-preview" when unset.
    * Valid values: "gpt-4o-realtime-preview" | "gpt-4o-mini-realtime-preview"

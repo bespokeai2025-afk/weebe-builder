@@ -10,6 +10,7 @@
  * Relative imports only — this module is reachable from vite.config.ts.
  */
 
+import { resolveRoutingMode } from "../graph/route-reply.shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ConversationVm } from "../graph/vm";
 import { createOpenAiVmLlm } from "../graph/llm";
@@ -265,6 +266,7 @@ export async function buildGraphRuntime(
   vm = new ConversationVm({
     flow,
     llm,
+    routingMode: resolveRoutingMode(settings),
     variables,
     model: configuredModel,
     classifierModel,

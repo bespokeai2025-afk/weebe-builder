@@ -56,20 +56,40 @@ function toRow(ctx: CallTurnContext, rec: TurnLatencyRecord) {
     stt_provider: ctx.sttProvider ?? null,
     prompt_chars: rec.promptChars,
     stt_to_llm_request_ms: rec.sttToLlmRequestMs,
+    stt_to_first_speakable_ms: rec.sttToFirstSpeakableMs,
+    full_turn_ms: rec.fullTurnMs,
+    speech_end_reference: rec.speechEndReference,
+    llm_service_tier: rec.llmServiceTier,
   };
 }
 
 /** Columns added after the table; a database without them yet still gets the rest of the row. */
-const NEWER_COLUMNS = ["voice_end_to_first_audio_ms", "end_of_speech_wait_ms"] as const;
-let newerColumnsMissing = false;
+const NEWER_COLUMNS = [
+  "voice_end_to_first_audio_ms",
+  "end_of_speech_wait_ms",
+  // 20261127000000_call_turns_turn_timings.sql
+  "stt_to_first_speakable_ms",
+  "full_turn_ms",
+  "speech_end_reference",
+  "llm_service_tier",
+] as const;
+/** Columns this database has reported missing — left out of every later write on this server. */
+const missingColumns = new Set<string>();
 
-function isMissingColumnError(message: string): boolean {
-  return NEWER_COLUMNS.some((c) => message.includes(c));
+/** The newer column a write was refused for, from PostgREST's "Could not find the 'x' column". */
+function missingColumnIn(message: string): string | null {
+  return NEWER_COLUMNS.find((c) => message.includes(`'${c}'`) || message.includes(`"${c}"`)) ??
+    NEWER_COLUMNS.find((c) => message.includes(c) && !missingColumns.has(c)) ??
+    null;
 }
 
 /**
  * Write one turn. Upserts on (call_id, turn_index) so a retried flush cannot
  * double-count a turn in the percentiles.
+ *
+ * A database that has not run a migration yet refuses the whole row over one unknown column. Only
+ * that column is dropped and the row retried, so every figure the database can hold is kept —
+ * dropping every newer column at once lost caller wait and endpointing until the newest migration ran.
  */
 export async function recordCallTurnLatency(
   ctx: CallTurnContext,
@@ -78,19 +98,17 @@ export async function recordCallTurnLatency(
   if (!ctx.workspaceId || !ctx.callId) return;
   const upsert = (row: Record<string, unknown>) =>
     (supabaseAdmin as any).from("call_turns").upsert(row, { onConflict: "call_id,turn_index" });
-  const withoutNewer = (row: Record<string, unknown>) => {
-    const copy = { ...row };
-    for (const c of NEWER_COLUMNS) delete copy[c];
-    return copy;
-  };
   try {
-    const row = toRow(ctx, rec);
-    let { error } = await upsert(newerColumnsMissing ? withoutNewer(row) : row);
-    if (error && !newerColumnsMissing && isMissingColumnError(error.message)) {
-      // Migration 20261119000000 not applied yet: keep recording everything else.
-      newerColumnsMissing = true;
-      console.warn("[call-turn-latency] heard-latency columns missing — apply migration 20261119000000");
-      ({ error } = await upsert(withoutNewer(row)));
+    const row: Record<string, unknown> = toRow(ctx, rec);
+    for (const c of missingColumns) delete row[c];
+    let { error } = await upsert(row);
+    for (let tries = 0; error && tries < NEWER_COLUMNS.length; tries++) {
+      const column = missingColumnIn(error.message);
+      if (!column || !(column in row)) break;
+      missingColumns.add(column);
+      delete row[column];
+      console.warn(`[call-turn-latency] call_turns has no ${column} yet — apply the latest call_turns migration`);
+      ({ error } = await upsert(row));
     }
     if (error) throw new Error(error.message);
   } catch (e) {

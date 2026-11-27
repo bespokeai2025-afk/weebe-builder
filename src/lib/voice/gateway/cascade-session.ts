@@ -42,6 +42,32 @@ import {
 } from "../stt";
 import type { SttCapabilities } from "../stt/types";
 import { resolveCartesiaTtsModel } from "../providers/cartesia.config.shared";
+import { openAiServiceTier } from "../engine-config.shared";
+import { shouldFlushTtsPhrase } from "../tts/phrase-chunking.shared";
+import {
+  computeTurnTimings,
+  perceivedBudgetMs,
+  turnMetricsLine,
+  type TurnTimingRow,
+} from "../turn-timings.shared";
+import type { TurnLatencyRecord } from "../graph/latency-trace";
+
+/** A trace record in `call_turns` column names, for `computeTurnTimings`. */
+function turnTimingRow(r: TurnLatencyRecord): TurnTimingRow {
+  return {
+    voice_end_to_first_audio_ms: r.voiceEndToFirstAudioMs,
+    end_of_speech_wait_ms: r.endOfSpeechWaitMs,
+    speech_to_first_audio_ms: r.speechToFirstAudioMs,
+    endpoint_to_stt_final_ms: r.endpointToSttFinalMs,
+    stt_to_route_ms: r.sttToRouteMs,
+    stt_to_llm_request_ms: r.sttToLlmRequestMs,
+    stt_to_first_token_ms: r.sttToFirstTokenMs,
+    stt_to_first_speakable_ms: r.sttToFirstSpeakableMs,
+    stt_to_first_audio_ms: r.sttToFirstAudioMs,
+    full_turn_ms: r.fullTurnMs,
+    speech_end_reference: r.speechEndReference,
+  };
+}
 import { createTtsProvider, parseTtsProviderName } from "../tts";
 import { normalizeSpeechText, type TtsVoiceRequest } from "../tts/types";
 import { fishTtsLanguage, resolveFishTtsModel } from "../tts/fish.provider";
@@ -179,7 +205,8 @@ export interface CascadeTransport {
    * test-call UI can show a running latency badge the way Retell's own test-call widget does,
    * without needing to wait for the call to end and the debugger's Latency tab to poll for it.
    */
-  onTurnLatency?(ms: number): void;
+  /** `ms` is what the caller heard (last word → first audio); `detail` splits it like Retell does. */
+  onTurnLatency?(ms: number, detail?: { perceivedMs?: number; waitMs?: number }): void;
 }
 
 export interface CascadeSessionConfig {
@@ -246,6 +273,8 @@ interface Turn {
   startedAt: number;
   /** When the caller's last word ended — the reference point for the latency budget. */
   voiceEndAt?: number | null;
+  /** First phrase of the reply handed to TTS (turn-timings.shared.ts "first speakable"). */
+  firstSpeakableAt?: number;
   sttAt?: number;
   /** Graph routing finished and TTS pipeline is starting. */
   speakAt?: number;
@@ -1911,10 +1940,39 @@ export class CascadeSession {
       req.speed = resolveDynamicSpeed(req.speed, normalized, this.config.settings);
     }
 
-    const openAudio = () =>
+    // "First speakable": the first phrase handed to the voice for synthesis — the moment that
+    // gates audio. Fish and Cartesia cut phrases with `shouldFlushTtsPhrase`, so the same rule
+    // applied to the text on its way in marks the same moment; a complete line is speakable at once.
+    const markSpeakable = () => {
+      if (t.firstSpeakableAt) return;
+      t.firstSpeakableAt = Date.now();
+      t.trace?.mark("tts_first_speakable", t.firstSpeakableAt);
+    };
+    const speakable =
       typeof normalized === "string"
-        ? tts.synthesize(normalized, req)
-        : tts.synthesizeStream(normalized, req);
+        ? normalized
+        : (async function* (src: AsyncIterable<string>) {
+            let buffered = "";
+            let marked = false;
+            for await (const piece of src) {
+              if (!marked) {
+                buffered += piece;
+                if (shouldFlushTtsPhrase(buffered, false)) {
+                  markSpeakable();
+                  marked = true;
+                }
+              }
+              yield piece;
+            }
+            if (!marked && buffered.trim()) markSpeakable();
+          })(normalized);
+    const openAudio = () => {
+      if (typeof speakable === "string") {
+        markSpeakable();
+        return tts.synthesize(speakable, req);
+      }
+      return tts.synthesizeStream(speakable, req);
+    };
 
     const pumpAudio = async (audio: AsyncIterable<import("../tts/types").PcmChunk>) => {
       for await (const chunk of audio) {
@@ -1976,6 +2034,10 @@ export class CascadeSession {
         `${this.log} turn ${t.id} response ${responseId} TTS stream complete queue_state=${this.audioStateLabel()}`,
       );
       this.ttsStreamEndedAt = Date.now();
+      // The turn is complete once its last line has been sent; a later line of the same turn
+      // moves this on, and the row is rewritten with the final figure.
+      t.trace?.mark("turn_complete", this.ttsStreamEndedAt);
+      this.reportTurnComplete(t);
     }
     this.warmTts();
   }
@@ -2484,11 +2546,16 @@ export class CascadeSession {
 
   private reportLatency(t: Turn): void {
     const span = (from: number, to?: number) => (to ? `${Math.round(to - from)}ms` : "n/a");
+    // `perceived`: the turn committed (end-of-speech wait over) → the reply's first audio. The
+    // pipeline's own speed, and the figure Retell and most engines headline as "latency".
     const total = t.firstAudioAt ? Math.round(t.firstAudioAt - t.startedAt) : null;
-    // What the caller hears: their last word → the reply's first audio. `total` starts later, after
-    // the end-of-speech wait and utterance coalescing, which the caller also sits through.
+    // `heard`: the caller's last word → the reply's first audio — `perceived` plus the end-of-speech
+    // wait, which the caller also sits through. The last word is estimated (endpoint minus the
+    // silence that closed it). Unknown when it was not recorded, rather than quietly reported as
+    // the shorter `perceived`.
     const heard =
-      t.firstAudioAt && t.voiceEndAt != null ? Math.round(t.firstAudioAt - t.voiceEndAt) : total;
+      t.firstAudioAt && t.voiceEndAt != null ? Math.round(t.firstAudioAt - t.voiceEndAt) : null;
+    const wait = t.voiceEndAt != null ? Math.round(t.startedAt - t.voiceEndAt) : null;
     console.log(
       `${this.log} turn ${t.id} latency` +
         ` wait=${t.voiceEndAt != null ? span(t.voiceEndAt, t.startedAt) : "n/a"}` +
@@ -2496,11 +2563,39 @@ export class CascadeSession {
         ` stt→speak=${t.sttAt && t.speakAt ? span(t.sttAt, t.speakAt) : "n/a"}` +
         ` speak→audio=${t.speakAt ? span(t.speakAt, t.firstAudioAt) : "n/a"}` +
         ` stt→audio=${t.sttAt ? span(t.sttAt, t.firstAudioAt) : "n/a"}` +
-        ` total=${total !== null ? `${total}ms` : "n/a"}` +
+        ` perceived=${total !== null ? `${total}ms` : "n/a"}` +
         ` heard=${heard !== null ? `${heard}ms` : "n/a"}` +
         `${heard !== null && heard > LATENCY_BUDGET_MS ? " OVER BUDGET" : ""}`,
     );
-    if (heard !== null) this.transport.onTurnLatency?.(heard);
+    if (t.trace) {
+      const timings = computeTurnTimings(turnTimingRow(t.trace.toRecord()));
+      const tier = openAiServiceTier();
+      t.trace.setServiceTier(tier);
+      console.log(
+        `${this.log} ${turnMetricsLine(t.id, timings, { llm_tier: tier, llm_model: t.trace.toRecord().llmModel })}`,
+      );
+      if (timings.perceivedMs !== null && timings.perceivedMs > perceivedBudgetMs()) {
+        console.warn(
+          `${this.log} VOICE_TURN_OVER_BUDGET turn=${t.id} perceived=${timings.perceivedMs}ms budget=${perceivedBudgetMs()}ms`,
+        );
+      }
+    }
+    if (heard !== null || total !== null) {
+      this.transport.onTurnLatency?.(heard ?? total!, {
+        ...(total !== null ? { perceivedMs: total } : {}),
+        ...(wait !== null ? { waitMs: wait } : {}),
+      });
+    }
+    this.persistTurnLatency(t);
+  }
+
+  /** Log and store the full-turn figure once the agent has finished the turn's speech. */
+  private reportTurnComplete(t: Turn): void {
+    if (!t.trace || !t.firstAudioAt) return;
+    const rec = t.trace.toRecord();
+    if (rec.fullTurnMs !== null) {
+      console.log(`${this.log} [turn_metrics turn=${t.id} full_turn=${rec.fullTurnMs} speech_end=${rec.speechEndReference}]`);
+    }
     this.persistTurnLatency(t);
   }
 

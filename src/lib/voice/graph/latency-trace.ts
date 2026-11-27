@@ -34,7 +34,9 @@ export type LatencyMark =
   | "llm_speech_first_sentence"
   | "llm_speech_complete"
   | "tts_speak_start"
+  | "tts_first_speakable"
   | "tts_first_audio"
+  | "turn_complete"
   | "partial_stt_stable"
   | "stt_partial_fallback"
   | "speculative_llm_start"
@@ -79,6 +81,14 @@ export type TurnLatencyRecord = {
   interrupted: boolean;
   /** STT final → the reply request was sent (time lost before the model is even asked). */
   sttToLlmRequestMs: number | null;
+  /** Final transcript → first phrase handed to TTS (what gates audio). */
+  sttToFirstSpeakableMs: number | null;
+  /** Caller's last word (or the commit, per `speechEndReference`) → the agent finished speaking. */
+  fullTurnMs: number | null;
+  /** Which boundary "last word" came from. */
+  speechEndReference: "caller_speech_frame" | "estimated_from_silence" | "endpoint";
+  /** OpenAI processing tier the reply was requested on, when one was set. */
+  llmServiceTier: string | null;
   /** Model that wrote the spoken reply, and the size of what it was sent. */
   llmModel: string | null;
   promptChars: number | null;
@@ -95,6 +105,7 @@ export class CallTurnTrace {
   private globalRouteMethod: RouteMethod | null = null;
   private speechLlmModel: string | null = null;
   private speechPromptChars: number | null = null;
+  private llmServiceTier: string | null = null;
 
   constructor(
     readonly turnId: number,
@@ -168,8 +179,16 @@ export class CallTurnTrace {
    * engineer reads in the console, and so the caller can decide what to do
    * with a turn that produced no usable marks.
    */
+  setServiceTier(tier: string | null | undefined): void {
+    this.llmServiceTier = tier ? String(tier) : null;
+  }
+
   toRecord(): TurnLatencyRecord {
     const firstAudio = this.marks.get("tts_first_audio");
+    const complete = this.marks.get("turn_complete");
+    // The last-word time is the endpoint minus the silence that closed it — an estimate, labelled
+    // as one. Without it the boundary is the commit itself.
+    const speechEnd = this.voiceEndAt ?? this.turnOrigin;
     return {
       turnIndex: this.turnId,
       voiceEndToFirstAudioMs:
@@ -203,6 +222,10 @@ export class CallTurnTrace {
       partialCommit: this.marks.has("partial_stt_stable"),
       interrupted: this.marks.has("interruption_detected"),
       sttToLlmRequestMs: this.msSinceStt("llm_speech_request_start"),
+      sttToFirstSpeakableMs: this.msSinceStt("tts_first_speakable"),
+      fullTurnMs: complete === undefined ? null : Math.round(complete - speechEnd),
+      speechEndReference: this.voiceEndAt === null ? "endpoint" : "estimated_from_silence",
+      llmServiceTier: this.llmServiceTier,
       llmModel: this.speechLlmModel,
       promptChars: this.speechPromptChars,
     };

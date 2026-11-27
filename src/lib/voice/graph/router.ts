@@ -181,6 +181,7 @@ export async function selectEdge(
   try {
     index = await llm.classify(buildTransitionState(ctx), choices, {
       model: ctx.classifierModel,
+      edges: usable,
     });
   } catch {
     const unconditional = usable.findIndex((_, i) => !conditions[i]);
@@ -372,9 +373,30 @@ export function spokenDigitCount(userText: string): number {
   return count;
 }
 
-/** A reply long enough in digits to be a phone number, not a year, date or amount. */
+/**
+ * A reply shaped like a phone number: one unbroken run of phone-length digits. An address carries
+ * as many digits in total ("123 Main Street, Dallas, Texas 75201" has 8) but in short separate
+ * runs — on a test call it waited the full identifier wait (1.5 s) as if it were a number to read back.
+ */
 export function carriesPhoneNumber(userText: string): boolean {
-  return spokenDigitCount(userText) >= phoneNumberMinDigits();
+  // The longest unbroken run of digits — numerals or digit words, next to each other — must be
+  // phone length. "My number is 07700 900123" is one run of 11; an address is short separate runs.
+  const min = phoneNumberMinDigits();
+  let best = 0;
+  let run = "";
+  const close = () => {
+    if (run) best = Math.max(best, spokenDigitCount(run));
+    run = "";
+  };
+  for (const word of userText.toLowerCase().replace(/[.,!?;:()+-]+/g, " ").split(/\s+/).filter(Boolean)) {
+    if (/^\d+$/.test(word) || word in DIGIT_WORDS || word in REPEAT_WORDS || (word in PLACE_WORDS && run)) {
+      run += ` ${word}`;
+    } else {
+      close();
+    }
+  }
+  close();
+  return best >= min;
 }
 
 function edgeExpectsPhone(condition: string): boolean {

@@ -520,6 +520,10 @@ describe("phone-shaped replies", () => {
     expect(carriesPhoneNumber("$50,000.")).toBe(false);
     expect(carriesPhoneNumber("996 491-9000.")).toBe(true);
     expect(carriesPhoneNumber("One two four one five one two.")).toBe(true);
+    expect(carriesPhoneNumber("512 555-1234.")).toBe(true);
+    expect(carriesPhoneNumber("My number is 07700 900123")).toBe(true);
+    // An address has as many digits but is mostly words.
+    expect(carriesPhoneNumber("123 Main Street, Dallas, Texas 75201.")).toBe(false);
   });
 });
 

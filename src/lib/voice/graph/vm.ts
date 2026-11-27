@@ -58,6 +58,11 @@ import {
 import type { CallTurnTrace } from "./latency-trace";
 import { promptCharCount } from "./traced-llm";
 import {
+  ROUTE_REPLY_TAIL,
+  routeReplyInstructions,
+  type RouteReplyOption,
+} from "./route-reply.shared";
+import {
   selectDigitEdge,
   selectEdge,
   selectGlobalNode,
@@ -350,6 +355,8 @@ export class ConversationVm {
   /** English word-list checks apply only when every call language is English. */
   private readonly englishRules: boolean;
   private readonly textRules: CallerTextRules;
+  /** Route-and-reply in one model call on classifier turns (see route-reply.shared.ts). */
+  private readonly combinedRouting: boolean;
   private readonly declaredVariableNames: string[];
   private readonly capturedNames = new Set<string>();
   /** In-flight `extractTurnVariables` call for the current user turn, consumed once in `advance`. */
@@ -432,6 +439,7 @@ export class ConversationVm {
     this.languageLock = options.languageLock?.trim() ?? "";
     this.englishRules = options.englishRules !== false;
     this.textRules = callerTextRules(this.englishRules);
+    this.combinedRouting = options.routingMode === "combined" && typeof this.llm.routeAndReply === "function";
     this.declaredVariableNames = [
       ...new Set([
         ...(options.variableNames ?? []),
@@ -707,6 +715,10 @@ export class ConversationVm {
       return;
     }
 
+    // Combined routing writes the reply in the routing call itself: drafting every destination's
+    // line alongside it would only spend tokens on lines that call already makes.
+    if (this.combinedRouting) return;
+
     // No confident heuristic prediction — this is exactly the case where real routing is about
     // to fall through to `selectEdge`'s LLM classifier, measured as the single slowest step in a
     // turn (1-2.3s). Waiting for that and only THEN starting response generation stacks both
@@ -738,6 +750,8 @@ export class ConversationVm {
    * the same heuristic in single-digit milliseconds and there is nothing to hide.
    */
   beginSpeculativeRoute(partial: string): boolean {
+    // Combined routing makes its one call on the final transcript, reply included.
+    if (this.combinedRouting) return false;
     const node = this.currentNode();
     if (!node?.edges?.length) return false;
     if (!partial.trim() || this.textRules.repair(partial)) return false;
@@ -901,6 +915,159 @@ export class ConversationVm {
     };
     this.speculativeSpeech.set(target.nodeId, run);
     return true;
+  }
+
+  /**
+   * This turn's client for `selectEdge` in combined mode: the quick rules still run first, and only
+   * the classifier step becomes one `workflow_reply` call whose reply is handed to the chosen step.
+   */
+  private routeReplyLlm(node: FlowNode, latestUser: string): VmLlm {
+    return {
+      ...this.llm,
+      classify: (messages, choices, opts) => this.classifyWithReply(node, latestUser, messages, choices, opts),
+    };
+  }
+
+  /**
+   * The classifier step as one route-and-reply call. Returns `selectEdge`'s choice index.
+   *
+   * Fail-closed: a transition that is not an option, or none at all, is "none of these" — the
+   * agent stays on the step. Only a failed request (an error before any transition) falls back to
+   * the ordinary classifier, so routing still works when the provider rejects tool calls.
+   */
+  private async classifyWithReply(
+    node: FlowNode,
+    latestUser: string,
+    messages: LlmMessage[],
+    choices: string[],
+    opts: Parameters<VmLlm["classify"]>[2],
+  ): Promise<number> {
+    const noneIndex = choices.length - 1;
+    const edges = opts?.edges ?? [];
+    if (edges.length !== noneIndex || !this.llm.routeAndReply) return this.llm.classify(messages, choices, opts);
+
+    const prompt = this.buildRouteReplyMessages(node, edges);
+    const model = nodeModel(node, this.compiled, this.fallbackModel);
+    const ctrl = new AbortController();
+    const requestedAt = Date.now();
+    let call: ReturnType<NonNullable<VmLlm["routeAndReply"]>>;
+    try {
+      call = this.llm.routeAndReply(prompt, { model, signal: ctrl.signal });
+    } catch (err) {
+      this.log(`combined routing could not start (${errMessage(err)}) — using the classifier`);
+      return this.llm.classify(messages, choices, opts);
+    }
+
+    // Buffer the reply from the first token, exactly like a speculative run, so the chosen step's
+    // speech adopts it without waiting for the call to finish.
+    const tokens: string[] = [];
+    const timing: { firstTokenAt?: number } = {};
+    const done = (async () => {
+      try {
+        for await (const delta of call.reply) {
+          if (ctrl.signal.aborted) break;
+          if (delta && timing.firstTokenAt === undefined) timing.firstTokenAt = Date.now();
+          tokens.push(delta);
+        }
+      } catch {
+        /* aborted or provider error — prepareSpeech falls back */
+      }
+      return tokens.join("").trim();
+    })();
+
+    let transition: number | null;
+    try {
+      transition = await call.transition;
+    } catch (err) {
+      ctrl.abort();
+      this.log(`combined routing failed (${errMessage(err)}) — using the classifier`);
+      return this.llm.classify(messages, choices, opts);
+    }
+
+    if (transition === null || !Number.isInteger(transition) || transition < 0 || transition > edges.length) {
+      ctrl.abort();
+      this.log(`combined routing returned transition ${String(transition)} — not an option, staying`);
+      return noneIndex;
+    }
+    const destId = transition === 0 ? node.id : edges[transition - 1]!.destination_node_id!;
+    const dest = this.compiled.nodes.get(destId);
+    const speaksGenerated =
+      !!dest &&
+      (dest.type === "conversation" || dest.type === "end") &&
+      responseModeFromInstruction(dest.instruction?.type) === "llm";
+    const existing = this.speculativeSpeech.get(destId);
+    if (!speaksGenerated || (existing && partialMatchesFinal(existing.partial, latestUser))) {
+      // A fixed line or an action runs as authored; a reply already drafted before the endpoint
+      // for this step started earlier and is kept.
+      ctrl.abort();
+    } else {
+      this.setSpeculativeSpeech(destId, {
+        partial: latestUser,
+        ctrl,
+        tokens,
+        done,
+        requestedAt,
+        get firstTokenAt() {
+          return timing.firstTokenAt;
+        },
+        model,
+        promptChars: promptCharCount(prompt),
+      });
+    }
+    return transition === 0 ? noneIndex : transition - 1;
+  }
+
+  /** What the agent's line must do at `node`: its script or task, variables filled. */
+  private speechTaskOf(node: FlowNode): string {
+    const raw = String(node.instruction?.text ?? "").trim();
+    const interpolated = interpolateForSpeech(raw, this.variables);
+    const { script, task } = splitPromptScript(interpolated);
+    return (script.trim() || task.trim() || interpolated).slice(0, 1_500);
+  }
+
+  private routeReplyOption(edge: FlowEdge): RouteReplyOption {
+    const dest = this.compiled.nodes.get(edge.destination_node_id ?? "");
+    const condition = interpolate(String(edge.transition_condition?.prompt ?? "").trim(), this.variables) || "Continue";
+    const stepName = dest?.name || dest?.id || "next step";
+    if (!dest) return { condition, stepName, task: null, selfSpeaking: "is not in this flow" };
+    const conversational = dest.type === "conversation" || dest.type === "end";
+    if (!conversational) return { condition, stepName, task: null, selfSpeaking: "is an action the system runs" };
+    if (responseModeFromInstruction(dest.instruction?.type) !== "llm") {
+      return { condition, stepName, task: null, selfSpeaking: "says a fixed line" };
+    }
+    const raw = String(dest.instruction?.text ?? "").trim();
+    const missing = missingVariablesRule(missingVariableNames(raw, this.variables));
+    return { condition, stepName, task: this.speechTaskOf(dest), ...(missing ? { note: missing } : {}) };
+  }
+
+  /**
+   * The combined call's prompt. The opening block is the call-wide prefix every speech prompt
+   * starts with, so the provider's prompt cache still applies; then what is known, the routing
+   * options with each destination's task, the recent conversation, and the closing instruction.
+   */
+  private buildRouteReplyMessages(node: FlowNode, edges: readonly FlowEdge[]): LlmMessage[] {
+    const system: string[] = [...this.callWideSpeechSystem()];
+    const raw = String(node.instruction?.text ?? "").trim();
+    system.push(buildTurnRules(interpolate(raw, this.variables), node.type === "end"));
+    const known = [...this.capturedNames]
+      .map((key) => {
+        const value = this.variables[key];
+        return value === undefined || value === null || !String(value).trim() ? "" : `${key}=${String(value)}`;
+      })
+      .filter(Boolean);
+    if (known.length) system.push(`Collected this call (use these, do not re-ask): ${known.join("; ")}`);
+    system.push(
+      routeReplyInstructions({
+        currentStep: node.name || node.id,
+        currentTask: this.speechTaskOf(node),
+        options: edges.map((e) => this.routeReplyOption(e)),
+      }),
+    );
+    return [
+      { role: "system", content: system.join("\n") },
+      ...this.history.slice(-SPEECH_HISTORY_MESSAGES),
+      { role: "system", content: ROUTE_REPLY_TAIL },
+    ];
   }
 
   private keepSpeculativeFor(nodeId: string): void {
@@ -1264,7 +1431,8 @@ export class ConversationVm {
     // longer usable" (transcript moved on, or it resolved without needing the classifier). A gated
     // step routes afresh: a decision made before this turn's values landed may be stale.
     const speculativeRoute = gated ? null : this.takeSpeculativeRoute(node, latestUser);
-    const freshRoute = () => selectEdge(node.edges ?? [], routeCtx, this.llm);
+    const routeLlm = this.combinedRouting ? this.routeReplyLlm(node, latestUser) : this.llm;
+    const freshRoute = () => selectEdge(node.edges ?? [], routeCtx, routeLlm);
     const edgePromise = speculativeRoute
       ? speculativeRoute.then((decision) => decision ?? freshRoute())
       : freshRoute();

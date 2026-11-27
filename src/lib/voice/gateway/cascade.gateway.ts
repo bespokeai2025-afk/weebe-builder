@@ -15,7 +15,8 @@
  *   relay   -> { type: "transcript.partial", text }
  *   relay   -> { type: "audio.delta", data: "<base64 PCM16 24kHz mono>", responseId, turnId? }
  *   relay   -> { type: "response.start", responseId, turnId?, nodeId? }
- *   relay   -> { type: "turn.latency", ms }   // speech-to-first-audio for the turn just started
+ *   relay   -> { type: "turn.latency", ms, perceivedMs?, waitMs? }   // ms = caller's last word → first audio;
+ *                                                                  // perceivedMs = turn committed → first audio
  *   relay   -> { type: "response.cancelled", responseId, reason }
  *   relay   -> { type: "audio.clear" }   // barge-in: drop queued playback NOW
  *   relay   -> { type: "response.done" } | { type: "pong" }
@@ -76,7 +77,7 @@ function handleConnection(ws: WebSocket, _ctx: VoiceGatewayContext): void {
     onError: (message) => safeSend(ws, { type: "relay.error", message }),
     onNodeActive: (nodeId) => safeSend(ws, { type: "node.active", nodeId }),
     onToolCall: (toolId, result, ok) => safeSend(ws, { type: "tool.result", toolId, result, ok }),
-    onTurnLatency: (ms) => safeSend(ws, { type: "turn.latency", ms }),
+    onTurnLatency: (ms, detail) => safeSend(ws, { type: "turn.latency", ms, ...(detail ?? {}) }),
   };
 
   function startSession(msg: Record<string, unknown>): void {

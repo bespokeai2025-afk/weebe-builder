@@ -117,6 +117,21 @@ import { WEBEE_NATIVE_LLM_MODELS, defaultModelForProvider } from "@/lib/voice/we
 import { ModelSpeedLine, ModelSpeedWarning, VoiceSpeedHint, useEngineSpeed } from "./EngineSpeedHint";
 import { VoicePickerDialog, VoiceSummaryButton } from "@/components/builder/voice-picker/VoicePickerDialog";
 import { ProviderModelSelect } from "@/components/builder/ProviderModelSelect";
+import type { TurnLatencyDetail } from "@/components/builder/deploy/test-call-session";
+
+/** How WEBEE Native routes turns its quick rules cannot decide (see route-reply.shared.ts). */
+const ROUTING_MODE_OPTIONS = [
+  {
+    id: "separate",
+    label: "Classifier, then reply",
+    description: "A routing call picks the next step, then the reply is written. The tried and tested path.",
+  },
+  {
+    id: "combined",
+    label: "Route and reply together (experimental)",
+    description: "One call picks the next step and writes the reply — about one model round trip faster on turns that need routing.",
+  },
+] as const;
 import { DEEPGRAM_STT_DEFAULT_MODEL, DEEPGRAM_STT_MODELS } from "@/lib/voice/providers/deepgram.config.shared";
 import {
   CARTESIA_STT_DEFAULT_MODEL,
@@ -279,6 +294,7 @@ export function Builder({
   const [liveTranscript, setLiveTranscript] = useState<TxEntry[]>([]);
   /** Speech-to-first-audio ms for the most recent agent turn — Retell-style live latency badge. */
   const [liveLatencyMs, setLiveLatencyMs] = useState<number | null>(null);
+  const [liveLatencyDetail, setLiveLatencyDetail] = useState<TurnLatencyDetail | null>(null);
   const [postCallData, setPostCallData] = useState<PostCallExtracted | null>(null);
   const [postCallLoading, setPostCallLoading] = useState(false);
   const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
@@ -892,7 +908,10 @@ export function Builder({
                 onCallActive={setCallActive}
                 onTranscriptUpdate={setLiveTranscript}
                 onCallEnd={handleCallEnd}
-                onLatencyUpdate={setLiveLatencyMs}
+                onLatencyUpdate={(ms, detail) => {
+                  setLiveLatencyMs(ms);
+                  setLiveLatencyDetail(detail ?? null);
+                }}
               />
             )}
             {settings.channelType === "whatsapp" && (
@@ -1147,9 +1166,17 @@ export function Builder({
                               ? "bg-amber-500/10 text-amber-300"
                               : "bg-red-500/10 text-red-300",
                         )}
-                        title="Speech-to-first-audio latency for the last agent turn"
+                        title={
+                          liveLatencyDetail?.perceivedMs !== undefined
+                            ? `Last turn: reply ${liveLatencyDetail.perceivedMs} ms after the turn was committed (the figure Retell reports), ` +
+                              `heard ${liveLatencyMs} ms after the caller's last word` +
+                              (liveLatencyDetail.waitMs !== undefined ? ` (includes a ${liveLatencyDetail.waitMs} ms end-of-speech wait)` : "")
+                            : "Caller's last word → the agent's first audio, for the last turn"
+                        }
                       >
-                        {liveLatencyMs}ms
+                        {liveLatencyDetail?.perceivedMs !== undefined
+                          ? `${liveLatencyDetail.perceivedMs}ms · heard ${liveLatencyMs}ms`
+                          : `${liveLatencyMs}ms`}
                       </span>
                     )}
                   </div>
@@ -1766,6 +1793,12 @@ export function Builder({
                         choices={WEBEE_NATIVE_LLM_MODELS[settings.webeeLlmProvider ?? "openai"] ?? []}
                       />
                     </div>
+                    <ProviderModelSelect
+                      label="Routing"
+                      value={settings.webeeRoutingMode ?? "separate"}
+                      options={ROUTING_MODE_OPTIONS}
+                      onChange={(v) => setSettings({ webeeRoutingMode: v as "separate" | "combined" })}
+                    />
                   </div>
                 )}
               </CollapsibleContent>

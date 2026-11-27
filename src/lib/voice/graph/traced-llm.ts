@@ -73,6 +73,22 @@ export function createTracedVmLlm(
       return inner.extract(messages, fields, opts);
     },
 
+    // The route marks here; the reply's own timings are recorded by the turn that adopts it.
+    ...(inner.routeAndReply
+      ? {
+          routeAndReply: (messages: Parameters<NonNullable<VmLlm["routeAndReply"]>>[0], opts: Parameters<NonNullable<VmLlm["routeAndReply"]>>[1]) => {
+            const trace = getTrace();
+            trace?.mark("llm_route_request_start");
+            const out = inner.routeAndReply!(messages, opts);
+            void out.transition.then(
+              () => trace?.mark("llm_route_complete"),
+              () => {},
+            );
+            return out;
+          },
+        }
+      : {}),
+
     ...(inner.warm ? { warm: (messages, opts) => inner.warm!(messages, opts) } : {}),
   };
 }

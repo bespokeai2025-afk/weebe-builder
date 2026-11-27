@@ -292,6 +292,14 @@ export interface GptStreamOptions {
    * same key so they are routed to the same cache. OpenAI recommends it for exactly this case.
    */
   promptCacheKey?: string;
+  /** Tools offered to the model (OpenAI function-tool shape), and which one it must call. */
+  tools?: readonly unknown[];
+  toolChoice?: unknown;
+  /**
+   * Stream the forced tool call's argument text instead of message content — for the combined
+   * route-and-reply call, whose reply is a tool argument so routing never reaches the voice.
+   */
+  toolArguments?: boolean;
 }
 
 /**
@@ -382,6 +390,12 @@ function buildChatBody(
     if (textModel.startsWith("gpt-oss-")) body.reasoning_effort = "low";
   }
   if (options.responseFormat) body.response_format = { type: options.responseFormat };
+  if (options.tools?.length) {
+    body.tools = options.tools;
+    if (options.toolChoice) body.tool_choice = options.toolChoice;
+    // One call, one decision: a second parallel call would be a second, conflicting route.
+    if (auth.provider === "openai") body.parallel_tool_calls = false;
+  }
   return body;
 }
 
@@ -425,10 +439,17 @@ async function* streamChat(
       try {
         const chunk = JSON.parse(payload) as {
           choices?: Array<{
-            delta?: { content?: string | null; reasoning?: string | null };
+            delta?: {
+              content?: string | null;
+              reasoning?: string | null;
+              tool_calls?: Array<{ index?: number; function?: { arguments?: string | null } }>;
+            };
           }>;
         };
-        const delta = chunk.choices?.[0]?.delta?.content;
+        const d = chunk.choices?.[0]?.delta;
+        const delta = options.toolArguments
+          ? d?.tool_calls?.find((c) => (c.index ?? 0) === 0)?.function?.arguments
+          : d?.content;
         if (delta) yield delta;
       } catch {
         /* skip malformed SSE line */

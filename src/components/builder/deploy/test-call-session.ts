@@ -47,7 +47,7 @@ export type TestCallSession = {
   endReasonRef: Ref<string | undefined>;
   hsSessionIdRef: Ref<string | undefined>;
   testCallPrepRef: Ref<TestCallPrepResult>;
-  onLatencyUpdateRef: Ref<((ms: number) => void) | undefined>;
+  onLatencyUpdateRef: Ref<((ms: number, detail?: TurnLatencyDetail) => void) | undefined>;
   // State
   setCalling: Setter<boolean>;
   setInCall: Setter<boolean>;
@@ -74,3 +74,11 @@ export type TestCallSession = {
   startCall: ClientServerFn<typeof createRetellWebCall>;
   getElSignedUrl: ClientServerFn<typeof getElevenLabsSignedUrl>;
 };
+
+/** How a turn's latency splits: the pipeline's own time, and the end-of-speech wait before it. */
+export interface TurnLatencyDetail {
+  /** Turn committed → first audio (what Retell and most engines call latency). */
+  perceivedMs?: number;
+  /** Caller's last word → turn committed (the configured end-of-speech wait). */
+  waitMs?: number;
+}

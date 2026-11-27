@@ -369,8 +369,24 @@ export interface VmLlm {
   classify(
     messages: LlmMessage[],
     choices: string[],
-    options?: { model?: string },
+    options?: {
+      model?: string;
+      /**
+       * The edges `choices` stand for, in order (the last choice, "none of these", has no edge).
+       * Lets a client answer with more than an index — the combined route-and-reply call.
+       */
+      edges?: readonly FlowEdge[];
+    },
   ): Promise<number>;
+  /**
+   * One forced `workflow_reply(transition, reply)` call (route-reply.shared.ts). `transition`
+   * resolves as soon as the number is streamed: 0 = stay, 1..n = option, null = no valid number.
+   * It rejects when the request itself failed, so the caller can fall back to `classify`.
+   */
+  routeAndReply?(
+    messages: LlmMessage[],
+    options: { model?: string; signal?: AbortSignal },
+  ): { transition: Promise<number | null>; reply: AsyncIterable<string> };
   /** Return a JSON object for the requested fields. */
   extract(
     messages: LlmMessage[],
@@ -456,4 +472,10 @@ export interface VmOptions {
   englishRules?: boolean;
   /** Extra declared variable names (builder / post-call fields) to bind collect answers. */
   variableNames?: string[];
+  /**
+   * "combined": on turns that need the model to route, one `workflow_reply` call picks the
+   * transition and writes the reply (route-reply.shared.ts). "separate" (default): classifier, then
+   * a speech call.
+   */
+  routingMode?: "separate" | "combined";
 }

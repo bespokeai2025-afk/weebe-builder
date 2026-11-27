@@ -1,3 +1,4 @@
+import type { TurnLatencyDetail } from "./deploy/test-call-session";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
@@ -76,7 +77,7 @@ export function RetellDeployDialog({
   onTranscriptUpdate?: (entries: TxEntry[]) => void;
   onCallEnd?: (transcript: TxEntry[], recordingBlob: Blob | null, meta?: CallEndMeta) => void;
   /** Speech-to-first-audio ms for the turn that just started speaking — same number Retell's own test-call widget shows live. */
-  onLatencyUpdate?: (ms: number) => void;
+  onLatencyUpdate?: (ms: number, detail?: TurnLatencyDetail) => void;
 } = {}) {
   const {
     nodes,
