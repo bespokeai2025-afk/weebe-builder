@@ -2654,3 +2654,45 @@ describe("ConversationVm pre-endpoint routing", () => {
     expect(llm.calls.classify).toHaveLength(2);
   });
 });
+
+// ─── Reading back a detail the caller has just given ──────────────────────────
+
+describe("readback of a value given in the reply that led to it", () => {
+  const readbackFlow = (mode: "static_text" | "prompt") =>
+    flowOf([
+      say("ask", "When was the business started?", [edge("e1", "confirm", "User responds")]),
+      {
+        id: "confirm",
+        type: "conversation",
+        name: "confirm",
+        instruction: { type: mode, text: "Ok {{business_start_date}}, correct?" },
+        edges: [edge("e2", "done", "User confirms yes")],
+      },
+      say("done", "Thanks"),
+    ]);
+
+  it("speaks a fixed readback with the value, once this turn's extraction lands", async () => {
+    const llm = fakeLlm({
+      extract: () => ({ business_start_date: "2023" }),
+    });
+    const slowExtract = llm.extract;
+    llm.extract = async (...args) => {
+      await new Promise((r) => setTimeout(r, 40)); // lands after routing, as it does live
+      return slowExtract(...args);
+    };
+    const vm = new ConversationVm({ flow: readbackFlow("static_text"), llm, variableNames: ["business_start_date"] });
+    await drain(vm.run({ type: "begin" }));
+    const out = await drain(vm.run({ type: "user_utterance", text: "In 2023." }));
+    expect(speech(out)).toEqual(["Ok 2023, correct?"]);
+  });
+
+  it("tells the model to read back what the caller just said instead of leaving a gap", async () => {
+    const llm = fakeLlm({ extract: () => ({}) });
+    const vm = new ConversationVm({ flow: readbackFlow("prompt"), llm, variableNames: ["business_start_date"] });
+    await drain(vm.run({ type: "begin" }));
+    await drain(vm.run({ type: "user_utterance", text: "In 2023." }));
+    const system = String(llm.calls.generate.at(-1)?.[0]?.content ?? "");
+    expect(system).toContain("business start date ({{business_start_date}})");
+    expect(system).toMatch(/most recent reply already gives one of these, use what they said/);
+  });
+});

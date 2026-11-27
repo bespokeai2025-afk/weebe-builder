@@ -40,6 +40,11 @@ export interface TtsVoiceRequest {
    * units and symbols the local way. Omitted for multilingual agents.
    */
   language?: string;
+  /**
+   * Cartesia `generation_config` (speed 0.6–1.5, volume 0.5–2.0), built from the agent's voice
+   * settings by `cartesiaGenerationConfig`. Cartesia-only: its scales differ from Fish's.
+   */
+  cartesiaGeneration?: { speed?: number; volume?: number };
 }
 
 export interface TtsProvider {

@@ -87,9 +87,9 @@ export const VOICE_PROVIDERS: Record<VoiceLibraryProvider, VoiceProviderCaps> = 
     clone: true,
     cloneMaxBytes: 16 * 1024 * 1024,
     filters: { gender: true, accent: true, language: false, source: true },
-    tuning: [],
-    tuningNote:
-      "Cartesia voices speak at their own pace and volume on calls; speed, volume and emotion aren't applied to them yet.",
+    // Applied on calls as Cartesia `generation_config` (speed 0.6–1.5, volume 0.5–2.0) — see
+    // providers/cartesia.config.shared.ts. Emotion is not offered: Cartesia's set differs.
+    tuning: ["voiceSpeed", "volume"],
   },
   openai: {
     label: "OpenAI",

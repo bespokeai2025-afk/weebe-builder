@@ -37,13 +37,25 @@ const NOT_ON_CARTESIA: EngineRule = {
   when: cartesiaTts,
 };
 
+const openAiTts = (s: BuilderSettings) => s.webeeTtsProvider === "openai";
+
+/** Cartesia takes speed as `generation_config.speed`, within its own 0.6–1.5× range. */
+const CARTESIA_SPEED_RANGE_RULE: EngineRule = {
+  support: "partial",
+  note: "Cartesia applies speeds from 0.6× to 1.5×; values outside that are capped.",
+  when: cartesiaTts,
+};
+
 export const SETTING_ENGINE_RULES: Partial<
   Record<keyof BuilderSettings, Partial<Record<DeploymentMode, EngineRule>>>
 > = {
   voiceEmotion: { WEBEE_NATIVE: FISH_ONLY_NATIVE },
   voiceTemperature: { WEBEE_NATIVE: FISH_ONLY_NATIVE },
-  volume: { WEBEE_NATIVE: FISH_ONLY_NATIVE },
-  voiceSpeed: { WEBEE_NATIVE: NOT_ON_CARTESIA },
+  // Fish (prosody) and Cartesia (`generation_config.volume`, 0.5–2.0) apply volume; OpenAI does not.
+  volume: {
+    WEBEE_NATIVE: { support: "none", note: "OpenAI voices don't take a volume setting.", when: openAiTts },
+  },
+  voiceSpeed: { WEBEE_NATIVE: CARTESIA_SPEED_RANGE_RULE },
   enableDynamicVoiceSpeed: { WEBEE_NATIVE: NOT_ON_CARTESIA },
   ambientSound: {
     WEBEE_NATIVE: {

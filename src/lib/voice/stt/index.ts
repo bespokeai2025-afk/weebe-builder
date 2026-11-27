@@ -11,6 +11,8 @@
 import { AssemblyAiSttProvider } from "./assemblyai";
 import { CartesiaSttProvider } from "./cartesia";
 import { DeepgramSttProvider } from "./deepgram";
+import { deepgramEndpointingMs, resolveDeepgramSttModel } from "../providers/deepgram.config.shared";
+import { resolveCartesiaSttModel } from "../providers/cartesia.config.shared";
 import { FishSttProvider } from "./fish";
 import { WhisperSttProvider } from "./whisper-batch";
 import type { SttProvider } from "./types";
@@ -112,10 +114,15 @@ export function resolveWebeeSttPreference(
 export const resolveEffectiveSttProvider = resolveWebeeSttPreference;
 
 /** Build the STT provider for WEBEE Native (Fish TTS is unchanged). */
+/**
+ * Build the call's STT provider. Model and tuning come from each provider's own config
+ * (`providers/deepgram.config.shared.ts`, `providers/cartesia.config.shared.ts`), read from the
+ * agent's settings with environment overrides — never from another provider's fields.
+ */
 export function createSttProvider(
   preferred: SttProviderName | null | undefined,
   keys: SttProviderKeys = {},
-  deepgramModel?: string,
+  agent: { settings?: Record<string, unknown> | null; language?: string | null } = {},
 ): SttProvider {
   if (preferred === "deepgram") {
     const key = deepgramKeyOf(keys);
@@ -124,7 +131,9 @@ export function createSttProvider(
         "Deepgram ASR requires DEEPGRAM_API_KEY. Add it under Settings → Integrations → Voice Engines.",
       );
     }
-    return deepgramModel ? new DeepgramSttProvider(key, deepgramModel) : new DeepgramSttProvider(key);
+    return new DeepgramSttProvider(key, resolveDeepgramSttModel(agent.settings), {
+      endpointingMs: deepgramEndpointingMs(agent.settings),
+    });
   }
   if (preferred === "assemblyai") {
     const key = assemblyaiKeyOf(keys);
@@ -142,7 +151,7 @@ export function createSttProvider(
         "Cartesia ASR requires CARTESIA_API_KEY. Add it under Settings → Integrations → Voice Engines.",
       );
     }
-    return new CartesiaSttProvider(key);
+    return new CartesiaSttProvider(key, resolveCartesiaSttModel(agent.settings, agent.language));
   }
   if (preferred === "openai") {
     const key = openaiKeyOf(keys);

@@ -9,7 +9,8 @@
 import { voiceIdFor } from "../builder/agent-voice.shared";
 import { resolveFishTtsVoiceRequest } from "./fish-tts-prosody.shared";
 import { resolveOpenAiTtsVoice, resolveOpenAiTtsModel } from "./tts/openai.provider";
-import { CARTESIA_TTS_DEFAULT_VOICE, resolveCartesiaTtsModel } from "./tts/cartesia.provider";
+import { CARTESIA_TTS_DEFAULT_VOICE } from "./tts/cartesia.provider";
+import { cartesiaGenerationConfig, resolveCartesiaTtsModel } from "./providers/cartesia.config.shared";
 import type { TtsVoiceRequest } from "./tts/types";
 
 export interface CallVoiceProfile extends TtsVoiceRequest {
@@ -88,10 +89,13 @@ export function lockCallVoiceProfile(input: {
 
   if (input.ttsProvider === "cartesia") {
     const voiceId = voiceIdFor(input.settings, "cartesia") || CARTESIA_TTS_DEFAULT_VOICE;
+    const generation = cartesiaGenerationConfig(input.settings);
     const req: TtsVoiceRequest = {
       voiceId,
       sampleRate: input.sampleRate,
-      model: resolveCartesiaTtsModel(input.model),
+      // The agent's own Cartesia model first; the shared `webeeTtsModel` only when it is a Sonic id.
+      model: resolveCartesiaTtsModel(input.settings, input.model),
+      ...(generation ? { cartesiaGeneration: generation } : {}),
     };
     return { ...req, lockedAt: Date.now() };
   }

@@ -201,3 +201,70 @@ describe("finished STT segments before the endpoint", () => {
     expect(seen).toEqual([]);
   });
 });
+
+describe("utterance coalescing without a partial to read", () => {
+  type Coalescer = {
+    englishTurnRules: boolean;
+    sttLanguage: string;
+    partialNormalized: string;
+    utteranceCoalesceMs: number;
+    utteranceCoalesceTimer: ReturnType<typeof setTimeout> | null;
+    pendingUtteranceFrames: Buffer[];
+    utteranceSpeechStartAt: number | null;
+    utteranceVoiceEndAt: number | null;
+    turnPipeline: Promise<void>;
+    burstTranscripts: { request(f: () => Promise<string>): void };
+    processTurn(...args: unknown[]): Promise<void>;
+    scheduleUtteranceProcessing(): void;
+  };
+
+  async function coalescer(transcript: string, transcriptMs: number) {
+    const { CascadeSession } = await import("@/lib/voice/gateway/cascade-session");
+    const { BurstTranscripts } = await import("@/lib/voice/gateway/burst-transcripts");
+    const s = Object.create(CascadeSession.prototype) as Coalescer;
+    let processedAt: number | null = null;
+    Object.assign(s, {
+      englishTurnRules: true,
+      sttLanguage: "en",
+      partialNormalized: "", // a provider that sends no partials (Cartesia)
+      utteranceCoalesceMs: 160,
+      utteranceCoalesceTimer: null,
+      pendingUtteranceFrames: [Buffer.alloc(320)],
+      utteranceSpeechStartAt: null,
+      utteranceVoiceEndAt: null,
+      turnPipeline: Promise.resolve(),
+      burstTranscripts: new BurstTranscripts(),
+      processTurn: async () => {
+        processedAt = Date.now();
+      },
+    });
+    s.burstTranscripts.request(() => new Promise((r) => setTimeout(() => r(transcript), transcriptMs)));
+    const start = Date.now();
+    s.scheduleUtteranceProcessing();
+    return { s, start, processed: () => processedAt };
+  }
+
+  it("ends the wait once the transcript shows a complete short answer", async () => {
+    const { start, processed } = await coalescer("Yes.", 10);
+    await tick(80);
+    expect(processed()).not.toBeNull();
+    expect(processed()! - start).toBeLessThan(120);
+  });
+
+  it("keeps the full wait for words the caller may carry on from", async () => {
+    const { start, processed } = await coalescer("24 Manhattan Street", 10);
+    await tick(80);
+    expect(processed()).toBeNull();
+    await tick(140);
+    expect(processed()! - start).toBeGreaterThanOrEqual(150);
+  });
+
+  it("does nothing once the caller has started speaking again", async () => {
+    const { s, processed } = await coalescer("Yes.", 30);
+    // speech_start clears the timer: the next burst belongs to the same turn.
+    clearTimeout(s.utteranceCoalesceTimer!);
+    s.utteranceCoalesceTimer = null;
+    await tick(220);
+    expect(processed()).toBeNull();
+  });
+});

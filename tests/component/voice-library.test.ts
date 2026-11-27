@@ -72,7 +72,9 @@ describe("voice settings each provider applies", () => {
   it("tells the builder which voice settings Cartesia and OpenAI ignore", () => {
     const native = (tts: string) =>
       ({ deploymentMode: "WEBEE_NATIVE", webeeTtsProvider: tts }) as unknown as BuilderSettings;
-    expect(settingSupport("voiceSpeed", native("cartesia")).support).toBe("none");
+    expect(settingSupport("voiceSpeed", native("cartesia")).support).toBe("partial");
+    expect(settingSupport("volume", native("cartesia")).support).toBe("full");
+    expect(settingSupport("voiceTemperature", native("cartesia")).support).toBe("none");
     expect(settingSupport("voiceSpeed", native("openai")).support).toBe("full");
     expect(settingSupport("volume", native("openai")).support).toBe("none");
     expect(settingSupport("volume", native("fish")).support).toBe("full");

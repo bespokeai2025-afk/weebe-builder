@@ -468,7 +468,12 @@ export function missingVariablesRule(missing: string[]): string | null {
   const listed = names.map((n) => `${humaniseVariableName(n)} ({{${n}}})`).join(", ");
   return [
     `Not provided yet: ${listed}.`,
-    "Wherever the task relies on one of these, ASK the caller for it in one short, natural question " +
+    // A readback step ("Ok {{business_start_date}}, correct?") runs straight after the reply that
+    // gave the value, before that reply's extraction lands — so the value is in the conversation
+    // but not filled in here. Told only to ask, the model said "Ok, correct?" with nothing in it.
+    "If the caller's most recent reply already gives one of these, use what they said, in their " +
+      "words — that is what this step reads back.",
+    "Otherwise, wherever the task relies on one of these, ASK the caller for it in one short, natural question " +
       "instead of stating it. Do not guess it, do not invent it, and do not put one kind of " +
       "information in place of another (an email is never a phone number).",
     "Never say a placeholder, a variable name, or curly braces out loud. If a sentence in the " +

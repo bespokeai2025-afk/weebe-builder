@@ -471,7 +471,9 @@ export function VoicePickerDialog({
     return out;
   }, [caps.tuning, settings, touched, tuning]);
 
-  const model = provider === "openai" ? settings.webeeTtsModel : undefined;
+  // Each provider's own model field, so a preview sounds like the call will.
+  const model =
+    provider === "openai" ? settings.webeeTtsModel : provider === "cartesia" ? settings.cartesiaTtsModel : undefined;
   const customLine = previewText.trim() && previewText.trim() !== DEFAULT_PREVIEW_TEXT;
 
   function playRow(voice: LibraryVoice) {

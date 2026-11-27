@@ -19,21 +19,28 @@
 import { randomUUID } from "node:crypto";
 import { WebSocket } from "ws";
 import { alignPcm16, type PcmChunk, type TtsProvider, type TtsVoiceRequest } from "./types";
-import { cartesiaMaxBufferDelayMs, ttsNoAudioTimeoutMs } from "../engine-config.shared";
+import { ttsNoAudioTimeoutMs } from "../engine-config.shared";
+import {
+  CARTESIA_TTS_DEFAULT_MODEL,
+  cartesiaApiVersion,
+  cartesiaLanguage,
+  cartesiaMaxBufferDelayMs,
+  resolveCartesiaTtsModel as resolveFromConfig,
+} from "../providers/cartesia.config.shared";
 import { shouldFlushTtsPhrase } from "./phrase-chunking.shared";
 
 const CARTESIA_TTS_WS = "wss://api.cartesia.ai/tts/websocket";
-export const CARTESIA_VERSION = "2025-04-16";
+/** The API version live calls use — see `cartesiaApiVersion` in the Cartesia config. */
+export const CARTESIA_VERSION = cartesiaApiVersion();
 const CONNECT_TIMEOUT_MS = 10_000;
 
-/** WEBEE Native default — Cartesia's Sonic-2 model, a well-supported stable release. */
-export const CARTESIA_TTS_DEFAULT_MODEL = "sonic-2";
+export { CARTESIA_TTS_DEFAULT_MODEL };
 /** Public Cartesia sample voice ("Sarah") — used only when no voice id is configured. */
 export const CARTESIA_TTS_DEFAULT_VOICE = "694f9389-aac1-45b6-b726-9d9369183238";
 
+/** A model id for a request: `override` when it is a Sonic id, else CARTESIA_TTS_MODEL, else the default. */
 export function resolveCartesiaTtsModel(override?: string | null): string {
-  const pick = String(override ?? process.env.CARTESIA_TTS_MODEL ?? "").trim();
-  return pick || CARTESIA_TTS_DEFAULT_MODEL;
+  return resolveFromConfig(null, override);
 }
 
 interface CartesiaServerMessage {
@@ -129,9 +136,22 @@ function buildVoice(req: TtsVoiceRequest): Record<string, unknown> {
   return { mode: "id", id };
 }
 
+/** The fields every message of one reply repeats (Cartesia requires them identical across a context). */
+function replyFields(model: string, req: TtsVoiceRequest): Record<string, unknown> {
+  return {
+    model_id: model,
+    voice: buildVoice(req),
+    output_format: buildOutputFormat(req.sampleRate),
+    language: cartesiaLanguage(req.language),
+    ...(req.cartesiaGeneration ? { generation_config: req.cartesiaGeneration } : {}),
+  };
+}
+
 async function connectCartesiaSocket(apiKey: string): Promise<WebSocket> {
-  const url = `${CARTESIA_TTS_WS}?cartesia_version=${CARTESIA_VERSION}&api_key=${encodeURIComponent(apiKey)}`;
-  const ws = new WebSocket(url);
+  // The key goes in the `X-API-Key` header, as Cartesia documents for servers — not in the URL,
+  // where it ends up in proxy and access logs.
+  const url = `${CARTESIA_TTS_WS}?cartesia_version=${cartesiaApiVersion()}`;
+  const ws = new WebSocket(url, { headers: { "X-API-Key": apiKey } });
   await new Promise<void>((resolve, reject) => {
     const timer = setTimeout(() => {
       ws.terminate();
@@ -291,11 +311,8 @@ export class CartesiaTtsProvider implements TtsProvider {
         attachCartesiaHandlers(ws, queue, contextId);
         ws.send(
           JSON.stringify({
-            model_id: resolveCartesiaTtsModel(req.model ?? self.defaultModel),
+            ...replyFields(resolveCartesiaTtsModel(req.model ?? self.defaultModel), req),
             transcript: trimmed,
-            voice: buildVoice(req),
-            output_format: buildOutputFormat(req.sampleRate),
-            language: "en",
             context_id: contextId,
           }),
         );
@@ -330,9 +347,7 @@ export class CartesiaTtsProvider implements TtsProvider {
     return alignPcm16(
       (async function* (): AsyncGenerator<Buffer> {
         const queue = new ChunkQueue();
-        const model = resolveCartesiaTtsModel(req.model ?? self.defaultModel);
-        const voice = buildVoice(req);
-        const outputFormat = buildOutputFormat(req.sampleRate);
+        const fields = replyFields(resolveCartesiaTtsModel(req.model ?? self.defaultModel), req);
         let bufferDelayMs = bufferDelayToSend();
         // Decided once per reply: a fallback mid-reply keeps the phrases already cut.
         const cutPhrases = bufferDelayMs === 0;
@@ -348,11 +363,8 @@ export class CartesiaTtsProvider implements TtsProvider {
           if (ws.readyState !== WebSocket.OPEN) return;
           ws.send(
             JSON.stringify({
-              model_id: model,
+              ...fields,
               transcript,
-              voice,
-              output_format: outputFormat,
-              language: "en",
               context_id: contextId,
               // Unset on the last message: that closes the context so Cartesia finalises and
               // sends `done`.

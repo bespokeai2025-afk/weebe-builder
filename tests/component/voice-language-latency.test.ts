@@ -503,3 +503,47 @@ describe("prompt phrase routing", () => {
     expect(tryHeuristicEdgeIndex(conditions, "how long will this take", agent)).toBe(2);
   });
 });
+
+describe("phone-shaped replies", () => {
+  it("counts written and spoken digits, with double and triple", async () => {
+    const { spokenDigitCount } = await import("@/lib/voice/graph/router");
+    expect(spokenDigitCount("996 491-9000.")).toBe(10);
+    expect(spokenDigitCount("Double nine six four nine one nine triple zero.")).toBe(10);
+    expect(spokenDigitCount("In 2023.")).toBe(4);
+    expect(spokenDigitCount("One million dollars")).toBe(1);
+  });
+
+  it("treats a year, date or amount as not a phone number", async () => {
+    const { carriesPhoneNumber } = await import("@/lib/voice/graph/router");
+    expect(carriesPhoneNumber("In 2023.")).toBe(false);
+    expect(carriesPhoneNumber("It's 28 December 2001.")).toBe(false);
+    expect(carriesPhoneNumber("$50,000.")).toBe(false);
+    expect(carriesPhoneNumber("996 491-9000.")).toBe(true);
+    expect(carriesPhoneNumber("One two four one five one two.")).toBe(true);
+  });
+});
+
+describe("a phone number read out in groups", () => {
+  it("holds the turn open after a digit group, even when STT adds a full stop", async () => {
+    const { looksLikeIncompletePartial, looksLikePartialPhoneNumber, resolveEndpointHangoverMs, INCOMPLETE_PARTIAL_HANGOVER_MS } =
+      await import("@/lib/voice/turn-commit.shared");
+    expect(looksLikePartialPhoneNumber("O seven seven double o.")).toBe(true);
+    expect(looksLikePartialPhoneNumber("077 00")).toBe(true);
+    expect(looksLikePartialPhoneNumber("o seven seven")).toBe(true); // the first group, as heard live
+    expect(looksLikeIncompletePartial("O seven seven double o.")).toBe(true);
+    expect(resolveEndpointHangoverMs("O seven seven double o.", 400)).toBe(INCOMPLETE_PARTIAL_HANGOVER_MS);
+  });
+
+  it("does not hold a full number, an amount, a year or a date", async () => {
+    const { looksLikePartialPhoneNumber } = await import("@/lib/voice/turn-commit.shared");
+    expect(looksLikePartialPhoneNumber("O seven seven double o nine hundred one two three.")).toBe(false);
+    expect(looksLikePartialPhoneNumber("07700 900123")).toBe(false);
+    expect(looksLikePartialPhoneNumber("$50,000.")).toBe(false);
+    expect(looksLikePartialPhoneNumber("In 2023.")).toBe(false);
+    expect(looksLikePartialPhoneNumber("It's 28 December 2001.")).toBe(false);
+    expect(looksLikePartialPhoneNumber("Yes.")).toBe(false);
+    expect(looksLikePartialPhoneNumber("12")).toBe(false);
+    expect(looksLikePartialPhoneNumber("Seven.")).toBe(false);
+    expect(looksLikePartialPhoneNumber("Twelve. High Street, Manchester, M1 1AA.")).toBe(false);
+  });
+});

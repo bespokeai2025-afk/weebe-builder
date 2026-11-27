@@ -116,6 +116,14 @@ import { listElevenLabsVoices, cloneElevenLabsVoice } from "@/lib/builder/eleven
 import { WEBEE_NATIVE_LLM_MODELS, defaultModelForProvider } from "@/lib/voice/webee-native.shared";
 import { ModelSpeedLine, ModelSpeedWarning, VoiceSpeedHint, useEngineSpeed } from "./EngineSpeedHint";
 import { VoicePickerDialog, VoiceSummaryButton } from "@/components/builder/voice-picker/VoicePickerDialog";
+import { ProviderModelSelect } from "@/components/builder/ProviderModelSelect";
+import { DEEPGRAM_STT_DEFAULT_MODEL, DEEPGRAM_STT_MODELS } from "@/lib/voice/providers/deepgram.config.shared";
+import {
+  CARTESIA_STT_DEFAULT_MODEL,
+  CARTESIA_STT_MODELS,
+  CARTESIA_TTS_MODELS,
+  resolveCartesiaTtsModel,
+} from "@/lib/voice/providers/cartesia.config.shared";
 import { extractPostCallVariables, type PostCallExtracted } from "@/lib/builder/post-call-extract.functions";
 import { saveHyperStreamTestCall, updateCallSentiment } from "@/lib/builder/save-hyperstream-call.functions";
 import { LATENCY_BUDGET_MS } from "@/lib/voice/call-latency-stats.shared";
@@ -1649,12 +1657,28 @@ export function Builder({
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="fish">Fish Audio ASR</SelectItem>
-                          <SelectItem value="deepgram">Deepgram Nova-2</SelectItem>
+                          <SelectItem value="deepgram">Deepgram</SelectItem>
                           <SelectItem value="assemblyai">AssemblyAI Universal-Streaming</SelectItem>
-                          <SelectItem value="cartesia">Cartesia Ink-Whisper</SelectItem>
+                          <SelectItem value="cartesia">Cartesia</SelectItem>
                           <SelectItem value="openai">OpenAI Whisper</SelectItem>
                         </SelectContent>
                       </Select>
+                      {settings.webeeSttProvider === "deepgram" && (
+                        <ProviderModelSelect
+                          label="Deepgram model"
+                          value={settings.deepgramSttModel ?? DEEPGRAM_STT_DEFAULT_MODEL}
+                          options={DEEPGRAM_STT_MODELS}
+                          onChange={(v) => setSettings({ deepgramSttModel: v })}
+                        />
+                      )}
+                      {settings.webeeSttProvider === "cartesia" && (
+                        <ProviderModelSelect
+                          label="Cartesia model"
+                          value={settings.cartesiaSttModel ?? CARTESIA_STT_DEFAULT_MODEL}
+                          options={CARTESIA_STT_MODELS}
+                          onChange={(v) => setSettings({ cartesiaSttModel: v })}
+                        />
+                      )}
                       {settings.webeeSttProvider === "openai" && (
                         <p className="text-[10px] text-muted-foreground">
                           Whisper transcribes after the caller stops speaking, so replies come back
@@ -1668,6 +1692,14 @@ export function Builder({
                       <Label className="text-[10px] text-muted-foreground">Voice</Label>
                       <VoiceSummaryButton onClick={() => setVoicePickerOpen(true)} />
                       <VoiceSpeedHint speed={engineSpeed} provider={settings.webeeTtsProvider ?? "fish"} />
+                      {settings.webeeTtsProvider === "cartesia" && (
+                        <ProviderModelSelect
+                          label="Cartesia voice model"
+                          value={resolveCartesiaTtsModel(settings as unknown as Record<string, unknown>, settings.webeeTtsModel)}
+                          options={CARTESIA_TTS_MODELS}
+                          onChange={(v) => setSettings({ cartesiaTtsModel: v })}
+                        />
+                      )}
                     </div>
                     <VoicePickerDialog open={voicePickerOpen} onOpenChange={setVoicePickerOpen} />
                     <div className="space-y-1.5">

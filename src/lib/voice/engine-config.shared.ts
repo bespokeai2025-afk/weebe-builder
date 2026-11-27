@@ -21,11 +21,25 @@ export const ENGINE_CONFIG_ENV = {
   ttsNoAudioTimeoutMs: "WEBEE_NATIVE_TTS_NO_AUDIO_TIMEOUT_MS",
   maxDetailReasks: "WEBEE_NATIVE_MAX_DETAIL_REASKS",
   identifierExtractionWaitMs: "WEBEE_NATIVE_IDENTIFIER_EXTRACTION_WAIT_MS",
+  phoneNumberMinDigits: "WEBEE_NATIVE_PHONE_NUMBER_MIN_DIGITS",
   toolArgsWaitMs: "WEBEE_NATIVE_TOOL_ARGS_WAIT_MS",
   cartesiaMaxBufferDelayMs: "WEBEE_NATIVE_CARTESIA_MAX_BUFFER_DELAY_MS",
   cartesiaCatalogApiVersion: "WEBEE_CARTESIA_CATALOG_API_VERSION",
   speechPromptWarmup: "WEBEE_NATIVE_LLM_WARMUP",
+  openAiServiceTier: "WEBEE_NATIVE_OPENAI_SERVICE_TIER",
 } as const;
+
+/**
+ * OpenAI processing tier for voice requests ("priority"/"fast", "flex", "default"); unset sends
+ * none, which is the project's default tier. Priority ("Fast mode") is billed at a premium and,
+ * measured from India against gpt-4.1-mini, cut first-word time only ~40 ms (1,118 vs 1,161 ms
+ * median) — the network round trip dominated. Worth re-measuring from the production region.
+ */
+export function openAiServiceTier(): string | null {
+  const raw = typeof process !== "undefined" ? process.env?.[ENGINE_CONFIG_ENV.openAiServiceTier] : undefined;
+  const tier = String(raw ?? "").trim().toLowerCase();
+  return /^(priority|fast|flex|default|auto|scale)$/.test(tier) ? tier : null;
+}
 
 /**
  * Whether a call opens its speech model's connection and prompt cache while the greeting plays.
@@ -76,6 +90,14 @@ export function maxDetailReasks(nodeOverride?: unknown): number {
  */
 export function identifierExtractionWaitMs(): number {
   return envNumber(ENGINE_CONFIG_ENV.identifierExtractionWaitMs, 1_500);
+}
+
+/**
+ * Fewest digits a reply must carry to count as a phone number for that courtesy wait. A year
+ * ("In 2023"), a date or an amount ("$50,000") is not one, and each used to cost the full wait.
+ */
+export function phoneNumberMinDigits(): number {
+  return envNumber(ENGINE_CONFIG_ENV.phoneNumberMinDigits, 7);
 }
 
 /**

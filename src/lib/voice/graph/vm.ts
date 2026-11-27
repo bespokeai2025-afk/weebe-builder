@@ -63,6 +63,7 @@ import {
   selectGlobalNode,
   looksLikeEmailAnswer,
   looksLikePhoneAnswer,
+  carriesPhoneNumber,
   looksLikeRepairRequest,
   tryHeuristicEdgeIndex,
   edgeIsTerminalOrOptOutCondition,
@@ -630,7 +631,32 @@ export class ConversationVm {
     if (mode === "llm") return null;
     const raw = String(dest.instruction.text ?? "").trim();
     if (!raw || /^NO_RESPONSE_NEEDED$/i.test(raw)) return null;
+    if (this.readsValueStillBeingCaptured(raw)) return null;
     return interpolateStaticSpeech(raw, this.variables) || null;
+  }
+
+  /**
+   * A fixed line that reads back a detail with no value yet, while this turn's extraction is still
+   * running. The caller has usually just said it ("In 2023" → "Ok {{business_start_date}}, correct?"):
+   * spoken now, the line comes out as "Ok, correct?".
+   */
+  private readsValueStillBeingCaptured(raw: string): boolean {
+    return !!this.pendingExtraction && missingVariableNames(raw, this.variables).length > 0;
+  }
+
+  /**
+   * Let this turn's extraction fill the values a fixed line reads before it is spoken, waiting no
+   * longer than the identifier wait. Left in place for the turn's own consumer, which applies it
+   * again (harmless) and reports the captured values.
+   */
+  private async awaitValuesThisLineReads(raw: string): Promise<void> {
+    const pending = this.pendingExtraction;
+    if (!pending || !this.readsValueStillBeingCaptured(raw)) return;
+    const captured = await Promise.race([
+      pending,
+      new Promise<null>((r) => setTimeout(() => r(null), identifierExtractionWaitMs())),
+    ]);
+    if (captured && Object.keys(captured).length > 0) this.rememberVariables(captured);
   }
 
   private consumeSkipSpeech(nodeId: string): boolean {
@@ -647,6 +673,7 @@ export class ConversationVm {
     const mode = responseModeFromInstruction(dest.instruction.type);
     if (mode === "static") {
       if (!raw || /^NO_RESPONSE_NEEDED$/i.test(raw)) return null;
+      if (this.readsValueStillBeingCaptured(raw)) return null;
       const spoken = interpolateStaticSpeech(raw, this.variables);
       return spoken ? { kind: "static", text: spoken } : null;
     }
@@ -1200,8 +1227,10 @@ export class ConversationVm {
     // Same for a reply that carries an email or phone number — usually a correction. The agent's
     // next line reads such values back, so it must see the new one (or know it could not be used)
     // rather than repeat the old one.
+    // Phone-shaped by digit count: any four digits in a row ("In 2023", "28 December 2001") used to
+    // hold the turn for the full wait as if it were a number to read back.
     const carriesIdentifier =
-      looksLikeEmailAnswer(latestUser) || looksLikePhoneAnswer(latestUser) || soundsLikeEmail(latestUser);
+      looksLikeEmailAnswer(latestUser) || carriesPhoneNumber(latestUser) || soundsLikeEmail(latestUser);
     const gatedOnVars = edgeGateVars(node.edges).length > 0;
     if (this.pendingExtraction && (gatedOnVars || carriesIdentifier)) {
       const pending = this.pendingExtraction;
@@ -1978,6 +2007,7 @@ export class ConversationVm {
 
     if (mode === "static") {
       if (!raw) return null;
+      await this.awaitValuesThisLineReads(raw);
       const spoken = interpolateStaticSpeech(raw, this.variables);
       if (!spoken) return null;
       return { kind: "static", text: spoken };

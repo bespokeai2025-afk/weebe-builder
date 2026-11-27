@@ -7,6 +7,8 @@
  * Relative imports only — this module is reachable from vite.config.ts.
  */
 
+import { openAiServiceTier } from "../engine-config.shared";
+
 export type ChatRole = "system" | "user" | "assistant";
 export interface ChatMsg {
   role: ChatRole;
@@ -208,6 +210,62 @@ function noteRetiredModel(err: unknown, options: GptStreamOptions, auth: VoiceLl
   return true;
 }
 
+/**
+ * What a model has told this server it will not accept, keyed `provider:model`.
+ *
+ * OpenAI's reasoning models (gpt-5 and later) refuse `max_tokens` outright, differ on the lowest
+ * `reasoning_effort` they take ("none" on most, "minimal" on gpt-5-mini) and on whether
+ * `temperature` may be set, while gpt-4.1 / gpt-4o refuse `reasoning_effort` entirely. A table of
+ * model names would be out of date by the next release, so each request starts from the fastest
+ * settings and a 400 naming the parameter is read once, applied, and remembered for the process.
+ */
+interface ModelRequestRules {
+  /** Lowest reasoning effort the model takes; null = the model has no such parameter. */
+  reasoningEffort?: string | null;
+  /** The model only allows its default temperature. */
+  defaultTemperatureOnly?: boolean;
+}
+const modelRequestRules = new Map<string, ModelRequestRules>();
+
+/** Test hook. */
+export function resetModelRequestRulesForTests(): void {
+  modelRequestRules.clear();
+}
+
+/** First guess for a model nothing has been learned about: non-reasoning families take no effort. */
+function initialReasoningEffort(model: string): string | null {
+  return isLegacyOpenAiVoiceModel(model) ? null : "none";
+}
+
+/**
+ * Learn from a 400 that names a request parameter, and say whether the request should be retried.
+ * Only parameters this module sets are handled; anything else surfaces as before.
+ */
+function noteRejectedParameter(err: unknown, provider: VoiceLlmProvider, model: string): boolean {
+  if (provider !== "openai") return false;
+  const message = err instanceof Error ? err.message : String(err);
+  if (!/\b400\b/.test(message)) return false;
+  const key = `${provider}:${model}`;
+  const rules: ModelRequestRules = { ...modelRequestRules.get(key) };
+  const before = JSON.stringify(rules);
+  if (/reasoning_effort/.test(message)) {
+    if (/Unrecognized request argument|not supported with this model|Unsupported parameter/i.test(message)) {
+      rules.reasoningEffort = null;
+    } else {
+      // "Supported values are: 'minimal', 'low', ..." — the first listed is the lowest.
+      const supported = message.match(/Supported values are:\s*'([a-z]+)'/i)?.[1];
+      if (supported) rules.reasoningEffort = supported.toLowerCase();
+    }
+  }
+  if (/'temperature'/.test(message) && /default \(1\)|does not support/i.test(message)) {
+    rules.defaultTemperatureOnly = true;
+  }
+  if (JSON.stringify(rules) === before) return false;
+  modelRequestRules.set(key, rules);
+  console.warn(`[voice-llm] ${provider} ${model} request adjusted after: ${message.slice(0, 160)}`);
+  return true;
+}
+
 export interface GptStreamOptions {
   model: string;
   apiKey: string;
@@ -229,6 +287,11 @@ export interface GptStreamOptions {
    * provider once it reports `model` retired. Routing passes its own classifier here.
    */
   fallbackModels?: Partial<Record<VoiceLlmProvider, string>>;
+  /**
+   * OpenAI `prompt_cache_key`: requests sharing a long prompt prefix (one agent's calls) carry the
+   * same key so they are routed to the same cache. OpenAI recommends it for exactly this case.
+   */
+  promptCacheKey?: string;
 }
 
 /**
@@ -279,7 +342,12 @@ async function* streamChatServed(
   try {
     yield* streamChat(messages, options, auth);
   } catch (err) {
-    // A retired model is refused before any token is sent, so nothing has been yielded yet.
+    // A retired model or a refused parameter is rejected before any token is sent, so nothing
+    // has been yielded yet and the request can simply be made again.
+    if (noteRejectedParameter(err, auth.provider, requestModel(options, auth))) {
+      yield* streamChatServed(messages, options, auth);
+      return;
+    }
     if (!noteRetiredModel(err, options, auth)) throw err;
     yield* streamChat(messages, options, auth);
   }
@@ -293,13 +361,27 @@ function buildChatBody(
 ): Record<string, unknown> {
   const textModel = requestModel(options, auth);
   const body: Record<string, unknown> = { model: textModel, messages, stream };
-  if (typeof options.temperature === "number") body.temperature = options.temperature;
-  if (typeof options.maxTokens === "number") body.max_tokens = options.maxTokens;
-  if (options.responseFormat) body.response_format = { type: options.responseFormat };
-  // gpt-oss-120b thinks before it speaks; low effort keeps voice TTFT usable.
-  if (auth.provider === "cerebras" && textModel.startsWith("gpt-oss-")) {
-    body.reasoning_effort = "low";
+  if (auth.provider === "openai") {
+    const rules = modelRequestRules.get(`openai:${textModel}`) ?? {};
+    if (typeof options.temperature === "number" && !rules.defaultTemperatureOnly) {
+      body.temperature = options.temperature;
+    }
+    // `max_tokens` is refused by every reasoning model; `max_completion_tokens` works on all.
+    if (typeof options.maxTokens === "number") body.max_completion_tokens = options.maxTokens;
+    // A reasoning model at its default effort thinks before the first word — seconds on a voice
+    // turn. The lowest effort it accepts keeps it answering at once.
+    const effort = rules.reasoningEffort !== undefined ? rules.reasoningEffort : initialReasoningEffort(textModel);
+    if (effort) body.reasoning_effort = effort;
+    const tier = openAiServiceTier();
+    if (tier) body.service_tier = tier;
+    if (options.promptCacheKey) body.prompt_cache_key = options.promptCacheKey;
+  } else {
+    if (typeof options.temperature === "number") body.temperature = options.temperature;
+    if (typeof options.maxTokens === "number") body.max_tokens = options.maxTokens;
+    // gpt-oss-120b thinks before it speaks; low effort keeps voice TTFT usable.
+    if (textModel.startsWith("gpt-oss-")) body.reasoning_effort = "low";
   }
+  if (options.responseFormat) body.response_format = { type: options.responseFormat };
   return body;
 }
 
@@ -433,6 +515,9 @@ async function completeServed(
   try {
     return await completeOnce(messages, options, auth);
   } catch (err) {
+    if (noteRejectedParameter(err, auth.provider, requestModel(options, auth))) {
+      return await completeServed(messages, options, auth);
+    }
     if (!noteRetiredModel(err, options, auth)) throw err;
     return await completeOnce(messages, options, auth);
   }

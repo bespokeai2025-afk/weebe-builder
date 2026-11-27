@@ -256,6 +256,8 @@ export async function buildGraphRuntime(
       classifierModel,
       openAiClassifierModel: resolveWebeeOpenAiClassifierModel(settings),
       temperature: typeof flow.model_temperature === "number" ? flow.model_temperature : undefined,
+      // One agent's calls share the same long system prefix; one key keeps them on one cache.
+      promptCacheKey: options.agentId ? `webee-agent-${options.agentId}` : undefined,
     }),
     () => vm.getTurnTrace(),
   );

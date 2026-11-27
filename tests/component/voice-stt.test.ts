@@ -198,9 +198,44 @@ describe("Deepgram live listen", () => {
     });
     expect(url).toContain("encoding=linear16");
     expect(url).toContain("sample_rate=24000");
-    expect(url).toContain("model=nova-2");
-    expect(url).toContain("keywords=Jumeirah");
+    expect(url).toContain("model=nova-3");
+    // Nova-3 refuses `keywords` (HTTP 400): boosting must go out as `keyterm`.
+    expect(url).toContain("keyterm=Jumeirah");
+    expect(url).not.toContain("keywords=");
     expect(DEEPGRAM_KEEPALIVE_MS).toBeLessThan(10_000);
+  });
+
+  it("keeps `keywords` for older models and takes endpointing from the config", async () => {
+    const { buildDeepgramListenUrl } = await import("@/lib/voice/stt/deepgram");
+    const url = buildDeepgramListenUrl({ sampleRate: 16_000, keywords: ["Jumeirah"] }, "nova-2", { endpointingMs: 200 });
+    expect(url).toContain("keywords=Jumeirah");
+    expect(url).not.toContain("keyterm=");
+    expect(url).toContain("endpointing=200");
+  });
+});
+
+describe("Deepgram Flux listen", () => {
+  it("uses /v2/listen in own-turn-detection mode with keyterms, and no language on the English model", async () => {
+    const { buildDeepgramFluxUrl } = await import("@/lib/voice/stt/deepgram-flux");
+    const url = buildDeepgramFluxUrl({ sampleRate: 16_000, language: "en", keywords: ["Arjav"] }, "flux-general-en");
+    expect(url).toContain("wss://api.deepgram.com/v2/listen");
+    expect(url).toContain("model=flux-general-en");
+    expect(url).toContain("eot_threshold=1.0");
+    expect(url).toContain("keyterm=Arjav");
+    expect(url).not.toContain("language");
+  });
+
+  it("hints the language only on the multilingual model, and refuses rates Flux does not take", async () => {
+    const { buildDeepgramFluxUrl } = await import("@/lib/voice/stt/deepgram-flux");
+    expect(buildDeepgramFluxUrl({ sampleRate: 8_000, language: "es-ES" }, "flux-general-multi")).toContain("language_hint=es");
+    expect(() => buildDeepgramFluxUrl({ sampleRate: 22_050 }, "flux-general-en")).toThrow(/22050/);
+  });
+
+  it("routes Flux models to the Flux session and reports Flux's capabilities", async () => {
+    const { DeepgramSttProvider } = await import("@/lib/voice/stt/deepgram");
+    const flux = new DeepgramSttProvider("k", "flux-general-en");
+    expect(flux.capabilities.segmentFinalsBeforeEndpoint).toBe(false);
+    expect(new DeepgramSttProvider("k", "nova-3").capabilities.segmentFinalsBeforeEndpoint).toBe(true);
   });
 });
 
@@ -229,13 +264,23 @@ describe("AssemblyAI live listen", () => {
 });
 
 describe("Cartesia live listen", () => {
+  it("defaults to Ink-2 with keyterms, and sends no language (an Ink-Whisper parameter)", async () => {
+    const { buildCartesiaListenUrl } = await import("@/lib/voice/stt/cartesia");
+    const url = buildCartesiaListenUrl({ sampleRate: 24_000, language: "en", keywords: ["Arjav", "Arjav", ""] });
+    expect(url).toContain("model=ink-2");
+    expect(url).toContain("cartesia_version=2026-08-14");
+    expect(url.match(/keyterm=Arjav/g)).toHaveLength(1);
+    expect(url).not.toContain("language=");
+  });
+
   it("builds a pcm_s16le URL at the cascade sample rate with the ink-whisper model", async () => {
     const { buildCartesiaListenUrl, CARTESIA_KEEPALIVE_MS } = await import(
       "@/lib/voice/stt/cartesia"
     );
-    const url = buildCartesiaListenUrl({ sampleRate: 24_000, language: "en" });
+    const url = buildCartesiaListenUrl({ sampleRate: 24_000, language: "en", keywords: ["Arjav"] }, "ink-whisper");
     expect(url).toContain("wss://api.cartesia.ai/stt/websocket");
     expect(url).toContain("model=ink-whisper");
+    expect(url).not.toContain("keyterm=");
     expect(url).toContain("encoding=pcm_s16le");
     expect(url).toContain("sample_rate=24000");
     expect(url).toContain("language=en");

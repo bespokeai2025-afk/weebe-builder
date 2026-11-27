@@ -1,30 +1,19 @@
 /**
- * `sttMode` / `vocabSpecialization` — Deepgram tuning knobs stored from the builder and read by
- * nobody: `DeepgramSttProvider` always transcribed on the hardcoded default model regardless of
- * what the agent configured.
+ * `sttMode` / `vocabSpecialization` → Deepgram model.
  *
- * Deepgram's real model catalog is the mapping surface here: `nova-2` is the accurate general
- * model, `base` is the cheaper/faster tier, `nova-2-medical` is the domain model for clinical
- * vocabulary. `sttMode: "custom"` has no distinct Deepgram model to map to — it falls back to the
- * same accurate general model as "accurate" rather than silently inventing a model name Deepgram
- * doesn't have.
+ * The model choice now lives in `providers/deepgram.config.shared.ts` (`resolveDeepgramSttModel`),
+ * with the rest of Deepgram's configuration. `sttMode` used to pick the model — "fast" mapped to
+ * Deepgram's legacy `base` model, which on the same clip heard "a free hold… Ar job Ver ronnie… the
+ * Ein n" where Nova-3 heard every word right, and Nova-3 is as fast. A medical vocabulary still
+ * picks the medical model.
  *
- * `denoisingMode` is deliberately NOT handled here — Deepgram's streaming `listen` endpoint (see
- * `buildDeepgramListenUrl`) has no noise-cancellation query parameter to map it to, and Fish's
- * realtime ASR has no such option either. Wiring it would mean inventing a parameter that doesn't
- * exist on either provider, so it stays unwired until a provider actually supports it.
+ * `denoisingMode` is deliberately NOT handled here — Deepgram's streaming `listen` endpoint has no
+ * noise-cancellation query parameter to map it to.
  *
  * Relative imports only — reachable from the voice gateway bundle.
  */
+import { resolveDeepgramSttModel } from "../providers/deepgram.config.shared";
 
-export function resolveDeepgramModel(
-  settings: Record<string, unknown> | null | undefined,
-): string | undefined {
-  const vocab = settings?.vocabSpecialization;
-  if (vocab === "medical") return "nova-2-medical";
-
-  const mode = settings?.sttMode;
-  if (mode === "fast") return "base";
-  if (mode === "accurate" || mode === "custom") return "nova-2";
-  return undefined;
+export function resolveDeepgramModel(settings: Record<string, unknown> | null | undefined): string {
+  return resolveDeepgramSttModel(settings);
 }

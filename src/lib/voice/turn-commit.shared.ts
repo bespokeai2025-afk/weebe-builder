@@ -4,7 +4,7 @@
  */
 
 import { isLikelyEnglishSttHallucination, isMostlyNonLatinScript } from "./language-lock.shared";
-import { looksLikePhoneAnswer } from "./graph/router";
+import { looksLikePhoneAnswer, spokenDigitCount } from "./graph/router";
 
 /** A bare salutation ("Mr.", "Dr") — a complete one-word answer to any "how should I address you". */
 function looksLikeTitleAnswer(text: string): boolean {
@@ -96,9 +96,35 @@ const PARTIAL_POSTCODE_TAIL = /\b[a-z]{1,2}\d{1,2}[a-z]?$/i;
  * turn. Detecting incompleteness lets the base window come down and the extra
  * patience be spent only where it is actually needed.
  */
+/** Tokens that read out digits: numerals, digit words, "oh"/"o", "double"/"triple". */
+const DIGIT_TOKEN = /^(\d+|zero|oh|o|one|two|three|four|five|six|seven|eight|nine|double|triple|quadruple|hundred|thousand)$/;
+
+/**
+ * A number being read out digit by digit that has not reached phone length yet: "O seven seven
+ * double o", "077 00". Callers pause between digit groups, and STT ends each group with a full
+ * stop — on a test call the turn was cut after "O seven seven double o." and the rest of the
+ * number was lost. Judged by shape: nearly every word is a digit, 3–9 digits so far (a phone is
+ * 10+; callers pause after the first group, "o seven seven"). Amounts ("$50,000"), years
+ * ("In 2023"), dates and single numbers ("12", "Seven.") are not shaped like this.
+ *
+ * Limit: this needs the recogniser's in-progress text by the time the caller pauses. Deepgram's
+ * arrives ~1 s into speech from India, so an early pause can still end the turn.
+ */
+export function looksLikePartialPhoneNumber(text: string): boolean {
+  if (/[$£€%]|\d{1,3}(,\d{3})+/.test(text)) return false;
+  const words = text.toLowerCase().replace(/[.,!?;:\-]+/g, " ").split(/\s+/).filter(Boolean);
+  if (words.length === 0) return false;
+  const digitWords = words.filter((w) => DIGIT_TOKEN.test(w)).length;
+  if (digitWords / words.length < 0.8) return false;
+  const digits = spokenDigitCount(text);
+  return digits >= 3 && digits < 10;
+}
+
 export function looksLikeIncompletePartial(text: string): boolean {
   const t = text.trim().toLowerCase().replace(/[,;:\-]+$/g, "");
   if (!t) return false;
+  // Ahead of the punctuation rule: here the full stop is the recogniser's, not the caller's.
+  if (looksLikePartialPhoneNumber(text)) return true;
   // Terminal punctuation is the caller's own signal that they are done.
   if (/[.!?]$/.test(text.trim())) return false;
   // A commit-ready answer is complete by definition; never hold it back.

@@ -1,5 +1,6 @@
 /** WEBEE Native / ElevenLabs Voice in-browser test call through the cascade relay. Moved out of RetellDeployDialog unchanged; see deploy/test-call-session.ts. */
 import { toast } from "sonner";
+import { VOICE_SLOTS, activeVoiceSlot, voiceIdFor } from "@/lib/builder/agent-voice.shared";
 import { exportAgentJson } from "@/lib/builder/export-conversation-flow";
 import { buildAgentRuntimeDefinition } from "@/lib/runtime/export";
 import { resolveWebeeSpeechModel } from "@/lib/voice/webee-native.shared";
@@ -46,21 +47,19 @@ export async function runCascadeVoiceTestCall(session: TestCallSession): Promise
     wsRelayRef,
   } = session;
   // Both cascade engines share this relay; only the voice catalog differs.
-  // Fish takes a model id as `reference_id`, ElevenLabs takes its own voice id.
-  const voiceId = (
-    isWebeeNative
-      ? (settings.webeeVoiceId as string | undefined)
-      : (settings.voiceOutputId as string | undefined)
-  )?.trim();
+  // WEBEE Native keeps its voice in the field of the TTS provider it speaks with (Fish, Cartesia or
+  // OpenAI — see VOICE_SLOTS). Reading `webeeVoiceId` alone refused every Cartesia or OpenAI agent
+  // whose only voice was picked for that provider. ElevenLabs Voice uses `voiceOutputId`.
+  const voiceSettings = settings as unknown as Record<string, unknown>;
+  const voiceSlot = isWebeeNative ? activeVoiceSlot(voiceSettings) : "elevenlabs_output";
+  const voiceId = voiceIdFor(voiceSettings, voiceSlot);
   if (!voiceId) {
-    toast.error(
-      isWebeeNative ? "Select a voice first" : "Select an ElevenLabs voice first",
-      {
-        description: isWebeeNative
-          ? "Choose a voice under Voice Infrastructure → WEBEE Native Voice."
-          : "Open the OpenAI Engine panel and choose a voice under Voice Output → ElevenLabs.",
-      },
-    );
+    const provider = VOICE_SLOTS[voiceSlot].label;
+    toast.error(`Select a ${provider} voice first`, {
+      description: isWebeeNative
+        ? `Choose a ${provider} voice under Voice Infrastructure → WEBEE Native Voice.`
+        : "Open the OpenAI Engine panel and choose a voice under Voice Output → ElevenLabs.",
+    });
     return;
   }
 

@@ -41,6 +41,7 @@ import {
   type SttSession,
 } from "../stt";
 import type { SttCapabilities } from "../stt/types";
+import { resolveCartesiaTtsModel } from "../providers/cartesia.config.shared";
 import { createTtsProvider, parseTtsProviderName } from "../tts";
 import { normalizeSpeechText, type TtsVoiceRequest } from "../tts/types";
 import { fishTtsLanguage, resolveFishTtsModel } from "../tts/fish.provider";
@@ -96,7 +97,6 @@ import {
   type PronunciationEntry,
 } from "../tts/pronunciation-dictionary.shared";
 import { resolveDynamicSpeed } from "../tts/dynamic-voice-speed.shared";
-import { resolveDeepgramModel } from "../stt/stt-tuning.shared";
 import { CallTurnTrace, type LatencyMark } from "../graph/latency-trace";
 import { promptCharCount } from "../graph/traced-llm";
 import { ResponseLifecycle } from "../response-lifecycle.shared";
@@ -558,9 +558,12 @@ export class CascadeSession {
       openaiTtsInstructions: (this.config.settings as Record<string, unknown> | null)
         ?.webeeTtsInstructions as string | undefined,
       cartesiaApiKey: process.env.CARTESIA_API_KEY,
-      cartesiaTtsModel: (this.config.settings as Record<string, unknown> | null)?.webeeTtsModel as
-        | string
-        | undefined,
+      // Cartesia's own model setting (providers/cartesia.config.shared.ts); the OpenAI field is
+      // used only when it holds a Sonic id from before the settings were split.
+      cartesiaTtsModel: resolveCartesiaTtsModel(
+        this.config.settings as Record<string, unknown> | null,
+        (this.config.settings as Record<string, unknown> | null)?.webeeTtsModel as string | undefined,
+      ),
     };
     this.tts = createTtsProvider(ttsChoice, ttsOptions);
     // A second, unbound provider for one-off clips (backchannels), so rendering them never queues
@@ -614,11 +617,10 @@ export class CascadeSession {
       resolveWebeeSttPreference(this.config.settings, sttKeys) ??
       parseSttProviderName(this.config.settings?.webeeSttProvider) ??
       "fish";
-    const sttProvider = createSttProvider(
-      sttName,
-      sttKeys,
-      sttName === "deepgram" ? resolveDeepgramModel(this.config.settings) : undefined,
-    );
+    const sttProvider = createSttProvider(sttName, sttKeys, {
+      settings: this.config.settings as Record<string, unknown> | null,
+      language: this.sttLanguage,
+    });
     this.sttName = sttProvider.name;
     this.sttCaps = sttProvider.capabilities;
     this.stt = await sttProvider.open({
@@ -674,14 +676,14 @@ export class CascadeSession {
       if (speechPromptWarmupEnabled()) this.graphVm.warmSpeechPrompt();
       console.log(
         `${this.log} session ready mode=graph call=${this.config.callId} voice=${this.voiceProfile!.voiceId}` +
-          ` stt=${banner.stt} tts=${banner.tts} tts_model=${this.fishTtsModel} vad=${banner.vad}`,
+          ` stt=${banner.stt} tts=${banner.tts} tts_model=${this.voiceProfile?.model ?? this.fishTtsModel} vad=${banner.vad}`,
       );
       return banner;
     }
 
     console.log(
       `${this.log} session ready mode=flat call=${this.config.callId} voice=${this.voiceProfile!.voiceId}` +
-        ` stt=${banner.stt} tts=${banner.tts} tts_model=${this.fishTtsModel} vad=${banner.vad}`,
+        ` stt=${banner.stt} tts=${banner.tts} tts_model=${this.voiceProfile?.model ?? this.fishTtsModel} vad=${banner.vad}`,
     );
     this.warmTts();
     return banner;
@@ -2338,23 +2340,66 @@ export class CascadeSession {
   private scheduleUtteranceProcessing(): void {
     if (this.utteranceCoalesceTimer) clearTimeout(this.utteranceCoalesceTimer);
     const delay = resolveUtteranceCoalesceMs(this.partialNormalized, this.utteranceCoalesceMs);
-    this.utteranceCoalesceTimer = setTimeout(() => {
-      this.utteranceCoalesceTimer = null;
-      const frames = this.pendingUtteranceFrames;
-      this.pendingUtteranceFrames = [];
-      const speechStartAt = this.utteranceSpeechStartAt;
-      this.utteranceSpeechStartAt = null;
-      const voiceEndAt = this.utteranceVoiceEndAt;
-      this.utteranceVoiceEndAt = null;
-      const transcripts = this.burstTranscripts.take();
-      if (frames.length === 0) return;
-      this.turnPipeline = this.turnPipeline
-        .then(() => this.processTurn(frames, Date.now(), speechStartAt, voiceEndAt, transcripts))
-        .catch((err: Error) => {
-          console.error(`${this.log} processTurn unhandled: ${err.message}`);
-          this.endPlayback();
-        });
-    }, delay);
+    const scheduledAt = Date.now();
+    const timer = setTimeout(() => this.processCoalescedUtterance(), delay);
+    this.utteranceCoalesceTimer = timer;
+    this.shortenCoalesceFromTranscript(timer, delay, scheduledAt);
+  }
+
+  /**
+   * End the coalescing wait early once the words show a finished answer.
+   *
+   * The wait is cut short for a complete answer ("Yes.", "Mr") by reading the partial — but a
+   * provider that sends no partials (Cartesia ink-whisper), or whose last partial missed the
+   * endpoint, leaves nothing to read, so every reply sat through the full wait: 160 ms on each of
+   * 19 turns of a Cartesia call, "Yes." included. The burst's transcript was already requested when
+   * the VAD closed it and usually lands well inside the wait, so the same rule is applied to it.
+   * Speech resuming replaces the timer, which makes a late answer here a no-op.
+   */
+  private shortenCoalesceFromTranscript(
+    timer: ReturnType<typeof setTimeout>,
+    delay: number,
+    scheduledAt: number,
+  ): void {
+    if (!this.englishTurnRules) return;
+    const pending = this.burstTranscripts.peek();
+    if (pending.length === 0) return;
+    void joinBurstTranscripts(pending)
+      .then((text) => {
+        if (this.utteranceCoalesceTimer !== timer) return;
+        const words = normalizeEnglishLockedSttText(text.trim(), this.sttLanguage);
+        const shortened = resolveUtteranceCoalesceMs(words, this.utteranceCoalesceMs);
+        if (!words || shortened >= delay) return;
+        clearTimeout(timer);
+        const remaining = shortened - (Date.now() - scheduledAt);
+        if (remaining <= 0) {
+          this.processCoalescedUtterance();
+          return;
+        }
+        const next = setTimeout(() => this.processCoalescedUtterance(), remaining);
+        this.utteranceCoalesceTimer = next;
+      })
+      .catch(() => {
+        /* the turn reports a failed transcript itself; the full wait still runs */
+      });
+  }
+
+  private processCoalescedUtterance(): void {
+    this.utteranceCoalesceTimer = null;
+    const frames = this.pendingUtteranceFrames;
+    this.pendingUtteranceFrames = [];
+    const speechStartAt = this.utteranceSpeechStartAt;
+    this.utteranceSpeechStartAt = null;
+    const voiceEndAt = this.utteranceVoiceEndAt;
+    this.utteranceVoiceEndAt = null;
+    const transcripts = this.burstTranscripts.take();
+    if (frames.length === 0) return;
+    this.turnPipeline = this.turnPipeline
+      .then(() => this.processTurn(frames, Date.now(), speechStartAt, voiceEndAt, transcripts))
+      .catch((err: Error) => {
+        console.error(`${this.log} processTurn unhandled: ${err.message}`);
+        this.endPlayback();
+      });
   }
 
   // ── Turn bookkeeping ───────────────────────────────────────────────────────

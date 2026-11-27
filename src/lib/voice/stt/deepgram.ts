@@ -1,8 +1,11 @@
 /**
  * Deepgram streaming speech-to-text for WEBEE Native.
  *
- * Used when the agent sets `webeeSttProvider: "deepgram"`. TTS stays Fish.
- * Builder `boostedKeywords` go out as Deepgram `keywords=` plus post-correction.
+ * Used when the agent sets `webeeSttProvider: "deepgram"`. The model, endpointing and boosting
+ * come from `providers/deepgram.config.shared.ts`. Nova models run here on /v1/listen; Flux models
+ * run in `deepgram-flux.ts` on /v2/listen. Builder `boostedKeywords` go out as `keyterm=` on Nova-3
+ * and Flux (Nova-3 refuses `keywords` with HTTP 400) and `keywords=` on older models, plus
+ * post-correction either way.
  *
  * Deepgram closes the live socket after ~10s with no audio. Native gates STT
  * during long agent TTS (echo), so this session sends KeepAlive and reconnects
@@ -14,10 +17,17 @@
 
 import { WebSocket } from "ws";
 import { applyKeywordBoost } from "./keyword-boost.shared";
-import type { SttOpenOptions, SttProvider, SttSession } from "./types";
+import { DeepgramFluxSession } from "./deepgram-flux";
+import {
+  DEEPGRAM_STT_DEFAULT_MODEL,
+  deepgramApiFor,
+  deepgramBoostParam,
+  deepgramKeyterms,
+} from "../providers/deepgram.config.shared";
+import type { SttCapabilities, SttOpenOptions, SttProvider, SttSession } from "./types";
 
 const DEEPGRAM_URL = "wss://api.deepgram.com/v1/listen";
-const DEFAULT_MODEL = "nova-2";
+const DEFAULT_MODEL = DEEPGRAM_STT_DEFAULT_MODEL;
 /** Give up waiting for a flush rather than leaving the caller in silence. */
 const FINALIZE_TIMEOUT_MS = 1_500;
 const CONNECT_TIMEOUT_MS = 5_000;
@@ -37,6 +47,7 @@ interface DeepgramResult {
 export function buildDeepgramListenUrl(
   options: Pick<SttOpenOptions, "sampleRate" | "language" | "keywords">,
   model: string = DEFAULT_MODEL,
+  tuning: { endpointingMs?: number } = {},
 ): string {
   const params = new URLSearchParams({
     encoding: "linear16",
@@ -48,13 +59,11 @@ export function buildDeepgramListenUrl(
     smart_format: "true",
     // Our own VAD decides turn boundaries, but Deepgram's endpointing is what
     // makes it emit finals promptly instead of holding text back.
-    endpointing: "300",
+    endpointing: String(tuning.endpointingMs ?? 300),
   });
   if (options.language) params.set("language", options.language);
-  for (const keyword of options.keywords ?? []) {
-    const term = String(keyword ?? "").trim();
-    if (term) params.append("keywords", term);
-  }
+  const boost = deepgramBoostParam(model);
+  for (const term of deepgramKeyterms(options.keywords)) params.append(boost, term);
   return `${DEEPGRAM_URL}?${params.toString()}`;
 }
 
@@ -152,9 +161,12 @@ class DeepgramSttSession implements SttSession {
         }
       }
 
-      // A flush is satisfied by the first final that follows it, whether or not
-      // it carried text — silence must resolve the promise too.
-      if (this.pendingFlush) {
+      // A flush is satisfied by Deepgram's reply to it — the final marked `from_finalize`, which
+      // comes for every Finalize, even over silence (with empty text). The first final after the
+      // request is not enough: measured, an ordinary endpointing final ("and the EIN is…") lands
+      // ~90 ms before the `from_finalize` one, and resolving on it would leave anything in the
+      // flushed final for the caller's next turn.
+      if (this.pendingFlush && msg.from_finalize) {
         const resolve = this.pendingFlush;
         this.pendingFlush = null;
         resolve(this.drain());
@@ -314,26 +326,36 @@ class DeepgramSttSession implements SttSession {
 export class DeepgramSttProvider implements SttProvider {
   readonly name = "deepgram";
   readonly streaming = true;
-  /**
-   * Interim results stream as the caller talks. A partial covers the utterance only up to the
-   * last pause, and the final returns at once when nothing followed it, so the partial must not
-   * replace the final.
-   */
-  readonly capabilities = {
-    partials: true,
-    segmentFinalsBeforeEndpoint: true,
-    partialCanReplaceFinal: false,
-  } as const;
+  readonly capabilities: SttCapabilities;
 
   constructor(
     private readonly apiKey: string,
     private readonly model: string = DEFAULT_MODEL,
+    private readonly tuning: { endpointingMs?: number } = {},
   ) {
     if (!apiKey) throw new Error("Deepgram API key is required");
+    this.capabilities =
+      deepgramApiFor(model) === "flux"
+        ? {
+            // `Update` is the whole turn so far, but trails the audio, and Flux sends no finished
+            // segment before the turn ends — so the engine waits for EndOfTurn.
+            partials: true,
+            segmentFinalsBeforeEndpoint: false,
+            partialCanReplaceFinal: false,
+          }
+        : {
+            // Interim results stream as the caller talks. A partial covers the utterance only up to
+            // the last pause, and the final returns at once when nothing followed it, so the
+            // partial must not replace the final.
+            partials: true,
+            segmentFinalsBeforeEndpoint: true,
+            partialCanReplaceFinal: false,
+          };
   }
 
   async open(options: SttOpenOptions): Promise<SttSession> {
-    const url = buildDeepgramListenUrl(options, this.model);
+    if (deepgramApiFor(this.model) === "flux") return DeepgramFluxSession.open(this.apiKey, this.model, options);
+    const url = buildDeepgramListenUrl(options, this.model, this.tuning);
     const ws = await connectDeepgramSocket(this.apiKey, url);
     return new DeepgramSttSession(ws, this.apiKey, url, options);
   }

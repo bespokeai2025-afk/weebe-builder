@@ -10,6 +10,7 @@
  * Relative imports only — this module is reachable from vite.config.ts.
  */
 
+import { phoneNumberMinDigits } from "../engine-config.shared";
 import { interpolate } from "./flow";
 import {
   buildCompactRoutingMessages,
@@ -339,6 +340,41 @@ export function looksLikePhoneAnswer(userText: string): boolean {
     t.match(/\b(zero|oh|o|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|double|triple|quadruple)\b/gi) ??
     [];
   return numberWords.length >= 3;
+}
+
+const DIGIT_WORDS: Record<string, number> = {
+  zero: 1, oh: 1, o: 1, one: 1, two: 1, three: 1, four: 1, five: 1, six: 1, seven: 1, eight: 1, nine: 1,
+};
+/** "nine hundred" reads out 900: the multiplier adds its zeros to the digit before it. */
+const PLACE_WORDS: Record<string, number> = { hundred: 2, thousand: 3 };
+const REPEAT_WORDS: Record<string, number> = { double: 2, triple: 3, quadruple: 4 };
+
+/**
+ * How many digits a reply spells out, written or spoken: "996 491-9000" is 10, "double nine six"
+ * is 3, "nine hundred" is 3, "In 2023" is 4. Other number words ("fifty", "million") count none.
+ */
+export function spokenDigitCount(userText: string): number {
+  let count = 0;
+  let repeat = 1;
+  for (const token of userText.toLowerCase().match(/[a-z]+|\d+/g) ?? []) {
+    if (/^\d+$/.test(token)) {
+      count += token.length;
+      repeat = 1;
+    } else if (REPEAT_WORDS[token]) {
+      repeat = REPEAT_WORDS[token]!;
+    } else if (DIGIT_WORDS[token]) {
+      count += repeat;
+      repeat = 1;
+    } else if (PLACE_WORDS[token] && count > 0) {
+      count += PLACE_WORDS[token]!;
+    }
+  }
+  return count;
+}
+
+/** A reply long enough in digits to be a phone number, not a year, date or amount. */
+export function carriesPhoneNumber(userText: string): boolean {
+  return spokenDigitCount(userText) >= phoneNumberMinDigits();
 }
 
 function edgeExpectsPhone(condition: string): boolean {

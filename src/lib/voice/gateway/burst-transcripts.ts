@@ -20,6 +20,11 @@ export class BurstTranscripts {
     this.pending.push(transcript);
   }
 
+  /** The utterance's requests so far, left in place — for reading the words before the turn starts. */
+  peek(): Array<Promise<string>> {
+    return [...this.pending];
+  }
+
   /** The utterance's requests so far, handed to the turn; the next utterance starts empty. */
   take(): Array<Promise<string>> {
     const out = this.pending;

@@ -212,16 +212,38 @@ describe("parseTtsProviderName", () => {
 });
 
 describe("Cartesia TTS model", () => {
-  it("defaults to sonic-2", async () => {
+  it("defaults to sonic-3.6 (Sonic-2 was sunset after 2026-10-20)", async () => {
     const { CARTESIA_TTS_DEFAULT_MODEL, resolveCartesiaTtsModel } = await import(
       "@/lib/voice/tts/cartesia.provider"
     );
-    expect(CARTESIA_TTS_DEFAULT_MODEL).toBe("sonic-2");
-    expect(resolveCartesiaTtsModel()).toBe("sonic-2");
+    expect(CARTESIA_TTS_DEFAULT_MODEL).toBe("sonic-3.6");
+    expect(resolveCartesiaTtsModel()).toBe("sonic-3.6");
   });
 
-  it("honours an explicit model override", async () => {
+  it("honours an explicit Sonic override, and never sends another provider's model id", async () => {
     const { resolveCartesiaTtsModel } = await import("@/lib/voice/tts/cartesia.provider");
-    expect(resolveCartesiaTtsModel("sonic-turbo")).toBe("sonic-turbo");
+    expect(resolveCartesiaTtsModel("sonic-3.5")).toBe("sonic-3.5");
+    expect(resolveCartesiaTtsModel("gpt-4o-mini-tts")).toBe("sonic-3.6");
+    expect(resolveCartesiaTtsModel("s2.1-pro-free")).toBe("sonic-3.6");
+  });
+
+  it("reads the agent's own Cartesia model ahead of the shared field", async () => {
+    const { resolveCartesiaTtsModel } = await import("@/lib/voice/providers/cartesia.config.shared");
+    expect(resolveCartesiaTtsModel({ cartesiaTtsModel: "sonic-3" }, "sonic-3.5")).toBe("sonic-3");
+  });
+
+  it("turns the agent's speed and volume into Cartesia's generation_config, within its ranges", async () => {
+    const { cartesiaGenerationConfig } = await import("@/lib/voice/providers/cartesia.config.shared");
+    expect(cartesiaGenerationConfig({})).toBeUndefined();
+    expect(cartesiaGenerationConfig({ voiceSpeed: 1, volume: 1 })).toBeUndefined();
+    expect(cartesiaGenerationConfig({ voiceSpeed: 2, volume: 0.1 })).toEqual({ speed: 1.5, volume: 0.5 });
+    expect(cartesiaGenerationConfig({ voiceSpeed: 1.2 })).toEqual({ speed: 1.2 });
+  });
+
+  it("moves to Ink-Whisper for a language Ink-2 does not cover", async () => {
+    const { resolveCartesiaSttModel } = await import("@/lib/voice/providers/cartesia.config.shared");
+    expect(resolveCartesiaSttModel({}, "en-US")).toBe("ink-2");
+    expect(resolveCartesiaSttModel({}, "de-DE")).toBe("ink-whisper");
+    expect(resolveCartesiaSttModel({ cartesiaSttModel: "ink-whisper" }, "en")).toBe("ink-whisper");
   });
 });

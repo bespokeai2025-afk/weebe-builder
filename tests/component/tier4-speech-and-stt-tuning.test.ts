@@ -102,20 +102,23 @@ describe("resolveDynamicSilenceTimeoutMs", () => {
 });
 
 describe("resolveDeepgramModel", () => {
-  it("returns undefined (provider default) when nothing is configured", () => {
-    expect(resolveDeepgramModel({})).toBeUndefined();
-    expect(resolveDeepgramModel(null)).toBeUndefined();
+  it("uses Nova-3 when nothing is configured", () => {
+    expect(resolveDeepgramModel({})).toBe("nova-3");
+    expect(resolveDeepgramModel(null)).toBe("nova-3");
   });
 
   it("maps vocabSpecialization: medical to the medical model, ahead of sttMode", () => {
-    expect(resolveDeepgramModel({ vocabSpecialization: "medical", sttMode: "fast" })).toBe(
-      "nova-2-medical",
-    );
+    expect(resolveDeepgramModel({ vocabSpecialization: "medical", sttMode: "fast" })).toBe("nova-3-medical");
   });
 
-  it("maps sttMode fast/accurate/custom to Deepgram's real model names", () => {
-    expect(resolveDeepgramModel({ sttMode: "fast" })).toBe("base");
-    expect(resolveDeepgramModel({ sttMode: "accurate" })).toBe("nova-2");
-    expect(resolveDeepgramModel({ sttMode: "custom" })).toBe("nova-2");
+  it("never picks the legacy base model for 'Optimize for speed'", () => {
+    expect(resolveDeepgramModel({ sttMode: "fast" })).toBe("nova-3");
+    expect(resolveDeepgramModel({ sttMode: "accurate" })).toBe("nova-3");
+  });
+
+  it("uses the agent's own Deepgram model first", () => {
+    expect(resolveDeepgramModel({ deepgramSttModel: "flux-general-en", vocabSpecialization: "medical" })).toBe(
+      "flux-general-en",
+    );
   });
 });

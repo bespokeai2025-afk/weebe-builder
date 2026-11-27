@@ -1,7 +1,10 @@
 /**
  * Cartesia (Ink-Whisper) streaming speech-to-text for WEBEE Native.
  *
- * Used when the agent sets `webeeSttProvider: "cartesia"`. TTS stays Fish by default.
+ * Used when the agent sets `webeeSttProvider: "cartesia"`. Model, API version and keyterms come
+ * from `providers/cartesia.config.shared.ts` (Ink-2 by default; Ink-Whisper for languages Ink-2
+ * does not cover). This is Cartesia's manual endpoint: the engine's own end-of-speech detection
+ * decides the turn and sends `finalize`.
  *
  * Protocol (wss://api.cartesia.ai/stt/websocket — verified live against the real API, not just
  * docs): connect with the API key in the `X-API-Key` header (server-side; browsers use an
@@ -18,11 +21,17 @@
 
 import { WebSocket } from "ws";
 import { applyKeywordBoost } from "./keyword-boost.shared";
+import {
+  CARTESIA_STT_DEFAULT_MODEL,
+  CARTESIA_STT_MODELS,
+  cartesiaApiVersion,
+  cartesiaKeyterms,
+  cartesiaSttSupportsKeyterms,
+} from "../providers/cartesia.config.shared";
 import type { SttOpenOptions, SttProvider, SttSession } from "./types";
 
 const CARTESIA_URL = "wss://api.cartesia.ai/stt/websocket";
-const CARTESIA_VERSION = "2025-04-16";
-const DEFAULT_MODEL = "ink-whisper";
+const DEFAULT_MODEL = CARTESIA_STT_DEFAULT_MODEL;
 /** Give up waiting for a flush rather than leaving the caller in silence. */
 const FINALIZE_TIMEOUT_MS = 3_000;
 const CONNECT_TIMEOUT_MS = 5_000;
@@ -40,16 +49,22 @@ interface CartesiaSttMessage {
 }
 
 export function buildCartesiaListenUrl(
-  options: Pick<SttOpenOptions, "sampleRate" | "language">,
+  options: Pick<SttOpenOptions, "sampleRate" | "language" | "keywords">,
   model: string = DEFAULT_MODEL,
 ): string {
   const params = new URLSearchParams({
     model,
     encoding: "pcm_s16le",
     sample_rate: String(options.sampleRate),
-    cartesia_version: CARTESIA_VERSION,
+    cartesia_version: cartesiaApiVersion(),
   });
-  if (options.language) params.set("language", options.language);
+  // `language` is an Ink-Whisper parameter (Ink-2 detects among its own languages); a model this
+  // file does not know keeps receiving it, as every model used to.
+  const known = CARTESIA_STT_MODELS.find((m) => m.id === model);
+  if (options.language && (!known || known.languages === null)) params.set("language", options.language);
+  if (cartesiaSttSupportsKeyterms(model)) {
+    for (const term of cartesiaKeyterms(options.keywords)) params.append("keyterm", term);
+  }
   return `${CARTESIA_URL}?${params.toString()}`;
 }
 
@@ -111,8 +126,8 @@ class CartesiaSttSession implements SttSession {
         return;
       }
       if (msg.type === "flush_done" || msg.type === "done") {
-        // Only an ack that `finalize`/`close` was processed — the transcript itself (if any)
-        // arrives as its own "transcript" message, which may land before or after this one.
+        // `finalize`/`close` has been processed: every final piece for the audio sent so far has
+        // arrived (measured: always before this ack), so the flush resolves here and only here.
         this.resolveFlush();
         return;
       }
@@ -129,15 +144,16 @@ class CartesiaSttSession implements SttSession {
 
       this.latestPartial = "";
       if (text) {
-        const boosted = applyKeywordBoost(text, this.options.keywords);
+        // Kept as sent: Cartesia's docs say to join final pieces exactly, with no separator added
+        // and no whitespace stripped — each piece carries its own leading space.
+        const boosted = applyKeywordBoost(msg.text ?? "", this.options.keywords);
         this.segments.push(boosted);
-        this.options.onFinal?.(boosted);
+        this.options.onFinal?.(boosted.trim());
       }
-      if (this.pendingFlush) {
-        const resolve = this.pendingFlush;
-        this.pendingFlush = null;
-        resolve(this.drain());
-      }
+      // Not resolving the flush here: after `finalize`, Ink-2 sends the closing words in several
+      // final pieces (" 6", then "789.") before `flush_done`. Resolving on the first piece cut
+      // answers in two on live calls — "O77OO-90012" then "3. Yes, that's right." — and put the
+      // rest at the start of the caller's next turn.
     });
 
     ws.on("pong", () => {
@@ -214,7 +230,7 @@ class CartesiaSttSession implements SttSession {
   }
 
   private drain(): string {
-    const text = this.segments.join(" ").trim();
+    const text = this.segments.join("").replace(/\s+/g, " ").trim();
     this.segments = [];
     return text;
   }

@@ -510,7 +510,7 @@ export interface BuilderSettings {
   /**
    * STT for WEBEE_NATIVE.
    * "fish"     — Fish realtime ASR (default)
-   * "deepgram" — Deepgram Nova-2
+   * "deepgram" — Deepgram (Nova-3 by default, or Flux — see `deepgramSttModel`)
    * "openai"   — Whisper. Batch, not streaming: the transcription lands after end-of-speech, so it
    *              costs more turn latency than the other two.
    */
@@ -527,8 +527,16 @@ export interface BuilderSettings {
   cartesiaVoice?: string;
   /** Display name of `cartesiaVoice`, saved by the voice picker (calls only use the id). */
   cartesiaVoiceName?: string;
-  /** OpenAI speech model (defaults to gpt-4o-mini-tts). */
+  /** OpenAI speech model (defaults to gpt-4o-mini-tts). OpenAI only — Cartesia has its own field. */
   webeeTtsModel?: string;
+  /** Cartesia Sonic model (see CARTESIA_TTS_MODELS; defaults to sonic-3.6). */
+  cartesiaTtsModel?: string;
+  /** Cartesia STT model when webeeSttProvider === "cartesia" (ink-2 default, ink-whisper). */
+  cartesiaSttModel?: string;
+  /** Deepgram STT model when webeeSttProvider === "deepgram" (nova-3 default, flux-general-en, …). */
+  deepgramSttModel?: string;
+  /** Deepgram Nova `endpointing` in ms (default 300). */
+  deepgramEndpointingMs?: number;
   /** Delivery direction for the gpt-4o voices, e.g. "Warm, unhurried, British English." */
   webeeTtsInstructions?: string;
   /**

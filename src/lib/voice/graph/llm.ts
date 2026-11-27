@@ -45,6 +45,8 @@ export interface OpenAiVmLlmOptions {
    */
   openAiClassifierModel?: string;
   temperature?: number;
+  /** OpenAI prompt-cache routing key shared by every request of one agent — see `GptStreamOptions`. */
+  promptCacheKey?: string;
 }
 
 const CLASSIFY_SYSTEM = [
@@ -155,6 +157,7 @@ export function createOpenAiVmLlm(options: OpenAiVmLlmOptions): VmLlm {
       provider,
       temperature: options.temperature ?? 0.3,
       breaker,
+      promptCacheKey: options.promptCacheKey,
       ...extra,
     });
 
@@ -182,6 +185,7 @@ export function createOpenAiVmLlm(options: OpenAiVmLlmOptions): VmLlm {
           maxTokens: SPEECH_MAX_TOKENS,
           signal,
           breaker,
+          promptCacheKey: options.promptCacheKey,
         });
       const hedge = speechHedgeFor(provider ?? "default", model) ?? NO_HEDGE;
       return hedgedStream(open, hedge, {
